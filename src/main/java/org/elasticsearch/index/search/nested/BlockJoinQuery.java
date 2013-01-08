@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.docset.FixedBitDocSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -195,9 +196,13 @@ public class BlockJoinQuery extends Query {
 
         @Override
         public Explanation explain(IndexReader reader, int doc) throws IOException {
-            // TODO
-            throw new UnsupportedOperationException(getClass().getName() +
-                    " cannot explain match on parent document");
+            BlockJoinScorer scorer = (BlockJoinScorer) scorer(reader, true, false);
+            if (scorer != null) {
+                if (scorer.advance(doc) == doc) {
+                    return scorer.explain();
+                }
+            }
+            return new ComplexExplanation(false, 0.0f, "Not a match");
         }
 
         @Override
@@ -211,6 +216,7 @@ public class BlockJoinQuery extends Query {
         private final FixedBitSet parentBits;
         private final ScoreMode scoreMode;
         private final Collector childCollector;
+        private int prevParentDoc;
         private int parentDoc = -1;
         private float parentScore;
         private int nextChildDoc;
@@ -359,7 +365,7 @@ public class BlockJoinQuery extends Query {
                 return nextDoc();
             }
 
-            final int prevParentDoc = parentBits.prevSetBit(parentTarget - 1);
+            prevParentDoc = parentBits.prevSetBit(parentTarget - 1);
 
             //System.out.println("  rolled back to prevParentDoc=" + prevParentDoc + " vs parentDoc=" + parentDoc);
             assert prevParentDoc >= parentDoc;
@@ -377,6 +383,23 @@ public class BlockJoinQuery extends Query {
             //System.out.println("  return nextParentDoc=" + nd);
             return nd;
         }
+
+        public Explanation explain() throws IOException {
+            int start = prevParentDoc + 1; // +1 b/c prevParentDoc is previous parent doc
+            int end = parentDoc - 1; // -1 b/c parentDoc is parent doc
+            ComplexExplanation explanation = new ComplexExplanation(
+                    true, score(), String.format(Locale.ROOT, "Score based on score mode %s and child doc range from %d to %d", scoreMode, start, end)
+            );
+
+            for (int i = 0; i < childDocUpto; i++) {
+                int childDoc = pendingChildDocs[i];
+                float childScore = pendingChildScores[i];
+                explanation.addDetail(new Explanation(childScore, String.format(Locale.ROOT, "Child[%d]", childDoc)));
+            }
+
+            return explanation;
+        }
+
     }
 
     @Override

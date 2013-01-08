@@ -551,7 +551,18 @@ public class MapperQueryParser extends QueryParser {
         if (termStr.equals("*")) {
             // we want to optimize for match all query for the "*:*", and "*" cases
             if ("*".equals(field) || Objects.equal(field, this.field)) {
-                return newMatchAllDocsQuery();
+                String actualField = field;
+                if (actualField == null) {
+                    actualField = this.field;
+                }
+                if (actualField == null) {
+                    return newMatchAllDocsQuery();
+                }
+                if ("*".equals(actualField) || "_all".equals(actualField)) {
+                    return newMatchAllDocsQuery();
+                }
+                // effectively, we check if a field exists or not
+                return fieldQueryExtensions.get(ExistsFieldQueryExtension.NAME).query(parseContext, actualField);
             }
         }
         Collection<String> fields = extractMultiFields(field);

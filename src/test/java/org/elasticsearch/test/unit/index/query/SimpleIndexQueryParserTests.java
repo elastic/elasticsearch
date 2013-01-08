@@ -247,6 +247,33 @@ public class SimpleIndexQueryParserTests {
     }
 
     @Test
+    public void testMatchAllEmpty1() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/match_all_empty1.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, sameInstance(Queries.MATCH_ALL_QUERY));
+    }
+
+    @Test
+    public void testMatchAllEmpty2() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/match_all_empty2.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, sameInstance(Queries.MATCH_ALL_QUERY));
+    }
+
+    @Test
+    public void testStarColonStar() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/starColonStar.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        Filter internalFilter = constantScoreQuery.getFilter();
+        assertThat(internalFilter, instanceOf(MatchAllDocsFilter.class));
+    }
+
+    @Test
     public void testDisMaxBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(disMaxQuery().boost(1.2f).tieBreaker(0.7f).add(termQuery("name.first", "first")).add(termQuery("name.last", "last"))).query();

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.search;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IgnoreIndices;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -124,6 +126,14 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                 } else if ("ignore_indices".equals(currentFieldName) || "ignoreIndices".equals(currentFieldName)) {
                                     searchRequest.ignoreIndices(IgnoreIndices.fromString(parser.text()));
                                 }
+                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
+                                    searchRequest.indices(parseArray(parser));
+                                } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
+                                    searchRequest.types(parseArray(parser));
+                                } else {
+                                    throw new ElasticSearchParseException(currentFieldName + " doesn't support arrays");
+                                }
                             }
                         }
                     }
@@ -148,6 +158,15 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
         }
 
         return this;
+    }
+
+    private String[] parseArray(XContentParser parser) throws IOException {
+        final List<String> list = new ArrayList<String>();
+        assert parser.currentToken() == XContentParser.Token.START_ARRAY;
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            list.add(parser.text());
+        }
+        return list.toArray(new String[list.size()]);
     }
 
     private int findNextMarker(byte marker, int from, BytesReference data, int length) {

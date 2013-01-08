@@ -89,14 +89,22 @@ public class Version implements Serializable {
     public static final Version V_0_19_11 = new Version(V_0_19_11_ID, false);
     public static final int V_0_19_12_ID = /*00*/191299;
     public static final Version V_0_19_12 = new Version(V_0_19_12_ID, false);
+    public static final int V_0_19_13_ID = /*00*/191399;
+    public static final Version V_0_19_13 = new Version(V_0_19_13_ID, false);
 
     public static final int V_0_20_0_RC1_ID = /*00*/200051;
     public static final Version V_0_20_0_RC1 = new Version(V_0_20_0_RC1_ID, false);
 
-    public static final int V_0_20_0_RC2_ID = /*00*/200052;
-    public static final Version V_0_20_0_RC2 = new Version(V_0_20_0_RC2_ID, true);
+    public static final int V_0_20_0_ID = /*00*/200099;
+    public static final Version V_0_20_0 = new Version(V_0_20_0_ID, false);
+    public static final int V_0_20_1_ID = /*00*/200199;
+    public static final Version V_0_20_1 = new Version(V_0_20_1_ID, false);
+    public static final int V_0_20_2_ID = /*00*/200299;
+    public static final Version V_0_20_2 = new Version(V_0_20_2_ID, false);
+    public static final int V_0_20_3_ID = /*00*/200399;
+    public static final Version V_0_20_3 = new Version(V_0_20_3_ID, true);
 
-    public static final Version CURRENT = V_0_20_0_RC2;
+    public static final Version CURRENT = V_0_20_3;
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -104,8 +112,14 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_0_20_0_RC2_ID:
-                return V_0_20_0_RC2;
+            case V_0_20_3_ID:
+                return V_0_20_3;
+            case V_0_20_2_ID:
+                return V_0_20_2;
+            case V_0_20_1_ID:
+                return V_0_20_1;
+            case V_0_20_0_ID:
+                return V_0_20_0;
             case V_0_20_0_RC1_ID:
                 return V_0_20_0_RC1;
 
@@ -141,6 +155,8 @@ public class Version implements Serializable {
                 return V_0_19_11;
             case V_0_19_12_ID:
                 return V_0_19_12;
+            case V_0_19_13_ID:
+                return V_0_19_13;
 
             case V_0_18_0_ID:
                 return V_0_18_0;

@@ -24,7 +24,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
@@ -38,23 +37,6 @@ import java.util.*;
  *
  */
 public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
-
-    public static enum ScoreType {
-        MAX,
-        AVG,
-        SUM;
-
-        public static ScoreType fromString(String type) {
-            if ("max".equals(type)) {
-                return MAX;
-            } else if ("avg".equals(type)) {
-                return AVG;
-            } else if ("sum".equals(type)) {
-                return SUM;
-            }
-            throw new ElasticSearchIllegalArgumentException("No score type for child query [" + type + "] found");
-        }
-    }
 
     private Query query;
 
@@ -72,10 +54,12 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
     private Map<Object, ParentDoc[]> parentDocs;
 
+    // Actual value can get lost during query rewriting in dfs phase, but this isn't an issue now.
     private int numHits = 0;
 
     // Need to know if this query is properly used, otherwise the results are unexpected for example in the count api
-    private boolean properlyInvoked = false;
+    // Need to use boolean array instead of boolean primitive... b/c during query rewriting in dfs phase
+    private boolean[] properlyInvoked = new boolean[]{false};
 
     // Note, the query is expected to already be filtered to only child type docs
     public TopChildrenQuery(Query query, String scope, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
@@ -100,7 +84,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
     @Override
     public void clear() {
-        properlyInvoked = true;
+        properlyInvoked[0] = true;
         parentDocs = null;
         numHits = 0;
     }
@@ -206,7 +190,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
     @Override
     public Weight createWeight(Searcher searcher) throws IOException {
-        if (!properlyInvoked) {
+        if (!properlyInvoked[0]) {
             throw new ElasticSearchIllegalStateException("top_children query hasn't executed properly");
         }
 
@@ -282,6 +266,10 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
         @Override
         public int docID() {
+            if (index == -1) {
+                return -1;
+            }
+
             if (index >= docs.length) {
                 return NO_MORE_DOCS;
             }

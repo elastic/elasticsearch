@@ -106,7 +106,7 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
 
         public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
             if (parents == null) {
-                throw new ElasticSearchIllegalStateException("has_parent filter/query hasn't executed properly");
+                throw new ElasticSearchIllegalStateException("has_parent filter hasn't executed properly");
             }
 
             IdReaderTypeCache idReaderTypeCache = context.idCache().reader(reader).type(parentType);
@@ -190,7 +190,7 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
 
         public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
             if (parentDocs == null) {
-                throw new ElasticSearchIllegalStateException("has_parent filter/query hasn't executed properly");
+                throw new ElasticSearchIllegalStateException("has_parent filter hasn't executed properly");
             }
 
             return new ChildrenDocSet(reader, parentDocs, context, parentType);

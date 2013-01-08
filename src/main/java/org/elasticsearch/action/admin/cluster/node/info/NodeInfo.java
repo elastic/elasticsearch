@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.NodeOperationResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -49,6 +50,8 @@ public class NodeInfo extends NodeOperationResponse {
     @Nullable
     private String hostname;
 
+    private Version version;
+
     @Nullable
     private Settings settings;
 
@@ -76,11 +79,12 @@ public class NodeInfo extends NodeOperationResponse {
     NodeInfo() {
     }
 
-    public NodeInfo(@Nullable String hostname, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
+    public NodeInfo(@Nullable String hostname, Version version, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable NetworkInfo network,
                     @Nullable TransportInfo transport, @Nullable HttpInfo http) {
         super(node);
         this.hostname = hostname;
+        this.version = version;
         this.serviceAttributes = serviceAttributes;
         this.settings = settings;
         this.os = os;
@@ -106,6 +110,20 @@ public class NodeInfo extends NodeOperationResponse {
     @Nullable
     public String getHostname() {
         return hostname();
+    }
+
+    /**
+     * The current ES version
+     */
+    public Version version() {
+        return version;
+    }
+
+    /**
+     * The current ES version
+     */
+    public Version getVersion() {
+        return version();
     }
 
     /**
@@ -246,6 +264,7 @@ public class NodeInfo extends NodeOperationResponse {
         if (in.readBoolean()) {
             hostname = in.readUTF();
         }
+        version = Version.readVersion(in);
         if (in.readBoolean()) {
             ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
             int size = in.readVInt();
@@ -289,6 +308,7 @@ public class NodeInfo extends NodeOperationResponse {
             out.writeBoolean(true);
             out.writeUTF(hostname);
         }
+        out.writeVInt(version.id);
         if (serviceAttributes() == null) {
             out.writeBoolean(false);
         } else {

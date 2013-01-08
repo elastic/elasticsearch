@@ -20,6 +20,7 @@
 package org.elasticsearch.node.service;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.ClusterService;
@@ -60,6 +61,8 @@ public class NodeService extends AbstractComponent {
     @Nullable
     private String hostname;
 
+    private final Version version;
+
     @Inject
     public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
         super(settings);
@@ -73,6 +76,7 @@ public class NodeService extends AbstractComponent {
         if (address != null) {
             this.hostname = address.getHostName();
         }
+        this.version = Version.CURRENT;
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {
@@ -105,7 +109,7 @@ public class NodeService extends AbstractComponent {
     }
 
     public NodeInfo info() {
-        return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes,
+        return new NodeInfo(hostname, version, clusterService.state().nodes().localNode(), serviceAttributes,
                 settings,
                 monitorService.osService().info(),
                 monitorService.processService().info(),
@@ -118,7 +122,7 @@ public class NodeService extends AbstractComponent {
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean transport, boolean http) {
-        return new NodeInfo(hostname, clusterService.state().nodes().localNode(), serviceAttributes,
+        return new NodeInfo(hostname, version, clusterService.state().nodes().localNode(), serviceAttributes,
                 settings ? this.settings : null,
                 os ? monitorService.osService().info() : null,
                 process ? monitorService.processService().info() : null,

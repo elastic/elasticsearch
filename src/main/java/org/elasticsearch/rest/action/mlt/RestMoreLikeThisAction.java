@@ -55,6 +55,8 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).type(request.param("type")).id(request.param("id"));
+        mltRequest.routing(request.param("routing"));
+
         mltRequest.listenerThreaded(false);
         try {
             mltRequest.fields(request.paramAsStringArray("mlt_fields", null));

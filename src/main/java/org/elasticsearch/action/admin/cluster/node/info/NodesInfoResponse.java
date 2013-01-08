@@ -83,6 +83,10 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
                 builder.field("hostname", nodeInfo.hostname(), XContentBuilder.FieldCaseConversion.NONE);
             }
 
+            if (nodeInfo.version() != null) {
+                builder.field("version", nodeInfo.version());
+            }
+
             if (nodeInfo.serviceAttributes() != null) {
                 for (Map.Entry<String, String> nodeAttribute : nodeInfo.serviceAttributes().entrySet()) {
                     builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());

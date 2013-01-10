@@ -837,6 +837,11 @@ public class MetaData implements Iterable<IndexMetaData> {
             return this;
         }
 
+        public Builder put(Map<String, IndexTemplateMetaData> templates) {
+            this.templates.putAll(templates);
+            return this;
+        }
+
         public Builder removeTemplate(String templateName) {
             templates.remove(templateName);
             return this;

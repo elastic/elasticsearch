@@ -106,6 +106,11 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
 
             if (request.filteredIndexTemplates().length > 0) {
                 for (String templateName : request.filteredIndexTemplates()) {
+                    // Issue #2532 : enable GET /_template to show all templates
+                    if ("*".equals(templateName)) {
+                        mdBuilder.put(currentState.metaData().templates());
+                        break;
+                    }
                     IndexTemplateMetaData indexTemplateMetaData = currentState.metaData().templates().get(templateName);
                     if (indexTemplateMetaData != null) {
                         mdBuilder.put(indexTemplateMetaData);

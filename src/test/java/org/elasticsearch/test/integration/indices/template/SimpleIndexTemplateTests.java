@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -218,5 +217,15 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
         templateNames.add(getTemplate1Response.getIndexTemplates().get(0).name());
         templateNames.add(getTemplate1Response.getIndexTemplates().get(1).name());
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
+
+        logger.info("--> get all templates");
+        getTemplate1Response = client().admin().indices().prepareGetTemplates().execute().actionGet();
+        assertThat(getTemplate1Response.getIndexTemplates(), hasSize(3));
+
+        templateNames = Lists.newArrayList();
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(0).name());
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(1).name());
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(2).name());
+        assertThat(templateNames, containsInAnyOrder("template_1", "template_2", "template3"));
     }
 }

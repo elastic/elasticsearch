@@ -492,6 +492,11 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
+    public GetIndexTemplatesRequestBuilder prepareGetTemplates() {
+        return new GetIndexTemplatesRequestBuilder(this, "*");
+    }
+
+    @Override
     public ActionFuture<DeleteIndexTemplateResponse> deleteTemplate(final DeleteIndexTemplateRequest request) {
         return execute(DeleteIndexTemplateAction.INSTANCE, request);
     }

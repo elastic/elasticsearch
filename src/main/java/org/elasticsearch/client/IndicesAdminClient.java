@@ -645,6 +645,11 @@ public interface IndicesAdminClient {
     GetIndexTemplatesRequestBuilder prepareGetTemplates(String name);
 
     /**
+     * Gets all index templates.
+     */
+    GetIndexTemplatesRequestBuilder prepareGetTemplates();
+
+    /**
      * Validate a query for correctness.
      *
      * @param request The count request

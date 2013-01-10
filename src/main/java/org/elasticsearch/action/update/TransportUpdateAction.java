@@ -52,6 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -252,7 +253,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 @Override
                 public void onFailure(Throwable e) {
                     e = ExceptionsHelper.unwrapCause(e);
-                    if (e instanceof VersionConflictEngineException) {
+                    if (e instanceof VersionConflictEngineException || e instanceof DocumentAlreadyExistsException) {
                         if (retryCount < request.retryOnConflict()) {
                             threadPool.executor(executor()).execute(new Runnable() {
                                 @Override

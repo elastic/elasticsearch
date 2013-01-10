@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.template;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
@@ -32,7 +33,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -218,5 +218,49 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
         templateNames.add(getTemplate1Response.getIndexTemplates().get(0).name());
         templateNames.add(getTemplate1Response.getIndexTemplates().get(1).name());
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
+
+        logger.info("--> get all templates");
+        getTemplate1Response = client().admin().indices().prepareGetTemplates().execute().actionGet();
+        assertThat(getTemplate1Response.getIndexTemplates(), hasSize(3));
+
+        templateNames = Lists.newArrayList();
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(0).name());
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(1).name());
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(2).name());
+        assertThat(templateNames, containsInAnyOrder("template_1", "template_2", "template3"));
+
+        logger.info("--> get templates template_1 and template_2");
+        getTemplate1Response = client().admin().indices().prepareGetTemplates("template_1", "template_2").execute().actionGet();
+        assertThat(getTemplate1Response.getIndexTemplates(), hasSize(2));
+
+        templateNames = Lists.newArrayList();
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(0).name());
+        templateNames.add(getTemplate1Response.getIndexTemplates().get(1).name());
+        assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
     }
+
+    @Test
+    public void testThatInvalidGetIndexTemplatesFails() throws Exception {
+        logger.info("--> get template null");
+        testExpectActionRequestValidationException(null);
+
+        logger.info("--> get template empty");
+        testExpectActionRequestValidationException("");
+
+        logger.info("--> get template 'a', '', 'c'");
+        testExpectActionRequestValidationException("a", "", "c");
+
+        logger.info("--> get template 'a', null, 'c'");
+        testExpectActionRequestValidationException("a", null, "c");
+    }
+
+    private void testExpectActionRequestValidationException(String... names) {
+        try {
+            client().admin().indices().prepareGetTemplates(names).execute().actionGet();
+            fail("We should have raised an ActionRequestValidationException for " + names);
+        } catch (ActionRequestValidationException e) {
+            // That's fine!
+        }
+    }
+
 }

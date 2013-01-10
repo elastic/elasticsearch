@@ -39,7 +39,7 @@ curl -XDELETE localhost:9200/_template/template_1
 --------------------------------------------------
 
 [float]
-=== GETting a Template
+=== GETting templates
 
 Index templates are identified by a name (in the above case
 `template_1`) and can be retrieved using the following:
@@ -55,11 +55,20 @@ by using wildcards like:
 [source,js]
 --------------------------------------------------
 curl -XGET localhost:9200/_template/temp*
+curl -XGET localhost:9200/_template/template_1,template_2
 --------------------------------------------------
 
 To get list of all index templates you can use
 <<cluster-state,Cluster State>> API
 and check for the metadata/templates section of the response.
+
+added::[0.90.4] Or run:
+
+[source,js]
+--------------------------------------------------
+curl -XGET localhost:9200/_template/
+--------------------------------------------------
+
 
 [float]
 === Multiple Template Matching

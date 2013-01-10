@@ -18,8 +18,10 @@
  */
 package org.elasticsearch.action.admin.indices.template.get;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -32,19 +34,31 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetIndexTemplatesRequest> {
 
-    private String name;
+    private String[] names;
 
     public GetIndexTemplatesRequest() {}
 
+    @Deprecated
     public GetIndexTemplatesRequest(String name) {
-        this.name = name;
+        this.names = new String[1];
+        this.names[0] = name;
+    }
+
+    public GetIndexTemplatesRequest(String... names) {
+        this.names = names;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (name == null) {
-            validationException = addValidationError("name is missing", validationException);
+        if (names == null) {
+            validationException = addValidationError("names is null", validationException);
+        } else {
+            for (String name : names) {
+                if (name == null || !Strings.hasText(name)) {
+                    validationException = addValidationError("name is missing", validationException);
+                }
+            }
         }
         return validationException;
     }
@@ -52,27 +66,57 @@ public class GetIndexTemplatesRequest extends MasterNodeOperationRequest<GetInde
     /**
      * Sets the name of the index template.
      */
+    @Deprecated
     public GetIndexTemplatesRequest name(String name) {
-        this.name = name;
+        this.names = new String[1];
+        this.names[0] = name;
         return this;
     }
 
     /**
      * The name of the index template.
      */
+    @Deprecated
     public String name() {
-        return this.name;
+        if (this.names != null && this.names.length > 0) {
+            return this.names[0];
+        }
+        return null;
+    }
+
+    /**
+     * Sets the names of the index templates.
+     */
+    public GetIndexTemplatesRequest names(String... names) {
+        this.names = names;
+        return this;
+    }
+
+    /**
+     * The names of the index templates.
+     */
+    public String[] names() {
+        return this.names;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        name = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_0_90_4)) {
+            names = in.readStringArray();
+        } else {
+            names = new String[1];
+            names[0] = in.readString();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(name);
+        if (out.getVersion().onOrAfter(Version.V_0_90_4)) {
+            out.writeStringArray(names);
+        } else {
+            out.writeString(names[0]);
+        }
     }
 }

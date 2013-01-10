@@ -27,6 +27,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -275,6 +276,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                             value = parser.textOrNull();
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
+                        } else {
+                            throw new ElasticSearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
                         }
                     }
                 }

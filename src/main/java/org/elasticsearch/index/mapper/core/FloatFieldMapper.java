@@ -29,6 +29,7 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -291,6 +292,8 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
+                        } else {
+                            throw new ElasticSearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
                         }
                     }
                 }

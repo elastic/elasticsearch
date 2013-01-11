@@ -66,8 +66,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
     /**
      * Defines how the scores from the matching child documents are mapped into the parent document.
      */
-    public HasChildQueryBuilder scoreType(String executionType) {
-        this.scoreType = executionType;
+    public HasChildQueryBuilder scoreType(String scoreType) {
+        this.scoreType = scoreType;
         return this;
     }
 

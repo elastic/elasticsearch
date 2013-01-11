@@ -321,6 +321,10 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
 
         @Override
         public void collect(int doc) throws IOException {
+            if (typeCache == null) {
+                return;
+            }
+
             HashedBytesArray parentUid = typeCache.parentIdByDoc(doc);
             float previousScore = uidToScore.get(parentUid);
             float currentScore = scorer.score();
@@ -364,6 +368,10 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
 
         @Override
         public void collect(int doc) throws IOException {
+            if (typeCache == null) {
+                return;
+            }
+
             HashedBytesArray parentUid = typeCache.parentIdByDoc(doc);
             float previousScore = uidToScore.get(parentUid);
             float currentScore = scorer.score();

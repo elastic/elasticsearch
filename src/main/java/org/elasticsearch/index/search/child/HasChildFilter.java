@@ -198,7 +198,11 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
 
             @Override
             public void collect(int doc) throws IOException {
-                collectedUids.add(typeCache.parentIdByDoc(doc));
+                // It can happen that for particular segment no document exist for an specific type. This prevents NPE
+                if (typeCache != null) {
+                    collectedUids.add(typeCache.parentIdByDoc(doc));
+                }
+
             }
 
             @Override

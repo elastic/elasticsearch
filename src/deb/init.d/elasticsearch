@@ -99,6 +99,11 @@ if [ -f "$DEFAULT" ]; then
 	. "$DEFAULT"
 fi
 
+if [ "$ENABLE" = "False" ]; then
+  echo "Service is disabled by $DEFAULT"
+  exit 0
+fi
+
 # Define other required variables
 PID_FILE=/var/run/$NAME.pid
 DAEMON=$ES_HOME/bin/elasticsearch

@@ -1,3 +1,6 @@
+# Comment or change to enable ElasticSearch running as a service
+ENABLE=False
+
 # Run ElasticSearch as this user ID and group ID
 #ES_USER=elasticsearch
 #ES_GROUP=elasticsearch

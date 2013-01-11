@@ -158,6 +158,10 @@ public class ParentQuery extends Query implements ScopePhase.CollectorPhase {
 
         @Override
         public void collect(int doc) throws IOException {
+            if (typeCache == null) {
+                return;
+            }
+
             HashedBytesArray parentUid = typeCache.idByDoc(doc);
             uidToScore.put(parentUid, scorer.score());
         }

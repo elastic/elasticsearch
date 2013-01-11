@@ -158,7 +158,10 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             }
 
             public void collect(int doc) throws IOException {
-                collectedUids.add(typeCache.idByDoc(doc));
+                // It can happen that for particular segment no document exist for an specific type. This prevents NPE
+                if (typeCache != null) {
+                    collectedUids.add(typeCache.idByDoc(doc));
+                }
             }
 
             public void setNextReader(IndexReader reader, int docBase) throws IOException {
@@ -193,7 +196,12 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
                 throw new ElasticSearchIllegalStateException("has_parent filter hasn't executed properly");
             }
 
-            return new ChildrenDocSet(reader, parentDocs, context, parentType);
+            IdReaderTypeCache currentTypeCache = context.idCache().reader(reader).type(parentType);
+            if (currentTypeCache == null) {
+                return null;
+            } else {
+                return new ChildrenDocSet(reader, currentTypeCache, parentDocs, context, parentType);
+            }
         }
 
         public void clear() {
@@ -207,10 +215,10 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             final Tuple<IndexReader, IdReaderTypeCache>[] readersToTypeCache;
             final Map<Object, FixedBitSet> parentDocs;
 
-            ChildrenDocSet(IndexReader currentReader, Map<Object, FixedBitSet> parentDocs,
-                           SearchContext context, String parentType) {
+            ChildrenDocSet(IndexReader currentReader, IdReaderTypeCache currentTypeCache,
+                           Map<Object, FixedBitSet> parentDocs, SearchContext context, String parentType) {
                 super(currentReader.maxDoc());
-                this.currentTypeCache = context.idCache().reader(currentReader).type(parentType);
+                this.currentTypeCache = currentTypeCache;
                 this.currentReader = currentReader;
                 this.parentDocs = parentDocs;
                 this.readersToTypeCache = new Tuple[context.searcher().subReaders().length];

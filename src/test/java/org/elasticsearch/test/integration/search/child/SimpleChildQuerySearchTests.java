@@ -1077,4 +1077,65 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(response.hits().hits()[6].score(), equalTo(5f));
     }
 
+    @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/2536
+    public void testParentChildQueriesCanHandleNoRelevantTypesInIndex() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .addMapping("parent", jsonBuilder()
+                        .startObject()
+                        .startObject("parent")
+                        .endObject()
+                        .endObject()
+                ).addMapping("child", jsonBuilder()
+                .startObject()
+                .startObject("child")
+                .startObject("_parent")
+                .field("type", "parent")
+                .endObject()
+                .endObject()
+                .endObject()
+        ).setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+        ).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        SearchResponse response = client.prepareSearch("test")
+                .setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value")))
+                .execute().actionGet();
+        assertThat(response.failedShards(), equalTo(0));
+        assertThat(response.hits().totalHits(), equalTo(0l));
+
+        client.prepareIndex("test", "child1").setSource(jsonBuilder().startObject().field("text", "value").endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        client.prepareSearch("test")
+                .setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value")).executionType(getExecutionMethod()))
+                .execute().actionGet();
+        assertThat(response.failedShards(), equalTo(0));
+        assertThat(response.hits().totalHits(), equalTo(0l));
+
+        client.prepareSearch("test")
+                .setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value")).scoreType("max"))
+                .execute().actionGet();
+        assertThat(response.failedShards(), equalTo(0));
+        assertThat(response.hits().totalHits(), equalTo(0l));
+
+        client.prepareSearch("test")
+                .setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).executionType(getExecutionMethod()))
+                .execute().actionGet();
+        assertThat(response.failedShards(), equalTo(0));
+        assertThat(response.hits().totalHits(), equalTo(0l));
+
+        client.prepareSearch("test")
+                .setQuery(QueryBuilders.hasParentQuery("child", matchQuery("text", "value")).scoreType("score"))
+                .execute().actionGet();
+        assertThat(response.failedShards(), equalTo(0));
+        assertThat(response.hits().totalHits(), equalTo(0l));
+    }
+
 }

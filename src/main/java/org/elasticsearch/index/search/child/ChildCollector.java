@@ -66,11 +66,14 @@ public class ChildCollector extends Collector {
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
-
     }
 
     @Override
     public void collect(int doc) throws IOException {
+        if (typeCache == null) {
+            return;
+        }
+
         HashedBytesArray parentId = typeCache.parentIdByDoc(doc);
         if (parentId == null) {
             return;

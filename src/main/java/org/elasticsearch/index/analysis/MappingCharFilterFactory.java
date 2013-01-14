@@ -37,7 +37,7 @@ import java.util.regex.Pattern;
 @AnalysisSettingsRequired
 public class MappingCharFilterFactory extends AbstractCharFilterFactory {
 
-    private final NormalizeCharMap.Builder normMapBuilder;
+    private final NormalizeCharMap normMap;
 
     @Inject
     public MappingCharFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
@@ -48,13 +48,14 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory {
             throw new ElasticSearchIllegalArgumentException("mapping requires either `mappings` or `mappings_path` to be configured");
         }
 
-        normMapBuilder = new NormalizeCharMap.Builder();
+        NormalizeCharMap.Builder normMapBuilder = new NormalizeCharMap.Builder();
         parseRules(rules, normMapBuilder);
+        normMap = normMapBuilder.build();
     }
 
     @Override
     public Reader create(Reader tokenStream) {
-        return new MappingCharFilter(normMapBuilder.build(), tokenStream);
+        return new MappingCharFilter(normMap, tokenStream);
     }
 
     // source => target

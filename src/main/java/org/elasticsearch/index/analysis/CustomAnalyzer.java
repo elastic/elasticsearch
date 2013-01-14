@@ -80,7 +80,7 @@ public final class CustomAnalyzer extends Analyzer {
 
     @Override
     protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-        Tokenizer tokenizer = tokenizerFactory.create(charFilterIfNeeded(reader));
+        Tokenizer tokenizer = tokenizerFactory.create(reader);
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : tokenFilters) {
             tokenStream = tokenFilter.create(tokenStream);
@@ -88,7 +88,8 @@ public final class CustomAnalyzer extends Analyzer {
         return new TokenStreamComponents(tokenizer, tokenStream);
     }
 
-    private Reader charFilterIfNeeded(Reader reader) {
+    @Override
+    protected Reader initReader(String fieldName, Reader reader) {
         if (charFilters != null && charFilters.length > 0) {
             for (CharFilterFactory charFilter : charFilters) {
                 reader = charFilter.create(reader);
@@ -96,5 +97,4 @@ public final class CustomAnalyzer extends Analyzer {
         }
         return reader;
     }
-
 }

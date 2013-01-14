@@ -176,7 +176,9 @@ public class PercolatorService extends AbstractIndexComponent {
             reader.document(doc, fieldsVisitor);
             String id = fieldsVisitor.uid().id();
             try {
-                queries.put(id, percolator.parseQuery(id, fieldsVisitor.source()));
+		Query query = percolator.parseQuery(id, fieldsVisitor.source());
+                if (query != null) queries.put(id, query);
+		else logger.warn("null query [{}]", id);
             } catch (Exception e) {
                 logger.warn("failed to add query [{}]", e, id);
             }

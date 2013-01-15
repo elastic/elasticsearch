@@ -20,6 +20,7 @@
 package org.elasticsearch.common.http.client;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.plugins.BasicAuthCredentials;
 
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -35,7 +36,7 @@ public class HttpDownloadHelper {
     private boolean skipExisting = false;
     private long maxTime = 0;
 
-    public boolean download(URL source, File dest, @Nullable DownloadProgress progress) throws IOException {
+    public boolean download(URL source, File dest, @Nullable DownloadProgress progress, BasicAuthCredentials basicAuthCredentials) throws IOException {
         if (dest.exists() && skipExisting) {
             return true;
         }
@@ -54,7 +55,7 @@ public class HttpDownloadHelper {
             hasTimestamp = true;
         }
 
-        GetThread getThread = new GetThread(source, dest, hasTimestamp, timestamp, progress);
+        GetThread getThread = new GetThread(source, dest, hasTimestamp, timestamp, progress, basicAuthCredentials);
         getThread.setDaemon(true);
         getThread.start();
         try {
@@ -174,6 +175,7 @@ public class HttpDownloadHelper {
         private final boolean hasTimestamp;
         private final long timestamp;
         private final DownloadProgress progress;
+        private BasicAuthCredentials basicAuthCredentials;
 
         private boolean success = false;
         private IOException ioexception = null;
@@ -182,12 +184,13 @@ public class HttpDownloadHelper {
         private URLConnection connection;
         private int redirections = 0;
 
-        GetThread(URL source, File dest, boolean h, long t, DownloadProgress p) {
+        GetThread(URL source, File dest, boolean h, long t, DownloadProgress p, BasicAuthCredentials basicAuthCredentials) {
             this.source = source;
             this.dest = dest;
             hasTimestamp = h;
             timestamp = t;
             progress = p;
+            this.basicAuthCredentials = basicAuthCredentials;
         }
 
         public void run() {
@@ -200,7 +203,7 @@ public class HttpDownloadHelper {
 
         private boolean get() throws IOException {
 
-            connection = openConnection(source);
+            connection = openConnection(source, basicAuthCredentials);
 
             if (connection == null) {
                 return false;
@@ -240,7 +243,7 @@ public class HttpDownloadHelper {
             return true;
         }
 
-        private URLConnection openConnection(URL aSource) throws IOException {
+        private URLConnection openConnection(URL aSource, BasicAuthCredentials basicAuthCredentials) throws IOException {
 
             // set up the URL connection
             URLConnection connection = aSource.openConnection();
@@ -252,8 +255,14 @@ public class HttpDownloadHelper {
 
             if (connection instanceof HttpURLConnection) {
                 ((HttpURLConnection) connection).setInstanceFollowRedirects(false);
-                ((HttpURLConnection) connection).setUseCaches(true);
-                ((HttpURLConnection) connection).setConnectTimeout(5000);
+
+                connection.setUseCaches(true);
+                connection.setConnectTimeout(5000);
+
+                if (!basicAuthCredentials.isEmpty()) {
+                    connection.setRequestProperty("Authorization", "Basic " +
+                            basicAuthCredentials.encodedAuthorization());
+                }
             }
             // connect to the remote site (may take some time)
             connection.connect();
@@ -273,7 +282,7 @@ public class HttpDownloadHelper {
                     if (!redirectionAllowed(aSource, newURL)) {
                         return null;
                     }
-                    return openConnection(newURL);
+                    return openConnection(newURL, basicAuthCredentials);
                 }
                 // next test for a 304 result (HTTP only)
                 long lastModified = httpConnection.getLastModified();

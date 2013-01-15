@@ -50,10 +50,16 @@ public class PluginManager {
     private final Environment environment;
 
     private String url;
+    private BasicAuthCredentials basicAuthCredentials;
 
     public PluginManager(Environment environment, String url) {
+        this(environment, url, BasicAuthCredentials.NONE);
+    }
+
+    public PluginManager(Environment environment, String url, BasicAuthCredentials basicAuthCredentials) {
         this.environment = environment;
         this.url = url;
+        this.basicAuthCredentials = basicAuthCredentials;
 
         TrustManager[] trustAllCerts = new TrustManager[]{
                 new X509TrustManager() {
@@ -98,7 +104,7 @@ public class PluginManager {
             URL pluginUrl = new URL(url);
             System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
             try {
-                downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out), basicAuthCredentials);
                 downloaded = true;
             } catch (IOException e) {
                 // ignore
@@ -138,7 +144,7 @@ public class PluginManager {
                     URL pluginUrl = new URL("http://download.elasticsearch.org/" + userName + "/" + repoName + "/" + repoName + "-" + version + ".zip");
                     System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                     try {
-                        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out), basicAuthCredentials);
                         downloaded = true;
                     } catch (Exception e) {
                         if (verbose) {
@@ -150,7 +156,7 @@ public class PluginManager {
                         pluginUrl = new URL("http://search.maven.org/remotecontent?filepath=" + userName.replace('.', '/') + "/" + repoName + "/" + version + "/" + repoName + "-" + version + ".zip");
                         System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                         try {
-                            downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                            downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out), basicAuthCredentials);
                             downloaded = true;
                         } catch (Exception e) {
                             if (verbose) {
@@ -161,7 +167,7 @@ public class PluginManager {
                             pluginUrl = new URL("https://oss.sonatype.org/service/local/repositories/releases/content/" + userName.replace('.', '/') + "/" + repoName + "/" + version + "/" + repoName + "-" + version + ".zip");
                             System.out.println("Trying " + pluginUrl.toExternalForm() + "...");
                             try {
-                                downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                                downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out), basicAuthCredentials);
                                 downloaded = true;
                             } catch (Exception e) {
                                 if (verbose) {
@@ -175,7 +181,7 @@ public class PluginManager {
                         pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/v" + version);
                         System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
                         try {
-                            downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                            downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out), basicAuthCredentials);
                             downloaded = true;
                         } catch (Exception e1) {
                             // ignore
@@ -189,7 +195,7 @@ public class PluginManager {
                     URL pluginUrl = new URL("https://github.com/" + userName + "/" + repoName + "/zipball/master");
                     System.out.println("Trying " + pluginUrl.toExternalForm() + "... (assuming site plugin)");
                     try {
-                        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out));
+                        downloadHelper.download(pluginUrl, pluginFile, new HttpDownloadHelper.VerboseProgress(System.out), basicAuthCredentials);
                         downloaded = true;
                     } catch (Exception e2) {
                         // ignore
@@ -296,23 +302,36 @@ public class PluginManager {
         }
 
         String url = null;
+        String username = null;
+        String password = null;
+
         boolean verbose = false;
         for (int i = 0; i < args.length; i++) {
             if ("url".equals(args[i]) || "-url".equals(args[i])) {
                 url = args[i + 1];
             } else if ("verbose".equals(args[i]) || "-verbose".equals(args[i])) {
                 verbose = true;
+            } else if ("-username".equals(args[i])) {
+                username = args[i + 1];
+            } else if ("-password".equals(args[i])) {
+                password = args[i + 1];
             }
         }
 
-
-        PluginManager pluginManager = new PluginManager(initialSettings.v2(), url);
+        PluginManager pluginManager = null;
+        if (username != null && password != null) {
+            pluginManager = new PluginManager(initialSettings.v2(), url, new BasicAuthCredentials(username, password));
+        } else {
+            pluginManager = new PluginManager(initialSettings.v2(), url);
+        }
 
         if (args.length < 1) {
             System.out.println("Usage:");
-            System.out.println("    -url     [plugin location]   : Set exact URL to download the plugin from");
+            System.out.println("    -url [plugin location]       : Set exact URL to download the plugin from");
+            System.out.println("    -username  [username]        : Set the http basic authentication username");
+            System.out.println("    -password  [password]        : Set the http basic authentication password");
             System.out.println("    -install [plugin name]       : Downloads and installs listed plugins");
-            System.out.println("    -remove  [plugin name]       : Removes listed plugins");
+            System.out.println("    -remove [plugin name]        : Removes listed plugins");
             System.out.println("    -verbose                     : Prints verbose messages");
         }
         for (int c = 0; c < args.length; c++) {

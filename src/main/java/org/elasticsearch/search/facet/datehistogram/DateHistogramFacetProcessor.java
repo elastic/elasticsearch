@@ -171,11 +171,11 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                 .build();
 
         if (valueScript != null) {
-            return new ValueScriptDateHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, tzRounding, comparatorType, context);
+            return new ValueScriptDateHistogramFacetCollector(facetName, keyField, interval, scriptLang, valueScript, params, tzRounding, comparatorType, context);
         } else if (valueField == null) {
-            return new CountDateHistogramFacetCollector(facetName, keyField, tzRounding, comparatorType, context);
+            return new CountDateHistogramFacetCollector(facetName, keyField, interval, tzRounding, comparatorType, context);
         } else {
-            return new ValueDateHistogramFacetCollector(facetName, keyField, valueField, tzRounding, comparatorType, context);
+            return new ValueDateHistogramFacetCollector(facetName, keyField, valueField, interval, tzRounding, comparatorType, context);
         }
     }
 

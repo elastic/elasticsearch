@@ -142,6 +142,8 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
 
     private String name;
 
+    private String interval;
+
     private ComparatorType comparatorType;
 
     TLongLongHashMap counts;
@@ -152,8 +154,9 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     private InternalCountDateHistogramFacet() {
     }
 
-    public InternalCountDateHistogramFacet(String name, ComparatorType comparatorType, TLongLongHashMap counts, boolean cachedCounts) {
+    public InternalCountDateHistogramFacet(String name, String interval, ComparatorType comparatorType, TLongLongHashMap counts, boolean cachedCounts) {
         this.name = name;
+        this.interval = interval;
         this.comparatorType = comparatorType;
         this.counts = counts;
         this.cachedCounts = cachedCounts;
@@ -234,11 +237,12 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
 
         }
 
-        return new InternalCountDateHistogramFacet(name, comparatorType, counts, true);
+        return new InternalCountDateHistogramFacet(name, interval, comparatorType, counts, true);
     }
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _INTERVAL = new XContentBuilderString("_interval");
         static final XContentBuilderString ENTRIES = new XContentBuilderString("entries");
         static final XContentBuilderString TIME = new XContentBuilderString("time");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -248,6 +252,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, TYPE);
+        builder.field(Fields._INTERVAL, interval);
         builder.startArray(Fields.ENTRIES);
         for (Entry entry : computeEntries()) {
             builder.startObject();
@@ -269,6 +274,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
+        interval = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
 
         int size = in.readVInt();
@@ -283,6 +289,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
+        out.writeUTF(interval);
         out.writeByte(comparatorType.id());
         out.writeVInt(counts.size());
         for (TLongLongIterator it = counts.iterator(); it.hasNext(); ) {

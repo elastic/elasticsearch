@@ -55,10 +55,13 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
 
     private final DateHistogramProc histoProc;
 
-    public ValueDateHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    private final String interval;
+
+    public ValueDateHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, String interval, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
+        this.interval = interval;
 
         MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(keyFieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
@@ -96,7 +99,7 @@ public class ValueDateHistogramFacetCollector extends AbstractFacetCollector {
 
     @Override
     public Facet facet() {
-        return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries, true);
+        return new InternalFullDateHistogramFacet(facetName, interval, comparatorType, histoProc.entries, true);
     }
 
     public static class DateHistogramProc implements LongFieldData.LongValueInDocProc {

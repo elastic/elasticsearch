@@ -58,10 +58,13 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
     private final DateHistogramProc histoProc;
 
-    public ValueScriptDateHistogramFacetCollector(String facetName, String fieldName, String scriptLang, String valueScript, Map<String, Object> params, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    private final String interval;
+
+    public ValueScriptDateHistogramFacetCollector(String facetName, String fieldName, String interval, String scriptLang, String valueScript, Map<String, Object> params, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
         this.fieldDataCache = context.fieldDataCache();
+        this.interval = interval;
 
         MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
         if (smartMappers == null || !smartMappers.hasMapper()) {
@@ -101,7 +104,7 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
 
     @Override
     public Facet facet() {
-        return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries, true);
+        return new InternalFullDateHistogramFacet(facetName, interval, comparatorType, histoProc.entries, true);
     }
 
     public static class DateHistogramProc implements LongFieldData.LongValueInDocProc {

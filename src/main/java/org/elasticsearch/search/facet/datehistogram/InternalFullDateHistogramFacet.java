@@ -150,6 +150,8 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
 
     private String name;
 
+    private String interval;
+
     private ComparatorType comparatorType;
 
     ExtTLongObjectHashMap<FullEntry> tEntries;
@@ -159,8 +161,9 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
     private InternalFullDateHistogramFacet() {
     }
 
-    public InternalFullDateHistogramFacet(String name, ComparatorType comparatorType, ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries, boolean cachedEntries) {
+    public InternalFullDateHistogramFacet(String name, String interval, ComparatorType comparatorType, ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries, boolean cachedEntries) {
         this.name = name;
+        this.interval = interval;
         this.comparatorType = comparatorType;
         this.tEntries = entries;
         this.cachedEntries = cachedEntries;
@@ -264,6 +267,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
         // just initialize it as already ordered facet
         InternalFullDateHistogramFacet ret = new InternalFullDateHistogramFacet();
         ret.name = name;
+        ret.interval = interval;
         ret.comparatorType = comparatorType;
         ret.entries = ordered;
         return ret;
@@ -271,6 +275,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
 
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
+        static final XContentBuilderString _INTERVAL = new XContentBuilderString("_interval");
         static final XContentBuilderString ENTRIES = new XContentBuilderString("entries");
         static final XContentBuilderString TIME = new XContentBuilderString("time");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -285,6 +290,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
         builder.field(Fields._TYPE, TYPE);
+        builder.field(Fields._INTERVAL, interval);
         builder.startArray(Fields.ENTRIES);
         for (Entry entry : entries()) {
             builder.startObject();
@@ -311,6 +317,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         name = in.readUTF();
+        interval = in.readUTF();
         comparatorType = ComparatorType.fromId(in.readByte());
 
         cachedEntries = false;
@@ -324,6 +331,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeUTF(name);
+        out.writeUTF(interval);
         out.writeByte(comparatorType.id());
         out.writeVInt(entries.size());
         for (FullEntry entry : entries) {

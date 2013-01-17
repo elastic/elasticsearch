@@ -701,7 +701,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         return this.numberOfShards;
     }
 
-    public int getnumberOfShards() {
+    public int getNumberOfShards() {
         return numberOfShards();
     }
 

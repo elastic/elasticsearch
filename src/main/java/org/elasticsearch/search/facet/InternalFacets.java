@@ -139,7 +139,7 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         } else {
             facets = Lists.newArrayListWithCapacity(size);
             for (int i = 0; i < size; i++) {
-                String type = in.readUTF();
+                String type = in.readString();
                 Facet facet = InternalFacet.Streams.stream(type).readFacet(type, in);
                 facets.add(facet);
             }
@@ -151,7 +151,7 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         out.writeVInt(facets.size());
         for (Facet facet : facets) {
             InternalFacet internalFacet = (InternalFacet) facet;
-            out.writeUTF(internalFacet.streamType());
+            out.writeString(internalFacet.streamType());
             internalFacet.writeTo(out);
         }
     }

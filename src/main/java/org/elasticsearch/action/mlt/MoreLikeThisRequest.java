@@ -540,7 +540,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         } else {
             fields = new String[size];
             for (int i = 0; i < size; i++) {
-                fields[i] = in.readUTF();
+                fields[i] = in.readString();
             }
         }
 
@@ -551,7 +551,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         if (size > 0) {
             stopWords = new String[size];
             for (int i = 0; i < size; i++) {
-                stopWords[i] = in.readUTF();
+                stopWords[i] = in.readString();
             }
         }
         minDocFreq = in.readVInt();
@@ -561,7 +561,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         boostTerms = in.readFloat();
         searchType = SearchType.fromId(in.readByte());
         if (in.readBoolean()) {
-            searchQueryHint = in.readUTF();
+            searchQueryHint = in.readString();
         }
         size = in.readVInt();
         if (size == 0) {

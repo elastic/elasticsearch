@@ -210,7 +210,7 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         count = in.readVLong();
         total = in.readDouble();
         min = in.readDouble();
@@ -220,7 +220,7 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeVLong(count);
         out.writeDouble(total);
         out.writeDouble(min);

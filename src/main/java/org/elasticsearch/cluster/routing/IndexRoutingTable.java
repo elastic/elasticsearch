@@ -314,7 +314,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
          * @throws IOException if something happens during read
          */
         public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
-            String index = in.readUTF();
+            String index = in.readString();
             Builder builder = new Builder(index);
 
             int size = in.readVInt();
@@ -332,7 +332,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
          * @throws IOException if something happens during write 
          */
         public static void writeTo(IndexRoutingTable index, StreamOutput out) throws IOException {
-            out.writeUTF(index.index());
+            out.writeString(index.index());
             out.writeVInt(index.shards.size());
             for (IndexShardRoutingTable indexShard : index) {
                 IndexShardRoutingTable.Builder.writeToThin(indexShard, out);

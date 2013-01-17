@@ -212,7 +212,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         } else {
             out.writeVInt(types.length);
             for (String type : types) {
-                out.writeUTF(type);
+                out.writeString(type);
             }
         }
         if (groups == null) {
@@ -220,7 +220,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         } else {
             out.writeVInt(groups.length);
             for (String group : groups) {
-                out.writeUTF(group);
+                out.writeString(group);
             }
         }
     }
@@ -241,14 +241,14 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         if (size > 0) {
             types = new String[size];
             for (int i = 0; i < size; i++) {
-                types[i] = in.readUTF();
+                types[i] = in.readString();
             }
         }
         size = in.readVInt();
         if (size > 0) {
             groups = new String[size];
             for (int i = 0; i < size; i++) {
-                groups[i] = in.readUTF();
+                groups[i] = in.readString();
             }
         }
     }

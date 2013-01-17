@@ -127,7 +127,7 @@ public class RoutingTableValidation implements Serializable, Streamable {
         } else {
             failures = Lists.newArrayListWithCapacity(size);
             for (int i = 0; i < size; i++) {
-                failures.add(in.readUTF());
+                failures.add(in.readString());
             }
         }
         size = in.readVInt();
@@ -136,11 +136,11 @@ public class RoutingTableValidation implements Serializable, Streamable {
         } else {
             indicesFailures = newHashMap();
             for (int i = 0; i < size; i++) {
-                String index = in.readUTF();
+                String index = in.readString();
                 int size2 = in.readVInt();
                 List<String> indexFailures = newArrayListWithCapacity(size2);
                 for (int j = 0; j < size2; j++) {
-                    indexFailures.add(in.readUTF());
+                    indexFailures.add(in.readString());
                 }
                 indicesFailures.put(index, indexFailures);
             }
@@ -155,7 +155,7 @@ public class RoutingTableValidation implements Serializable, Streamable {
         } else {
             out.writeVInt(failures.size());
             for (String failure : failures) {
-                out.writeUTF(failure);
+                out.writeString(failure);
             }
         }
         if (indicesFailures == null) {
@@ -163,10 +163,10 @@ public class RoutingTableValidation implements Serializable, Streamable {
         } else {
             out.writeVInt(indicesFailures.size());
             for (Map.Entry<String, List<String>> entry : indicesFailures.entrySet()) {
-                out.writeUTF(entry.getKey());
+                out.writeString(entry.getKey());
                 out.writeVInt(entry.getValue().size());
                 for (String failure : entry.getValue()) {
-                    out.writeUTF(failure);
+                    out.writeString(failure);
                 }
             }
         }

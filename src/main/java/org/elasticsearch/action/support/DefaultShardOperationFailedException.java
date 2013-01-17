@@ -79,10 +79,10 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
     @Override
     public void readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
-            index = in.readUTF();
+            index = in.readString();
         }
         shardId = in.readVInt();
-        reason = in.readUTF();
+        reason = in.readString();
     }
 
     @Override
@@ -91,10 +91,10 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(index);
+            out.writeString(index);
         }
         out.writeVInt(shardId);
-        out.writeUTF(reason);
+        out.writeString(reason);
     }
 
     @Override

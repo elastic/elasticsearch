@@ -133,7 +133,7 @@ public class Segment implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         generation = Long.parseLong(name.substring(1), Character.MAX_RADIX);
         committed = in.readBoolean();
         search = in.readBoolean();
@@ -144,7 +144,7 @@ public class Segment implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeBoolean(committed);
         out.writeBoolean(search);
         out.writeInt(docCount);

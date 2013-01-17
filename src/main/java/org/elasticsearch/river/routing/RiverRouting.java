@@ -67,7 +67,7 @@ public class RiverRouting implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        riverName = new RiverName(in.readUTF(), in.readUTF());
+        riverName = new RiverName(in.readString(), in.readString());
         if (in.readBoolean()) {
             node = DiscoveryNode.readNode(in);
         }
@@ -75,8 +75,8 @@ public class RiverRouting implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(riverName.type());
-        out.writeUTF(riverName.name());
+        out.writeString(riverName.type());
+        out.writeString(riverName.name());
         if (node == null) {
             out.writeBoolean(false);
         } else {

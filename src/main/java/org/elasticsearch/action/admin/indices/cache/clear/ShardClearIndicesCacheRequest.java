@@ -77,7 +77,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         if (size > 0) {
             fields = new String[size];
             for (int i = 0; i < size; i++) {
-                fields[i] = in.readUTF();
+                fields[i] = in.readString();
             }
         }
     }
@@ -93,7 +93,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         } else {
             out.writeVInt(fields.length);
             for (String field : fields) {
-                out.writeUTF(field);
+                out.writeString(field);
             }
         }
     }

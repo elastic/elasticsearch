@@ -1039,7 +1039,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
-                String type = in.readUTF();
+                String type = in.readString();
                 Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
                 builder.putCustom(type, customIndexMetaData);
             }
@@ -1060,7 +1060,7 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             out.writeVInt(metaData.customs().size());
             for (Map.Entry<String, Custom> entry : metaData.customs().entrySet()) {
-                out.writeUTF(entry.getKey());
+                out.writeString(entry.getKey());
                 lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
             }
         }

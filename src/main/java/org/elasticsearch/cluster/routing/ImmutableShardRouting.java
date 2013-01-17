@@ -224,11 +224,11 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     public void readFromThin(StreamInput in) throws IOException {
         version = in.readLong();
         if (in.readBoolean()) {
-            currentNodeId = in.readUTF();
+            currentNodeId = in.readString();
         }
 
         if (in.readBoolean()) {
-            relocatingNodeId = in.readUTF();
+            relocatingNodeId = in.readString();
         }
 
         primary = in.readBoolean();
@@ -237,7 +237,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, in.readUTF(), in.readVInt());
+        readFrom(in, in.readString(), in.readVInt());
     }
     
     /**
@@ -249,14 +249,14 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         out.writeLong(version);
         if (currentNodeId != null) {
             out.writeBoolean(true);
-            out.writeUTF(currentNodeId);
+            out.writeString(currentNodeId);
         } else {
             out.writeBoolean(false);
         }
 
         if (relocatingNodeId != null) {
             out.writeBoolean(true);
-            out.writeUTF(relocatingNodeId);
+            out.writeString(relocatingNodeId);
         } else {
             out.writeBoolean(false);
         }
@@ -267,7 +267,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(index);
+        out.writeString(index);
         out.writeVInt(shardId);
         writeToThin(out);
     }

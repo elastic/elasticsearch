@@ -127,11 +127,6 @@ public class AdapterStreamOutput extends StreamOutput {
     }
 
     @Override
-    public void writeUTF(String str) throws IOException {
-        out.writeUTF(str);
-    }
-
-    @Override
     public void writeString(String str) throws IOException {
         out.writeString(str);
     }

@@ -126,7 +126,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         if (in.readBoolean()) {
             shardTarget = readSearchShardTarget(in);
         }
-        reason = in.readUTF();
+        reason = in.readString();
         status = RestStatus.readFrom(in);
     }
 
@@ -138,7 +138,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
             out.writeBoolean(true);
             shardTarget.writeTo(out);
         }
-        out.writeUTF(reason);
+        out.writeString(reason);
         RestStatus.writeTo(out, status);
     }
 }

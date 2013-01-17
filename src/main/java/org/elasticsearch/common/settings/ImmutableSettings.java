@@ -347,7 +347,7 @@ public class ImmutableSettings implements Settings {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
         for (int i = 0; i < numberOfSettings; i++) {
-            builder.put(in.readUTF(), in.readUTF());
+            builder.put(in.readString(), in.readString());
         }
         return builder.build();
     }
@@ -355,8 +355,8 @@ public class ImmutableSettings implements Settings {
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         out.writeVInt(settings.getAsMap().size());
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            out.writeUTF(entry.getKey());
-            out.writeUTF(entry.getValue());
+            out.writeString(entry.getKey());
+            out.writeString(entry.getValue());
         }
     }
 

@@ -26,6 +26,12 @@ import org.elasticsearch.gateway.none.NoneGatewayAllocator;
 /**
  */
 public class ShardsAllocatorModule extends AbstractModule {
+	
+    public static final String EVEN_SHARD_COUNT_ALLOCATOR_KEY = "even_shard";
+
+    public static final String BALANCED_ALLOCATOR_KEY = "balanced"; // default
+
+    public static final String TYPE_KEY = "cluster.routing.allocation.type";
 
     private Settings settings;
 
@@ -35,6 +41,7 @@ public class ShardsAllocatorModule extends AbstractModule {
 
     public ShardsAllocatorModule(Settings settings) {
         this.settings = settings;
+        shardsAllocator = loadShardsAllocator(settings);
     }
 
     public void setGatewayAllocator(Class<? extends GatewayAllocator> gatewayAllocator) {
@@ -47,7 +54,24 @@ public class ShardsAllocatorModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        if (shardsAllocator == null) {
+            shardsAllocator = loadShardsAllocator(settings);
+        }
         bind(GatewayAllocator.class).to(gatewayAllocator).asEagerSingleton();
-        bind(ShardsAllocator.class).to(shardsAllocator == null ? BalancedShardsAllocator.class : shardsAllocator).asEagerSingleton();
+        bind(ShardsAllocator.class).to(shardsAllocator).asEagerSingleton();
+    }
+    
+    private Class<? extends ShardsAllocator> loadShardsAllocator(Settings settings) {
+        final Class<? extends ShardsAllocator> shardsAllocator;
+        final String type = settings.get(TYPE_KEY, BALANCED_ALLOCATOR_KEY);
+        if (BALANCED_ALLOCATOR_KEY.equals(type)) {
+            shardsAllocator = BalancedShardsAllocator.class;
+        } else if (EVEN_SHARD_COUNT_ALLOCATOR_KEY.equals(type)) {
+            shardsAllocator = EvenShardsCountAllocator.class;
+        } else {
+            shardsAllocator = settings.getAsClass(TYPE_KEY, BalancedShardsAllocator.class,
+                    "org.elasticsearch.cluster.routing.allocation.allocator.", "Allocator");
+        }
+        return shardsAllocator;
     }
 }

@@ -51,35 +51,6 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     }
 
     @Override
-    @Deprecated
-    public void writeUTF(String s) throws IOException {
-        if (s.length() < identityThreshold) {
-            int handle = handles.get(s);
-            if (handle == -1) {
-                handle = handles.size();
-                handles.put(s, handle);
-                out.writeByte((byte) 0);
-                out.writeVInt(handle);
-                out.writeUTF(s);
-            } else {
-                out.writeByte((byte) 1);
-                out.writeVInt(handle);
-            }
-        } else {
-            int handle = identityHandles.lookup(s);
-            if (handle == -1) {
-                handle = identityHandles.assign(s);
-                out.writeByte((byte) 2);
-                out.writeVInt(handle);
-                out.writeUTF(s);
-            } else {
-                out.writeByte((byte) 3);
-                out.writeVInt(handle);
-            }
-        }
-    }
-
-    @Override
     public void writeString(String s) throws IOException {
         if (s.length() < identityThreshold) {
             int handle = handles.get(s);
@@ -88,7 +59,7 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
                 handles.put(s, handle);
                 out.writeByte((byte) 0);
                 out.writeVInt(handle);
-                out.writeUTF(s);
+                out.writeString(s);
             } else {
                 out.writeByte((byte) 1);
                 out.writeVInt(handle);
@@ -99,7 +70,7 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
                 handle = identityHandles.assign(s);
                 out.writeByte((byte) 2);
                 out.writeVInt(handle);
-                out.writeUTF(s);
+                out.writeString(s);
             } else {
                 out.writeByte((byte) 3);
                 out.writeVInt(handle);

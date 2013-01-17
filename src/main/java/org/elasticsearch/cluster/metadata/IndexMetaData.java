@@ -659,7 +659,7 @@ public class IndexMetaData {
         }
 
         public static IndexMetaData readFrom(StreamInput in) throws IOException {
-            Builder builder = new Builder(in.readUTF());
+            Builder builder = new Builder(in.readString());
             builder.version(in.readLong());
             builder.state(State.fromId(in.readByte()));
             builder.settings(readSettingsFromStream(in));
@@ -675,7 +675,7 @@ public class IndexMetaData {
             }
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
-                String type = in.readUTF();
+                String type = in.readString();
                 Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
                 builder.putCustom(type, customIndexMetaData);
             }
@@ -683,7 +683,7 @@ public class IndexMetaData {
         }
 
         public static void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
-            out.writeUTF(indexMetaData.index());
+            out.writeString(indexMetaData.index());
             out.writeLong(indexMetaData.version());
             out.writeByte(indexMetaData.state().id());
             writeSettingsToStream(indexMetaData.settings(), out);
@@ -697,7 +697,7 @@ public class IndexMetaData {
             }
             out.writeVInt(indexMetaData.customs().size());
             for (Map.Entry<String, Custom> entry : indexMetaData.customs().entrySet()) {
-                out.writeUTF(entry.getKey());
+                out.writeString(entry.getKey());
                 lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
             }
         }

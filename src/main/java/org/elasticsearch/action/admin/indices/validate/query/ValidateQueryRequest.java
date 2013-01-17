@@ -199,7 +199,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
         if (typesSize > 0) {
             types = new String[typesSize];
             for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readUTF();
+                types[i] = in.readString();
             }
         }
 
@@ -215,7 +215,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
 
         out.writeVInt(types.length);
         for (String type : types) {
-            out.writeUTF(type);
+            out.writeString(type);
         }
 
         out.writeBoolean(explain);

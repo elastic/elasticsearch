@@ -314,9 +314,9 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        index = in.readUTF();
-        type = in.readOptionalUTF();
-        id = in.readUTF();
+        index = in.readString();
+        type = in.readOptionalString();
+        id = in.readString();
         version = in.readLong();
         exists = in.readBoolean();
         if (exists) {
@@ -339,9 +339,9 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(index);
-        out.writeOptionalUTF(type);
-        out.writeUTF(id);
+        out.writeString(index);
+        out.writeOptionalString(type);
+        out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(exists);
         if (exists) {

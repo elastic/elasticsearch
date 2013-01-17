@@ -127,7 +127,7 @@ public class AllocationExplanation implements Streamable {
                 if (in.readBoolean()) {
                     node = DiscoveryNode.readNode(in);
                 }
-                ne.add(new NodeExplanation(node, in.readUTF()));
+                ne.add(new NodeExplanation(node, in.readString()));
             }
             explanations.put(shardId, ne);
         }
@@ -146,7 +146,7 @@ public class AllocationExplanation implements Streamable {
                     out.writeBoolean(true);
                     nodeExplanation.node().writeTo(out);
                 }
-                out.writeUTF(nodeExplanation.description());
+                out.writeString(nodeExplanation.description());
             }
         }
     }

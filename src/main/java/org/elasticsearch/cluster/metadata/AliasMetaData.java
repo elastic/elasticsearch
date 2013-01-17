@@ -269,7 +269,7 @@ public class AliasMetaData {
         }
 
         public static void writeTo(AliasMetaData aliasMetaData, StreamOutput out) throws IOException {
-            out.writeUTF(aliasMetaData.alias());
+            out.writeString(aliasMetaData.alias());
             if (aliasMetaData.filter() != null) {
                 out.writeBoolean(true);
                 aliasMetaData.filter.writeTo(out);
@@ -278,13 +278,13 @@ public class AliasMetaData {
             }
             if (aliasMetaData.indexRouting() != null) {
                 out.writeBoolean(true);
-                out.writeUTF(aliasMetaData.indexRouting());
+                out.writeString(aliasMetaData.indexRouting());
             } else {
                 out.writeBoolean(false);
             }
             if (aliasMetaData.searchRouting() != null) {
                 out.writeBoolean(true);
-                out.writeUTF(aliasMetaData.searchRouting());
+                out.writeString(aliasMetaData.searchRouting());
             } else {
                 out.writeBoolean(false);
             }
@@ -292,18 +292,18 @@ public class AliasMetaData {
         }
 
         public static AliasMetaData readFrom(StreamInput in) throws IOException {
-            String alias = in.readUTF();
+            String alias = in.readString();
             CompressedString filter = null;
             if (in.readBoolean()) {
                 filter = CompressedString.readCompressedString(in);
             }
             String indexRouting = null;
             if (in.readBoolean()) {
-                indexRouting = in.readUTF();
+                indexRouting = in.readString();
             }
             String searchRouting = null;
             if (in.readBoolean()) {
-                searchRouting = in.readUTF();
+                searchRouting = in.readString();
             }
             return new AliasMetaData(alias, filter, indexRouting, searchRouting);
         }

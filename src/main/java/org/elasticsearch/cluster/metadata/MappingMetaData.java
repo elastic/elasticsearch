@@ -486,12 +486,12 @@ public class MappingMetaData {
     }
 
     public static void writeTo(MappingMetaData mappingMd, StreamOutput out) throws IOException {
-        out.writeUTF(mappingMd.type());
+        out.writeString(mappingMd.type());
         mappingMd.source().writeTo(out);
         // id
         if (mappingMd.id().hasPath()) {
             out.writeBoolean(true);
-            out.writeUTF(mappingMd.id().path());
+            out.writeString(mappingMd.id().path());
         } else {
             out.writeBoolean(false);
         }
@@ -499,7 +499,7 @@ public class MappingMetaData {
         out.writeBoolean(mappingMd.routing().required());
         if (mappingMd.routing().hasPath()) {
             out.writeBoolean(true);
-            out.writeUTF(mappingMd.routing().path());
+            out.writeString(mappingMd.routing().path());
         } else {
             out.writeBoolean(false);
         }
@@ -507,11 +507,11 @@ public class MappingMetaData {
         out.writeBoolean(mappingMd.timestamp().enabled());
         if (mappingMd.timestamp().hasPath()) {
             out.writeBoolean(true);
-            out.writeUTF(mappingMd.timestamp().path());
+            out.writeString(mappingMd.timestamp().path());
         } else {
             out.writeBoolean(false);
         }
-        out.writeUTF(mappingMd.timestamp().format());
+        out.writeString(mappingMd.timestamp().format());
     }
 
     @Override
@@ -541,14 +541,14 @@ public class MappingMetaData {
     }
 
     public static MappingMetaData readFrom(StreamInput in) throws IOException {
-        String type = in.readUTF();
+        String type = in.readString();
         CompressedString source = CompressedString.readCompressedString(in);
         // id
-        Id id = new Id(in.readBoolean() ? in.readUTF() : null);
+        Id id = new Id(in.readBoolean() ? in.readString() : null);
         // routing
-        Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readUTF() : null);
+        Routing routing = new Routing(in.readBoolean(), in.readBoolean() ? in.readString() : null);
         // timestamp
-        Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readUTF() : null, in.readUTF());
+        Timestamp timestamp = new Timestamp(in.readBoolean(), in.readBoolean() ? in.readString() : null, in.readString());
         return new MappingMetaData(type, source, id, routing, timestamp);
     }
 

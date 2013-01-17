@@ -40,19 +40,19 @@ public class HandlesStreamsTests {
         HandlesStreamOutput out = new HandlesStreamOutput(bytesOut, 5);
         String lowerThresholdValue = "test";
         String higherThresholdValue = "something that is higher than 5";
-        out.writeUTF(lowerThresholdValue);
-        out.writeUTF(higherThresholdValue);
+        out.writeString(lowerThresholdValue);
+        out.writeString(higherThresholdValue);
         out.writeInt(1);
-        out.writeUTF("else");
-        out.writeUTF(higherThresholdValue);
-        out.writeUTF(lowerThresholdValue);
+        out.writeString("else");
+        out.writeString(higherThresholdValue);
+        out.writeString(lowerThresholdValue);
 
         HandlesStreamInput in = new HandlesStreamInput(new BytesStreamInput(bytesOut.bytes().toBytes(), false));
-        assertThat(in.readUTF(), equalTo(lowerThresholdValue));
-        assertThat(in.readUTF(), equalTo(higherThresholdValue));
+        assertThat(in.readString(), equalTo(lowerThresholdValue));
+        assertThat(in.readString(), equalTo(higherThresholdValue));
         assertThat(in.readInt(), equalTo(1));
-        assertThat(in.readUTF(), equalTo("else"));
-        assertThat(in.readUTF(), equalTo(higherThresholdValue));
-        assertThat(in.readUTF(), equalTo(lowerThresholdValue));
+        assertThat(in.readString(), equalTo("else"));
+        assertThat(in.readString(), equalTo(higherThresholdValue));
+        assertThat(in.readString(), equalTo(lowerThresholdValue));
     }
 }

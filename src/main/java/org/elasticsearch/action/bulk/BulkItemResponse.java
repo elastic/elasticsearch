@@ -290,7 +290,7 @@ public class BulkItemResponse implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        opType = in.readUTF();
+        opType = in.readString();
 
         byte type = in.readByte();
         if (type == 0) {
@@ -302,14 +302,14 @@ public class BulkItemResponse implements Streamable {
         }
 
         if (in.readBoolean()) {
-            failure = new Failure(in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF());
+            failure = new Failure(in.readString(), in.readString(), in.readString(), in.readString());
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        out.writeUTF(opType);
+        out.writeString(opType);
         if (response == null) {
             out.writeByte((byte) 2);
         } else {
@@ -324,10 +324,10 @@ public class BulkItemResponse implements Streamable {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(failure.index());
-            out.writeUTF(failure.type());
-            out.writeUTF(failure.id());
-            out.writeUTF(failure.message());
+            out.writeString(failure.index());
+            out.writeString(failure.type());
+            out.writeString(failure.id());
+            out.writeString(failure.message());
         }
     }
 }

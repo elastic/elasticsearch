@@ -309,7 +309,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         comparatorType = ComparatorType.fromId(in.readByte());
 
         cachedEntries = false;
@@ -322,7 +322,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeByte(comparatorType.id());
         out.writeVInt(entries.size());
         for (FullEntry entry : entries) {

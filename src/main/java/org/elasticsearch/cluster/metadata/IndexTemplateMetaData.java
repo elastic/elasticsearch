@@ -332,17 +332,17 @@ public class IndexTemplateMetaData {
         }
 
         public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
-            Builder builder = new Builder(in.readUTF());
+            Builder builder = new Builder(in.readString());
             builder.order(in.readInt());
-            builder.template(in.readUTF());
+            builder.template(in.readString());
             builder.settings(ImmutableSettings.readSettingsFromStream(in));
             int mappingsSize = in.readVInt();
             for (int i = 0; i < mappingsSize; i++) {
-                builder.putMapping(in.readUTF(), CompressedString.readCompressedString(in));
+                builder.putMapping(in.readString(), CompressedString.readCompressedString(in));
             }
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
-                String type = in.readUTF();
+                String type = in.readString();
                 IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
                 builder.putCustom(type, customIndexMetaData);
             }
@@ -350,18 +350,18 @@ public class IndexTemplateMetaData {
         }
 
         public static void writeTo(IndexTemplateMetaData indexTemplateMetaData, StreamOutput out) throws IOException {
-            out.writeUTF(indexTemplateMetaData.name());
+            out.writeString(indexTemplateMetaData.name());
             out.writeInt(indexTemplateMetaData.order());
-            out.writeUTF(indexTemplateMetaData.template());
+            out.writeString(indexTemplateMetaData.template());
             ImmutableSettings.writeSettingsToStream(indexTemplateMetaData.settings(), out);
             out.writeVInt(indexTemplateMetaData.mappings().size());
             for (Map.Entry<String, CompressedString> entry : indexTemplateMetaData.mappings().entrySet()) {
-                out.writeUTF(entry.getKey());
+                out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
             }
             out.writeVInt(indexTemplateMetaData.customs().size());
             for (Map.Entry<String, IndexMetaData.Custom> entry : indexTemplateMetaData.customs().entrySet()) {
-                out.writeUTF(entry.getKey());
+                out.writeString(entry.getKey());
                 IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
             }
         }

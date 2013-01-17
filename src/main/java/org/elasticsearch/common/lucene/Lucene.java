@@ -144,7 +144,7 @@ public class Lucene {
             for (int i = 0; i < fields.length; i++) {
                 String field = null;
                 if (in.readBoolean()) {
-                    field = in.readUTF();
+                    field = in.readString();
                 }
                 fields[i] = new SortField(field, readSortType(in), in.readBoolean());
             }
@@ -157,7 +157,7 @@ public class Lucene {
                     if (type == 0) {
                         cFields[j] = null;
                     } else if (type == 1) {
-                        cFields[j] = in.readUTF();
+                        cFields[j] = in.readString();
                     } else if (type == 2) {
                         cFields[j] = in.readInt();
                     } else if (type == 3) {
@@ -212,7 +212,7 @@ public class Lucene {
                     out.writeBoolean(false);
                 } else {
                     out.writeBoolean(true);
-                    out.writeUTF(sortField.getField());
+                    out.writeString(sortField.getField());
                 }
                 if (sortField.getComparatorSource() != null) {
                     writeSortType(out, ((FieldDataType.ExtendedFieldComparatorSource) sortField.getComparatorSource()).reducedType());
@@ -237,7 +237,7 @@ public class Lucene {
                         Class type = field.getClass();
                         if (type == String.class) {
                             out.writeByte((byte) 1);
-                            out.writeUTF((String) field);
+                            out.writeString((String) field);
                         } else if (type == Integer.class) {
                             out.writeByte((byte) 2);
                             out.writeInt((Integer) field);
@@ -299,7 +299,7 @@ public class Lucene {
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
         float value = in.readFloat();
-        String description = in.readUTF();
+        String description = in.readString();
         Explanation explanation = new Explanation(value, description);
         if (in.readBoolean()) {
             int size = in.readVInt();
@@ -312,7 +312,7 @@ public class Lucene {
 
     public static void writeExplanation(StreamOutput out, Explanation explanation) throws IOException {
         out.writeFloat(explanation.getValue());
-        out.writeUTF(explanation.getDescription());
+        out.writeString(explanation.getDescription());
         Explanation[] subExplanations = explanation.getDetails();
         if (subExplanations == null) {
             out.writeBoolean(false);

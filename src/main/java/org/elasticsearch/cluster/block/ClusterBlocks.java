@@ -304,7 +304,7 @@ public class ClusterBlocks {
             ImmutableMap.Builder<String, ImmutableSet<ClusterBlock>> indicesBuilder = ImmutableMap.builder();
             int size = in.readVInt();
             for (int j = 0; j < size; j++) {
-                indicesBuilder.put(in.readUTF().intern(), readBlockSet(in));
+                indicesBuilder.put(in.readString().intern(), readBlockSet(in));
             }
             return new ClusterBlocks(global, indicesBuilder.build());
         }
@@ -313,7 +313,7 @@ public class ClusterBlocks {
             writeBlockSet(blocks.global(), out);
             out.writeVInt(blocks.indices().size());
             for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks.indices().entrySet()) {
-                out.writeUTF(entry.getKey());
+                out.writeString(entry.getKey());
                 writeBlockSet(entry.getValue(), out);
             }
         }

@@ -588,7 +588,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(nodes.masterNodeId);
+                out.writeString(nodes.masterNodeId);
             }
             out.writeVInt(nodes.size());
             for (DiscoveryNode node : nodes) {
@@ -599,7 +599,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode> {
         public static DiscoveryNodes readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
             Builder builder = new Builder();
             if (in.readBoolean()) {
-                builder.masterNodeId(in.readUTF());
+                builder.masterNodeId(in.readString());
             }
             if (localNode != null) {
                 builder.localNodeId(localNode.id());

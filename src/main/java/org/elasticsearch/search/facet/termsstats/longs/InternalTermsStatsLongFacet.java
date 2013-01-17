@@ -341,7 +341,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
@@ -355,7 +355,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);

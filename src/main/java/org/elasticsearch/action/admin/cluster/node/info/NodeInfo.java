@@ -262,14 +262,14 @@ public class NodeInfo extends NodeOperationResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         if (in.readBoolean()) {
-            hostname = in.readUTF();
+            hostname = in.readString();
         }
         version = Version.readVersion(in);
         if (in.readBoolean()) {
             ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                builder.put(in.readUTF(), in.readUTF());
+                builder.put(in.readString(), in.readString());
             }
             serviceAttributes = builder.build();
         }
@@ -306,7 +306,7 @@ public class NodeInfo extends NodeOperationResponse {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(hostname);
+            out.writeString(hostname);
         }
         out.writeVInt(version.id);
         if (serviceAttributes() == null) {
@@ -315,8 +315,8 @@ public class NodeInfo extends NodeOperationResponse {
             out.writeBoolean(true);
             out.writeVInt(serviceAttributes.size());
             for (Map.Entry<String, String> entry : serviceAttributes.entrySet()) {
-                out.writeUTF(entry.getKey());
-                out.writeUTF(entry.getValue());
+                out.writeString(entry.getKey());
+                out.writeString(entry.getValue());
             }
         }
         if (settings == null) {

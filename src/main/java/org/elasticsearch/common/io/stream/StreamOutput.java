@@ -165,16 +165,6 @@ public abstract class StreamOutput extends OutputStream {
         writeByte((byte) i);
     }
 
-    @Deprecated
-    public void writeOptionalUTF(@Nullable String str) throws IOException {
-        if (str == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeUTF(str);
-        }
-    }
-
     public void writeOptionalString(@Nullable String str) throws IOException {
         if (str == null) {
             writeBoolean(false);
@@ -233,16 +223,6 @@ public abstract class StreamOutput extends OutputStream {
                 writeByte((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
-    }
-
-    /**
-     * Writes a string.
-     *
-     * @deprecated use {@link #writeString(String)}
-     */
-    @Deprecated
-    public void writeUTF(String str) throws IOException {
-        writeString(str);
     }
 
     public void writeFloat(float v) throws IOException {

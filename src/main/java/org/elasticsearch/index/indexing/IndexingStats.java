@@ -260,7 +260,7 @@ public class IndexingStats implements Streamable, ToXContent {
             int size = in.readVInt();
             typeStats = new HashMap<String, Stats>(size);
             for (int i = 0; i < size; i++) {
-                typeStats.put(in.readUTF(), Stats.readStats(in));
+                typeStats.put(in.readString(), Stats.readStats(in));
             }
         }
     }
@@ -274,7 +274,7 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             out.writeVInt(typeStats.size());
             for (Map.Entry<String, Stats> entry : typeStats.entrySet()) {
-                out.writeUTF(entry.getKey());
+                out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
             }
         }

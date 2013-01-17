@@ -56,9 +56,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            path = in.readUTF();
-            mount = in.readOptionalUTF();
-            dev = in.readOptionalUTF();
+            path = in.readString();
+            mount = in.readOptionalString();
+            dev = in.readOptionalString();
             total = in.readLong();
             free = in.readLong();
             available = in.readLong();
@@ -72,9 +72,9 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeUTF(path);
-            out.writeOptionalUTF(mount);
-            out.writeOptionalUTF(dev);
+            out.writeString(path);
+            out.writeOptionalString(mount);
+            out.writeOptionalString(dev);
             out.writeLong(total);
             out.writeLong(free);
             out.writeLong(available);

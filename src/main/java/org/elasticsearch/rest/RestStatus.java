@@ -484,10 +484,10 @@ public enum RestStatus {
     }
 
     public static RestStatus readFrom(StreamInput in) throws IOException {
-        return RestStatus.valueOf(in.readUTF());
+        return RestStatus.valueOf(in.readString());
     }
 
     public static void writeTo(StreamOutput out, RestStatus status) throws IOException {
-        out.writeUTF(status.name());
+        out.writeString(status.name());
     }
 }

@@ -180,18 +180,6 @@ public abstract class StreamInput extends InputStream {
         return i | ((b & 0x7FL) << 56);
     }
 
-    /**
-     * @deprecated use {@link #readOptionalString()}
-     */
-    @Nullable
-    @Deprecated
-    public String readOptionalUTF() throws IOException {
-        if (readBoolean()) {
-            return readUTF();
-        }
-        return null;
-    }
-
     @Nullable
     public Text readOptionalText() throws IOException {
         int length = readInt();
@@ -246,14 +234,6 @@ public abstract class StreamInput extends InputStream {
             }
         }
         return new String(chars, 0, charCount);
-    }
-
-    /**
-     * @deprecated use {@link #readString()}
-     */
-    @Deprecated
-    public String readUTF() throws IOException {
-        return readString();
     }
 
 

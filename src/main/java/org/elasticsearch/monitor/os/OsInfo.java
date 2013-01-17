@@ -332,8 +332,8 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            vendor = in.readUTF();
-            model = in.readUTF();
+            vendor = in.readString();
+            model = in.readString();
             mhz = in.readInt();
             totalCores = in.readInt();
             totalSockets = in.readInt();
@@ -343,8 +343,8 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeUTF(vendor);
-            out.writeUTF(model);
+            out.writeString(vendor);
+            out.writeString(model);
             out.writeInt(mhz);
             out.writeInt(totalCores);
             out.writeInt(totalSockets);

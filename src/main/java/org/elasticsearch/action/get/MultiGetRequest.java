@@ -111,45 +111,45 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            index = in.readUTF();
+            index = in.readString();
             if (in.readBoolean()) {
-                type = in.readUTF();
+                type = in.readString();
             }
-            id = in.readUTF();
+            id = in.readString();
             if (in.readBoolean()) {
-                routing = in.readUTF();
+                routing = in.readString();
             }
             int size = in.readVInt();
             if (size > 0) {
                 fields = new String[size];
                 for (int i = 0; i < size; i++) {
-                    fields[i] = in.readUTF();
+                    fields[i] = in.readString();
                 }
             }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeUTF(index);
+            out.writeString(index);
             if (type == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(type);
+                out.writeString(type);
             }
-            out.writeUTF(id);
+            out.writeString(id);
             if (routing == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(routing);
+                out.writeString(routing);
             }
             if (fields == null) {
                 out.writeVInt(0);
             } else {
                 out.writeVInt(fields.length);
                 for (String field : fields) {
-                    out.writeUTF(field);
+                    out.writeString(field);
                 }
             }
         }

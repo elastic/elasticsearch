@@ -19,10 +19,6 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.DoubleField;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.*;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.util.*;
@@ -37,40 +33,6 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class NumericFieldDataTests extends StringFieldDataTests {
 
     protected abstract FieldDataType getFieldDataType();
-
-    protected String one() {
-        return "1.0";
-    }
-
-    protected String two() {
-        return "2.0";
-    }
-
-    protected String three() {
-        return "3.0";
-    }
-
-    protected String four() {
-        return "4.0";
-    }
-
-    @Override
-    protected void fillSingleValueAllSet() throws Exception {
-        Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new DoubleField("value", 2.0d, Field.Store.NO));
-        writer.addDocument(d);
-
-        d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
-        d.add(new DoubleField("value", 1.0d, Field.Store.NO));
-        writer.addDocument(d);
-
-        d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new DoubleField("value", 3.0d, Field.Store.NO));
-        writer.addDocument(d);
-    }
 
     @Test
     public void testSingleValueAllSetNumber() throws Exception {
@@ -378,24 +340,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(topDocs.scoreDocs[0].doc, equalTo(2));
         assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
         assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
-    }
-
-    @Override
-    protected void fillSingleValueWithMissing() throws Exception {
-        Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new DoubleField("value", 2.0d, Field.Store.NO));
-        writer.addDocument(d);
-
-        d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
-        //d.add(new StringField("value", one(), Field.Store.NO)); // MISSING....
-        writer.addDocument(d);
-
-        d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new DoubleField("value", 3.0d, Field.Store.NO));
-        writer.addDocument(d);
     }
 
     @Test
@@ -710,25 +654,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
     }
 
-    @Override
-    protected void fillMultiValueAllSet() throws Exception {
-        Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new DoubleField("value", 2.0d, Field.Store.NO));
-        d.add(new DoubleField("value", 4.0d, Field.Store.NO));
-        writer.addDocument(d);
-
-        d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
-        d.add(new DoubleField("value", 1.0d, Field.Store.NO));
-        writer.addDocument(d);
-
-        d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new DoubleField("value", 3.0d, Field.Store.NO));
-        writer.addDocument(d);
-    }
-
     @Test
     public void testMultiValueAllSetNumber() throws Exception {
         fillMultiValueAllSet();
@@ -1036,25 +961,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         floatValues.forEachValueInDoc(0, new FloatValuesVerifierProc(0).addExpected(2f).addExpected(4f));
         floatValues.forEachValueInDoc(1, new FloatValuesVerifierProc(1).addExpected(1f));
         floatValues.forEachValueInDoc(2, new FloatValuesVerifierProc(2).addExpected(3f));
-    }
-
-    @Override
-    protected void fillMultiValueWithMissing() throws Exception {
-        Document d = new Document();
-        d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new DoubleField("value", 2.0d, Field.Store.NO));
-        d.add(new DoubleField("value", 4.0d, Field.Store.NO));
-        writer.addDocument(d);
-
-        d = new Document();
-        d.add(new StringField("_id", "2", Field.Store.NO));
-        //d.add(new StringField("value", one(), Field.Store.NO)); // MISSING
-        writer.addDocument(d);
-
-        d = new Document();
-        d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new DoubleField("value", 3.0f, Field.Store.NO));
-        writer.addDocument(d);
     }
 
     @Test

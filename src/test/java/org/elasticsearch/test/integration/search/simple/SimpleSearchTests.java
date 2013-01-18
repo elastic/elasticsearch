@@ -93,7 +93,7 @@ public class SimpleSearchTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
 
-        searchResponse = client.prepareSearch().setQuery(QueryBuilders.queryString("_id:XXX*")).execute().actionGet();
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.queryString("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
 

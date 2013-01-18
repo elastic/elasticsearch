@@ -173,6 +173,12 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        // long for now, need to think about scripts and getting a DateTime back?
+        return new org.elasticsearch.index.fielddata.FieldDataType("long");
+    }
+
+    @Override
     protected double parseFuzzyFactor(String fuzzyFactor) {
         if (fuzzyFactor == null) {
             return 1.0d;
@@ -400,11 +406,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     @Override
     public FieldDataType fieldDataType() {
         return FieldDataType.DefaultTypes.LONG;
-    }
-
-    @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
-        throw new ElasticSearchIllegalArgumentException("not implemented");
     }
 
     @Override

@@ -31,6 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.ArrayList;
@@ -42,13 +43,13 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, String fieldName, FieldDataType type, IndexFieldDataCache cache) {
-            return new DoubleArrayIndexFieldData(index, indexSettings, fieldName, type, cache);
+        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
+            return new DoubleArrayIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
 
-    public DoubleArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, String fieldName, FieldDataType fieldDataType, IndexFieldDataCache cache) {
-        super(index, indexSettings, fieldName, fieldDataType, cache);
+    public DoubleArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+        super(index, indexSettings, fieldNames, fieldDataType, cache);
     }
 
     @Override
@@ -80,7 +81,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
     public DoubleArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
-        Terms terms = reader.terms(getFieldName());
+        Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
             return new DoubleArrayAtomicFieldData.Single(new double[0], 0);
         }

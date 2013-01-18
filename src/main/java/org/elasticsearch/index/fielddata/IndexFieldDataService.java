@@ -32,6 +32,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.ConcreteBytesRefIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DoubleArrayIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LongArrayIndexFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
@@ -86,7 +87,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         }
     }
 
-    public <IFD extends IndexFieldData> IFD getForField(String fieldName, FieldDataType type) {
+    public <IFD extends IndexFieldData> IFD getForField(FieldMapper.Names fieldNames, FieldDataType type) {
         IndexFieldData fieldData = loadedFieldData.get(type.getType());
         if (fieldData == null) {
             synchronized (loadedFieldData) {
@@ -100,7 +101,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         builder = buildersByType.get(type.getType());
                     }
                     if (builder == null) {
-                        throw new ElasticSearchIllegalArgumentException("failed to find field data builder for field " + fieldName + ", and type " + type);
+                        throw new ElasticSearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type);
                     }
 
                     IndexFieldDataCache cache;
@@ -111,14 +112,14 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                         } else if ("soft".equals(cacheType)) {
                             cache = new IndexFieldDataCache.Soft();
                         } else {
-                            throw new ElasticSearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldName + "]");
+                            throw new ElasticSearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
                         }
                     } else {
                         cache = new IndexFieldDataCache.Resident();
                     }
 
-                    fieldData = builder.build(index, indexSettings, fieldName, type, cache);
-                    loadedFieldData.put(fieldName, fieldData);
+                    fieldData = builder.build(index, indexSettings, fieldNames, type, cache);
+                    loadedFieldData.put(fieldNames.indexName(), fieldData);
                 }
             }
         }

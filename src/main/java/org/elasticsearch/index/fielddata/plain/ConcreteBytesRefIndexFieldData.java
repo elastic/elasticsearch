@@ -30,6 +30,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.SingleArrayOrdinals;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.ArrayList;
@@ -41,13 +42,13 @@ public class ConcreteBytesRefIndexFieldData extends AbstractIndexFieldData<Concr
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, String fieldName, FieldDataType type, IndexFieldDataCache cache) {
-            return new ConcreteBytesRefIndexFieldData(index, indexSettings, fieldName, type, cache);
+        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
+            return new ConcreteBytesRefIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
 
-    public ConcreteBytesRefIndexFieldData(Index index, @IndexSettings Settings indexSettings, String fieldName, FieldDataType fieldDataType, IndexFieldDataCache cache) {
-        super(index, indexSettings, fieldName, fieldDataType, cache);
+    public ConcreteBytesRefIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+        super(index, indexSettings, fieldNames, fieldDataType, cache);
     }
 
     @Override
@@ -72,7 +73,7 @@ public class ConcreteBytesRefIndexFieldData extends AbstractIndexFieldData<Concr
     public ConcreteBytesRefAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
-        Terms terms = reader.terms(getFieldName());
+        Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
             return new ConcreteBytesRefAtomicFieldData(new BytesRef[1], new EmptyOrdinals(reader.maxDoc()));
         }

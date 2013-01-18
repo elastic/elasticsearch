@@ -19,11 +19,14 @@
 
 package org.elasticsearch.test.integration.mlt;
 
+import java.util.Collections;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -164,6 +167,11 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
             client1.admin().indices().prepareDelete("foo").execute().actionGet();
         } catch (IndexMissingException e) {
         }
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+                .startObject("properties")
+                .endObject()
+                .endObject().endObject().string();
+        client1.admin().indices().prepareCreate("foo").addMapping("bar", mapping).execute().actionGet();
         client1.prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
                 .setRouting("2")

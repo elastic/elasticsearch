@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
@@ -119,22 +120,6 @@ public class RangeFacetProcessor extends AbstractComponent implements FacetProce
 
         RangeFacet.Entry[] rangeEntries = entries.toArray(new RangeFacet.Entry[entries.size()]);
 
-        // fix the range entries if needed
-        if (keyField != null) {
-            FieldMapper mapper = context.smartNameFieldMapper(keyField);
-            if (mapper == null) {
-                throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyField + "]");
-            }
-            for (RangeFacet.Entry entry : rangeEntries) {
-                if (entry.fromAsString != null) {
-                    entry.from = ((Number) mapper.value(entry.fromAsString)).doubleValue();
-                }
-                if (entry.toAsString != null) {
-                    entry.to = ((Number) mapper.value(entry.toAsString)).doubleValue();
-                }
-            }
-        }
-
         if (keyScript != null && valueScript != null) {
             return new ScriptRangeFacetCollector(facetName, scriptLang, keyScript, valueScript, params, rangeEntries, context);
         }
@@ -142,6 +127,22 @@ public class RangeFacetProcessor extends AbstractComponent implements FacetProce
         if (keyField == null) {
             throw new FacetPhaseExecutionException(facetName, "key field is required to be set for range facet, either using [field] or using [key_field]");
         }
+
+        // we have a keyField
+        FieldMapper keyFieldMapper = context.smartNameFieldMapper(keyField);
+        if (keyFieldMapper == null) {
+            throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyField + "]");
+        }
+        for (RangeFacet.Entry entry : rangeEntries) {
+            if (entry.fromAsString != null) {
+                entry.from = ((Number) keyFieldMapper.value(entry.fromAsString)).doubleValue();
+            }
+            if (entry.toAsString != null) {
+                entry.to = ((Number) keyFieldMapper.value(entry.toAsString)).doubleValue();
+            }
+        }
+
+        IndexNumericFieldData keyIndexFieldData = context.fieldData().getForField(keyFieldMapper.names(), keyFieldMapper.fieldDataType2());
 
         if (valueField == null || keyField.equals(valueField)) {
             return new RangeFacetCollector(facetName, keyField, rangeEntries, context);

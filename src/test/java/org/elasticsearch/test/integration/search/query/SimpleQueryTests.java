@@ -160,6 +160,34 @@ public class SimpleQueryTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch().setQuery(queryString("v?l*e?1").analyzeWildcard(true)).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
+    
+    @Test
+    public void testLowercaseExpandedTerms() {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(true)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client.prepareSearch().setQuery(queryString("VALUE_3~1").lowercaseExpandedTerms(false)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+        searchResponse = client.prepareSearch().setQuery(queryString("ValUE_*").lowercaseExpandedTerms(true)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client.prepareSearch().setQuery(queryString("vAl*E_1")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client.prepareSearch().setQuery(queryString("[VALUE_1 TO VALUE_3]")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client.prepareSearch().setQuery(queryString("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+    }
 
     @Test
     public void typeFilterTypeIndexedTests() throws Exception {

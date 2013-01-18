@@ -294,6 +294,10 @@ public class MapperQueryParser extends QueryParser {
         if ("*".equals(part2)) {
             part2 = null;
         }
+        if (lowercaseExpandedTerms) {
+            part1 = part1==null ? null : part1.toLowerCase(locale);
+            part2 = part2==null ? null : part2.toLowerCase(locale);
+          }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {
@@ -354,6 +358,9 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
+        if (lowercaseExpandedTerms) {
+            termStr = termStr.toLowerCase(locale);
+        }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {
@@ -421,6 +428,9 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query getPrefixQuery(String field, String termStr) throws ParseException {
+        if (lowercaseExpandedTerms) {
+            termStr = termStr.toLowerCase(locale);
+        }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {
@@ -568,6 +578,9 @@ public class MapperQueryParser extends QueryParser {
                 // effectively, we check if a field exists or not
                 return fieldQueryExtensions.get(ExistsFieldQueryExtension.NAME).query(parseContext, actualField);
             }
+        }
+        if (lowercaseExpandedTerms) {
+            termStr = termStr.toLowerCase(locale);
         }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {

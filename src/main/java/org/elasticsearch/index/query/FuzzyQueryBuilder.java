@@ -36,7 +36,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
     private float boost = -1;
 
-    private String minSimilarity;
+    private String maxEdits;
 
     private Integer prefixLength;
 
@@ -65,14 +65,26 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         return this;
     }
 
-    public FuzzyQueryBuilder minSimilarity(float defaultMinSimilarity) {
-        this.minSimilarity = Float.toString(defaultMinSimilarity);
+    public FuzzyQueryBuilder maxEdits(float defaultMaxEdits) {
+        this.maxEdits = Float.toString(defaultMaxEdits);
         return this;
     }
 
-    public FuzzyQueryBuilder minSimilarity(String defaultMinSimilarity) {
-        this.minSimilarity = defaultMinSimilarity;
+    public FuzzyQueryBuilder maxEdits(String defaultMaxEdits) {
+        this.maxEdits = defaultMaxEdits;
         return this;
+    }
+    
+    /** @deprecated use {@link #maxEdits(float)} instead */
+    @Deprecated
+    public FuzzyQueryBuilder minSimilarity(float defaultMinSimilarity) {
+        return this.maxEdits(defaultMinSimilarity);
+    }
+    
+    /** @deprecated use {@link #maxEdits(String)} instead */
+    @Deprecated
+    public FuzzyQueryBuilder minSimilarity(String defaultMinSimilarity) {
+        return this.maxEdits(defaultMinSimilarity);
     }
 
     public FuzzyQueryBuilder prefixLength(int prefixLength) {
@@ -93,7 +105,7 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(FuzzyQueryParser.NAME);
-        if (boost == -1 && minSimilarity == null && prefixLength == null) {
+        if (boost == -1 && maxEdits == null && prefixLength == null) {
             builder.field(name, value);
         } else {
             builder.startObject(name);
@@ -104,8 +116,8 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements BoostableQuer
             if (transpositions != null) {
                 builder.field("transpositions", transpositions);
             }
-            if (minSimilarity != null) {
-                builder.field("min_similarity", minSimilarity);
+            if (maxEdits != null) {
+                builder.field("max_edits", maxEdits);
             }
             if (prefixLength != null) {
                 builder.field("prefix_length", prefixLength);

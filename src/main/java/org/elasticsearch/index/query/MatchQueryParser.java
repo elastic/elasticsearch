@@ -101,10 +101,10 @@ public class MatchQueryParser implements QueryParser {
                         boost = parser.floatValue();
                     } else if ("slop".equals(currentFieldName) || "phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                         matchQuery.setPhraseSlop(parser.intValue());
-                    } else if ("fuzziness".equals(currentFieldName)) {
-                        matchQuery.setFuzziness(parser.textOrNull());
+                    } else if ("fuzziness".equals(currentFieldName) || "max_edits".equals(currentFieldName) || "maxEdits".equals(currentFieldName)) {
+                        matchQuery.setMaxEdits(parser.textOrNull());
                     } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
-                        matchQuery.setFuzzyPrefixLength(parser.intValue());
+                        matchQuery.setPrefixLength(parser.intValue());
                     } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
                         matchQuery.setMaxExpansions(parser.intValue());
                     } else if ("operator".equals(currentFieldName)) {

@@ -69,7 +69,7 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
     private Integer slop;
 
-    private String fuzziness;
+    private String maxEdits;
 
     private Integer prefixLength;
 
@@ -140,7 +140,7 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
      * Sets the minimum similarity used when evaluated to a fuzzy query type. Defaults to "0.5".
      */
     public MatchQueryBuilder fuzziness(Object fuzziness) {
-        this.fuzziness = fuzziness.toString();
+        this.maxEdits = fuzziness.toString();
         return this;
     }
 
@@ -213,8 +213,8 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         if (slop != null) {
             builder.field("slop", slop);
         }
-        if (fuzziness != null) {
-            builder.field("fuzziness", fuzziness);
+        if (maxEdits != null) {
+            builder.field("max_edits", maxEdits);
         }
         if (prefixLength != null) {
             builder.field("prefix_length", prefixLength);

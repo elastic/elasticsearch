@@ -121,9 +121,9 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if ("slop".equals(currentFieldName) || "phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                     multiMatchQuery.setPhraseSlop(parser.intValue());
                 } else if ("fuzziness".equals(currentFieldName)) {
-                    multiMatchQuery.setFuzziness(parser.textOrNull());
+                    multiMatchQuery.setMaxEdits(parser.textOrNull());
                 } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
-                    multiMatchQuery.setFuzzyPrefixLength(parser.intValue());
+                    multiMatchQuery.setPrefixLength(parser.intValue());
                 } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
                     multiMatchQuery.setMaxExpansions(parser.intValue());
                 } else if ("operator".equals(currentFieldName)) {

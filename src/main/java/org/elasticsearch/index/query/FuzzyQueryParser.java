@@ -79,7 +79,7 @@ public class FuzzyQueryParser implements QueryParser {
                         value = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
-                    } else if ("min_similarity".equals(currentFieldName) || "minSimilarity".equals(currentFieldName)) {
+                    } else if ("min_similarity".equals(currentFieldName) || "minSimilarity".equals(currentFieldName) || "max_edits".equals(currentFieldName) || "maxEdits".equals(currentFieldName)) {
                         minSimilarity = parser.text();
                     } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                         prefixLength = parser.intValue();

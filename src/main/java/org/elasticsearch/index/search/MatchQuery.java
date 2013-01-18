@@ -69,8 +69,8 @@ public class MatchQuery {
 
     protected int phraseSlop = 0;
 
-    protected String fuzziness = null;
-    protected int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
+    protected String maxEdits = null;
+    protected int prefixLength = FuzzyQuery.defaultPrefixLength;
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
     //LUCENE 4 UPGRADE we need a default value for this!
     protected boolean transpositions = false;
@@ -103,12 +103,36 @@ public class MatchQuery {
         this.phraseSlop = phraseSlop;
     }
 
-    public void setFuzziness(String fuzziness) {
-        this.fuzziness = fuzziness;
+    /**
+     * Sets the maximum edit distance for fuzzy query
+     * @deprecated use {@link #setMaxEdits(String)} instead;
+     */
+    @Deprecated
+    public void setFuzziness(String maxEdits) {
+        setMaxEdits(maxEdits);
+    }
+    
+    /**
+     * Sets the maximum edit distance for fuzzy query
+     */
+    public void setMaxEdits(String maxEdits) {
+        this.maxEdits = maxEdits;
     }
 
-    public void setFuzzyPrefixLength(int fuzzyPrefixLength) {
-        this.fuzzyPrefixLength = fuzzyPrefixLength;
+    /**
+     * Sets the constant prefix length for fuzzy query.
+     */
+    public void setPrefixLength(int prefixLength) {
+        this.prefixLength = prefixLength;
+    }
+    
+    /**
+     * Sets the constant prefix length for fuzzy query.
+     * @deprecated use {@link #setPrefixLength(int)} instead
+     */
+    @Deprecated
+    public void setFuzzyPrefixLength(int prefixLength) {
+        setPrefixLength(prefixLength);
     }
 
     public void setMaxExpansions(int maxExpansions) {
@@ -381,18 +405,18 @@ public class MatchQuery {
     }
 
     private Query newTermQuery(@Nullable FieldMapper mapper, Term term) {
-        if (fuzziness != null) {
+        if (maxEdits != null) {
             if (mapper != null) {
-                Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
+                Query query = mapper.fuzzyQuery(term.text(), maxEdits, prefixLength, maxExpansions, transpositions);
                 if (query instanceof FuzzyQuery) {
                     QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                 }
             }
             String text = term.text();
             //LUCENE 4 UPGRADE we need to document that this should now be an int rather than a float
-            int edits = FuzzyQuery.floatToEdits(Float.parseFloat(fuzziness),
+            int edits = FuzzyQuery.floatToEdits(Float.parseFloat(maxEdits),
                     text.codePointCount(0, text.length()));
-            FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
+            FuzzyQuery query = new FuzzyQuery(term, edits, prefixLength, maxExpansions, transpositions);
             QueryParsers.setRewriteMethod(query, rewriteMethod);
             return query;
         }

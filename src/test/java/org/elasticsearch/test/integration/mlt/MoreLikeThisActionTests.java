@@ -147,6 +147,11 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
             client1.admin().indices().prepareDelete("foo").execute().actionGet();
         } catch (IndexMissingException e) {
         }
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+                .startObject("properties")
+                .endObject()
+                .endObject().endObject().string();
+        client1.admin().indices().prepareCreate("foo").addMapping("bar", mapping).execute().actionGet();
         client1.prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
                 .execute().actionGet();

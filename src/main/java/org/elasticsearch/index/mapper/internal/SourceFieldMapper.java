@@ -25,6 +25,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -216,6 +217,11 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        throw new ElasticSearchIllegalArgumentException("field data on _source field is not supported");
     }
 
     @Override

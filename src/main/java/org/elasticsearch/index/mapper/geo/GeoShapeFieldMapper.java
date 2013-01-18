@@ -148,6 +148,11 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        throw new ElasticSearchIllegalArgumentException("field data on geo_shape field is not supported");
+    }
+
+    @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
         return spatialStrategy.createField(GeoJSONShapeParser.parse(context.parser()));
     }

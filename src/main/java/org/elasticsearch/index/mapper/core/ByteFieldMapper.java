@@ -129,6 +129,11 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        throw new ElasticSearchIllegalArgumentException("not implemented");
+    }
+
+    @Override
     protected int maxPrecisionStep() {
         return 32;
     }

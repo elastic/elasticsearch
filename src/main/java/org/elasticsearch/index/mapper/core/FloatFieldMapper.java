@@ -130,6 +130,11 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     }
 
     @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        throw new ElasticSearchIllegalArgumentException("not implemented");
+    }
+
+    @Override
     protected int maxPrecisionStep() {
         return 32;
     }

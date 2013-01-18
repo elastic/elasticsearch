@@ -403,6 +403,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        throw new ElasticSearchIllegalArgumentException("not implemented");
+    }
+
+    @Override
     protected String contentType() {
         return CONTENT_TYPE;
     }

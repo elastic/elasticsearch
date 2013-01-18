@@ -136,7 +136,10 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 }
                 final BoolQueryBuilder boolBuilder = boolQuery();
                 try {
-                    DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
+                    final DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
+                    if (docMapper == null) {
+                        throw new ElasticSearchException("No DocumentMapper found for type [" + request.type() + "]");
+                    }
                     final Set<String> fields = newHashSet();
                     if (request.fields() != null) {
                         for (String field : request.fields()) {

@@ -20,52 +20,35 @@
 package org.elasticsearch.test.unit.index.fielddata;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
 import org.elasticsearch.index.fielddata.FieldDataType;
 
 /**
  */
-public class DoubleFieldDataTests extends NumericFieldDataTests {
+public class LongFieldDataTests extends NumericFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("double");
+        return new FieldDataType("long");
     }
-
-    protected String one() {
-        return "1.0";
-    }
-
-    protected String two() {
-        return "2.0";
-    }
-
-    protected String three() {
-        return "3.0";
-    }
-
-    protected String four() {
-        return "4.0";
-    }
-
 
     @Override
     protected void fillSingleValueAllSet() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new DoubleField("value", 2.0d, Field.Store.NO));
+        d.add(new LongField("value", 2, Field.Store.NO));
         writer.addDocument(d);
 
         d = new Document();
         d.add(new StringField("_id", "2", Field.Store.NO));
-        d.add(new DoubleField("value", 1.0d, Field.Store.NO));
+        d.add(new LongField("value", 1, Field.Store.NO));
         writer.addDocument(d);
 
         d = new Document();
         d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new DoubleField("value", 3.0d, Field.Store.NO));
+        d.add(new LongField("value", 3, Field.Store.NO));
         writer.addDocument(d);
     }
 
@@ -73,7 +56,7 @@ public class DoubleFieldDataTests extends NumericFieldDataTests {
     protected void fillSingleValueWithMissing() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new DoubleField("value", 2.0d, Field.Store.NO));
+        d.add(new LongField("value", 2, Field.Store.NO));
         writer.addDocument(d);
 
         d = new Document();
@@ -83,7 +66,7 @@ public class DoubleFieldDataTests extends NumericFieldDataTests {
 
         d = new Document();
         d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new DoubleField("value", 3.0d, Field.Store.NO));
+        d.add(new LongField("value", 3, Field.Store.NO));
         writer.addDocument(d);
     }
 
@@ -91,18 +74,18 @@ public class DoubleFieldDataTests extends NumericFieldDataTests {
     protected void fillMultiValueAllSet() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new DoubleField("value", 2.0d, Field.Store.NO));
-        d.add(new DoubleField("value", 4.0d, Field.Store.NO));
+        d.add(new LongField("value", 2, Field.Store.NO));
+        d.add(new LongField("value", 4, Field.Store.NO));
         writer.addDocument(d);
 
         d = new Document();
         d.add(new StringField("_id", "2", Field.Store.NO));
-        d.add(new DoubleField("value", 1.0d, Field.Store.NO));
+        d.add(new LongField("value", 1, Field.Store.NO));
         writer.addDocument(d);
 
         d = new Document();
         d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new DoubleField("value", 3.0d, Field.Store.NO));
+        d.add(new LongField("value", 3, Field.Store.NO));
         writer.addDocument(d);
     }
 
@@ -110,8 +93,8 @@ public class DoubleFieldDataTests extends NumericFieldDataTests {
     protected void fillMultiValueWithMissing() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
-        d.add(new DoubleField("value", 2.0d, Field.Store.NO));
-        d.add(new DoubleField("value", 4.0d, Field.Store.NO));
+        d.add(new LongField("value", 2, Field.Store.NO));
+        d.add(new LongField("value", 4, Field.Store.NO));
         writer.addDocument(d);
 
         d = new Document();
@@ -121,7 +104,7 @@ public class DoubleFieldDataTests extends NumericFieldDataTests {
 
         d = new Document();
         d.add(new StringField("_id", "3", Field.Store.NO));
-        d.add(new DoubleField("value", 3.0f, Field.Store.NO));
+        d.add(new LongField("value", 3, Field.Store.NO));
         writer.addDocument(d);
     }
 }

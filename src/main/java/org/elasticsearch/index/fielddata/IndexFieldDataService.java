@@ -31,6 +31,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.ConcreteBytesRefIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DoubleArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.LongArrayIndexFieldData;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.concurrent.ConcurrentMap;
@@ -46,11 +47,13 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         buildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
                 .put("string", new ConcreteBytesRefIndexFieldData.Builder())
                 .put("double", new DoubleArrayIndexFieldData.Builder())
+                .put("long", new LongArrayIndexFieldData.Builder())
                 .immutableMap();
 
-        buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder().
-                put(Tuple.tuple("string", "concrete_bytes"), new ConcreteBytesRefIndexFieldData.Builder())
+        buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
+                .put(Tuple.tuple("string", "concrete_bytes"), new ConcreteBytesRefIndexFieldData.Builder())
                 .put(Tuple.tuple("double", "array"), new DoubleArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("long", "array"), new LongArrayIndexFieldData.Builder())
                 .immutableMap();
     }
 

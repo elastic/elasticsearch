@@ -201,5 +201,7 @@ public interface FieldMapper<T> {
 
     FieldDataType fieldDataType();
 
+    org.elasticsearch.index.fielddata.FieldDataType fieldDataType2();
+
     PostingsFormatProvider postingsFormatProvider();
 }

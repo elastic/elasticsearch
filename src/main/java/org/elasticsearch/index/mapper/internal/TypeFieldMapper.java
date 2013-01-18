@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -107,6 +108,11 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        return new FieldDataType("string");
     }
 
     @Override

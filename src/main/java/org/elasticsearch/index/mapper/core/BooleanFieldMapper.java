@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -157,6 +158,11 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        throw new ElasticSearchIllegalArgumentException("not implemented");
     }
 
     @Override

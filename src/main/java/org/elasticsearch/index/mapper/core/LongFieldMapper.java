@@ -132,6 +132,11 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        return new org.elasticsearch.index.fielddata.FieldDataType("long");
+    }
+
+    @Override
     protected int maxPrecisionStep() {
         return 64;
     }

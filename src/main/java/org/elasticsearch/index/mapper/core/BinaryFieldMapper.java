@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
@@ -130,6 +131,11 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+        throw new ElasticSearchIllegalArgumentException("field data on binary field is not supported");
     }
 
     @Override

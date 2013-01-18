@@ -1,0 +1,305 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.index.fielddata;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
+import org.elasticsearch.index.fielddata.util.StringArrayRef;
+
+/**
+ */
+public interface BytesValues {
+
+    /**
+     * Is there a value for this doc?
+     */
+    boolean hasValue(int docId);
+
+    /**
+     * Is one of the documents in this field data values is multi valued?
+     */
+    boolean isMultiValued();
+
+    /**
+     * Returns a bytes value for a docId. Note, the content of it might be shared across invocation.
+     */
+    BytesRef getValue(int docId);
+
+    /**
+     * Returns the bytes value for the docId, with the provided "ret" which will be filled with the
+     * result which will also be returned. If there is no value for this docId, the length will be 0.
+     * Note, the bytes are not "safe".
+     */
+    BytesRef getValueScratch(int docId, BytesRef ret);
+
+    /**
+     * Returns a bytes value for a docId. The content is guaranteed not to be shared.
+     */
+    BytesRef getValueSafe(int docId);
+
+    /**
+     * Returns an array wrapping all the bytes values for a doc. The content is guaranteed not to be shared.
+     */
+    BytesRefArrayRef getValues(int docId);
+
+    /**
+     * Returns a bytes value iterator for a docId. Note, the content of it might be shared across invocation.
+     */
+    Iter getIter(int docId);
+
+    /**
+     * Returns a bytes value iterator for a docId. The content is guaranteed not to be shared.
+     */
+    Iter getIterSafe(int docId);
+
+    /**
+     * Go over all the possible values in their BytesRef format for a specific doc.
+     */
+    void forEachValueInDoc(int docId, ValueInDocProc proc);
+
+    /**
+     * Go over all the possible values in their BytesRef format for a specific doc.
+     */
+    void forEachSafeValueInDoc(int docId, ValueInDocProc proc);
+
+    public static interface ValueInDocProc {
+        void onValue(int docId, BytesRef value);
+
+        void onMissing(int docId);
+    }
+
+    static interface Iter {
+
+        boolean hasNext();
+
+        BytesRef next();
+
+        static class Empty implements Iter {
+
+            public static final Empty INSTANCE = new Empty();
+
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public BytesRef next() {
+                throw new ElasticSearchIllegalStateException();
+            }
+        }
+
+        static class Single implements Iter {
+
+            public BytesRef value;
+            public boolean done;
+
+            public Single reset(BytesRef value) {
+                this.value = value;
+                this.done = false;
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return !done;
+            }
+
+            @Override
+            public BytesRef next() {
+                assert !done;
+                done = true;
+                return value;
+            }
+        }
+    }
+
+    public static class StringBased implements BytesValues {
+
+        private final StringValues values;
+
+        protected final BytesRef scratch = new BytesRef();
+        private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[1], 1);
+        private final ValueIter valueIter = new ValueIter();
+        private final SafeValueIter safeValueIter = new SafeValueIter();
+        private final Proc proc = new Proc();
+        private final SafeProc safeProc = new SafeProc();
+
+        public StringBased(StringValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return values.hasValue(docId);
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return values.isMultiValued();
+        }
+
+        @Override
+        public BytesRef getValue(int docId) {
+            String value = values.getValue(docId);
+            if (value == null) return null;
+            scratch.copyChars(value);
+            return scratch;
+        }
+
+        @Override
+        public BytesRef getValueScratch(int docId, BytesRef ret) {
+            String value = values.getValue(docId);
+            if (value == null) {
+                ret.length = 0;
+                return ret;
+            }
+            ret.copyChars(value);
+            return ret;
+        }
+
+        @Override
+        public BytesRef getValueSafe(int docId) {
+            String value = values.getValue(docId);
+            if (value == null) return null;
+            return new BytesRef(value);
+        }
+
+        @Override
+        public BytesRefArrayRef getValues(int docId) {
+            StringArrayRef arrayRef = values.getValues(docId);
+            int size = arrayRef.size();
+            if (size == 0) {
+                return BytesRefArrayRef.EMPTY;
+            }
+            arrayScratch.reset(size);
+            for (int i = arrayRef.start; i < arrayRef.end; i++) {
+                String value = arrayRef.values[i];
+                arrayScratch.values[arrayScratch.end++] = value == null ? null : new BytesRef(value);
+            }
+            return arrayScratch;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return valueIter.reset(values.getIter(docId));
+        }
+
+        @Override
+        public Iter getIterSafe(int docId) {
+            return safeValueIter.reset(values.getIter(docId));
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            values.forEachValueInDoc(docId, this.proc.reset(proc));
+        }
+
+        @Override
+        public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
+            values.forEachValueInDoc(docId, this.safeProc.reset(proc));
+        }
+
+        static class ValueIter implements Iter {
+
+            private final BytesRef scratch = new BytesRef();
+            private StringValues.Iter iter;
+
+            public ValueIter reset(StringValues.Iter iter) {
+                this.iter = iter;
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return iter.hasNext();
+            }
+
+            @Override
+            public BytesRef next() {
+                scratch.copyChars(iter.next());
+                return scratch;
+            }
+        }
+
+        static class SafeValueIter implements Iter {
+
+            private StringValues.Iter iter;
+
+            public SafeValueIter reset(StringValues.Iter iter) {
+                this.iter = iter;
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return iter.hasNext();
+            }
+
+            @Override
+            public BytesRef next() {
+                return new BytesRef(iter.next());
+            }
+        }
+
+        static class Proc implements StringValues.ValueInDocProc {
+
+            private final BytesRef scratch = new BytesRef();
+            private BytesValues.ValueInDocProc proc;
+
+            public Proc reset(BytesValues.ValueInDocProc proc) {
+                this.proc = proc;
+                return this;
+            }
+
+            @Override
+            public void onValue(int docId, String value) {
+                scratch.copyChars(value);
+                proc.onValue(docId, scratch);
+            }
+
+            @Override
+            public void onMissing(int docId) {
+                proc.onMissing(docId);
+            }
+        }
+
+        static class SafeProc implements StringValues.ValueInDocProc {
+
+            private BytesValues.ValueInDocProc proc;
+
+            public SafeProc reset(BytesValues.ValueInDocProc proc) {
+                this.proc = proc;
+                return this;
+            }
+
+            @Override
+            public void onValue(int docId, String value) {
+                proc.onValue(docId, new BytesRef(value));
+            }
+
+            @Override
+            public void onMissing(int docId) {
+                proc.onMissing(docId);
+            }
+        }
+    }
+}

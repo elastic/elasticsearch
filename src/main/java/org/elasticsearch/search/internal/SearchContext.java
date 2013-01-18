@@ -38,6 +38,7 @@ import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -357,6 +358,10 @@ public class SearchContext implements Releasable {
 
     public FieldDataCache fieldDataCache() {
         return indexService.cache().fieldData();
+    }
+
+    public IndexFieldDataService fieldData() {
+        return indexService.fieldData();
     }
 
     public IdCache idCache() {

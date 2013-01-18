@@ -42,6 +42,7 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.fielddata.IndexFieldDataModule;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
@@ -276,6 +277,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
         modules.add(new SimilarityModule(indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
+        modules.add(new IndexFieldDataModule(indexSettings));
         modules.add(new CodecModule(indexSettings));
         modules.add(new MapperServiceModule());
         modules.add(new IndexQueryParserModule(indexSettings));

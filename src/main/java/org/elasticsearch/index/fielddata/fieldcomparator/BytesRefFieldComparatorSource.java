@@ -43,7 +43,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert fieldname.equals(indexFieldData.getFieldName());
+        assert fieldname.equals(indexFieldData.getFieldNames().indexName());
         if (indexFieldData.valuesOrdered() && indexFieldData instanceof IndexOrdinalFieldData) {
             return new BytesRefOrdValComparator((IndexOrdinalFieldData) indexFieldData, numHits);
         }

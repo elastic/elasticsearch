@@ -46,7 +46,7 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
 
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-        assert fieldname.equals(indexFieldData.getFieldName());
+        assert fieldname.equals(indexFieldData.getFieldNames().indexName());
 
         double dMissingValue;
         if (missingValue == null || "_last".equals(missingValue)) {

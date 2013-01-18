@@ -26,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
@@ -35,7 +36,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * The field name.
      */
-    String getFieldName();
+    FieldMapper.Names getFieldNames();
 
     /**
      * Are the values ordered? (in ascending manner).
@@ -72,6 +73,6 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
 
     interface Builder {
 
-        IndexFieldData build(Index index, @IndexSettings Settings indexSettings, String fieldName, FieldDataType type, IndexFieldDataCache cache);
+        IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache);
     }
 }

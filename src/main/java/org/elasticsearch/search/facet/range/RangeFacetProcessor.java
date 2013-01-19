@@ -142,7 +142,7 @@ public class RangeFacetProcessor extends AbstractComponent implements FacetProce
             }
         }
 
-        IndexNumericFieldData keyIndexFieldData = context.fieldData().getForField(keyFieldMapper.names(), keyFieldMapper.fieldDataType2());
+        IndexNumericFieldData keyIndexFieldData = context.fieldData().getForField(keyFieldMapper);
 
         if (valueField == null || keyField.equals(valueField)) {
             return new RangeFacetCollector(facetName, keyIndexFieldData, rangeEntries, context);
@@ -151,7 +151,7 @@ public class RangeFacetProcessor extends AbstractComponent implements FacetProce
             if (valueFieldMapper == null) {
                 throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + keyField + "]");
             }
-            IndexNumericFieldData valueIndexFieldData = context.fieldData().getForField(valueFieldMapper.names(), valueFieldMapper.fieldDataType2());
+            IndexNumericFieldData valueIndexFieldData = context.fieldData().getForField(valueFieldMapper);
             // we have a value field, and its different than the key
             return new KeyValueRangeFacetCollector(facetName, keyIndexFieldData, valueIndexFieldData, rangeEntries, context);
         }

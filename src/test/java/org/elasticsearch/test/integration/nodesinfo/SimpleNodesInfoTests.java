@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.nodesinfo;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
@@ -44,7 +45,8 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
     @Test
     public void testNodesInfos() {
         startNode("server1");
-        startNode("server2");
+        startNode("server2", ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", 2)); 
+        /* Use minimum master nodes here to ensure we joined the cluster such that both servers see each other to execute the node info. */
         String server1NodeId = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
         String server2NodeId = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
 

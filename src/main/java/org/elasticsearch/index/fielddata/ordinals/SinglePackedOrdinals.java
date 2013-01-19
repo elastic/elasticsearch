@@ -116,7 +116,7 @@ public class SinglePackedOrdinals implements Ordinals {
         public IntArrayRef getOrds(int docId) {
             int ordinal = (int) reader.get(docId);
             if (ordinal == 0) return IntArrayRef.EMPTY;
-            intsScratch.values[0] = docId;
+            intsScratch.values[0] = ordinal;
             return intsScratch;
         }
 

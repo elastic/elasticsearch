@@ -112,7 +112,7 @@ public class SingleArrayOrdinals implements Ordinals {
         public IntArrayRef getOrds(int docId) {
             int ordinal = ordinals[docId];
             if (ordinal == 0) return IntArrayRef.EMPTY;
-            intsScratch.values[0] = docId;
+            intsScratch.values[0] = ordinal;
             return intsScratch;
         }
 

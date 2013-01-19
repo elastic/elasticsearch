@@ -87,6 +87,10 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         }
     }
 
+    public <IFD extends IndexFieldData> IFD getForField(FieldMapper mapper) {
+        return getForField(mapper.names(), mapper.fieldDataType2());
+    }
+
     public <IFD extends IndexFieldData> IFD getForField(FieldMapper.Names fieldNames, FieldDataType type) {
         IndexFieldData fieldData = loadedFieldData.get(type.getType());
         if (fieldData == null) {

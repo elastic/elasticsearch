@@ -54,7 +54,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
 
     @Override
     public NumericType getNumericType() {
-        return NumericType.DOUBLE;
+        return NumericType.LONG;
     }
 
     @Override

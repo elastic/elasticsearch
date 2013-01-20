@@ -20,12 +20,11 @@
 package org.elasticsearch.search.facet.termsstats.strings;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTHashMap;
@@ -69,8 +68,8 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         double min;
         double max;
 
-        public StringEntry(BytesRef term, long count, long totalCount, double total, double min, double max) {
-            this(new BytesText(new BytesArray(term)), count, totalCount, total, min, max);
+        public StringEntry(HashedBytesRef term, long count, long totalCount, double total, double min, double max) {
+            this(new BytesText(new BytesArray(term.bytes)), count, totalCount, total, min, max);
         }
 
         public StringEntry(Text term, long count, long totalCount, double total, double min, double max) {

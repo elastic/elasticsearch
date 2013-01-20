@@ -26,12 +26,44 @@ import org.apache.lucene.index.AtomicReaderContext;
 public interface IndexNumericFieldData<FD extends AtomicNumericFieldData> extends IndexFieldData<FD> {
 
     static enum NumericType {
-        BYTE,
-        SHORT,
-        INT,
-        LONG,
-        FLOAT,
-        DOUBLE
+        BYTE {
+            @Override
+            public boolean isFloatingPoint() {
+                return false;
+            }
+        },
+        SHORT {
+            @Override
+            public boolean isFloatingPoint() {
+                return false;
+            }
+        },
+        INT {
+            @Override
+            public boolean isFloatingPoint() {
+                return false;
+            }
+        },
+        LONG {
+            @Override
+            public boolean isFloatingPoint() {
+                return false;
+            }
+        },
+        FLOAT {
+            @Override
+            public boolean isFloatingPoint() {
+                return true;
+            }
+        },
+        DOUBLE {
+            @Override
+            public boolean isFloatingPoint() {
+                return true;
+            }
+        };
+
+        public abstract boolean isFloatingPoint();
     }
 
     NumericType getNumericType();

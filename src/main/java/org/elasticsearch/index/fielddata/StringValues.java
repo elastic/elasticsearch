@@ -100,6 +100,100 @@ public interface StringValues {
         }
     }
 
+    public static class ByteBased implements StringValues {
+
+        private final ByteValues values;
+
+        private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
+        private final ValuesIter valuesIter = new ValuesIter();
+        private final Proc proc = new Proc();
+
+        public ByteBased(ByteValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return values.isMultiValued();
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return values.hasValue(docId);
+        }
+
+        @Override
+        public String getValue(int docId) {
+            if (!values.hasValue(docId)) {
+                return null;
+            }
+            return Byte.toString(values.getValue(docId));
+        }
+
+        @Override
+        public StringArrayRef getValues(int docId) {
+            ByteArrayRef arrayRef = values.getValues(docId);
+            int size = arrayRef.size();
+            if (size == 0) return StringArrayRef.EMPTY;
+
+            arrayScratch.reset(size);
+            for (int i = arrayRef.start; i < arrayRef.end; i++) {
+                arrayScratch.values[arrayScratch.end++] = Byte.toString(arrayRef.values[i]);
+            }
+            return arrayScratch;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return valuesIter.reset(values.getIter(docId));
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            values.forEachValueInDoc(docId, this.proc.reset(proc));
+        }
+
+        static class ValuesIter implements Iter {
+
+            private ByteValues.Iter iter;
+
+            private ValuesIter reset(ByteValues.Iter iter) {
+                this.iter = iter;
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return iter.hasNext();
+            }
+
+            @Override
+            public String next() {
+                return Byte.toString(iter.next());
+            }
+        }
+
+        static class Proc implements ByteValues.ValueInDocProc {
+
+            private ValueInDocProc proc;
+
+            private Proc reset(ValueInDocProc proc) {
+                this.proc = proc;
+                return this;
+            }
+
+            @Override
+            public void onValue(int docId, byte value) {
+                proc.onValue(docId, Byte.toString(value));
+            }
+
+            @Override
+            public void onMissing(int docId) {
+                proc.onMissing(docId);
+            }
+        }
+    }
+
     public static class ShortBased implements StringValues {
 
         private final ShortValues values;

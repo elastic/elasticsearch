@@ -29,7 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.ByteValuesComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -152,6 +152,6 @@ public class ByteArrayIndexFieldData extends AbstractIndexFieldData<ByteArrayAto
 
     @Override
     public XFieldComparatorSource comparatorSource(@Nullable Object missingValue) {
-        return new DoubleValuesComparatorSource(this, missingValue);
+        return new ByteValuesComparatorSource(this, missingValue);
     }
 }

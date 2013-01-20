@@ -91,7 +91,7 @@ public class StatisticalFacetProcessor extends AbstractComponent implements Face
         if (fieldsNames != null) {
             IndexNumericFieldData[] indexFieldDatas = new IndexNumericFieldData[fieldsNames.length];
             for (int i = 0; i < fieldsNames.length; i++) {
-                FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(fieldsNames[i]);
+                FieldMapper fieldMapper = context.smartNameFieldMapper(fieldsNames[i]);
                 if (fieldMapper == null) {
                     throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldsNames[i] + "]");
                 }
@@ -103,7 +103,7 @@ public class StatisticalFacetProcessor extends AbstractComponent implements Face
             throw new FacetPhaseExecutionException(facetName, "statistical facet requires either [script] or [field] to be set");
         }
         if (field != null) {
-            FieldMapper fieldMapper = context.mapperService().smartNameFieldMapper(field);
+            FieldMapper fieldMapper = context.smartNameFieldMapper(field);
             if (fieldMapper == null) {
                 throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + field + "]");
             }

@@ -23,18 +23,21 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.util.*;
+import org.elasticsearch.index.fielddata.util.DoubleArrayRef;
+import org.elasticsearch.index.fielddata.util.IntArrayRef;
+import org.elasticsearch.index.fielddata.util.LongArrayRef;
+import org.elasticsearch.index.fielddata.util.ShortArrayRef;
 
 /**
  */
-public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldData {
+public abstract class ShortArrayAtomicFieldData implements AtomicNumericFieldData {
 
-    protected final float[] values;
+    protected final short[] values;
     private final int numDocs;
 
     protected long size = -1;
 
-    public FloatArrayAtomicFieldData(float[] values, int numDocs) {
+    public ShortArrayAtomicFieldData(short[] values, int numDocs) {
         this.values = values;
         this.numDocs = numDocs;
     }
@@ -44,11 +47,11 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
         return numDocs;
     }
 
-    public static class WithOrdinals extends FloatArrayAtomicFieldData {
+    public static class WithOrdinals extends ShortArrayAtomicFieldData {
 
         private final Ordinals ordinals;
 
-        public WithOrdinals(float[] values, int numDocs, Ordinals ordinals) {
+        public WithOrdinals(short[] values, int numDocs, Ordinals ordinals) {
             super(values, numDocs);
             this.ordinals = ordinals;
         }
@@ -66,7 +69,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_FLOAT) + ordinals.getMemorySizeInBytes();
+                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_SHORT) + ordinals.getMemorySizeInBytes();
             }
             return size;
         }
@@ -83,7 +86,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public StringValues getStringValues() {
-            return new StringValues.FloatBased(getFloatValues());
+            return new StringValues.ShortBased(getShortValues());
         }
 
         @Override
@@ -98,7 +101,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
+            return new ShortValues(values, ordinals.ordinals());
         }
 
         @Override
@@ -113,7 +116,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public FloatValues getFloatValues() {
-            return new FloatValues(values, ordinals.ordinals());
+            return new FloatValues.DoubleBased(getDoubleValues());
         }
 
         @Override
@@ -121,15 +124,15 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             return new DoubleValues(values, ordinals.ordinals());
         }
 
-        static class FloatValues implements org.elasticsearch.index.fielddata.FloatValues {
+        static class ShortValues implements org.elasticsearch.index.fielddata.ShortValues {
 
-            private final float[] values;
+            private final short[] values;
             private final Ordinals.Docs ordinals;
 
-            private final FloatArrayRef arrayScratch = new FloatArrayRef(new float[1], 1);
+            private final ShortArrayRef arrayScratch = new ShortArrayRef(new short[1], 1);
             private final ValuesIter iter;
 
-            FloatValues(float[] values, Ordinals.Docs ordinals) {
+            ShortValues(short[] values, Ordinals.Docs ordinals) {
                 this.values = values;
                 this.ordinals = ordinals;
                 this.iter = new ValuesIter(values);
@@ -146,12 +149,12 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             }
 
             @Override
-            public float getValue(int docId) {
+            public short getValue(int docId) {
                 return values[ordinals.getOrd(docId)];
             }
 
             @Override
-            public float getValueMissing(int docId, float missingValue) {
+            public short getValueMissing(int docId, short missingValue) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) {
                     return missingValue;
@@ -161,10 +164,10 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             }
 
             @Override
-            public FloatArrayRef getValues(int docId) {
+            public ShortArrayRef getValues(int docId) {
                 IntArrayRef ords = ordinals.getOrds(docId);
                 int size = ords.size();
-                if (size == 0) return FloatArrayRef.EMPTY;
+                if (size == 0) return ShortArrayRef.EMPTY;
 
                 arrayScratch.reset(size);
                 for (int i = ords.start; i < ords.end; i++) {
@@ -193,11 +196,11 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
             static class ValuesIter implements Iter {
 
-                private final float[] values;
+                private final short[] values;
                 private Ordinals.Docs.Iter ordsIter;
                 private int ord;
 
-                ValuesIter(float[] values) {
+                ValuesIter(short[] values) {
                     this.values = values;
                 }
 
@@ -213,8 +216,8 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
                 }
 
                 @Override
-                public float next() {
-                    float value = values[ord];
+                public short next() {
+                    short value = values[ord];
                     ord = ordsIter.next();
                     return value;
                 }
@@ -223,13 +226,13 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
 
-            private final float[] values;
+            private final short[] values;
             private final Ordinals.Docs ordinals;
 
             private final LongArrayRef arrayScratch = new LongArrayRef(new long[1], 1);
             private final ValuesIter iter;
 
-            LongValues(float[] values, Ordinals.Docs ordinals) {
+            LongValues(short[] values, Ordinals.Docs ordinals) {
                 this.values = values;
                 this.ordinals = ordinals;
                 this.iter = new ValuesIter(values);
@@ -293,11 +296,11 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
             static class ValuesIter implements Iter {
 
-                private final float[] values;
+                private final short[] values;
                 private Ordinals.Docs.Iter ordsIter;
                 private int ord;
 
-                ValuesIter(float[] values) {
+                ValuesIter(short[] values) {
                     this.values = values;
                 }
 
@@ -314,7 +317,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
                 @Override
                 public long next() {
-                    float value = values[ord];
+                    short value = values[ord];
                     ord = ordsIter.next();
                     return (long) value;
                 }
@@ -323,13 +326,13 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         static class DoubleValues implements org.elasticsearch.index.fielddata.DoubleValues {
 
-            private final float[] values;
+            private final short[] values;
             private final Ordinals.Docs ordinals;
 
             private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
             private final ValuesIter iter;
 
-            DoubleValues(float[] values, Ordinals.Docs ordinals) {
+            DoubleValues(short[] values, Ordinals.Docs ordinals) {
                 this.values = values;
                 this.ordinals = ordinals;
                 this.iter = new ValuesIter(values);
@@ -393,11 +396,11 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
             static class ValuesIter implements Iter {
 
-                private final float[] values;
+                private final short[] values;
                 private Ordinals.Docs.Iter ordsIter;
                 private int ord;
 
-                ValuesIter(float[] values) {
+                ValuesIter(short[] values) {
                     this.values = values;
                 }
 
@@ -414,7 +417,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
                 @Override
                 public double next() {
-                    float value = values[ord];
+                    short value = values[ord];
                     ord = ordsIter.next();
                     return (double) value;
                 }
@@ -426,11 +429,11 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
      * A single valued case, where not all values are "set", so we have a FixedBitSet that
      * indicates which values have an actual value.
      */
-    public static class SingleFixedSet extends FloatArrayAtomicFieldData {
+    public static class SingleFixedSet extends ShortArrayAtomicFieldData {
 
         private final FixedBitSet set;
 
-        public SingleFixedSet(float[] values, int numDocs, FixedBitSet set) {
+        public SingleFixedSet(short[] values, int numDocs, FixedBitSet set) {
             super(values, numDocs);
             this.set = set;
         }
@@ -448,7 +451,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_FLOAT) + (set.getBits().length * RamUsage.NUM_BYTES_LONG);
+                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_SHORT) + (set.getBits().length * RamUsage.NUM_BYTES_LONG);
             }
             return size;
         }
@@ -470,7 +473,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public StringValues getStringValues() {
-            return new StringValues.FloatBased(getFloatValues());
+            return new StringValues.ShortBased(getShortValues());
         }
 
         @Override
@@ -480,7 +483,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
+            return new ShortValues(values, set);
         }
 
         @Override
@@ -495,7 +498,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public FloatValues getFloatValues() {
-            return new FloatValues(values, set);
+            return new FloatValues.DoubleBased(getDoubleValues());
         }
 
         @Override
@@ -503,15 +506,15 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             return new DoubleValues(values, set);
         }
 
-        static class FloatValues implements org.elasticsearch.index.fielddata.FloatValues {
+        static class ShortValues implements org.elasticsearch.index.fielddata.ShortValues {
 
-            private final float[] values;
+            private final short[] values;
             private final FixedBitSet set;
 
-            private final FloatArrayRef arrayScratch = new FloatArrayRef(new float[1], 1);
+            private final ShortArrayRef arrayScratch = new ShortArrayRef(new short[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
-            FloatValues(float[] values, FixedBitSet set) {
+            ShortValues(short[] values, FixedBitSet set) {
                 this.values = values;
                 this.set = set;
             }
@@ -527,12 +530,12 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             }
 
             @Override
-            public float getValue(int docId) {
+            public short getValue(int docId) {
                 return values[docId];
             }
 
             @Override
-            public float getValueMissing(int docId, float missingValue) {
+            public short getValueMissing(int docId, short missingValue) {
                 if (set.get(docId)) {
                     return values[docId];
                 } else {
@@ -541,12 +544,12 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             }
 
             @Override
-            public FloatArrayRef getValues(int docId) {
+            public ShortArrayRef getValues(int docId) {
                 if (set.get(docId)) {
                     arrayScratch.values[0] = values[docId];
                     return arrayScratch;
                 } else {
-                    return FloatArrayRef.EMPTY;
+                    return ShortArrayRef.EMPTY;
                 }
             }
 
@@ -569,13 +572,13 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
 
-            private final float[] values;
+            private final short[] values;
             private final FixedBitSet set;
 
             private final LongArrayRef arrayScratch = new LongArrayRef(new long[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
-            LongValues(float[] values, FixedBitSet set) {
+            LongValues(short[] values, FixedBitSet set) {
                 this.values = values;
                 this.set = set;
             }
@@ -633,13 +636,13 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         static class DoubleValues implements org.elasticsearch.index.fielddata.DoubleValues {
 
-            private final float[] values;
+            private final short[] values;
             private final FixedBitSet set;
 
             private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
-            DoubleValues(float[] values, FixedBitSet set) {
+            DoubleValues(short[] values, FixedBitSet set) {
                 this.values = values;
                 this.set = set;
             }
@@ -700,13 +703,13 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
     /**
      * Assumes all the values are "set", and docId is used as the index to the value array.
      */
-    public static class Single extends FloatArrayAtomicFieldData {
+    public static class Single extends ShortArrayAtomicFieldData {
 
         /**
          * Note, here, we assume that there is no offset by 1 from docId, so position 0
          * is the value for docId 0.
          */
-        public Single(float[] values, int numDocs) {
+        public Single(short[] values, int numDocs) {
             super(values, numDocs);
         }
 
@@ -723,7 +726,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_FLOAT);
+                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_SHORT);
             }
             return size;
         }
@@ -745,7 +748,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public StringValues getStringValues() {
-            return new StringValues.FloatBased(getFloatValues());
+            return new StringValues.ShortBased(getShortValues());
         }
 
         @Override
@@ -755,7 +758,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
+            return new ShortValues(values);
         }
 
         @Override
@@ -770,7 +773,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public FloatValues getFloatValues() {
-            return new FloatValues(values);
+            return new FloatValues.DoubleBased(getDoubleValues());
         }
 
         @Override
@@ -778,14 +781,14 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             return new DoubleValues(values);
         }
 
-        static class FloatValues implements org.elasticsearch.index.fielddata.FloatValues {
+        static class ShortValues implements org.elasticsearch.index.fielddata.ShortValues {
 
-            private final float[] values;
+            private final short[] values;
 
-            private final FloatArrayRef arrayScratch = new FloatArrayRef(new float[1], 1);
+            private final ShortArrayRef arrayScratch = new ShortArrayRef(new short[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
-            FloatValues(float[] values) {
+            ShortValues(short[] values) {
                 this.values = values;
             }
 
@@ -800,17 +803,17 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             }
 
             @Override
-            public float getValue(int docId) {
+            public short getValue(int docId) {
                 return values[docId];
             }
 
             @Override
-            public float getValueMissing(int docId, float missingValue) {
+            public short getValueMissing(int docId, short missingValue) {
                 return values[docId];
             }
 
             @Override
-            public FloatArrayRef getValues(int docId) {
+            public ShortArrayRef getValues(int docId) {
                 arrayScratch.values[0] = values[docId];
                 return arrayScratch;
             }
@@ -828,12 +831,12 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
 
-            private final float[] values;
+            private final short[] values;
 
             private final LongArrayRef arrayScratch = new LongArrayRef(new long[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
-            LongValues(float[] values) {
+            LongValues(short[] values) {
                 this.values = values;
             }
 
@@ -876,12 +879,12 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         static class DoubleValues implements org.elasticsearch.index.fielddata.DoubleValues {
 
-            private final float[] values;
+            private final short[] values;
 
             private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
-            DoubleValues(float[] values) {
+            DoubleValues(short[] values) {
                 this.values = values;
             }
 

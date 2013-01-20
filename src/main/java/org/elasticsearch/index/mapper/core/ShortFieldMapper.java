@@ -133,7 +133,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
 
     @Override
     public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
-        throw new ElasticSearchIllegalArgumentException("not implemented");
+        return new org.elasticsearch.index.fielddata.FieldDataType("short");
     }
 
     @Override

@@ -23,15 +23,13 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.trove.ExtTHashMap;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.HashedBytesValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -42,68 +40,36 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
     private final TermsStatsFacet.ComparatorType comparatorType;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final String keyFieldName;
-
-    private final String valueFieldName;
+    private final IndexFieldData keyIndexFieldData;
+    private final IndexNumericFieldData valueIndexFieldData;
+    private final SearchScript script;
 
     private final int size;
-
     private final int numberOfShards;
-
-    private final FieldDataType keyFieldDataType;
-
-    private FieldData keyFieldData;
-
-    private final FieldDataType valueFieldDataType;
-
-    private final SearchScript script;
 
     private final Aggregator aggregator;
 
-    public TermsStatsStringFacetCollector(String facetName, String keyFieldName, String valueFieldName, int size, TermsStatsFacet.ComparatorType comparatorType,
-                                          SearchContext context, String scriptLang, String script, Map<String, Object> params) {
+    private HashedBytesValues keyValues;
+
+    public TermsStatsStringFacetCollector(String facetName, IndexFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript valueScript,
+                                          int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.fieldDataCache = context.fieldDataCache();
+        this.keyIndexFieldData = keyIndexFieldData;
+        this.valueIndexFieldData = valueIndexFieldData;
+        this.script = valueScript;
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
 
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(keyFieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            this.keyFieldName = keyFieldName;
-            this.keyFieldDataType = FieldDataType.DefaultTypes.STRING;
+        if (script != null) {
+            this.aggregator = new ScriptAggregator(valueScript);
         } else {
-            // add type filter if there is exact doc mapper associated with it
-            if (smartMappers.explicitTypeInNameWithDocMapper()) {
-                setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-            }
-
-            this.keyFieldName = smartMappers.mapper().names().indexName();
-            this.keyFieldDataType = smartMappers.mapper().fieldDataType();
-        }
-
-        if (script == null) {
-            smartMappers = context.smartFieldMappers(valueFieldName);
-            if (smartMappers == null || !smartMappers.hasMapper()) {
-                throw new ElasticSearchIllegalArgumentException("failed to find mappings for [" + valueFieldName + "]");
-            }
-            this.valueFieldName = smartMappers.mapper().names().indexName();
-            this.valueFieldDataType = smartMappers.mapper().fieldDataType();
-            this.script = null;
             this.aggregator = new Aggregator();
-        } else {
-            this.valueFieldName = null;
-            this.valueFieldDataType = null;
-            this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
-            this.aggregator = new ScriptAggregator(this.script);
         }
     }
 
@@ -116,17 +82,17 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        keyFieldData = fieldDataCache.cache(keyFieldDataType, context.reader(), keyFieldName);
+        keyValues = keyIndexFieldData.load(context).getHashedBytesValues();
         if (script != null) {
             script.setNextReader(context);
         } else {
-            aggregator.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, context.reader(), valueFieldName);
+            aggregator.valueValues = valueIndexFieldData.load(context).getDoubleValues();
         }
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        keyFieldData.forEachValueInDoc(doc, aggregator);
+        keyValues.forEachValueInDoc(doc, aggregator);
     }
 
     @Override
@@ -155,27 +121,28 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ordered, aggregator.missing);
     }
 
-    public static class Aggregator implements FieldData.StringValueInDocProc {
+    public static class Aggregator implements HashedBytesValues.ValueInDocProc {
 
-        // LUCENE 4 UPGRADE: check if hashcode is not too expensive
-        final ExtTHashMap<BytesRef, InternalTermsStatsStringFacet.StringEntry> entries = CacheRecycler.popHashMap();
+        final ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries = CacheRecycler.popHashMap();
 
         int missing = 0;
 
-        NumericFieldData valueFieldData;
+        DoubleValues valueValues;
 
         ValueAggregator valueAggregator = new ValueAggregator();
 
         @Override
-        public void onValue(int docId, BytesRef value) {
+        public void onValue(int docId, HashedBytesRef value) {
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
+                // we use "unsafe" hashedBytes, and only copy over if we "miss" on the map, and need to put it there
+                value = value.deepCopy();
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(value, stringEntry);
             }
             stringEntry.count++;
             valueAggregator.stringEntry = stringEntry;
-            valueFieldData.forEachValueInDoc(docId, valueAggregator);
+            valueValues.forEachValueInDoc(docId, valueAggregator);
         }
 
         @Override
@@ -183,9 +150,13 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
             missing++;
         }
 
-        public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
 
             InternalTermsStatsStringFacet.StringEntry stringEntry;
+
+            @Override
+            public void onMissing(int docId) {
+            }
 
             @Override
             public void onValue(int docId, double value) {
@@ -209,9 +180,11 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         }
 
         @Override
-        public void onValue(int docId, BytesRef value) {
+        public void onValue(int docId, HashedBytesRef value) {
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
+                // we use "unsafe" hashedBytes, and only copy over if we "miss" on the map, and need to put it there
+                value = value.deepCopy();
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 1, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(value, stringEntry);
             } else {

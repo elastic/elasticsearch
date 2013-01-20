@@ -73,4 +73,14 @@ public class HashedBytesRef {
     public String toString() {
         return bytes.toString();
     }
+
+    public HashedBytesRef deepCopy() {
+        return deepCopyOf(this);
+    }
+
+    public static HashedBytesRef deepCopyOf(HashedBytesRef other) {
+        BytesRef copy = new BytesRef();
+        copy.copyBytes(other.bytes);
+        return new HashedBytesRef(copy, other.hash);
+    }
 }

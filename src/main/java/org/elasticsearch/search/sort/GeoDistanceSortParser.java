@@ -20,10 +20,17 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.fieldcomparator.GeoDistanceComparatorSource;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.*;
+import org.elasticsearch.index.search.geo.GeoDistance;
+import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.index.search.geo.GeoUtils;
+import org.elasticsearch.index.search.geo.Point;
 import org.elasticsearch.search.internal.SearchContext;
 
 /**
@@ -117,6 +124,12 @@ public class GeoDistanceSortParser implements SortParser {
             lon = point.lon;
         }
 
-        return new SortField(fieldName, GeoDistanceDataComparator.comparatorSource(fieldName, lat, lon, unit, geoDistance, context.fieldDataCache(), context.mapperService()), reverse);
+        FieldMapper mapper = context.smartNameFieldMapper(fieldName);
+        if (mapper == null) {
+            throw new ElasticSearchIllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
+        }
+        IndexGeoPointFieldData indexFieldData = context.fieldData().getForField(mapper);
+
+        return new SortField(fieldName, new GeoDistanceComparatorSource(indexFieldData, lat, lon, unit, geoDistance), reverse);
     }
 }

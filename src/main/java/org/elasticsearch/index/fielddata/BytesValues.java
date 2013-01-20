@@ -29,14 +29,19 @@ import org.elasticsearch.index.fielddata.util.StringArrayRef;
 public interface BytesValues {
 
     /**
+     * Is one of the documents in this field data values is multi valued?
+     */
+    boolean isMultiValued();
+
+    /**
      * Is there a value for this doc?
      */
     boolean hasValue(int docId);
 
     /**
-     * Is one of the documents in this field data values is multi valued?
+     * Converts the provided bytes to "safe" ones from a "non" safe call made (if needed).
      */
-    boolean isMultiValued();
+    BytesRef makeSafe(BytesRef bytes);
 
     /**
      * Returns a bytes value for a docId. Note, the content of it might be shared across invocation.
@@ -148,13 +153,19 @@ public interface BytesValues {
         }
 
         @Override
+        public boolean isMultiValued() {
+            return values.isMultiValued();
+        }
+
+        @Override
         public boolean hasValue(int docId) {
             return values.hasValue(docId);
         }
 
         @Override
-        public boolean isMultiValued() {
-            return values.isMultiValued();
+        public BytesRef makeSafe(BytesRef bytes) {
+            // we need to make a copy, since we use scratch to provide it
+            return BytesRef.deepCopyOf(bytes);
         }
 
         @Override

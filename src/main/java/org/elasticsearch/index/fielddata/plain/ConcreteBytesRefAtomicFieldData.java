@@ -147,6 +147,12 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
         }
 
         @Override
+        public BytesRef makeSafe(BytesRef bytes) {
+            // no need to do anything, its already concrete bytes...
+            return bytes;
+        }
+
+        @Override
         public BytesRef getValue(int docId) {
             return values[ordinals.getOrd(docId)];
         }
@@ -335,6 +341,13 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
         @Override
         public boolean hasValue(int docId) {
             return ordinals.getOrd(docId) != 0;
+        }
+
+        @Override
+        public HashedBytesRef makeSafe(HashedBytesRef bytes) {
+            // we just need to create a copy of the bytes ref, no need
+            // to create a copy of the actual BytesRef, as its concrete
+            return new HashedBytesRef(bytes.bytes, bytes.hash);
         }
 
         @Override

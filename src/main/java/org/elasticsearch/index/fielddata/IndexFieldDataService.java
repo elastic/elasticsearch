@@ -45,18 +45,20 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     static {
         buildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
                 .put("string", new ConcreteBytesRefIndexFieldData.Builder())
+                .put("float", new FloatArrayIndexFieldData.Builder())
                 .put("double", new DoubleArrayIndexFieldData.Builder())
+                .put("int", new IntArrayIndexFieldData.Builder())
                 .put("long", new LongArrayIndexFieldData.Builder())
                 .put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder())
-                .put("int", new IntArrayIndexFieldData.Builder())
                 .immutableMap();
 
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
                 .put(Tuple.tuple("string", "concrete_bytes"), new ConcreteBytesRefIndexFieldData.Builder())
+                .put(Tuple.tuple("float", "array"), new FloatArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("double", "array"), new DoubleArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("int", "array"), new IntArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("long", "array"), new LongArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("geo_point", "array"), new GeoPointDoubleArrayIndexFieldData.Builder())
-                .put(Tuple.tuple("int", "array"), new IntArrayIndexFieldData.Builder())
                 .immutableMap();
     }
 

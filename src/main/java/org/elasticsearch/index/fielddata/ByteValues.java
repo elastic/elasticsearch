@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.index.fielddata.util.ByteArrayRef;
+import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.elasticsearch.index.fielddata.util.LongArrayRef;
 
 /**
@@ -95,6 +96,103 @@ public interface ByteValues {
                 assert !done;
                 done = true;
                 return value;
+            }
+        }
+    }
+
+    public static class IntBased implements ByteValues {
+
+        private final IntValues values;
+
+        private final ByteArrayRef arrayScratch = new ByteArrayRef(new byte[1], 1);
+        private final ValueIter iter = new ValueIter();
+        private final Proc proc = new Proc();
+
+        public IntBased(IntValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return values.isMultiValued();
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return values.hasValue(docId);
+        }
+
+        @Override
+        public byte getValue(int docId) {
+            return (byte) values.getValue(docId);
+        }
+
+        @Override
+        public byte getValueMissing(int docId, byte missingValue) {
+            return (byte) values.getValueMissing(docId, missingValue);
+        }
+
+        @Override
+        public ByteArrayRef getValues(int docId) {
+            IntArrayRef arrayRef = values.getValues(docId);
+            int size = arrayRef.size();
+            if (size == 0) {
+                return ByteArrayRef.EMPTY;
+            }
+            arrayScratch.reset(size);
+            for (int i = arrayRef.start; i < arrayRef.end; i++) {
+                arrayScratch.values[arrayScratch.end++] = (byte) arrayRef.values[i];
+            }
+            return arrayScratch;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return iter.reset(values.getIter(docId));
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            values.forEachValueInDoc(docId, this.proc.reset(proc));
+        }
+
+        static class ValueIter implements Iter {
+
+            private IntValues.Iter iter;
+
+            public ValueIter reset(IntValues.Iter iter) {
+                this.iter = iter;
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return iter.hasNext();
+            }
+
+            @Override
+            public byte next() {
+                return (byte) iter.next();
+            }
+        }
+
+        static class Proc implements IntValues.ValueInDocProc {
+
+            private ValueInDocProc proc;
+
+            public Proc reset(ValueInDocProc proc) {
+                this.proc = proc;
+                return this;
+            }
+
+            @Override
+            public void onValue(int docId, int value) {
+                proc.onValue(docId, (byte) value);
+            }
+
+            @Override
+            public void onMissing(int docId) {
+                proc.onMissing(docId);
             }
         }
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.index.fielddata.util.LongArrayRef;
 import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
@@ -96,6 +97,100 @@ public interface StringValues {
                 assert !done;
                 done = true;
                 return value;
+            }
+        }
+    }
+
+    public static class LongBased implements StringValues {
+
+        private final LongValues values;
+
+        private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
+        private final ValuesIter valuesIter = new ValuesIter();
+        private final Proc proc = new Proc();
+
+        public LongBased(LongValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return values.isMultiValued();
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return values.hasValue(docId);
+        }
+
+        @Override
+        public String getValue(int docId) {
+            if (!values.hasValue(docId)) {
+                return null;
+            }
+            return Long.toString(values.getValue(docId));
+        }
+
+        @Override
+        public StringArrayRef getValues(int docId) {
+            LongArrayRef arrayRef = values.getValues(docId);
+            int size = arrayRef.size();
+            if (size == 0) return StringArrayRef.EMPTY;
+
+            arrayScratch.reset(size);
+            for (int i = arrayRef.start; i < arrayRef.end; i++) {
+                arrayScratch.values[arrayScratch.end++] = Long.toString(arrayRef.values[i]);
+            }
+            return arrayScratch;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return valuesIter.reset(values.getIter(docId));
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            values.forEachValueInDoc(docId, this.proc.reset(proc));
+        }
+
+        static class ValuesIter implements Iter {
+
+            private LongValues.Iter iter;
+
+            private ValuesIter reset(LongValues.Iter iter) {
+                this.iter = iter;
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return iter.hasNext();
+            }
+
+            @Override
+            public String next() {
+                return Long.toString(iter.next());
+            }
+        }
+
+        static class Proc implements LongValues.ValueInDocProc {
+
+            private ValueInDocProc proc;
+
+            private Proc reset(ValueInDocProc proc) {
+                this.proc = proc;
+                return this;
+            }
+
+            @Override
+            public void onValue(int docId, long value) {
+                proc.onValue(docId, Long.toString(value));
+            }
+
+            @Override
+            public void onMissing(int docId) {
+                proc.onMissing(docId);
             }
         }
     }

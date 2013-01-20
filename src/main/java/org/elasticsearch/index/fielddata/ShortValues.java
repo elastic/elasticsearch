@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.elasticsearch.index.fielddata.util.LongArrayRef;
 import org.elasticsearch.index.fielddata.util.ShortArrayRef;
 
@@ -95,6 +96,103 @@ public interface ShortValues {
                 assert !done;
                 done = true;
                 return value;
+            }
+        }
+    }
+
+    public static class IntBased implements ShortValues {
+
+        private final IntValues values;
+
+        private final ShortArrayRef arrayScratch = new ShortArrayRef(new short[1], 1);
+        private final ValueIter iter = new ValueIter();
+        private final Proc proc = new Proc();
+
+        public IntBased(IntValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return values.isMultiValued();
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return values.hasValue(docId);
+        }
+
+        @Override
+        public short getValue(int docId) {
+            return (short) values.getValue(docId);
+        }
+
+        @Override
+        public short getValueMissing(int docId, short missingValue) {
+            return (short) values.getValueMissing(docId, missingValue);
+        }
+
+        @Override
+        public ShortArrayRef getValues(int docId) {
+            IntArrayRef arrayRef = values.getValues(docId);
+            int size = arrayRef.size();
+            if (size == 0) {
+                return ShortArrayRef.EMPTY;
+            }
+            arrayScratch.reset(size);
+            for (int i = arrayRef.start; i < arrayRef.end; i++) {
+                arrayScratch.values[arrayScratch.end++] = (short) arrayRef.values[i];
+            }
+            return arrayScratch;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return iter.reset(values.getIter(docId));
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            values.forEachValueInDoc(docId, this.proc.reset(proc));
+        }
+
+        static class ValueIter implements Iter {
+
+            private IntValues.Iter iter;
+
+            public ValueIter reset(IntValues.Iter iter) {
+                this.iter = iter;
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return iter.hasNext();
+            }
+
+            @Override
+            public short next() {
+                return (short) iter.next();
+            }
+        }
+
+        static class Proc implements IntValues.ValueInDocProc {
+
+            private ValueInDocProc proc;
+
+            public Proc reset(ValueInDocProc proc) {
+                this.proc = proc;
+                return this;
+            }
+
+            @Override
+            public void onValue(int docId, int value) {
+                proc.onValue(docId, (short) value);
+            }
+
+            @Override
+            public void onMissing(int docId) {
+                proc.onMissing(docId);
             }
         }
     }

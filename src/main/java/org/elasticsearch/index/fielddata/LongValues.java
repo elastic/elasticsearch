@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.elasticsearch.index.fielddata.util.LongArrayRef;
 
 /**
@@ -47,6 +48,7 @@ public interface LongValues {
     void forEachValueInDoc(int docId, ValueInDocProc proc);
 
     static interface ValueInDocProc {
+
         void onValue(int docId, long value);
 
         void onMissing(int docId);
@@ -97,4 +99,5 @@ public interface LongValues {
             }
         }
     }
+
 }

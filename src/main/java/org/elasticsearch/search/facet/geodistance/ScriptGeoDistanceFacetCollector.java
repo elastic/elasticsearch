@@ -22,7 +22,8 @@ package org.elasticsearch.search.facet.geodistance;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,10 +40,10 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
     private Aggregator scriptAggregator;
 
-    public ScriptGeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
+    public ScriptGeoDistanceFacetCollector(String facetName, IndexGeoPointFieldData indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
                                            GeoDistanceFacet.Entry[] entries, SearchContext context,
                                            String scriptLang, String script, Map<String, Object> params) {
-        super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
+        super(facetName, indexFieldData, lat, lon, unit, geoDistance, entries, context);
 
         this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
         this.aggregator = new Aggregator(fixedSourceDistance, entries);
@@ -67,7 +68,7 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
         super.doCollect(doc);
     }
 
-    public static class Aggregator implements GeoPointFieldData.ValueInDocProc {
+    public static class Aggregator implements GeoPointValues.LatLonValueInDocProc {
 
         private final GeoDistance.FixedSourceDistance fixedSourceDistance;
 
@@ -78,6 +79,10 @@ public class ScriptGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
         public Aggregator(GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistanceFacet.Entry[] entries) {
             this.fixedSourceDistance = fixedSourceDistance;
             this.entries = entries;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override

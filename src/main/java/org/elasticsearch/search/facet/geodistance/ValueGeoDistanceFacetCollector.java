@@ -21,12 +21,11 @@ package org.elasticsearch.search.facet.geodistance;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.search.geo.GeoDistance;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,41 +35,37 @@ import java.io.IOException;
  */
 public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
 
-    private final String indexValueFieldName;
+    private final IndexNumericFieldData valueIndexFieldData;
 
-    private final FieldDataType valueFieldDataType;
-
-    public ValueGeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
-                                          GeoDistanceFacet.Entry[] entries, SearchContext context, String valueFieldName) {
-        super(facetName, fieldName, lat, lon, unit, geoDistance, entries, context);
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(valueFieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + valueFieldName + "]");
-        }
-        this.indexValueFieldName = smartMappers.mapper().names().indexName();
-        this.valueFieldDataType = smartMappers.mapper().fieldDataType();
+    public ValueGeoDistanceFacetCollector(String facetName, IndexGeoPointFieldData indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
+                                          GeoDistanceFacet.Entry[] entries, SearchContext context, IndexNumericFieldData valueIndexFieldData) {
+        super(facetName, indexFieldData, lat, lon, unit, geoDistance, entries, context);
+        this.valueIndexFieldData = valueIndexFieldData;
         this.aggregator = new Aggregator(fixedSourceDistance, entries);
     }
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         super.doSetNextReader(context);
-        ((Aggregator) this.aggregator).valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, context.reader(), indexValueFieldName);
+        ((Aggregator) this.aggregator).valueValues = valueIndexFieldData.load(context).getDoubleValues();
     }
 
-    public static class Aggregator implements GeoPointFieldData.ValueInDocProc {
+    public static class Aggregator implements GeoPointValues.LatLonValueInDocProc {
 
         private final GeoDistance.FixedSourceDistance fixedSourceDistance;
         private final GeoDistanceFacet.Entry[] entries;
 
-        NumericFieldData valueFieldData;
+        DoubleValues valueValues;
 
         final ValueAggregator valueAggregator = new ValueAggregator();
 
         public Aggregator(GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistanceFacet.Entry[] entries) {
             this.fixedSourceDistance = fixedSourceDistance;
             this.entries = entries;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override
@@ -84,15 +79,19 @@ public class ValueGeoDistanceFacetCollector extends GeoDistanceFacetCollector {
                     entry.foundInDoc = true;
                     entry.count++;
                     valueAggregator.entry = entry;
-                    valueFieldData.forEachValueInDoc(docId, valueAggregator);
+                    valueValues.forEachValueInDoc(docId, valueAggregator);
                 }
             }
         }
     }
 
-    public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+    public static class ValueAggregator implements DoubleValues.ValueInDocProc {
 
         GeoDistanceFacet.Entry entry;
+
+        @Override
+        public void onMissing(int docId) {
+        }
 
         @Override
         public void onValue(int docId, double value) {

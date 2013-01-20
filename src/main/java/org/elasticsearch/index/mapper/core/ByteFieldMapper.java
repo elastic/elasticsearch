@@ -130,7 +130,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
 
     @Override
     public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
-        throw new ElasticSearchIllegalArgumentException("not implemented");
+        return new org.elasticsearch.index.fielddata.FieldDataType("byte");
     }
 
     @Override

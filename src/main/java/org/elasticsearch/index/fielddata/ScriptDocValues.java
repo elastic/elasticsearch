@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.util.*;
+import org.elasticsearch.index.mapper.geo.GeoPoint;
 
 /**
  * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
@@ -252,6 +253,34 @@ public interface ScriptDocValues {
         }
 
         public DoubleArrayRef getValues() {
+            return values.getValues(docId);
+        }
+    }
+
+    static class GeoPoints implements ScriptDocValues {
+
+        private final GeoPointValues values;
+        private int docId;
+
+        public GeoPoints(GeoPointValues values) {
+            this.values = values;
+        }
+
+        @Override
+        public void setNextDocId(int docId) {
+            this.docId = docId;
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return !values.hasValue(docId);
+        }
+
+        public GeoPoint getValue() {
+            return values.getValue(docId);
+        }
+
+        public GeoPointArrayRef getValues() {
             return values.getValues(docId);
         }
     }

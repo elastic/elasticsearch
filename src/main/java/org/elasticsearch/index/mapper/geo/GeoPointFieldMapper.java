@@ -581,6 +581,11 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
 
         @Override
+        public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+            return new org.elasticsearch.index.fielddata.FieldDataType("geo_point");
+        }
+
+        @Override
         public FieldDataType fieldDataType() {
             return GeoPointFieldDataType.TYPE;
         }

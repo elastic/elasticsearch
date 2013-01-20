@@ -31,6 +31,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.ConcreteBytesRefIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DoubleArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.GeoPointDoubleArrayIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.LongArrayIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -49,12 +50,14 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put("string", new ConcreteBytesRefIndexFieldData.Builder())
                 .put("double", new DoubleArrayIndexFieldData.Builder())
                 .put("long", new LongArrayIndexFieldData.Builder())
+                .put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder())
                 .immutableMap();
 
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
                 .put(Tuple.tuple("string", "concrete_bytes"), new ConcreteBytesRefIndexFieldData.Builder())
                 .put(Tuple.tuple("double", "array"), new DoubleArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("long", "array"), new LongArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("geo_point", "array"), new GeoPointDoubleArrayIndexFieldData.Builder())
                 .immutableMap();
     }
 

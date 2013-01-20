@@ -83,6 +83,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         keyValues = keyIndexFieldData.load(context).getHashedBytesValues();
+        aggregator.keyValues = keyValues;
         if (script != null) {
             script.setNextReader(context);
         } else {
@@ -127,6 +128,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
 
         int missing = 0;
 
+        HashedBytesValues keyValues;
         DoubleValues valueValues;
 
         ValueAggregator valueAggregator = new ValueAggregator();
@@ -135,8 +137,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         public void onValue(int docId, HashedBytesRef value) {
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
-                // we use "unsafe" hashedBytes, and only copy over if we "miss" on the map, and need to put it there
-                value = value.deepCopy();
+                value = keyValues.makeSafe(value);
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(value, stringEntry);
             }
@@ -183,8 +184,7 @@ public class TermsStatsStringFacetCollector extends AbstractFacetCollector {
         public void onValue(int docId, HashedBytesRef value) {
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
             if (stringEntry == null) {
-                // we use "unsafe" hashedBytes, and only copy over if we "miss" on the map, and need to put it there
-                value = value.deepCopy();
+                value = keyValues.makeSafe(value);
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 1, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(value, stringEntry);
             } else {

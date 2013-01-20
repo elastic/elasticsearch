@@ -38,6 +38,11 @@ public interface HashedBytesValues {
     boolean hasValue(int docId);
 
     /**
+     * Converts the provided bytes to "safe" ones from a "non" safe call made (if needed).
+     */
+    HashedBytesRef makeSafe(HashedBytesRef bytes);
+
+    /**
      * Returns a bytes value for a docId. Note, the content of it might be shared across invocation.
      */
     HashedBytesRef getValue(int docId);
@@ -144,6 +149,11 @@ public interface HashedBytesValues {
         @Override
         public boolean hasValue(int docId) {
             return values.hasValue(docId);
+        }
+
+        @Override
+        public HashedBytesRef makeSafe(HashedBytesRef bytes) {
+            return new HashedBytesRef(values.makeSafe(bytes.bytes), bytes.hash);
         }
 
         @Override
@@ -287,6 +297,12 @@ public interface HashedBytesValues {
         @Override
         public boolean hasValue(int docId) {
             return values.hasValue(docId);
+        }
+
+        @Override
+        public HashedBytesRef makeSafe(HashedBytesRef bytes) {
+            // we use scratch to provide it, so just need to copy it over to a new instance
+            return new HashedBytesRef(bytes.bytes, bytes.hash);
         }
 
         @Override

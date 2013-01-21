@@ -41,17 +41,17 @@ import java.util.ArrayList;
 
 /**
  */
-public class PackedBytesIndexFieldData extends AbstractIndexFieldData<PackedBytesAtomicFieldData> implements IndexOrdinalFieldData<PackedBytesAtomicFieldData> {
+public class PagesBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesAtomicFieldData> implements IndexOrdinalFieldData<PagedBytesAtomicFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
         public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
-            return new PackedBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
+            return new PagesBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
 
-    public PackedBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public PagesBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
     }
 
@@ -61,7 +61,7 @@ public class PackedBytesIndexFieldData extends AbstractIndexFieldData<PackedByte
     }
 
     @Override
-    public PackedBytesAtomicFieldData load(AtomicReaderContext context) {
+    public PagedBytesAtomicFieldData load(AtomicReaderContext context) {
         try {
             return cache.load(context, this);
         } catch (Throwable e) {
@@ -74,7 +74,7 @@ public class PackedBytesIndexFieldData extends AbstractIndexFieldData<PackedByte
     }
 
     @Override
-    public PackedBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public PagedBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
@@ -83,7 +83,7 @@ public class PackedBytesIndexFieldData extends AbstractIndexFieldData<PackedByte
             // 0 is reserved for "unset"
             bytes.copyUsingLengthPrefix(new BytesRef());
             GrowableWriter termOrdToBytesOffset = new GrowableWriter(1, 2, PackedInts.FASTEST);
-            return new PackedBytesAtomicFieldData(bytes.freeze(true), termOrdToBytesOffset.getMutable(), new EmptyOrdinals(reader.maxDoc()));
+            return new PagedBytesAtomicFieldData(bytes.freeze(true), termOrdToBytesOffset.getMutable(), new EmptyOrdinals(reader.maxDoc()));
         }
 
         final PagedBytes bytes = new PagedBytes(15);
@@ -174,13 +174,13 @@ public class PackedBytesIndexFieldData extends AbstractIndexFieldData<PackedByte
         PackedInts.Reader termOrdToBytesOffsetReader = termOrdToBytesOffset.getMutable();
 
         if (ordinals.size() == 1) {
-            return new PackedBytesAtomicFieldData(bytesReader, termOrdToBytesOffsetReader, new SingleArrayOrdinals(ordinals.get(0), termOrd));
+            return new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffsetReader, new SingleArrayOrdinals(ordinals.get(0), termOrd));
         } else {
             int[][] nativeOrdinals = new int[ordinals.size()][];
             for (int i = 0; i < nativeOrdinals.length; i++) {
                 nativeOrdinals[i] = ordinals.get(i);
             }
-            return new PackedBytesAtomicFieldData(bytesReader, termOrdToBytesOffsetReader, new MultiFlatArrayOrdinals(nativeOrdinals, termOrd));
+            return new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffsetReader, new MultiFlatArrayOrdinals(nativeOrdinals, termOrd));
         }
 
     }

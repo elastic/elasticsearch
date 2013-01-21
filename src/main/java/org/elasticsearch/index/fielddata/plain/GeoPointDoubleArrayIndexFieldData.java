@@ -77,7 +77,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return new GeoPointDoubleArrayAtomicFieldData.Single(new double[0], new double[0], 0);
+            return new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(new double[1], new double[1], 0, new FixedBitSet(1));
         }
 
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...

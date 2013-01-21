@@ -32,7 +32,7 @@ import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
-public class PackedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptDocValues.Strings> {
+public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptDocValues.Strings> {
 
     // 0 ordinal in values means no value (its null)
     private final PagedBytes.Reader bytes;
@@ -42,7 +42,7 @@ public class PackedBytesAtomicFieldData implements AtomicOrdinalFieldData<Script
     private int[] hashes;
     private long size = -1;
 
-    public PackedBytesAtomicFieldData(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals ordinals) {
+    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals ordinals) {
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;
         this.ordinals = ordinals;

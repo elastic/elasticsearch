@@ -131,7 +131,7 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
             } else {
                 ret.bytes = value.bytes;
                 ret.offset = value.offset;
-                ret.length = value.offset;
+                ret.length = value.length;
             }
             return ret;
         }

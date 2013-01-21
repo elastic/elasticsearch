@@ -170,16 +170,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
             return ret;
         }
 
-        @Override
-        public BytesRef getValueSafe(int docId) {
-            return values[ordinals.getOrd(docId)];
-        }
-
-        @Override
-        public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-            forEachValueInDoc(docId, proc);
-        }
-
         static class Single extends BytesValues {
 
             private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[1], 1);
@@ -204,13 +194,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
 
             @Override
             public Iter getIter(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return Iter.Empty.INSTANCE;
-                return iter.reset(values[ord]);
-            }
-
-            @Override
-            public Iter getIterSafe(int docId) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) return Iter.Empty.INSTANCE;
                 return iter.reset(values[ord]);
@@ -257,11 +240,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
 
             @Override
             public Iter getIter(int docId) {
-                return iter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
-            public Iter getIterSafe(int docId) {
                 return iter.reset(ordinals.getIter(docId));
             }
 
@@ -357,13 +335,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
             return scratch.reset(values[ord], hashes[ord]);
         }
 
-        @Override
-        public HashedBytesRef getValueSafe(int docId) {
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) return null;
-            return new HashedBytesRef(values[ord], hashes[ord]);
-        }
-
         static class Single extends HashedBytesValues {
 
             private final Iter.Single iter = new Iter.Single();
@@ -385,13 +356,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
             }
 
             @Override
-            public Iter getIterSafe(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return Iter.Empty.INSTANCE;
-                return iter.reset(new HashedBytesRef(values[ord], hashes[ord]));
-            }
-
-            @Override
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) {
@@ -400,27 +364,15 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
                     proc.onValue(docId, scratch.reset(values[ord], hashes[ord]));
                 }
             }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                } else {
-                    proc.onValue(docId, new HashedBytesRef(values[ord], hashes[ord]));
-                }
-            }
         }
 
         static class Multi extends HashedBytesValues {
 
             private final ValuesIter iter;
-            private final SafeValuesIter safeIter;
 
             Multi(BytesRef[] values, int[] hashes, Ordinals.Docs ordinals) {
                 super(values, hashes, ordinals);
                 this.iter = new ValuesIter(values, hashes);
-                this.safeIter = new SafeValuesIter(values, hashes);
             }
 
             @Override
@@ -434,11 +386,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
             }
 
             @Override
-            public Iter getIterSafe(int docId) {
-                return safeIter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 Ordinals.Docs.Iter iter = ordinals.getIter(docId);
                 int ord = iter.next();
@@ -448,19 +395,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
                 }
                 do {
                     proc.onValue(docId, scratch.reset(values[ord], hashes[ord]));
-                } while ((ord = iter.next()) != 0);
-            }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, new HashedBytesRef(values[ord], hashes[ord]));
                 } while ((ord = iter.next()) != 0);
             }
 
@@ -492,37 +426,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
                 @Override
                 public HashedBytesRef next() {
                     HashedBytesRef value = scratch.reset(values[ord], hashes[ord]);
-                    ord = ordsIter.next();
-                    return value;
-                }
-            }
-
-            static class SafeValuesIter implements Iter {
-
-                private final BytesRef[] values;
-                private final int[] hashes;
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                SafeValuesIter(BytesRef[] values, int[] hashes) {
-                    this.values = values;
-                    this.hashes = hashes;
-                }
-
-                public SafeValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public HashedBytesRef next() {
-                    HashedBytesRef value = new HashedBytesRef(values[ord], hashes[ord]);
                     ord = ordsIter.next();
                     return value;
                 }

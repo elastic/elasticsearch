@@ -165,13 +165,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
             return bytes.fill(ret, termOrdToBytesOffset.get(ordinals.getOrd(docId)));
         }
 
-        @Override
-        public BytesRef getValueSafe(int docId) {
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) return null;
-            return bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord));
-        }
-
         static class Single extends BytesValues {
 
             private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[1], 1);
@@ -202,13 +195,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
             }
 
             @Override
-            public Iter getIterSafe(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return Iter.Empty.INSTANCE;
-                return iter.reset(bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord)));
-            }
-
-            @Override
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) {
@@ -217,28 +203,16 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
                     proc.onValue(docId, bytes.fill(scratch, termOrdToBytesOffset.get(ord)));
                 }
             }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                } else {
-                    proc.onValue(docId, bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord)));
-                }
-            }
         }
 
         static class Multi extends BytesValues {
 
             private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[10], 0);
             private final ValuesIter iter;
-            private final SafeValuesIter safeIter;
 
             Multi(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, ordinals);
                 this.iter = new ValuesIter(bytes, termOrdToBytesOffset);
-                this.safeIter = new SafeValuesIter(bytes, termOrdToBytesOffset);
             }
 
             @Override
@@ -265,11 +239,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
             }
 
             @Override
-            public Iter getIterSafe(int docId) {
-                return safeIter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 Ordinals.Docs.Iter iter = ordinals.getIter(docId);
                 int ord = iter.next();
@@ -279,19 +248,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
                 }
                 do {
                     proc.onValue(docId, bytes.fill(scratch, termOrdToBytesOffset.get(ord)));
-                } while ((ord = iter.next()) != 0);
-            }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord)));
                 } while ((ord = iter.next()) != 0);
             }
 
@@ -322,37 +278,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
                 @Override
                 public BytesRef next() {
                     BytesRef value = bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                    ord = ordsIter.next();
-                    return value;
-                }
-            }
-
-            static class SafeValuesIter implements Iter {
-
-                private final PagedBytes.Reader bytes;
-                private final PackedInts.Reader termOrdToBytesOffset;
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                SafeValuesIter(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset) {
-                    this.bytes = bytes;
-                    this.termOrdToBytesOffset = termOrdToBytesOffset;
-                }
-
-                public SafeValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public BytesRef next() {
-                    BytesRef value = bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord));
                     ord = ordsIter.next();
                     return value;
                 }
@@ -409,13 +334,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
             return scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]);
         }
 
-        @Override
-        public HashedBytesRef getValueSafe(int docId) {
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) return null;
-            return new HashedBytesRef(bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord)), hashes[ord]);
-        }
-
         static class Single extends HashedBytesValues {
 
             private final Iter.Single iter = new Iter.Single();
@@ -437,13 +355,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
             }
 
             @Override
-            public Iter getIterSafe(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return Iter.Empty.INSTANCE;
-                return iter.reset(new HashedBytesRef(bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord)), hashes[ord]));
-            }
-
-            @Override
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) {
@@ -452,27 +363,15 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
                     proc.onValue(docId, scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]));
                 }
             }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                } else {
-                    proc.onValue(docId, new HashedBytesRef(bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord)), hashes[ord]));
-                }
-            }
         }
 
         static class Multi extends HashedBytesValues {
 
             private final ValuesIter iter;
-            private final SafeValuesIter safeIter;
 
             Multi(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, int[] hashes, Ordinals.Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, hashes, ordinals);
                 this.iter = new ValuesIter(bytes, termOrdToBytesOffset, hashes);
-                this.safeIter = new SafeValuesIter(bytes, termOrdToBytesOffset, hashes);
             }
 
             @Override
@@ -486,11 +385,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
             }
 
             @Override
-            public Iter getIterSafe(int docId) {
-                return safeIter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 Ordinals.Docs.Iter iter = ordinals.getIter(docId);
                 int ord = iter.next();
@@ -500,19 +394,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
                 }
                 do {
                     proc.onValue(docId, scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]));
-                } while ((ord = iter.next()) != 0);
-            }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, new HashedBytesRef(bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord)), hashes[ord]));
                 } while ((ord = iter.next()) != 0);
             }
 
@@ -547,39 +428,6 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
                 @Override
                 public HashedBytesRef next() {
                     HashedBytesRef value = scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]);
-                    ord = ordsIter.next();
-                    return value;
-                }
-            }
-
-            static class SafeValuesIter implements Iter {
-
-                private final PagedBytes.Reader bytes;
-                private final PackedInts.Reader termOrdToBytesOffset;
-                private final int[] hashes;
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                SafeValuesIter(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, int[] hashes) {
-                    this.bytes = bytes;
-                    this.termOrdToBytesOffset = termOrdToBytesOffset;
-                    this.hashes = hashes;
-                }
-
-                public SafeValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public HashedBytesRef next() {
-                    HashedBytesRef value = new HashedBytesRef(bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord)), hashes[ord]);
                     ord = ordsIter.next();
                     return value;
                 }

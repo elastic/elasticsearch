@@ -56,11 +56,6 @@ public interface BytesValues {
     BytesRef getValueScratch(int docId, BytesRef ret);
 
     /**
-     * Returns a bytes value for a docId. The content is guaranteed not to be shared.
-     */
-    BytesRef getValueSafe(int docId);
-
-    /**
      * Returns an array wrapping all the bytes values for a doc. The content is guaranteed not to be shared.
      */
     BytesRefArrayRef getValues(int docId);
@@ -71,19 +66,9 @@ public interface BytesValues {
     Iter getIter(int docId);
 
     /**
-     * Returns a bytes value iterator for a docId. The content is guaranteed not to be shared.
-     */
-    Iter getIterSafe(int docId);
-
-    /**
      * Go over all the possible values in their BytesRef format for a specific doc.
      */
     void forEachValueInDoc(int docId, ValueInDocProc proc);
-
-    /**
-     * Go over all the possible values in their BytesRef format for a specific doc.
-     */
-    void forEachSafeValueInDoc(int docId, ValueInDocProc proc);
 
     public static interface ValueInDocProc {
         void onValue(int docId, BytesRef value);
@@ -144,9 +129,7 @@ public interface BytesValues {
         protected final BytesRef scratch = new BytesRef();
         private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[1], 1);
         private final ValueIter valueIter = new ValueIter();
-        private final SafeValueIter safeValueIter = new SafeValueIter();
         private final Proc proc = new Proc();
-        private final SafeProc safeProc = new SafeProc();
 
         public StringBased(StringValues values) {
             this.values = values;
@@ -188,13 +171,6 @@ public interface BytesValues {
         }
 
         @Override
-        public BytesRef getValueSafe(int docId) {
-            String value = values.getValue(docId);
-            if (value == null) return null;
-            return new BytesRef(value);
-        }
-
-        @Override
         public BytesRefArrayRef getValues(int docId) {
             StringArrayRef arrayRef = values.getValues(docId);
             int size = arrayRef.size();
@@ -215,18 +191,8 @@ public interface BytesValues {
         }
 
         @Override
-        public Iter getIterSafe(int docId) {
-            return safeValueIter.reset(values.getIter(docId));
-        }
-
-        @Override
         public void forEachValueInDoc(int docId, ValueInDocProc proc) {
             values.forEachValueInDoc(docId, this.proc.reset(proc));
-        }
-
-        @Override
-        public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-            values.forEachValueInDoc(docId, this.safeProc.reset(proc));
         }
 
         static class ValueIter implements Iter {
@@ -251,26 +217,6 @@ public interface BytesValues {
             }
         }
 
-        static class SafeValueIter implements Iter {
-
-            private StringValues.Iter iter;
-
-            public SafeValueIter reset(StringValues.Iter iter) {
-                this.iter = iter;
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return iter.hasNext();
-            }
-
-            @Override
-            public BytesRef next() {
-                return new BytesRef(iter.next());
-            }
-        }
-
         static class Proc implements StringValues.ValueInDocProc {
 
             private final BytesRef scratch = new BytesRef();
@@ -285,26 +231,6 @@ public interface BytesValues {
             public void onValue(int docId, String value) {
                 scratch.copyChars(value);
                 proc.onValue(docId, scratch);
-            }
-
-            @Override
-            public void onMissing(int docId) {
-                proc.onMissing(docId);
-            }
-        }
-
-        static class SafeProc implements StringValues.ValueInDocProc {
-
-            private BytesValues.ValueInDocProc proc;
-
-            public SafeProc reset(BytesValues.ValueInDocProc proc) {
-                this.proc = proc;
-                return this;
-            }
-
-            @Override
-            public void onValue(int docId, String value) {
-                proc.onValue(docId, new BytesRef(value));
             }
 
             @Override

@@ -43,14 +43,11 @@ public interface HashedBytesValues {
     HashedBytesRef makeSafe(HashedBytesRef bytes);
 
     /**
-     * Returns a bytes value for a docId. Note, the content of it might be shared across invocation.
+     * Returns a bytes value for a docId. Note, the content of it might be shared across invocation,
+     * call {@link #makeSafe(org.elasticsearch.common.lucene.HashedBytesRef)} to converts it to a "safe"
+     * option (if needed).
      */
     HashedBytesRef getValue(int docId);
-
-    /**
-     * Returns a bytes value for a docId. The content is guaranteed not to be shared.
-     */
-    HashedBytesRef getValueSafe(int docId);
 
     /**
      * Returns a bytes value iterator for a docId. Note, the content of it might be shared across invocation.
@@ -58,19 +55,9 @@ public interface HashedBytesValues {
     Iter getIter(int docId);
 
     /**
-     * Returns a bytes value iterator for a docId. The content is guaranteed not to be shared.
-     */
-    Iter getIterSafe(int docId);
-
-    /**
      * Go over all the possible values in their BytesRef format for a specific doc.
      */
     void forEachValueInDoc(int docId, ValueInDocProc proc);
-
-    /**
-     * Go over all the possible values in their BytesRef format for a specific doc.
-     */
-    void forEachSafeValueInDoc(int docId, ValueInDocProc proc);
 
     public static interface ValueInDocProc {
         void onValue(int docId, HashedBytesRef value);
@@ -133,9 +120,7 @@ public interface HashedBytesValues {
 
         protected final HashedBytesRef scratch = new HashedBytesRef(new BytesRef());
         private final ValueIter valueIter = new ValueIter();
-        private final SafeValueIter safeValueIter = new SafeValueIter();
         private final Proc proc = new Proc();
-        private final SafeProc safeProc = new SafeProc();
 
         public BytesBased(BytesValues values) {
             this.values = values;
@@ -165,28 +150,13 @@ public interface HashedBytesValues {
         }
 
         @Override
-        public HashedBytesRef getValueSafe(int docId) {
-            return new HashedBytesRef(values.getValueSafe(docId));
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return valueIter.reset(values.getIter(docId));
         }
 
         @Override
-        public Iter getIterSafe(int docId) {
-            return safeValueIter.reset(values.getIterSafe(docId));
-        }
-
-        @Override
         public void forEachValueInDoc(int docId, final ValueInDocProc proc) {
             values.forEachValueInDoc(docId, this.proc.reset(proc));
-        }
-
-        @Override
-        public void forEachSafeValueInDoc(int docId, final ValueInDocProc proc) {
-            values.forEachValueInDoc(docId, this.safeProc.reset(proc));
         }
 
         static class ValueIter implements Iter {
@@ -211,26 +181,6 @@ public interface HashedBytesValues {
             }
         }
 
-        static class SafeValueIter implements Iter {
-
-            private BytesValues.Iter iter;
-
-            public SafeValueIter reset(BytesValues.Iter iter) {
-                this.iter = iter;
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return iter.hasNext();
-            }
-
-            @Override
-            public HashedBytesRef next() {
-                return new HashedBytesRef(iter.next());
-            }
-        }
-
         static class Proc implements BytesValues.ValueInDocProc {
 
             private final HashedBytesRef scratch = new HashedBytesRef();
@@ -252,27 +202,6 @@ public interface HashedBytesValues {
                 proc.onMissing(docId);
             }
         }
-
-        static class SafeProc implements BytesValues.ValueInDocProc {
-
-            private ValueInDocProc proc;
-
-            public SafeProc reset(ValueInDocProc proc) {
-                this.proc = proc;
-                return this;
-            }
-
-            @Override
-            public void onValue(int docId, BytesRef value) {
-                proc.onValue(docId, new HashedBytesRef(value));
-            }
-
-            @Override
-            public void onMissing(int docId) {
-                proc.onMissing(docId);
-            }
-        }
-
     }
 
     static class StringBased implements HashedBytesValues {
@@ -281,9 +210,7 @@ public interface HashedBytesValues {
 
         protected final HashedBytesRef scratch = new HashedBytesRef(new BytesRef());
         private final ValueIter valueIter = new ValueIter();
-        private final SafeValueIter safeValueIter = new SafeValueIter();
         private final Proc proc = new Proc();
-        private final SafeProc safeProc = new SafeProc();
 
         public StringBased(StringValues values) {
             this.values = values;
@@ -314,30 +241,13 @@ public interface HashedBytesValues {
         }
 
         @Override
-        public HashedBytesRef getValueSafe(int docId) {
-            String value = values.getValue(docId);
-            if (value == null) return null;
-            return new HashedBytesRef(new BytesRef(values.getValue(docId)));
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return valueIter.reset(values.getIter(docId));
         }
 
         @Override
-        public Iter getIterSafe(int docId) {
-            return safeValueIter.reset(values.getIter(docId));
-        }
-
-        @Override
         public void forEachValueInDoc(int docId, final ValueInDocProc proc) {
             values.forEachValueInDoc(docId, this.proc.reset(proc));
-        }
-
-        @Override
-        public void forEachSafeValueInDoc(int docId, final ValueInDocProc proc) {
-            values.forEachValueInDoc(docId, this.safeProc.reset(proc));
         }
 
         static class ValueIter implements Iter {
@@ -362,26 +272,6 @@ public interface HashedBytesValues {
             }
         }
 
-        static class SafeValueIter implements Iter {
-
-            private StringValues.Iter iter;
-
-            public SafeValueIter reset(StringValues.Iter iter) {
-                this.iter = iter;
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return iter.hasNext();
-            }
-
-            @Override
-            public HashedBytesRef next() {
-                return new HashedBytesRef(new BytesRef(iter.next()));
-            }
-        }
-
         static class Proc implements StringValues.ValueInDocProc {
 
             private final HashedBytesRef scratch = new HashedBytesRef(new BytesRef());
@@ -396,26 +286,6 @@ public interface HashedBytesValues {
             public void onValue(int docId, String value) {
                 scratch.bytes.copyChars(value);
                 proc.onValue(docId, scratch);
-            }
-
-            @Override
-            public void onMissing(int docId) {
-                proc.onMissing(docId);
-            }
-        }
-
-        static class SafeProc implements StringValues.ValueInDocProc {
-
-            private ValueInDocProc proc;
-
-            public SafeProc reset(ValueInDocProc proc) {
-                this.proc = proc;
-                return this;
-            }
-
-            @Override
-            public void onValue(int docId, String value) {
-                proc.onValue(docId, new HashedBytesRef(new BytesRef(value)));
             }
 
             @Override

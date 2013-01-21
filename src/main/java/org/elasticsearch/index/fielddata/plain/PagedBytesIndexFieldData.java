@@ -41,17 +41,17 @@ import java.util.ArrayList;
 
 /**
  */
-public class PagesBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesAtomicFieldData> implements IndexOrdinalFieldData<PagedBytesAtomicFieldData> {
+public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesAtomicFieldData> implements IndexOrdinalFieldData<PagedBytesAtomicFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
         public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
-            return new PagesBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
+            return new PagedBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
 
-    public PagesBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public PagedBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
     }
 

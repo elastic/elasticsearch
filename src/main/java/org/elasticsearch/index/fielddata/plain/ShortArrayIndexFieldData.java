@@ -83,7 +83,7 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return new ShortArrayAtomicFieldData.Single(new short[0], 0);
+            return new ShortArrayAtomicFieldData.SingleFixedSet(new short[1], 0, new FixedBitSet(1));
         }
 
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...

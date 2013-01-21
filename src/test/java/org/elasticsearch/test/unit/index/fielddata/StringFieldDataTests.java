@@ -56,6 +56,13 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         return "4";
     }
 
+    private String toString(Object value) {
+        if (value instanceof BytesRef) {
+            return ((BytesRef) value).utf8ToString();
+        }
+        return value.toString();
+    }
+
     protected void fillSingleValueAllSet() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -218,8 +225,11 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
                 new Sort(new SortField("value", indexFieldData.comparatorSource(null))));
         assertThat(topDocs.totalHits, equalTo(3));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
+        assertThat(toString(((FieldDoc) topDocs.scoreDocs[0]).fields[0]), equalTo(one()));
         assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
+        assertThat(toString(((FieldDoc) topDocs.scoreDocs[1]).fields[0]), equalTo(two()));
         assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
+        assertThat(toString(((FieldDoc) topDocs.scoreDocs[2]).fields[0]), equalTo(three()));
 
         topDocs = searcher.search(new MatchAllDocsQuery(), 10,
                 new Sort(new SortField("value", indexFieldData.comparatorSource(null), true)));

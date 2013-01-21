@@ -26,10 +26,10 @@ import org.testng.annotations.Test;
 /**
  */
 @Test
-public class PackedBytesStringFieldDataTests extends StringFieldDataTests {
+public class PagedBytesStringFieldDataTests extends StringFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", "packed_bytes", ImmutableMap.<String, String>of());
+        return new FieldDataType("string", "paged_bytes", ImmutableMap.<String, String>of());
     }
 }

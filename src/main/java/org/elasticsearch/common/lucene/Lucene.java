@@ -32,7 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -215,7 +215,7 @@ public class Lucene {
                     out.writeString(sortField.getField());
                 }
                 if (sortField.getComparatorSource() != null) {
-                    writeSortType(out, ((FieldDataType.ExtendedFieldComparatorSource) sortField.getComparatorSource()).reducedType());
+                    writeSortType(out, ((IndexFieldData.XFieldComparatorSource) sortField.getComparatorSource()).reducedType());
                 } else {
                     writeSortType(out, sortField.getType());
                 }

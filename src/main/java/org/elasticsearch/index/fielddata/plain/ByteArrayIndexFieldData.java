@@ -83,7 +83,7 @@ public class ByteArrayIndexFieldData extends AbstractIndexFieldData<ByteArrayAto
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return new ByteArrayAtomicFieldData.Single(new byte[0], 0);
+            return new ByteArrayAtomicFieldData.SingleFixedSet(new byte[1], 0, new FixedBitSet(1));
         }
 
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...

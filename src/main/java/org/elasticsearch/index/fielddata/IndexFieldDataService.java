@@ -56,7 +56,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
                 .put(Tuple.tuple("string", "concrete_bytes"), new ConcreteBytesRefIndexFieldData.Builder())
-                .put(Tuple.tuple("string", "packed_bytes"), new PackedBytesIndexFieldData.Builder())
+                .put(Tuple.tuple("string", "paged_bytes"), new PagesBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("float", "array"), new FloatArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("double", "array"), new DoubleArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("byte", "array"), new ByteArrayIndexFieldData.Builder())

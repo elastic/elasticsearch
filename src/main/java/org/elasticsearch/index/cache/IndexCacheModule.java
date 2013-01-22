@@ -21,7 +21,6 @@ package org.elasticsearch.index.cache;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.field.data.FieldDataCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.id.IdCacheModule;
 import org.elasticsearch.index.cache.query.parser.QueryParserCacheModule;
@@ -40,7 +39,6 @@ public class IndexCacheModule extends AbstractModule {
     @Override
     protected void configure() {
         new FilterCacheModule(settings).configure(binder());
-        new FieldDataCacheModule(settings).configure(binder());
         new IdCacheModule(settings).configure(binder());
         new QueryParserCacheModule(settings).configure(binder());
 

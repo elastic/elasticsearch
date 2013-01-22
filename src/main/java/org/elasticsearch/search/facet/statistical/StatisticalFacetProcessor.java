@@ -24,6 +24,8 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -87,13 +89,26 @@ public class StatisticalFacetProcessor extends AbstractComponent implements Face
             }
         }
         if (fieldsNames != null) {
-            return new StatisticalFieldsFacetCollector(facetName, fieldsNames, context);
+            IndexNumericFieldData[] indexFieldDatas = new IndexNumericFieldData[fieldsNames.length];
+            for (int i = 0; i < fieldsNames.length; i++) {
+                FieldMapper fieldMapper = context.smartNameFieldMapper(fieldsNames[i]);
+                if (fieldMapper == null) {
+                    throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldsNames[i] + "]");
+                }
+                indexFieldDatas[i] = context.fieldData().getForField(fieldMapper);
+            }
+            return new StatisticalFieldsFacetCollector(facetName, indexFieldDatas, context);
         }
         if (script == null && field == null) {
             throw new FacetPhaseExecutionException(facetName, "statistical facet requires either [script] or [field] to be set");
         }
         if (field != null) {
-            return new StatisticalFacetCollector(facetName, field, context);
+            FieldMapper fieldMapper = context.smartNameFieldMapper(field);
+            if (fieldMapper == null) {
+                throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + field + "]");
+            }
+            IndexNumericFieldData indexFieldData = context.fieldData().getForField(fieldMapper);
+            return new StatisticalFacetCollector(facetName, indexFieldData, context);
         } else {
             return new ScriptStatisticalFacetCollector(facetName, scriptLang, script, params, context);
         }

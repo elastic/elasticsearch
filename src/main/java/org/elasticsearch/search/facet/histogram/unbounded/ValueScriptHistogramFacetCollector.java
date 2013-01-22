@@ -23,15 +23,11 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -44,48 +40,25 @@ import java.util.Map;
  */
 public class ValueScriptHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String indexFieldName;
+    private final IndexNumericFieldData indexFieldData;
 
     private final HistogramFacet.ComparatorType comparatorType;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType fieldDataType;
-
-    private NumericFieldData fieldData;
-
+    private DoubleValues values;
     private final SearchScript valueScript;
-
     private final HistogramProc histoProc;
 
-    public ValueScriptHistogramFacetCollector(String facetName, String fieldName, String scriptLang, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueScriptHistogramFacetCollector(String facetName, IndexNumericFieldData indexFieldData, String scriptLang, String valueScript, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
-        this.fieldDataCache = context.fieldDataCache();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
+        this.indexFieldData = indexFieldData;
         this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
-
-        FieldMapper mapper = smartMappers.mapper();
-
-        indexFieldName = mapper.names().indexName();
-        fieldDataType = mapper.fieldDataType();
-
         histoProc = new HistogramProc(interval, this.valueScript);
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, histoProc);
+        values.forEachValueInDoc(doc, histoProc);
     }
 
     @Override
@@ -95,7 +68,7 @@ public class ValueScriptHistogramFacetCollector extends AbstractFacetCollector {
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
+        values = indexFieldData.load(context).getDoubleValues();
         valueScript.setNextReader(context);
     }
 
@@ -108,7 +81,7 @@ public class ValueScriptHistogramFacetCollector extends AbstractFacetCollector {
         return (((long) (value / interval)) * interval);
     }
 
-    public static class HistogramProc implements NumericFieldData.DoubleValueInDocProc {
+    public static class HistogramProc implements DoubleValues.ValueInDocProc {
 
         private final long interval;
 
@@ -119,6 +92,10 @@ public class ValueScriptHistogramFacetCollector extends AbstractFacetCollector {
         public HistogramProc(long interval, SearchScript valueScript) {
             this.interval = interval;
             this.valueScript = valueScript;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override

@@ -39,6 +39,7 @@ import org.elasticsearch.index.deletionpolicy.DeletionPolicyModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineModule;
 import org.elasticsearch.index.engine.IndexEngine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayModule;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
@@ -112,6 +113,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     private final IndexCache indexCache;
 
+    private final IndexFieldDataService indexFieldData;
+
     private final IndexEngine indexEngine;
 
     private final IndexGateway indexGateway;
@@ -130,7 +133,8 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     public InternalIndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv, ThreadPool threadPool,
                                 PercolatorService percolatorService, AnalysisService analysisService, MapperService mapperService,
                                 IndexQueryParserService queryParserService, SimilarityService similarityService, IndexAliasesService aliasesService,
-                                IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService) {
+                                IndexCache indexCache, IndexEngine indexEngine, IndexGateway indexGateway, IndexStore indexStore, IndexSettingsService settingsService,
+                                IndexFieldDataService indexFieldData) {
         super(index, indexSettings);
         this.injector = injector;
         this.nodeEnv = nodeEnv;
@@ -143,6 +147,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         this.similarityService = similarityService;
         this.aliasesService = aliasesService;
         this.indexCache = indexCache;
+        this.indexFieldData = indexFieldData;
         this.indexEngine = indexEngine;
         this.indexGateway = indexGateway;
         this.indexStore = indexStore;
@@ -209,6 +214,11 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
     @Override
     public IndexCache cache() {
         return indexCache;
+    }
+
+    @Override
+    public IndexFieldDataService fieldData() {
+        return indexFieldData;
     }
 
     @Override

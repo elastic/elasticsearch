@@ -27,15 +27,20 @@ import org.elasticsearch.index.search.geo.GeoHashUtils;
 public class GeoPoint {
 
     private double lat;
-
     private double lon;
 
-    GeoPoint() {
+    public GeoPoint() {
     }
 
     public GeoPoint(double lat, double lon) {
         this.lat = lat;
         this.lon = lon;
+    }
+
+    public GeoPoint reset(double lat, double lon) {
+        this.lat = lat;
+        this.lon = lon;
+        return this;
     }
 
     void latlon(double lat, double lon) {
@@ -65,5 +70,29 @@ public class GeoPoint {
 
     public final String getGeohash() {
         return GeoHashUtils.encode(lat, lon);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        GeoPoint geoPoint = (GeoPoint) o;
+
+        if (Double.compare(geoPoint.lat, lat) != 0) return false;
+        if (Double.compare(geoPoint.lon, lon) != 0) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result;
+        long temp;
+        temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
+        result = (int) (temp ^ (temp >>> 32));
+        temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
+        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        return result;
     }
 }

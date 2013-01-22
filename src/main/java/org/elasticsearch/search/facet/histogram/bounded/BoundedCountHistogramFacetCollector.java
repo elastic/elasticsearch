@@ -21,14 +21,10 @@ package org.elasticsearch.search.facet.histogram.bounded;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -36,38 +32,18 @@ import java.io.IOException;
 
 public class BoundedCountHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String indexFieldName;
+    private final IndexNumericFieldData indexFieldData;
 
     private final HistogramFacet.ComparatorType comparatorType;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType fieldDataType;
-
-    private NumericFieldData fieldData;
+    private LongValues values;
 
     private final HistogramProc histoProc;
 
-    public BoundedCountHistogramFacetCollector(String facetName, String fieldName, long interval, long from, long to, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public BoundedCountHistogramFacetCollector(String facetName, IndexNumericFieldData indexFieldData, long interval, long from, long to, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
-        this.fieldDataCache = context.fieldDataCache();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        FieldMapper mapper = smartMappers.mapper();
-
-        indexFieldName = mapper.names().indexName();
-        fieldDataType = mapper.fieldDataType();
-
+        this.indexFieldData = indexFieldData;
         long normalizedFrom = (((long) ((double) from / interval)) * interval);
         long normalizedTo = (((long) ((double) to / interval)) * interval);
         if ((to % interval) != 0) {
@@ -81,12 +57,12 @@ public class BoundedCountHistogramFacetCollector extends AbstractFacetCollector 
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, histoProc);
+        values.forEachValueInDoc(doc, histoProc);
     }
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
+        values = indexFieldData.load(context).getLongValues();
     }
 
     @Override
@@ -94,7 +70,7 @@ public class BoundedCountHistogramFacetCollector extends AbstractFacetCollector 
         return new InternalBoundedCountHistogramFacet(facetName, comparatorType, histoProc.interval, -histoProc.offset, histoProc.size, histoProc.counts, true);
     }
 
-    public static class HistogramProc implements NumericFieldData.LongValueInDocProc {
+    public static class HistogramProc implements LongValues.ValueInDocProc {
 
         final long from;
         final long to;
@@ -114,6 +90,10 @@ public class BoundedCountHistogramFacetCollector extends AbstractFacetCollector 
             this.offset = offset;
             this.size = size;
             this.counts = CacheRecycler.popIntArray(size);
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override

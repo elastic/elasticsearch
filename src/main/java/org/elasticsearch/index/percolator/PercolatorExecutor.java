@@ -46,12 +46,11 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -155,6 +154,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     private final IndexQueryParserService queryParserService;
 
     private final IndexCache indexCache;
+    private final IndexFieldDataService fieldDataService;
 
     private final Map<String, Query> queries = ConcurrentCollections.newConcurrentMap();
 
@@ -164,11 +164,12 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     @Inject
     public PercolatorExecutor(Index index, @IndexSettings Settings indexSettings,
                               MapperService mapperService, IndexQueryParserService queryParserService,
-                              IndexCache indexCache) {
+                              IndexCache indexCache, IndexFieldDataService fieldDataService) {
         super(index, indexSettings);
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.indexCache = indexCache;
+        this.fieldDataService = fieldDataService;
     }
 
     public void setIndicesService(IndicesService indicesService) {
@@ -349,6 +350,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         } finally {
             // explicitly clear the reader, since we can only register on callback on SegmentReader
             indexCache.clear(searcher.getIndexReader());
+            fieldDataService.clear(searcher.getIndexReader());
         }
 
         return new Response(matches, request.doc().mappingsModified());
@@ -363,6 +365,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     }
 
     static class QueryCollector extends Collector {
+        private final IndexFieldData uidFieldData;
         private final IndexSearcher searcher;
         private final IndexService percolatorIndex;
         private final List<String> matches;
@@ -371,7 +374,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
         private final Lucene.ExistsCollector collector = new Lucene.ExistsCollector();
 
-        private FieldData fieldData;
+        private BytesValues values;
 
         QueryCollector(ESLogger logger, Map<String, Query> queries, IndexSearcher searcher, IndexService percolatorIndex, List<String> matches) {
             this.logger = logger;
@@ -379,6 +382,8 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             this.searcher = searcher;
             this.percolatorIndex = percolatorIndex;
             this.matches = matches;
+            // TODO: when we move to a UID level mapping def on the index level, we can use that one, now, its per type, and we can't easily choose one
+            this.uidFieldData = percolatorIndex.fieldData().getForField(new FieldMapper.Names(UidFieldMapper.NAME), new FieldDataType("string", "paged_bytes"));
         }
 
         @Override
@@ -387,7 +392,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
         @Override
         public void collect(int doc) throws IOException {
-            BytesRef uid = fieldData.stringValue(doc);
+            BytesRef uid = values.getValue(doc);
             if (uid == null) {
                 return;
             }
@@ -412,7 +417,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
             // we use the UID because id might not be indexed
-            fieldData = percolatorIndex.cache().fieldData().cache(FieldDataType.DefaultTypes.STRING, context.reader(), UidFieldMapper.NAME);
+            values = uidFieldData.load(context).getBytesValues();
         }
 
         @Override

@@ -25,6 +25,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
@@ -179,17 +182,28 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
             lon = point.lon;
         }
 
+        FieldMapper keyFieldMapper = context.smartNameFieldMapper(fieldName);
+        if (keyFieldMapper == null) {
+            throw new FacetPhaseExecutionException(facetName, "failed to find mapping for [" + fieldName + "]");
+        }
+        IndexGeoPointFieldData keyIndexFieldData = context.fieldData().getForField(keyFieldMapper);
+
         if (valueFieldName != null) {
-            return new ValueGeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
-                    context, valueFieldName);
+            FieldMapper valueFieldMapper = context.smartNameFieldMapper(valueFieldName);
+            if (valueFieldMapper == null) {
+                throw new FacetPhaseExecutionException(facetName, "failed to find mapping for [" + valueFieldName + "]");
+            }
+            IndexNumericFieldData valueIndexFieldData = context.fieldData().getForField(valueFieldMapper);
+            return new ValueGeoDistanceFacetCollector(facetName, keyIndexFieldData, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
+                    context, valueIndexFieldData);
         }
 
         if (valueScript != null) {
-            return new ScriptGeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
+            return new ScriptGeoDistanceFacetCollector(facetName, keyIndexFieldData, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
                     context, scriptLang, valueScript, params);
         }
 
-        return new GeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
+        return new GeoDistanceFacetCollector(facetName, keyIndexFieldData, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
                 context);
     }
 

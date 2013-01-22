@@ -34,10 +34,10 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -355,8 +355,8 @@ public class SearchContext implements Releasable {
         return indexService.cache().filter();
     }
 
-    public FieldDataCache fieldDataCache() {
-        return indexService.cache().fieldData();
+    public IndexFieldDataService fieldData() {
+        return indexService.fieldData();
     }
 
     public IdCache idCache() {
@@ -541,7 +541,7 @@ public class SearchContext implements Releasable {
     public SearchLookup lookup() {
         // TODO: The types should take into account the parsing context in QueryParserContext...
         if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldDataCache(), request.types());
+            searchLookup = new SearchLookup(mapperService(), fieldData(), request.types());
         }
         return searchLookup;
     }

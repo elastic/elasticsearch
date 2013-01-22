@@ -30,9 +30,8 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -242,7 +241,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     /**
      * A range filter based on the field data cache.
      */
-    public abstract Filter rangeFilter(FieldDataCache fieldDataCache, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+    public abstract Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     /**
      * Override the default behavior (to return the string, and return the actual Number instance).
@@ -276,9 +275,6 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     public void close() {
         tokenStream.remove();
     }
-
-    @Override
-    public abstract FieldDataType fieldDataType();
 
     protected NumericTokenStream popCachedStream() {
         return tokenStream.get();

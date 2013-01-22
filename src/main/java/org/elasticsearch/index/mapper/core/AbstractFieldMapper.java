@@ -37,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -549,11 +548,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                 this.postingsFormat = fieldMergeWith.postingsFormat;
             }
         }
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.STRING;
     }
 
     @Override

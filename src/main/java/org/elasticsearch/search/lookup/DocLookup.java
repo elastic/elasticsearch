@@ -20,16 +20,12 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.DocFieldData;
-import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.data.NumericDocFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -44,24 +40,23 @@ import java.util.Set;
  */
 public class DocLookup implements Map {
 
-    private final Map<String, FieldData> localCacheFieldData = Maps.newHashMapWithExpectedSize(4);
+    private final Map<String, ScriptDocValues> localCacheFieldData = Maps.newHashMapWithExpectedSize(4);
 
     private final MapperService mapperService;
-
-    private final FieldDataCache fieldDataCache;
+    private final IndexFieldDataService fieldDataService;
 
     @Nullable
     private final String[] types;
 
-    private AtomicReader reader;
+    private AtomicReaderContext reader;
 
     private Scorer scorer;
 
     private int docId = -1;
 
-    DocLookup(MapperService mapperService, FieldDataCache fieldDataCache, @Nullable String[] types) {
+    DocLookup(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types) {
         this.mapperService = mapperService;
-        this.fieldDataCache = fieldDataCache;
+        this.fieldDataService = fieldDataService;
         this.types = types;
     }
 
@@ -69,15 +64,11 @@ public class DocLookup implements Map {
         return this.mapperService;
     }
 
-    public FieldDataCache fieldDataCache() {
-        return this.fieldDataCache;
-    }
-
     public void setNextReader(AtomicReaderContext context) {
-        if (this.reader == context.reader()) { // if we are called with the same reader, don't invalidate source
+        if (this.reader == context) { // if we are called with the same reader, don't invalidate source
             return;
         }
-        this.reader = context.reader();
+        this.reader = context;
         this.docId = -1;
         localCacheFieldData.clear();
     }
@@ -88,14 +79,6 @@ public class DocLookup implements Map {
 
     public void setNextDocId(int docId) {
         this.docId = docId;
-    }
-
-    public <T extends DocFieldData> T field(String key) {
-        return (T) get(key);
-    }
-
-    public <T extends NumericDocFieldData> T numeric(String key) {
-        return (T) get(key);
     }
 
     public float score() throws IOException {
@@ -110,27 +93,24 @@ public class DocLookup implements Map {
     public Object get(Object key) {
         // assume its a string...
         String fieldName = key.toString();
-        FieldData fieldData = localCacheFieldData.get(fieldName);
-        if (fieldData == null) {
+        ScriptDocValues scriptValues = localCacheFieldData.get(fieldName);
+        if (scriptValues == null) {
             FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName, types);
             if (mapper == null) {
                 throw new ElasticSearchIllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
             }
-            try {
-                fieldData = fieldDataCache.cache(mapper.fieldDataType(), reader, mapper.names().indexName());
-            } catch (IOException e) {
-                throw new ElasticSearchException("Failed to load field data for [" + fieldName + "]", e);
-            }
-            localCacheFieldData.put(fieldName, fieldData);
+            scriptValues = fieldDataService.getForField(mapper).load(reader).getScriptValues();
+            localCacheFieldData.put(fieldName, scriptValues);
         }
-        return fieldData.docFieldData(docId);
+        scriptValues.setNextDocId(docId);
+        return scriptValues;
     }
 
     public boolean containsKey(Object key) {
         // assume its a string...
         String fieldName = key.toString();
-        FieldData fieldData = localCacheFieldData.get(fieldName);
-        if (fieldData == null) {
+        ScriptDocValues scriptValues = localCacheFieldData.get(fieldName);
+        if (scriptValues == null) {
             FieldMapper mapper = mapperService.smartNameFieldMapper(fieldName, types);
             if (mapper == null) {
                 return false;

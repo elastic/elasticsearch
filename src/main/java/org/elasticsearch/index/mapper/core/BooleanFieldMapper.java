@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -157,6 +158,12 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType fieldDataType() {
+        // TODO have a special boolean type?
+        return new FieldDataType("string");
     }
 
     @Override

@@ -23,13 +23,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -40,67 +37,35 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 
 public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
 
     private final TermsStatsFacet.ComparatorType comparatorType;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final String keyFieldName;
-
-    private final String valueFieldName;
+    private final IndexNumericFieldData keyIndexFieldData;
+    private final IndexNumericFieldData valueIndexFieldData;
+    private final SearchScript script;
 
     private final int size;
-
     private final int numberOfShards;
-
-    private final FieldDataType keyFieldDataType;
-
-    private NumericFieldData keyFieldData;
-
-    private final FieldDataType valueFieldDataType;
-
-    private final SearchScript script;
 
     private final Aggregator aggregator;
 
-    public TermsStatsDoubleFacetCollector(String facetName, String keyFieldName, String valueFieldName, int size, TermsStatsFacet.ComparatorType comparatorType,
-                                          SearchContext context, String scriptLang, String script, Map<String, Object> params) {
+    private DoubleValues keyValues;
+
+    public TermsStatsDoubleFacetCollector(String facetName, IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, SearchScript script,
+                                          int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.fieldDataCache = context.fieldDataCache();
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(keyFieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            this.keyFieldName = keyFieldName;
-            this.keyFieldDataType = FieldDataType.DefaultTypes.STRING;
-        } else {
-            // add type filter if there is exact doc mapper associated with it
-            if (smartMappers.explicitTypeInNameWithDocMapper()) {
-                setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-            }
-
-            this.keyFieldName = smartMappers.mapper().names().indexName();
-            this.keyFieldDataType = smartMappers.mapper().fieldDataType();
-        }
+        this.keyIndexFieldData = keyIndexFieldData;
+        this.valueIndexFieldData = valueIndexFieldData;
+        this.script = script;
 
         if (script == null) {
-            smartMappers = context.smartFieldMappers(valueFieldName);
-            if (smartMappers == null || !smartMappers.hasMapper()) {
-                throw new ElasticSearchIllegalArgumentException("failed to find mappings for [" + valueFieldName + "]");
-            }
-            this.valueFieldName = smartMappers.mapper().names().indexName();
-            this.valueFieldDataType = smartMappers.mapper().fieldDataType();
-            this.script = null;
             this.aggregator = new Aggregator();
         } else {
-            this.valueFieldName = null;
-            this.valueFieldDataType = null;
-            this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
             this.aggregator = new ScriptAggregator(this.script);
         }
     }
@@ -114,17 +79,17 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, context.reader(), keyFieldName);
+        keyValues = keyIndexFieldData.load(context).getDoubleValues();
         if (script != null) {
             script.setNextReader(context);
         } else {
-            aggregator.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, context.reader(), valueFieldName);
+            aggregator.valueFieldData = valueIndexFieldData.load(context).getDoubleValues();
         }
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        keyFieldData.forEachValueInDoc(doc, aggregator);
+        keyValues.forEachValueInDoc(doc, aggregator);
     }
 
     @Override
@@ -153,12 +118,12 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
         return new InternalTermsStatsDoubleFacet(facetName, comparatorType, size, ordered, aggregator.missing);
     }
 
-    public static class Aggregator implements NumericFieldData.MissingDoubleValueInDocProc {
+    public static class Aggregator implements DoubleValues.ValueInDocProc {
 
         final ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries = CacheRecycler.popDoubleObjectMap();
         int missing;
 
-        NumericFieldData valueFieldData;
+        DoubleValues valueFieldData;
 
         final ValueAggregator valueAggregator = new ValueAggregator();
 
@@ -179,9 +144,13 @@ public class TermsStatsDoubleFacetCollector extends AbstractFacetCollector {
             missing++;
         }
 
-        public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
 
             InternalTermsStatsDoubleFacet.DoubleEntry doubleEntry;
+
+            @Override
+            public void onMissing(int docId) {
+            }
 
             @Override
             public void onValue(int docId, double value) {

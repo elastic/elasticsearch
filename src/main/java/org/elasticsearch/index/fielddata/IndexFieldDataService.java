@@ -121,6 +121,16 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                     IndexFieldData.Builder builder = null;
                     if (type.getFormat() != null) {
                         builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), type.getFormat()));
+                        if (builder == null) {
+                            logger.warn("failed to find format [" + type.getFormat() + "] for field [" + fieldNames.fullName() + "], will use default");
+                        }
+                    }
+                    String format = indexSettings.get("index.fielddata.type." + type.getType() + ".format", null);
+                    if (format != null) {
+                        builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), type.getFormat()));
+                        if (builder == null) {
+                            logger.warn("failed to find index level type format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
+                        }
                     }
                     if (builder == null) {
                         builder = buildersByType.get(type.getType());

@@ -128,7 +128,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+    public FieldDataType fieldDataType() {
         return new FieldDataType("string", "paged_bytes");
     }
 

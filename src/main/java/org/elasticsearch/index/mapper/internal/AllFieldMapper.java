@@ -153,7 +153,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType() {
         throw new ElasticSearchIllegalArgumentException("using field data on _all field is not supported");
     }
 

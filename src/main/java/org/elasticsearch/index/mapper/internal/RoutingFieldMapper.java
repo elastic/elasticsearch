@@ -131,7 +131,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+    public FieldDataType fieldDataType() {
         return new FieldDataType("string");
     }
 

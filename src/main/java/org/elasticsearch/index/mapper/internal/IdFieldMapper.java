@@ -144,7 +144,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+    public FieldDataType fieldDataType() {
         return new FieldDataType("string");
     }
 

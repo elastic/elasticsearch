@@ -38,7 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
@@ -133,8 +133,8 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
-        return new org.elasticsearch.index.fielddata.FieldDataType("double");
+    public FieldDataType fieldDataType() {
+        return new FieldDataType("double");
     }
 
     @Override
@@ -325,11 +325,6 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
         CustomDoubleNumericField field = new CustomDoubleNumericField(this, value, fieldType);
         field.setBoost(boost);
         return field;
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.DOUBLE;
     }
 
     @Override

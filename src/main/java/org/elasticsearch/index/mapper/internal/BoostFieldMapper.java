@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
@@ -134,7 +134,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+    public FieldDataType fieldDataType() {
         throw new ElasticSearchIllegalArgumentException("not implemented");
     }
 
@@ -278,11 +278,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             value = context.parser().floatValue();
         }
         return value;
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.FLOAT;
     }
 
     @Override

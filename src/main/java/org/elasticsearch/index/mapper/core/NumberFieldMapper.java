@@ -31,7 +31,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
@@ -276,9 +275,6 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     public void close() {
         tokenStream.remove();
     }
-
-    @Override
-    public abstract FieldDataType fieldDataType();
 
     protected NumericTokenStream popCachedStream() {
         return tokenStream.get();

@@ -28,8 +28,8 @@ import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
@@ -62,7 +62,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
     private final MapperService mapperService;
 
-    private final IndexCache indexCache;
+    private final IndexFieldDataService fieldDataService;
 
     private IndexShard indexShard;
 
@@ -72,11 +72,11 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
     @Inject
     public ShardGetService(ShardId shardId, @IndexSettings Settings indexSettings, ScriptService scriptService,
-                           MapperService mapperService, IndexCache indexCache) {
+                           MapperService mapperService, IndexFieldDataService fieldDataService) {
         super(shardId, indexSettings);
         this.scriptService = scriptService;
         this.mapperService = mapperService;
-        this.indexCache = indexCache;
+        this.fieldDataService = fieldDataService;
     }
 
     public GetStats stats() {
@@ -213,7 +213,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         } else {
                             if (field.contains("_source.")) {
                                 if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                                    searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                                 }
                                 if (sourceAsMap == null) {
                                     sourceAsMap = SourceLookup.sourceAsMap(source.source);
@@ -236,7 +236,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 }
                             } else {
                                 if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                                    searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                                     searchLookup.source().setNextSource(source.source);
                                 }
 
@@ -306,7 +306,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 Object value = null;
                 if (field.contains("_source.") || field.contains("doc[")) {
                     if (searchLookup == null) {
-                        searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                        searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                     }
                     SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
                     searchScript.setNextReader(docIdAndVersion.reader);
@@ -324,7 +324,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     FieldMappers x = docMapper.mappers().smartName(field);
                     if (x == null || !x.mapper().fieldType().stored()) {
                         if (searchLookup == null) {
-                            searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                            searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                             searchLookup.setNextReader(docIdAndVersion.reader);
                             searchLookup.setNextDocId(docIdAndVersion.docId);
                         }

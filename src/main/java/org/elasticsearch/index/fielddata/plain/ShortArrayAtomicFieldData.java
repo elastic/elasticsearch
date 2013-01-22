@@ -91,7 +91,7 @@ public abstract class ShortArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericShort(getShortValues());
         }
 
         @Override
@@ -458,7 +458,7 @@ public abstract class ShortArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericShort(getShortValues());
         }
 
         @Override
@@ -733,7 +733,7 @@ public abstract class ShortArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericShort(getShortValues());
         }
 
         @Override

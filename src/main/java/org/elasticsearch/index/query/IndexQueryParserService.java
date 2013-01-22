@@ -35,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.IndexEngine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -77,6 +78,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     final IndexCache indexCache;
 
+    final IndexFieldDataService fieldDataService;
+
     final IndexEngine indexEngine;
 
     private final Map<String, QueryParser> queryParsers;
@@ -90,7 +93,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
                                    IndicesQueriesRegistry indicesQueriesRegistry,
                                    ScriptService scriptService, AnalysisService analysisService,
-                                   MapperService mapperService, IndexCache indexCache, IndexEngine indexEngine,
+                                   MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService, IndexEngine indexEngine,
                                    @Nullable SimilarityService similarityService,
                                    @Nullable Map<String, QueryParserFactory> namedQueryParsers,
                                    @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
@@ -100,6 +103,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.mapperService = mapperService;
         this.similarityService = similarityService;
         this.indexCache = indexCache;
+        this.fieldDataService = fieldDataService;
         this.indexEngine = indexEngine;
 
         this.defaultField = indexSettings.get("index.query.default_field", AllFieldMapper.NAME);

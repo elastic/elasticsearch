@@ -546,7 +546,7 @@ public class SearchContext implements Releasable {
     public SearchLookup lookup() {
         // TODO: The types should take into account the parsing context in QueryParserContext...
         if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldDataCache(), request.types());
+            searchLookup = new SearchLookup(mapperService(), fieldData(), request.types());
         }
         return searchLookup;
     }

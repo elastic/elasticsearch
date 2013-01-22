@@ -17,13 +17,13 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.function.sort;
+package org.elasticsearch.index.fielddata.fieldcomparator;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -31,13 +31,13 @@ import java.io.IOException;
 /**
  *
  */
-public class StringFieldsFunctionDataComparator extends FieldComparator<String> {
+public class StringScriptDataComparator extends FieldComparator<String> {
 
-    public static FieldDataType.ExtendedFieldComparatorSource comparatorSource(SearchScript script) {
+    public static IndexFieldData.XFieldComparatorSource comparatorSource(SearchScript script) {
         return new InnerSource(script);
     }
 
-    private static class InnerSource extends FieldDataType.ExtendedFieldComparatorSource {
+    private static class InnerSource extends IndexFieldData.XFieldComparatorSource {
 
         private final SearchScript script;
 
@@ -47,7 +47,7 @@ public class StringFieldsFunctionDataComparator extends FieldComparator<String> 
 
         @Override
         public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-            return new StringFieldsFunctionDataComparator(numHits, script);
+            return new StringScriptDataComparator(numHits, script);
         }
 
         @Override
@@ -62,7 +62,7 @@ public class StringFieldsFunctionDataComparator extends FieldComparator<String> 
 
     private String bottom;
 
-    public StringFieldsFunctionDataComparator(int numHits, SearchScript script) {
+    public StringScriptDataComparator(int numHits, SearchScript script) {
         this.script = script;
         values = new String[numHits];
     }

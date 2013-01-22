@@ -41,7 +41,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDateAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
@@ -174,9 +174,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
-        // long for now, need to think about scripts and getting a DateTime back?
-        return new org.elasticsearch.index.fielddata.FieldDataType("long");
+    public FieldDataType fieldDataType() {
+        return new FieldDataType("long");
     }
 
     @Override
@@ -402,11 +401,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         LongFieldMapper.CustomLongNumericField field = new LongFieldMapper.CustomLongNumericField(this, value, fieldType);
         field.setBoost(boost);
         return field;
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.LONG;
     }
 
     @Override

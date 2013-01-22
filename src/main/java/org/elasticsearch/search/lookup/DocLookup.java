@@ -24,8 +24,6 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.field.data.DocFieldData;
-import org.elasticsearch.index.field.data.NumericDocFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -81,14 +79,6 @@ public class DocLookup implements Map {
 
     public void setNextDocId(int docId) {
         this.docId = docId;
-    }
-
-    public <T extends DocFieldData> T field(String key) {
-        return (T) get(key);
-    }
-
-    public <T extends NumericDocFieldData> T numeric(String key) {
-        return (T) get(key);
     }
 
     public float score() throws IOException {

@@ -134,7 +134,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType() {
         throw new ElasticSearchIllegalArgumentException("field data on binary field is not supported");
     }
 

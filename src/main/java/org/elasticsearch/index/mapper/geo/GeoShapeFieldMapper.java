@@ -14,6 +14,7 @@ import org.elasticsearch.common.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -148,7 +149,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+    public FieldDataType fieldDataType() {
         throw new ElasticSearchIllegalArgumentException("field data on geo_shape field is not supported");
     }
 

@@ -36,7 +36,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
@@ -155,7 +154,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType2() {
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType() {
         return new org.elasticsearch.index.fielddata.FieldDataType("long");
     }
 
@@ -294,11 +293,6 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
         final long value = ipToLong(ipAsString);
         return new LongFieldMapper.CustomLongNumericField(this, value, fieldType);
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.LONG;
     }
 
     @Override

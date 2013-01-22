@@ -17,11 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.index.field.data.doubles;
+package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.support.NumericFieldDataComparator;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SortField;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 
@@ -29,21 +32,50 @@ import java.io.IOException;
  *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Double
-public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator<Double> {
+public class DoubleScriptDataComparator extends FieldComparator<Double> {
+
+    public static IndexFieldData.XFieldComparatorSource comparatorSource(SearchScript script) {
+        return new InnerSource(script);
+    }
+
+    private static class InnerSource extends IndexFieldData.XFieldComparatorSource {
+
+        private final SearchScript script;
+
+        private InnerSource(SearchScript script) {
+            this.script = script;
+        }
+
+        @Override
+        public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+            return new DoubleScriptDataComparator(numHits, script);
+        }
+
+        @Override
+        public SortField.Type reducedType() {
+            return SortField.Type.DOUBLE;
+        }
+    }
+
+    private final SearchScript script;
 
     private final double[] values;
     private double bottom;
-    private final double missingValue;
 
-    public DoubleFieldDataMissingComparator(int numHits, String fieldName, FieldDataCache fieldDataCache, double missingValue) {
-        super(fieldName, fieldDataCache);
+    public DoubleScriptDataComparator(int numHits, SearchScript script) {
+        this.script = script;
         values = new double[numHits];
-        this.missingValue = missingValue;
     }
 
     @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.DOUBLE;
+    public FieldComparator<Double> setNextReader(AtomicReaderContext context) throws IOException {
+        script.setNextReader(context);
+        return this;
+    }
+
+    @Override
+    public void setScorer(Scorer scorer) {
+        script.setScorer(scorer);
     }
 
     @Override
@@ -61,10 +93,8 @@ public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator
 
     @Override
     public int compareBottom(int doc) {
-        double v2 = missingValue;
-        if (currentFieldData.hasValue(doc)) {
-            v2 = currentFieldData.doubleValue(doc);
-        }
+        script.setNextDocId(doc);
+        final double v2 = script.runAsDouble();
         if (bottom > v2) {
             return 1;
         } else if (bottom < v2) {
@@ -76,20 +106,15 @@ public class DoubleFieldDataMissingComparator extends NumericFieldDataComparator
 
     @Override
     public int compareDocToValue(int doc, Double val2) throws IOException {
-        double val1 = missingValue;
-        if (currentFieldData.hasValue(doc)) {
-            val1 = currentFieldData.doubleValue(doc);
-        }
+        script.setNextDocId(doc);
+        double val1 = script.runAsDouble();
         return Double.compare(val1, val2);
     }
 
     @Override
     public void copy(int slot, int doc) {
-        double value = missingValue;
-        if (currentFieldData.hasValue(doc)) {
-            value = currentFieldData.doubleValue(doc);
-        }
-        values[slot] = value;
+        script.setNextDocId(doc);
+        values[slot] = script.runAsDouble();
     }
 
     @Override

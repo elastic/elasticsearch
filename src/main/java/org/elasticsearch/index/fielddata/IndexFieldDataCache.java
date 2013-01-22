@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.elasticsearch.index.Index;
 
@@ -37,6 +38,8 @@ public interface IndexFieldDataCache {
     void clear(Index index);
 
     void clear(Index index, String fieldName);
+
+    void clear(Index index, IndexReader reader);
 
     /**
      * The resident field data cache is a *per field* cache that keeps all the values in memory.
@@ -75,6 +78,11 @@ public interface IndexFieldDataCache {
         @Override
         public void clear(Index index, String fieldName) {
             cache.invalidateAll();
+        }
+
+        @Override
+        public void clear(Index index, IndexReader reader) {
+            cache.invalidate(reader.getCoreCacheKey());
         }
     }
 

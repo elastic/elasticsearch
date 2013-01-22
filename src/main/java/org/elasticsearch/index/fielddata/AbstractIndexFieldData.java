@@ -1,5 +1,6 @@
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -29,5 +30,10 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
     @Override
     public void clear() {
         cache.clear(index, fieldNames.indexName());
+    }
+
+    @Override
+    public void clear(IndexReader reader) {
+        cache.clear(index, reader);
     }
 }

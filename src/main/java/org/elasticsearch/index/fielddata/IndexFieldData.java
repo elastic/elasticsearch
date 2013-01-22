@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
@@ -62,6 +63,8 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
      * Clears any resources associated with this field data.
      */
     void clear();
+
+    void clear(IndexReader reader);
 
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced

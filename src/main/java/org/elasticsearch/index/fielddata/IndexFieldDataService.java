@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
@@ -93,6 +94,12 @@ public class IndexFieldDataService extends AbstractIndexComponent {
             if (fieldData != null) {
                 fieldData.clear();
             }
+        }
+    }
+
+    public void clear(IndexReader reader) {
+        for (IndexFieldData indexFieldData : loadedFieldData.values()) {
+            indexFieldData.clear(reader);
         }
     }
 

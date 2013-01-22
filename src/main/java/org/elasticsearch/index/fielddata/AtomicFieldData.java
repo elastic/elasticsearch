@@ -63,4 +63,5 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
      * Returns a "scripting" based values.
      */
     Script getScriptValues();
+
 }

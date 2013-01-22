@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.SingleArrayOrdinals;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -79,11 +78,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            final PagedBytes bytes = new PagedBytes(1);
-            // 0 is reserved for "unset"
-            bytes.copyUsingLengthPrefix(new BytesRef());
-            GrowableWriter termOrdToBytesOffset = new GrowableWriter(1, 2, PackedInts.FASTEST);
-            return new PagedBytesAtomicFieldData(bytes.freeze(true), termOrdToBytesOffset.getMutable(), new EmptyOrdinals(reader.maxDoc()));
+            return PagedBytesAtomicFieldData.empty(reader.maxDoc());
         }
 
         final PagedBytes bytes = new PagedBytes(15);

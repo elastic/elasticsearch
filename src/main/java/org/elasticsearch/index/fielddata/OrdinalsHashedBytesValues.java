@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
@@ -32,6 +33,30 @@ public interface OrdinalsHashedBytesValues extends HashedBytesValues {
     HashedBytesRef getValueByOrd(int ord);
 
     HashedBytesRef getSafeValueByOrd(int ord);
+
+    public static class Empty extends HashedBytesValues.Empty implements OrdinalsHashedBytesValues {
+
+        private final Ordinals ordinals;
+
+        public Empty(EmptyOrdinals ordinals) {
+            this.ordinals = ordinals;
+        }
+
+        @Override
+        public Ordinals.Docs ordinals() {
+            return ordinals.ordinals();
+        }
+
+        @Override
+        public HashedBytesRef getValueByOrd(int ord) {
+            return null;
+        }
+
+        @Override
+        public HashedBytesRef getSafeValueByOrd(int ord) {
+            return null;
+        }
+    }
 
     static class BytesBased extends HashedBytesValues.BytesBased implements OrdinalsHashedBytesValues {
 

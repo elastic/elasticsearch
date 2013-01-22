@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -21,10 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.HashedBytesValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.util.GeoPointArrayRef;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
@@ -35,6 +32,8 @@ import org.elasticsearch.index.search.geo.GeoHashUtils;
 /**
  */
 public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPointFieldData {
+
+    public static final GeoPointDoubleArrayAtomicFieldData EMPTY = new Empty();
 
     protected final double[] lon;
     protected final double[] lat;
@@ -56,6 +55,53 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
     @Override
     public ScriptDocValues getScriptValues() {
         return new ScriptDocValues.GeoPoints(getGeoPointValues());
+    }
+
+    static class Empty extends GeoPointDoubleArrayAtomicFieldData {
+
+        Empty() {
+            super(null, null, 0);
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean isValuesOrdered() {
+            return false;
+        }
+
+        @Override
+        public long getMemorySizeInBytes() {
+            return 0;
+        }
+
+        @Override
+        public BytesValues getBytesValues() {
+            return BytesValues.EMPTY;
+        }
+
+        @Override
+        public HashedBytesValues getHashedBytesValues() {
+            return HashedBytesValues.EMPTY;
+        }
+
+        @Override
+        public GeoPointValues getGeoPointValues() {
+            return GeoPointValues.EMPTY;
+        }
+
+        @Override
+        public StringValues getStringValues() {
+            return StringValues.EMPTY;
+        }
+
+        @Override
+        public ScriptDocValues getScriptValues() {
+            return ScriptDocValues.EMPTY;
+        }
     }
 
     public static class WithOrdinals extends GeoPointDoubleArrayAtomicFieldData {

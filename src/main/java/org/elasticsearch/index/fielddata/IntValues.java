@@ -27,6 +27,8 @@ import org.elasticsearch.index.fielddata.util.LongArrayRef;
  */
 public interface IntValues {
 
+    static final IntValues EMPTY = new Empty();
+
     /**
      * Is one of the documents in this field data values is multi valued?
      */
@@ -96,6 +98,43 @@ public interface IntValues {
                 done = true;
                 return value;
             }
+        }
+    }
+
+    static class Empty implements IntValues {
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return false;
+        }
+
+        @Override
+        public int getValue(int docId) {
+            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty IntValues");
+        }
+
+        @Override
+        public int getValueMissing(int docId, int missingValue) {
+            return missingValue;
+        }
+
+        @Override
+        public IntArrayRef getValues(int docId) {
+            return IntArrayRef.EMPTY;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return Iter.Empty.INSTANCE;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            proc.onMissing(docId);
         }
     }
 

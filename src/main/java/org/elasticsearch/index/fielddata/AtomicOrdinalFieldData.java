@@ -37,4 +37,5 @@ public interface AtomicOrdinalFieldData<Script extends ScriptDocValues> extends 
      * Use a non thread safe (lightweight) view of the values as strings.
      */
     OrdinalsStringValues getStringValues();
+
 }

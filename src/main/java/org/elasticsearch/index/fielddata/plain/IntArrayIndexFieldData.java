@@ -83,7 +83,7 @@ public class IntArrayIndexFieldData extends AbstractIndexFieldData<IntArrayAtomi
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return new IntArrayAtomicFieldData.SingleFixedSet(new int[1], 0, new FixedBitSet(1));
+            return IntArrayAtomicFieldData.EMPTY;
         }
 
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...

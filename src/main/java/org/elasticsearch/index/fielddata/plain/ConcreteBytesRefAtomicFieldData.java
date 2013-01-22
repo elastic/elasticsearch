@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
@@ -32,9 +33,13 @@ import org.elasticsearch.index.fielddata.util.StringArrayRef;
  */
 public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<ScriptDocValues.Strings> {
 
+    public static ConcreteBytesRefAtomicFieldData empty(int numDocs) {
+        return new Empty(numDocs);
+    }
+
     // 0 ordinal in values means no value (its null)
     private final BytesRef[] values;
-    private final Ordinals ordinals;
+    protected final Ordinals ordinals;
 
     private int[] hashes;
     private long size = -1;
@@ -584,6 +589,53 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
                     return value == null ? null : value.utf8ToString();
                 }
             }
+        }
+    }
+
+    static class Empty extends ConcreteBytesRefAtomicFieldData {
+
+        Empty(int numDocs) {
+            super(null, new EmptyOrdinals(numDocs));
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public int getNumDocs() {
+            return ordinals.getNumDocs();
+        }
+
+        @Override
+        public boolean isValuesOrdered() {
+            return true;
+        }
+
+        @Override
+        public long getMemorySizeInBytes() {
+            return 0;
+        }
+
+        @Override
+        public OrdinalsBytesValues getBytesValues() {
+            return new OrdinalsBytesValues.Empty((EmptyOrdinals) ordinals);
+        }
+
+        @Override
+        public OrdinalsHashedBytesValues getHashedBytesValues() {
+            return new OrdinalsHashedBytesValues.Empty((EmptyOrdinals) ordinals);
+        }
+
+        @Override
+        public OrdinalsStringValues getStringValues() {
+            return new OrdinalsStringValues.Empty((EmptyOrdinals) ordinals);
+        }
+
+        @Override
+        public ScriptDocValues.Strings getScriptValues() {
+            return ScriptDocValues.EMPTY_STRINGS;
         }
     }
 }

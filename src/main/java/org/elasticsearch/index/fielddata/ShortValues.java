@@ -28,6 +28,8 @@ import org.elasticsearch.index.fielddata.util.ShortArrayRef;
  */
 public interface ShortValues {
 
+    static final ShortValues EMPTY = new Empty();
+
     /**
      * Is one of the documents in this field data values is multi valued?
      */
@@ -97,6 +99,43 @@ public interface ShortValues {
                 done = true;
                 return value;
             }
+        }
+    }
+
+    static class Empty implements ShortValues {
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return false;
+        }
+
+        @Override
+        public short getValue(int docId) {
+            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty ShortValues");
+        }
+
+        @Override
+        public short getValueMissing(int docId, short missingValue) {
+            return missingValue;
+        }
+
+        @Override
+        public ShortArrayRef getValues(int docId) {
+            return ShortArrayRef.EMPTY;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return Iter.Empty.INSTANCE;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            proc.onMissing(docId);
         }
     }
 

@@ -83,7 +83,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return new LongArrayAtomicFieldData.SingleFixedSet(new long[1], 0, new FixedBitSet(1));
+            return LongArrayAtomicFieldData.EMPTY;
         }
 
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...

@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -21,10 +21,12 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
+import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
@@ -34,10 +36,14 @@ import org.elasticsearch.index.fielddata.util.StringArrayRef;
  */
 public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptDocValues.Strings> {
 
+    public static PagedBytesAtomicFieldData empty(int numDocs) {
+        return new Empty(numDocs);
+    }
+
     // 0 ordinal in values means no value (its null)
     private final PagedBytes.Reader bytes;
     private final PackedInts.Reader termOrdToBytesOffset;
-    private final Ordinals ordinals;
+    protected final Ordinals ordinals;
 
     private int[] hashes;
     private long size = -1;
@@ -595,4 +601,53 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
             }
         }
     }
+
+    static class Empty extends PagedBytesAtomicFieldData {
+
+        Empty(int numDocs) {
+            super(emptyBytes(), new GrowableWriter(1, 2, PackedInts.FASTEST).getMutable(), new EmptyOrdinals(numDocs));
+        }
+
+        static PagedBytes.Reader emptyBytes() {
+            PagedBytes bytes = new PagedBytes(1);
+            bytes.copyUsingLengthPrefix(new BytesRef());
+            return bytes.freeze(true);
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public int getNumDocs() {
+            return ordinals.getNumDocs();
+        }
+
+        @Override
+        public boolean isValuesOrdered() {
+            return true;
+        }
+
+        @Override
+        public OrdinalsBytesValues getBytesValues() {
+            return new OrdinalsBytesValues.Empty((EmptyOrdinals) ordinals);
+        }
+
+        @Override
+        public OrdinalsHashedBytesValues getHashedBytesValues() {
+            return new HashedBytesValues.Empty((EmptyOrdinals) ordinals);
+        }
+
+        @Override
+        public OrdinalsStringValues getStringValues() {
+            return new OrdinalsStringValues.Empty((EmptyOrdinals) ordinals);
+        }
+
+        @Override
+        public ScriptDocValues.Strings getScriptValues() {
+            return ScriptDocValues.EMPTY_STRINGS;
+        }
+    }
+
 }

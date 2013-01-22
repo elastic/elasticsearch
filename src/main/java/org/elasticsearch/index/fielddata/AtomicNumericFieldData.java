@@ -34,4 +34,5 @@ public interface AtomicNumericFieldData<Script extends ScriptDocValues> extends 
     FloatValues getFloatValues();
 
     DoubleValues getDoubleValues();
+
 }

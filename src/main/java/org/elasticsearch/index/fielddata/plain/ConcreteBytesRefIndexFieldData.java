@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.SingleArrayOrdinals;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -75,7 +74,7 @@ public class ConcreteBytesRefIndexFieldData extends AbstractIndexFieldData<Concr
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return new ConcreteBytesRefAtomicFieldData(new BytesRef[1], new EmptyOrdinals(reader.maxDoc()));
+            return ConcreteBytesRefAtomicFieldData.empty(reader.maxDoc());
         }
 
         long size = terms.size();

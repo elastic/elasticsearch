@@ -28,6 +28,8 @@ import org.elasticsearch.index.fielddata.util.StringArrayRef;
  */
 public interface BytesValues {
 
+    static final BytesValues EMPTY = new Empty();
+
     /**
      * Is one of the documents in this field data values is multi valued?
      */
@@ -119,6 +121,51 @@ public interface BytesValues {
                 done = true;
                 return value;
             }
+        }
+    }
+
+    static class Empty implements BytesValues {
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return false;
+        }
+
+        @Override
+        public BytesRef getValue(int docId) {
+            return null;
+        }
+
+        @Override
+        public BytesRefArrayRef getValues(int docId) {
+            return BytesRefArrayRef.EMPTY;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return Iter.Empty.INSTANCE;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            proc.onMissing(docId);
+        }
+
+        @Override
+        public BytesRef makeSafe(BytesRef bytes) {
+            //todo we can also throw an excepiton here as the only value this method accepts is a scratch value...
+            //todo ...extracted from this ByteValues, in our case, there are not values, so this should never be called!?!?
+            return BytesRef.deepCopyOf(bytes);
+        }
+
+        @Override
+        public BytesRef getValueScratch(int docId, BytesRef ret) {
+            ret.length = 0;
+            return ret;
         }
     }
 

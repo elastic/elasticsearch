@@ -7,7 +7,7 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -26,6 +26,8 @@ import org.elasticsearch.index.mapper.geo.GeoPoint;
 /**
  */
 public interface GeoPointValues {
+
+    static final GeoPointValues EMPTY = new Empty();
 
     /**
      * Is one of the documents in this field data values is multi valued?
@@ -117,6 +119,58 @@ public interface GeoPointValues {
                 done = true;
                 return value;
             }
+        }
+    }
+
+    static class Empty implements GeoPointValues {
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return false;
+        }
+
+        @Override
+        public GeoPoint getValueSafe(int docId) {
+            return getValue(docId);
+        }
+
+        @Override
+        public Iter getIterSafe(int docId) {
+            return getIter(docId);
+        }
+
+        @Override
+        public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
+
+        }
+
+        @Override
+        public void forEachLatLonValueInDoc(int docId, LatLonValueInDocProc proc) {
+            //To change body of implemented methods use File | Settings | File Templates.
+        }
+
+        @Override
+        public GeoPoint getValue(int docId) {
+            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty GeoPointValues");
+        }
+
+        @Override
+        public GeoPointArrayRef getValues(int docId) {
+            return GeoPointArrayRef.EMPTY;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return Iter.Empty.INSTANCE;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            proc.onMissing(docId);
         }
     }
 }

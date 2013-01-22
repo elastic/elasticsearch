@@ -91,7 +91,7 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericByte(getByteValues());
         }
 
         @Override
@@ -458,7 +458,7 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericByte(getByteValues());
         }
 
         @Override
@@ -733,7 +733,7 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericByte(getByteValues());
         }
 
         @Override

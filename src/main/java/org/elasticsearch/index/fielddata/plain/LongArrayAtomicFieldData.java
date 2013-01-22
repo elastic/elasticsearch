@@ -91,7 +91,7 @@ public abstract class LongArrayAtomicFieldData implements AtomicNumericFieldData
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericLong(getLongValues());
         }
 
         @Override
@@ -452,7 +452,7 @@ public abstract class LongArrayAtomicFieldData implements AtomicNumericFieldData
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericLong(getLongValues());
         }
 
         @Override
@@ -723,7 +723,7 @@ public abstract class LongArrayAtomicFieldData implements AtomicNumericFieldData
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericLong(getLongValues());
         }
 
         @Override

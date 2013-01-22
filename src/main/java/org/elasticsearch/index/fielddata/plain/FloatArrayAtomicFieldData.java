@@ -23,7 +23,10 @@ import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.util.*;
+import org.elasticsearch.index.fielddata.util.DoubleArrayRef;
+import org.elasticsearch.index.fielddata.util.FloatArrayRef;
+import org.elasticsearch.index.fielddata.util.IntArrayRef;
+import org.elasticsearch.index.fielddata.util.LongArrayRef;
 
 /**
  */
@@ -88,7 +91,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericFloat(getFloatValues());
         }
 
         @Override
@@ -455,7 +458,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericFloat(getFloatValues());
         }
 
         @Override
@@ -730,7 +733,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericFloat(getFloatValues());
         }
 
         @Override

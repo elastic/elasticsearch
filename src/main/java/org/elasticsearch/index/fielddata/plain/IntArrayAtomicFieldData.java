@@ -457,7 +457,7 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericInteger(getIntValues());
         }
 
         @Override
@@ -731,7 +731,7 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.NumericInteger(getIntValues());
         }
 
         @Override

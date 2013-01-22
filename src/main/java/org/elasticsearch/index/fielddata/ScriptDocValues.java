@@ -20,8 +20,11 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.util.*;
 import org.elasticsearch.index.mapper.geo.GeoPoint;
+import org.elasticsearch.index.search.geo.GeoDistance;
+import org.joda.time.MutableDateTime;
 
 /**
  * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
@@ -176,6 +179,7 @@ public interface ScriptDocValues {
     static class NumericLong implements ScriptDocValues {
 
         private final LongValues values;
+        private final MutableDateTime date = new MutableDateTime(0);
         private int docId;
 
         public NumericLong(LongValues values) {
@@ -194,6 +198,11 @@ public interface ScriptDocValues {
 
         public long getValue() {
             return values.getValue(docId);
+        }
+
+        public MutableDateTime getDate() {
+            date.setMillis(getValue());
+            return date;
         }
 
         public LongArrayRef getValues() {
@@ -282,6 +291,81 @@ public interface ScriptDocValues {
 
         public GeoPointArrayRef getValues() {
             return values.getValues(docId);
+        }
+
+        public double factorDistance(double lat, double lon) {
+            GeoPoint point = getValue();
+            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+        }
+
+        public double factorDistanceWithDefault(double lat, double lon, double defaultValue) {
+            if (isEmpty()) {
+                return defaultValue;
+            }
+            GeoPoint point = getValue();
+            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+        }
+
+        public double factorDistance02(double lat, double lon) {
+            GeoPoint point = getValue();
+            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES) + 1;
+        }
+
+        public double factorDistance13(double lat, double lon) {
+            GeoPoint point = getValue();
+            return GeoDistance.FACTOR.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES) + 2;
+        }
+
+        public double arcDistance(double lat, double lon) {
+            GeoPoint point = getValue();
+            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+        }
+
+        public double arcDistanceWithDefault(double lat, double lon, double defaultValue) {
+            if (isEmpty()) {
+                return defaultValue;
+            }
+            GeoPoint point = getValue();
+            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+        }
+
+        public double arcDistanceInKm(double lat, double lon) {
+            GeoPoint point = getValue();
+            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
+        }
+
+        public double arcDistanceInKmWithDefault(double lat, double lon, double defaultValue) {
+            if (isEmpty()) {
+                return defaultValue;
+            }
+            GeoPoint point = getValue();
+            return GeoDistance.ARC.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
+        }
+
+        public double distance(double lat, double lon) {
+            GeoPoint point = getValue();
+            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+        }
+
+        public double distanceWithDefault(double lat, double lon, double defaultValue) {
+            if (isEmpty()) {
+                return defaultValue;
+            }
+            GeoPoint point = getValue();
+            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.MILES);
+        }
+
+        public double distanceInKm(double lat, double lon) {
+            GeoPoint point = getValue();
+            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
+        }
+
+        public double distanceInKmWithDefault(double lat, double lon, double defaultValue) {
+            if (isEmpty()) {
+                return defaultValue;
+            }
+            GeoPoint point = getValue();
+            return GeoDistance.PLANE.calculate(point.lat(), point.lon(), lat, lon, DistanceUnit.KILOMETERS);
         }
     }
 }

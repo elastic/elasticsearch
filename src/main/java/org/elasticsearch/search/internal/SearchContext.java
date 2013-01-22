@@ -34,7 +34,6 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
@@ -354,10 +353,6 @@ public class SearchContext implements Releasable {
 
     public FilterCache filterCache() {
         return indexService.cache().filter();
-    }
-
-    public FieldDataCache fieldDataCache() {
-        return indexService.cache().fieldData();
     }
 
     public IndexFieldDataService fieldData() {

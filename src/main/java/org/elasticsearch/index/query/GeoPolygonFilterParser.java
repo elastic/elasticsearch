@@ -24,9 +24,9 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
@@ -172,12 +172,12 @@ public class GeoPolygonFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
         FieldMapper mapper = smartMappers.mapper();
-        if (mapper.fieldDataType() != GeoPointFieldDataType.TYPE) {
+        if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
-        fieldName = mapper.names().indexName();
 
-        Filter filter = new GeoPolygonFilter(points.toArray(new Point[points.size()]), fieldName, parseContext.indexCache().fieldData());
+        IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
+        Filter filter = new GeoPolygonFilter(points.toArray(new Point[points.size()]), indexFieldData);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

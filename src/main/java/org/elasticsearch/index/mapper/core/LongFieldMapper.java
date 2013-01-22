@@ -38,9 +38,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
@@ -228,8 +229,8 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newLongRange(fieldDataCache, names.indexName(),
+    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData) fieldData.getForField(this),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);

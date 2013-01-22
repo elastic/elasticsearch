@@ -287,6 +287,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         return lonMapper;
     }
 
+    public GeoStringFieldMapper stringMapper() {
+        return this.geoStringMapper;
+    }
+
     public boolean isEnableLatLon() {
         return enableLatLon;
     }

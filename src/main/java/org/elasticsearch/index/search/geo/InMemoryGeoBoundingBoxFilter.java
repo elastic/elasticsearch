@@ -25,9 +25,9 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.mapper.geo.GeoPoint;
 
 import java.io.IOException;
 
@@ -37,18 +37,14 @@ import java.io.IOException;
 public class InMemoryGeoBoundingBoxFilter extends Filter {
 
     private final Point topLeft;
-
     private final Point bottomRight;
 
-    private final String fieldName;
+    private final IndexGeoPointFieldData indexFieldData;
 
-    private final FieldDataCache fieldDataCache;
-
-    public InMemoryGeoBoundingBoxFilter(Point topLeft, Point bottomRight, String fieldName, FieldDataCache fieldDataCache) {
+    public InMemoryGeoBoundingBoxFilter(Point topLeft, Point bottomRight, IndexGeoPointFieldData indexFieldData) {
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
-        this.fieldName = fieldName;
-        this.fieldDataCache = fieldDataCache;
+        this.indexFieldData = indexFieldData;
     }
 
     public Point topLeft() {
@@ -60,34 +56,34 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
     }
 
     public String fieldName() {
-        return fieldName;
+        return indexFieldData.getFieldNames().indexName();
     }
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
-        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, context.reader(), fieldName);
+        final GeoPointValues values = indexFieldData.load(context).getGeoPointValues();
 
         //checks to see if bounding box crosses 180 degrees
         if (topLeft.lon > bottomRight.lon) {
-            return new Meridian180GeoBoundingBoxDocSet(context.reader().maxDoc(), acceptedDocs, fieldData, topLeft, bottomRight);
+            return new Meridian180GeoBoundingBoxDocSet(context.reader().maxDoc(), acceptedDocs, values, topLeft, bottomRight);
         } else {
-            return new GeoBoundingBoxDocSet(context.reader().maxDoc(), acceptedDocs, fieldData, topLeft, bottomRight);
+            return new GeoBoundingBoxDocSet(context.reader().maxDoc(), acceptedDocs, values, topLeft, bottomRight);
         }
     }
 
     @Override
     public String toString() {
-        return "GeoBoundingBoxFilter(" + fieldName + ", " + topLeft + ", " + bottomRight + ")";
+        return "GeoBoundingBoxFilter(" + indexFieldData.getFieldNames().indexName() + ", " + topLeft + ", " + bottomRight + ")";
     }
 
     public static class Meridian180GeoBoundingBoxDocSet extends MatchDocIdSet {
-        private final GeoPointFieldData fieldData;
+        private final GeoPointValues values;
         private final Point topLeft;
         private final Point bottomRight;
 
-        public Meridian180GeoBoundingBoxDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
+        public Meridian180GeoBoundingBoxDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, Point topLeft, Point bottomRight) {
             super(maxDoc, acceptDocs);
-            this.fieldData = fieldData;
+            this.values = values;
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
         }
@@ -99,27 +95,24 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
 
         @Override
         protected boolean matchDoc(int doc) {
-            if (!fieldData.hasValue(doc)) {
+            if (!values.hasValue(doc)) {
                 return false;
             }
 
-            if (fieldData.multiValued()) {
-                double[] lats = fieldData.latValues(doc);
-                double[] lons = fieldData.lonValues(doc);
-                for (int i = 0; i < lats.length; i++) {
-                    double lat = lats[i];
-                    double lon = lons[i];
-                    if (((topLeft.lon <= lon || bottomRight.lon >= lon)) &&
-                            (topLeft.lat >= lat && bottomRight.lat <= lat)) {
+            if (values.isMultiValued()) {
+                GeoPointValues.Iter iter = values.getIter(doc);
+                while (iter.hasNext()) {
+                    GeoPoint point = iter.next();
+                    if (((topLeft.lon <= point.lon() || bottomRight.lon >= point.lon())) &&
+                            (topLeft.lat >= point.lat() && bottomRight.lat <= point.lat())) {
                         return true;
                     }
                 }
             } else {
-                double lat = fieldData.latValue(doc);
-                double lon = fieldData.lonValue(doc);
+                GeoPoint point = values.getValue(doc);
 
-                if (((topLeft.lon <= lon || bottomRight.lon >= lon)) &&
-                        (topLeft.lat >= lat && bottomRight.lat <= lat)) {
+                if (((topLeft.lon <= point.lon() || bottomRight.lon >= point.lon())) &&
+                        (topLeft.lat >= point.lat() && bottomRight.lat <= point.lat())) {
                     return true;
                 }
             }
@@ -128,13 +121,13 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
     }
 
     public static class GeoBoundingBoxDocSet extends MatchDocIdSet {
-        private final GeoPointFieldData fieldData;
+        private final GeoPointValues values;
         private final Point topLeft;
         private final Point bottomRight;
 
-        public GeoBoundingBoxDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
+        public GeoBoundingBoxDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, Point topLeft, Point bottomRight) {
             super(maxDoc, acceptDocs);
-            this.fieldData = fieldData;
+            this.values = values;
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
         }
@@ -146,25 +139,23 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
 
         @Override
         protected boolean matchDoc(int doc) {
-            if (!fieldData.hasValue(doc)) {
+            if (!values.hasValue(doc)) {
                 return false;
             }
 
-            if (fieldData.multiValued()) {
-                double[] lats = fieldData.latValues(doc);
-                double[] lons = fieldData.lonValues(doc);
-                for (int i = 0; i < lats.length; i++) {
-                    if (topLeft.lon <= lons[i] && bottomRight.lon >= lons[i]
-                            && topLeft.lat >= lats[i] && bottomRight.lat <= lats[i]) {
+            if (values.isMultiValued()) {
+                GeoPointValues.Iter iter = values.getIter(doc);
+                while (iter.hasNext()) {
+                    GeoPoint point = iter.next();
+                    if (topLeft.lon <= point.lon() && bottomRight.lon >= point.lon()
+                            && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
                         return true;
                     }
                 }
             } else {
-                double lat = fieldData.latValue(doc);
-                double lon = fieldData.lonValue(doc);
-
-                if (topLeft.lon <= lon && bottomRight.lon >= lon
-                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                GeoPoint point = values.getValue(doc);
+                if (topLeft.lon <= point.lon() && bottomRight.lon >= point.lon()
+                        && topLeft.lat >= point.lat() && bottomRight.lat <= point.lat()) {
                     return true;
                 }
             }

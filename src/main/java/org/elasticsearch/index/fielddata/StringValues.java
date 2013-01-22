@@ -26,6 +26,8 @@ import org.elasticsearch.index.fielddata.util.*;
  */
 public interface StringValues {
 
+    static final StringValues EMPTY = new Empty();
+
     /**
      * Is one of the documents in this field data values is multi valued?
      */
@@ -97,6 +99,38 @@ public interface StringValues {
                 done = true;
                 return value;
             }
+        }
+    }
+
+    static class Empty implements StringValues {
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return false;
+        }
+
+        @Override
+        public String getValue(int docId) {
+            return null;
+        }
+
+        @Override
+        public StringArrayRef getValues(int docId) {
+            return StringArrayRef.EMPTY;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return Iter.Empty.INSTANCE;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            proc.onMissing(docId);
         }
     }
 

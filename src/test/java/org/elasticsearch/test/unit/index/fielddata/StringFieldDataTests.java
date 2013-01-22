@@ -624,4 +624,125 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         stringValues.forEachValueInDoc(1, new StringValuesVerifierProc(1).addMissing());
         stringValues.forEachValueInDoc(2, new StringValuesVerifierProc(2).addExpected(three()));
     }
+
+    public void testMissingValueForAll() throws Exception {
+        fillAllMissing();
+        IndexFieldData indexFieldData = getForField("value");
+        AtomicFieldData fieldData = indexFieldData.load(refreshReader());
+
+        assertThat(fieldData.getNumDocs(), equalTo(3));
+
+        BytesValues bytesValues = fieldData.getBytesValues();
+
+        assertThat(bytesValues.isMultiValued(), equalTo(false));
+
+        assertThat(bytesValues.hasValue(0), equalTo(false));
+        assertThat(bytesValues.hasValue(1), equalTo(false));
+        assertThat(bytesValues.hasValue(2), equalTo(false));
+
+        assertThat(bytesValues.getValue(0), nullValue());
+        assertThat(bytesValues.getValue(1), nullValue());
+        assertThat(bytesValues.getValue(2), nullValue());
+
+        BytesRef bytesRef = new BytesRef();
+        assertThat(bytesValues.getValueScratch(0, bytesRef), equalTo(new BytesRef()));
+        assertThat(bytesRef, equalTo(new BytesRef()));
+        assertThat(bytesValues.getValueScratch(1, bytesRef), equalTo(new BytesRef()));
+        assertThat(bytesRef, equalTo(new BytesRef()));
+        assertThat(bytesValues.getValueScratch(2, bytesRef), equalTo(new BytesRef()));
+        assertThat(bytesRef, equalTo(new BytesRef()));
+
+
+        BytesRefArrayRef bytesRefArrayRef = bytesValues.getValues(0);
+        assertThat(bytesRefArrayRef.size(), equalTo(0));
+
+        bytesRefArrayRef = bytesValues.getValues(1);
+        assertThat(bytesRefArrayRef.size(), equalTo(0));
+
+        bytesRefArrayRef = bytesValues.getValues(2);
+        assertThat(bytesRefArrayRef.size(), equalTo(0));
+
+        BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
+        assertThat(bytesValuesIter.hasNext(), equalTo(false));
+
+        bytesValuesIter = bytesValues.getIter(1);
+        assertThat(bytesValuesIter.hasNext(), equalTo(false));
+
+        bytesValuesIter = bytesValues.getIter(2);
+        assertThat(bytesValuesIter.hasNext(), equalTo(false));
+
+        bytesValues.forEachValueInDoc(0, new BytesValuesVerifierProc(0).addMissing());
+        bytesValues.forEachValueInDoc(1, new BytesValuesVerifierProc(1).addMissing());
+        bytesValues.forEachValueInDoc(2, new BytesValuesVerifierProc(2).addMissing());
+
+        HashedBytesValues hashedBytesValues = fieldData.getHashedBytesValues();
+
+        assertThat(hashedBytesValues.hasValue(0), equalTo(false));
+        assertThat(hashedBytesValues.hasValue(1), equalTo(false));
+        assertThat(hashedBytesValues.hasValue(2), equalTo(false));
+
+        assertThat(hashedBytesValues.getValue(0), nullValue());
+        assertThat(hashedBytesValues.getValue(1), nullValue());
+        assertThat(hashedBytesValues.getValue(2), nullValue());
+
+        HashedBytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
+        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
+
+        hashedBytesValuesIter = hashedBytesValues.getIter(1);
+        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
+
+        hashedBytesValuesIter = hashedBytesValues.getIter(2);
+        assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
+
+        hashedBytesValues.forEachValueInDoc(0, new HashedBytesValuesVerifierProc(0).addMissing());
+        hashedBytesValues.forEachValueInDoc(1, new HashedBytesValuesVerifierProc(1).addMissing());
+        hashedBytesValues.forEachValueInDoc(2, new HashedBytesValuesVerifierProc(2).addMissing());
+
+        StringValues stringValues = fieldData.getStringValues();
+
+        assertThat(stringValues.hasValue(0), equalTo(false));
+        assertThat(stringValues.hasValue(1), equalTo(false));
+        assertThat(stringValues.hasValue(2), equalTo(false));
+
+        assertThat(stringValues.getValue(0), nullValue());
+        assertThat(stringValues.getValue(1), nullValue());
+        assertThat(stringValues.getValue(2), nullValue());
+
+        StringArrayRef stringArrayRef;
+        stringArrayRef = stringValues.getValues(0);
+        assertThat(stringArrayRef.size(), equalTo(0));
+
+        stringArrayRef = stringValues.getValues(1);
+        assertThat(stringArrayRef.size(), equalTo(0));
+
+        stringArrayRef = stringValues.getValues(2);
+        assertThat(stringArrayRef.size(), equalTo(0));
+
+        StringValues.Iter stringValuesIter = stringValues.getIter(0);
+        assertThat(stringValuesIter.hasNext(), equalTo(false));
+
+        stringValuesIter = stringValues.getIter(1);
+        assertThat(stringValuesIter.hasNext(), equalTo(false));
+
+        stringValuesIter = stringValues.getIter(2);
+        assertThat(stringValuesIter.hasNext(), equalTo(false));
+
+        stringValues.forEachValueInDoc(0, new StringValuesVerifierProc(0).addMissing());
+        stringValues.forEachValueInDoc(1, new StringValuesVerifierProc(1).addMissing());
+        stringValues.forEachValueInDoc(2, new StringValuesVerifierProc(2).addMissing());
+    }
+
+    protected void fillAllMissing() throws Exception {
+        Document d = new Document();
+        d.add(new StringField("_id", "1", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "2", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "3", Field.Store.NO));
+        writer.addDocument(d);
+    }
 }

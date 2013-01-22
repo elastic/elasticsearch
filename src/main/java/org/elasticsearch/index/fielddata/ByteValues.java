@@ -28,6 +28,8 @@ import org.elasticsearch.index.fielddata.util.LongArrayRef;
  */
 public interface ByteValues {
 
+    static ByteValues EMPTY = new Empty();
+
     /**
      * Is one of the documents in this field data values is multi valued?
      */
@@ -97,6 +99,43 @@ public interface ByteValues {
                 done = true;
                 return value;
             }
+        }
+    }
+
+    static class Empty implements ByteValues {
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return false;
+        }
+
+        @Override
+        public byte getValue(int docId) {
+            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty ByteValues");
+        }
+
+        @Override
+        public byte getValueMissing(int docId, byte missingValue) {
+            return missingValue;
+        }
+
+        @Override
+        public ByteArrayRef getValues(int docId) {
+            return ByteArrayRef.EMPTY;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return Iter.Empty.INSTANCE;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            proc.onMissing(docId);
         }
     }
 

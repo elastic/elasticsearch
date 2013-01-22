@@ -19,6 +19,9 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.*;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.util.*;
@@ -1246,5 +1249,244 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         floatValues.forEachValueInDoc(0, new FloatValuesVerifierProc(0).addExpected(2f).addExpected(4f));
         floatValues.forEachValueInDoc(1, new FloatValuesVerifierProc(1).addMissing());
         floatValues.forEachValueInDoc(2, new FloatValuesVerifierProc(2).addExpected(3f));
+    }
+
+    @Test
+    public void testMissingValueForAll() throws Exception {
+        fillAllMissing();
+        IndexNumericFieldData indexFieldData = getForField("value");
+        AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
+
+        assertThat(fieldData.getNumDocs(), equalTo(0));
+
+        // long values
+
+        LongValues longValues = fieldData.getLongValues();
+
+        assertThat(longValues.isMultiValued(), equalTo(false));
+
+        assertThat(longValues.hasValue(0), equalTo(false));
+        assertThat(longValues.hasValue(1), equalTo(false));
+        assertThat(longValues.hasValue(2), equalTo(false));
+
+        assertThat(longValues.getValueMissing(0, -1), equalTo(-1l));
+        assertThat(longValues.getValueMissing(1, -1), equalTo(-1l));
+        assertThat(longValues.getValueMissing(2, -1), equalTo(-1l));
+
+        LongArrayRef longArrayRef = longValues.getValues(0);
+        assertThat(longArrayRef.size(), equalTo(0));
+
+        longArrayRef = longValues.getValues(1);
+        assertThat(longArrayRef.size(), equalTo(0));
+
+        longArrayRef = longValues.getValues(2);
+        assertThat(longArrayRef.size(), equalTo(0));
+
+        LongValues.Iter longValuesIter = longValues.getIter(0);
+        assertThat(longValuesIter.hasNext(), equalTo(false));
+
+        longValuesIter = longValues.getIter(1);
+        assertThat(longValuesIter.hasNext(), equalTo(false));
+
+        longValuesIter = longValues.getIter(2);
+        assertThat(longValuesIter.hasNext(), equalTo(false));
+
+        longValues.forEachValueInDoc(0, new LongValuesVerifierProc(0).addMissing());
+        longValues.forEachValueInDoc(1, new LongValuesVerifierProc(1).addMissing());
+        longValues.forEachValueInDoc(2, new LongValuesVerifierProc(2).addMissing());
+
+        // double values
+
+        DoubleValues doubleValues = fieldData.getDoubleValues();
+
+        assertThat(doubleValues.isMultiValued(), equalTo(false));
+
+        assertThat(doubleValues.hasValue(0), equalTo(false));
+        assertThat(doubleValues.hasValue(1), equalTo(false));
+        assertThat(doubleValues.hasValue(2), equalTo(false));
+
+        assertThat(doubleValues.getValueMissing(0, -1), equalTo(-1d));
+        assertThat(doubleValues.getValueMissing(1, -1), equalTo(-1d));
+        assertThat(doubleValues.getValueMissing(2, -1), equalTo(-1d));
+
+        DoubleArrayRef doubleArrayRef = doubleValues.getValues(0);
+        assertThat(doubleArrayRef.size(), equalTo(0));
+
+        doubleArrayRef = doubleValues.getValues(1);
+        assertThat(doubleArrayRef.size(), equalTo(0));
+
+        doubleArrayRef = doubleValues.getValues(2);
+        assertThat(doubleArrayRef.size(), equalTo(0));
+
+        DoubleValues.Iter doubleValuesIter = doubleValues.getIter(0);
+        assertThat(doubleValuesIter.hasNext(), equalTo(false));
+
+        doubleValuesIter = doubleValues.getIter(1);
+        assertThat(doubleValuesIter.hasNext(), equalTo(false));
+
+        doubleValuesIter = doubleValues.getIter(2);
+        assertThat(doubleValuesIter.hasNext(), equalTo(false));
+
+        doubleValues.forEachValueInDoc(0, new DoubleValuesVerifierProc(0).addMissing());
+        doubleValues.forEachValueInDoc(1, new DoubleValuesVerifierProc(1).addMissing());
+        doubleValues.forEachValueInDoc(2, new DoubleValuesVerifierProc(2).addMissing());
+
+        // byte values
+
+        ByteValues byteValues = fieldData.getByteValues();
+
+        assertThat(byteValues.isMultiValued(), equalTo(false));
+
+        assertThat(byteValues.hasValue(0), equalTo(false));
+        assertThat(byteValues.hasValue(1), equalTo(false));
+        assertThat(byteValues.hasValue(2), equalTo(false));
+
+        assertThat(byteValues.getValueMissing(0, (byte) -1), equalTo((byte) -1));
+        assertThat(byteValues.getValueMissing(1, (byte) -1), equalTo((byte) -1));
+        assertThat(byteValues.getValueMissing(2, (byte) -1), equalTo((byte) -1));
+
+        ByteArrayRef byteArrayRef = byteValues.getValues(0);
+        assertThat(byteArrayRef.size(), equalTo(0));
+
+        byteArrayRef = byteValues.getValues(1);
+        assertThat(byteArrayRef.size(), equalTo(0));
+
+        byteArrayRef = byteValues.getValues(2);
+        assertThat(byteArrayRef.size(), equalTo(0));
+
+        ByteValues.Iter byteValuesIter = byteValues.getIter(0);
+        assertThat(byteValuesIter.hasNext(), equalTo(false));
+
+        byteValuesIter = byteValues.getIter(1);
+        assertThat(byteValuesIter.hasNext(), equalTo(false));
+
+        byteValuesIter = byteValues.getIter(2);
+        assertThat(byteValuesIter.hasNext(), equalTo(false));
+
+        byteValues.forEachValueInDoc(0, new ByteValuesVerifierProc(0).addMissing());
+        byteValues.forEachValueInDoc(1, new ByteValuesVerifierProc(1).addMissing());
+        byteValues.forEachValueInDoc(2, new ByteValuesVerifierProc(2).addMissing());
+
+        // short values
+
+        ShortValues shortValues = fieldData.getShortValues();
+
+        assertThat(shortValues.isMultiValued(), equalTo(false));
+
+        assertThat(shortValues.hasValue(0), equalTo(false));
+        assertThat(shortValues.hasValue(1), equalTo(false));
+        assertThat(shortValues.hasValue(2), equalTo(false));
+
+        assertThat(shortValues.getValueMissing(0, (short) -1), equalTo((short) -1));
+        assertThat(shortValues.getValueMissing(1, (short) -1), equalTo((short) -1));
+        assertThat(shortValues.getValueMissing(2, (short) -1), equalTo((short) -1));
+
+        ShortArrayRef shortArrayRef = shortValues.getValues(0);
+        assertThat(shortArrayRef.size(), equalTo(0));
+
+        shortArrayRef = shortValues.getValues(1);
+        assertThat(shortArrayRef.size(), equalTo(0));
+
+        shortArrayRef = shortValues.getValues(2);
+        assertThat(shortArrayRef.size(), equalTo(0));
+
+        ShortValues.Iter shortValuesIter = shortValues.getIter(0);
+        assertThat(shortValuesIter.hasNext(), equalTo(false));
+
+        shortValuesIter = shortValues.getIter(1);
+        assertThat(shortValuesIter.hasNext(), equalTo(false));
+
+        shortValuesIter = shortValues.getIter(2);
+        assertThat(shortValuesIter.hasNext(), equalTo(false));
+
+        shortValues.forEachValueInDoc(0, new ShortValuesVerifierProc(0).addMissing());
+        shortValues.forEachValueInDoc(1, new ShortValuesVerifierProc(1).addMissing());
+        shortValues.forEachValueInDoc(2, new ShortValuesVerifierProc(2).addMissing());
+
+        // int values
+
+        IntValues intValues = fieldData.getIntValues();
+
+        assertThat(intValues.isMultiValued(), equalTo(false));
+
+        assertThat(intValues.hasValue(0), equalTo(false));
+        assertThat(intValues.hasValue(1), equalTo(false));
+        assertThat(intValues.hasValue(2), equalTo(false));
+
+        assertThat(intValues.getValueMissing(0, -1), equalTo(-1));
+        assertThat(intValues.getValueMissing(1, -1), equalTo(-1));
+        assertThat(intValues.getValueMissing(2, -1), equalTo(-1));
+
+        IntArrayRef intArrayRef = intValues.getValues(0);
+        assertThat(intArrayRef.size(), equalTo(0));
+
+        intArrayRef = intValues.getValues(1);
+        assertThat(intArrayRef.size(), equalTo(0));
+
+        intArrayRef = intValues.getValues(2);
+        assertThat(intArrayRef.size(), equalTo(0));
+
+        IntValues.Iter intValuesIter = intValues.getIter(0);
+        assertThat(intValuesIter.hasNext(), equalTo(false));
+
+        intValuesIter = intValues.getIter(1);
+        assertThat(intValuesIter.hasNext(), equalTo(false));
+
+        intValuesIter = intValues.getIter(2);
+        assertThat(intValuesIter.hasNext(), equalTo(false));
+
+        intValues.forEachValueInDoc(0, new IntValuesVerifierProc(0).addMissing());
+        intValues.forEachValueInDoc(1, new IntValuesVerifierProc(1).addMissing());
+        intValues.forEachValueInDoc(2, new IntValuesVerifierProc(2).addMissing());
+
+        // float
+
+        FloatValues floatValues = fieldData.getFloatValues();
+
+        assertThat(floatValues.isMultiValued(), equalTo(false));
+
+        assertThat(floatValues.hasValue(0), equalTo(false));
+        assertThat(floatValues.hasValue(1), equalTo(false));
+        assertThat(floatValues.hasValue(2), equalTo(false));
+
+        assertThat(floatValues.getValueMissing(0, -1), equalTo(-1f));
+        assertThat(floatValues.getValueMissing(1, -1), equalTo(-1f));
+        assertThat(floatValues.getValueMissing(2, -1), equalTo(-1f));
+
+        FloatArrayRef floatArrayRef = floatValues.getValues(0);
+        assertThat(floatArrayRef.size(), equalTo(0));
+
+        floatArrayRef = floatValues.getValues(1);
+        assertThat(floatArrayRef.size(), equalTo(0));
+
+        floatArrayRef = floatValues.getValues(2);
+        assertThat(floatArrayRef.size(), equalTo(0));
+
+        FloatValues.Iter floatValuesIter = floatValues.getIter(0);
+        assertThat(floatValuesIter.hasNext(), equalTo(false));
+
+        floatValuesIter = floatValues.getIter(1);
+        assertThat(floatValuesIter.hasNext(), equalTo(false));
+
+        floatValuesIter = floatValues.getIter(2);
+        assertThat(floatValuesIter.hasNext(), equalTo(false));
+
+        floatValues.forEachValueInDoc(0, new FloatValuesVerifierProc(0).addMissing());
+        floatValues.forEachValueInDoc(1, new FloatValuesVerifierProc(1).addMissing());
+        floatValues.forEachValueInDoc(2, new FloatValuesVerifierProc(2).addMissing());
+    }
+
+    protected void fillAllMissing() throws Exception {
+        Document d = new Document();
+        d.add(new StringField("_id", "1", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "2", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "3", Field.Store.NO));
+        writer.addDocument(d);
     }
 }

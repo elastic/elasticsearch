@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
@@ -38,6 +39,36 @@ public interface OrdinalsBytesValues extends BytesValues {
     BytesRef getValueScratchByOrd(int ord, BytesRef ret);
 
     BytesRef getSafeValueByOrd(int ord);
+
+    public static class Empty extends BytesValues.Empty implements OrdinalsBytesValues {
+
+        private final Ordinals ordinals;
+
+        public Empty(EmptyOrdinals ordinals) {
+            this.ordinals = ordinals;
+        }
+
+        @Override
+        public Ordinals.Docs ordinals() {
+            return ordinals.ordinals();
+        }
+
+        @Override
+        public BytesRef getValueByOrd(int ord) {
+            return null;
+        }
+
+        @Override
+        public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
+            ret.length = 0;
+            return ret;
+        }
+
+        @Override
+        public BytesRef getSafeValueByOrd(int ord) {
+            return null;
+        }
+    }
 
     public static class StringBased extends BytesValues.StringBased implements OrdinalsBytesValues {
 

@@ -27,6 +27,8 @@ import org.elasticsearch.common.lucene.HashedBytesRef;
  */
 public interface HashedBytesValues {
 
+    static final HashedBytesValues EMPTY = new Empty();
+
     /**
      * Is one of the documents in this field data values is multi valued?
      */
@@ -108,6 +110,40 @@ public interface HashedBytesValues {
                 done = true;
                 return value;
             }
+        }
+    }
+
+    static class Empty implements HashedBytesValues {
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return false;
+        }
+
+        @Override
+        public HashedBytesRef getValue(int docId) {
+            return null;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return Iter.Empty.INSTANCE;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            proc.onMissing(docId);
+        }
+
+        @Override
+        public HashedBytesRef makeSafe(HashedBytesRef bytes) {
+            //todo maybe better to throw an excepiton here as the only value this method accepts is a scratch value...
+            //todo ...extracted from this ByteValues, in our case, there are not values, so this should never be called!?!?
+            return HashedBytesRef.deepCopyOf(bytes);
         }
     }
 

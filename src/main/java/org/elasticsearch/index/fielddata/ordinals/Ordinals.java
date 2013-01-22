@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
 /**
@@ -149,5 +150,7 @@ public interface Ordinals {
                 return actual;
             }
         }
+
     }
+
 }

@@ -27,6 +27,8 @@ import org.elasticsearch.index.fielddata.util.FloatArrayRef;
  */
 public interface FloatValues {
 
+    static final FloatValues EMPTY = new Empty();
+
     /**
      * Is one of the documents in this field data values is multi valued?
      */
@@ -96,6 +98,43 @@ public interface FloatValues {
                 done = true;
                 return value;
             }
+        }
+    }
+
+    static class Empty implements FloatValues {
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return false;
+        }
+
+        @Override
+        public float getValue(int docId) {
+            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty FloatValues");
+        }
+
+        @Override
+        public float getValueMissing(int docId, float missingValue) {
+            return missingValue;
+        }
+
+        @Override
+        public FloatArrayRef getValues(int docId) {
+            return FloatArrayRef.EMPTY;
+        }
+
+        @Override
+        public Iter getIter(int docId) {
+            return Iter.Empty.INSTANCE;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            proc.onMissing(docId);
         }
     }
 

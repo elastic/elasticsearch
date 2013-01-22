@@ -32,9 +32,23 @@ import org.joda.time.MutableDateTime;
  */
 public interface ScriptDocValues {
 
+    static final ScriptDocValues EMPTY = new Empty();
+    static final Strings EMPTY_STRINGS = new Strings(StringValues.EMPTY);
+
     void setNextDocId(int docId);
 
     boolean isEmpty();
+
+    static class Empty implements ScriptDocValues {
+        @Override
+        public void setNextDocId(int docId) {
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return true;
+        }
+    }
 
     static class Strings implements ScriptDocValues {
 

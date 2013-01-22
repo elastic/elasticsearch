@@ -31,6 +31,8 @@ import org.elasticsearch.index.fielddata.util.LongArrayRef;
  */
 public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData {
 
+    public static final IntArrayAtomicFieldData EMPTY = new Empty();
+
     protected final int[] values;
     private final int numDocs;
 
@@ -44,6 +46,78 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
     @Override
     public int getNumDocs() {
         return numDocs;
+    }
+
+    static class Empty extends IntArrayAtomicFieldData {
+
+        Empty() {
+            super(null, 0);
+        }
+
+        @Override
+        public ByteValues getByteValues() {
+            return ByteValues.EMPTY;
+        }
+
+        @Override
+        public ShortValues getShortValues() {
+            return ShortValues.EMPTY;
+        }
+
+        @Override
+        public IntValues getIntValues() {
+            return IntValues.EMPTY;
+        }
+
+        @Override
+        public LongValues getLongValues() {
+            return LongValues.EMPTY;
+        }
+
+        @Override
+        public FloatValues getFloatValues() {
+            return FloatValues.EMPTY;
+        }
+
+        @Override
+        public DoubleValues getDoubleValues() {
+            return DoubleValues.EMPTY;
+        }
+
+        @Override
+        public boolean isMultiValued() {
+            return false;
+        }
+
+        @Override
+        public boolean isValuesOrdered() {
+            return false;
+        }
+
+        @Override
+        public long getMemorySizeInBytes() {
+            return 0;
+        }
+
+        @Override
+        public BytesValues getBytesValues() {
+            return BytesValues.EMPTY;
+        }
+
+        @Override
+        public HashedBytesValues getHashedBytesValues() {
+            return HashedBytesValues.EMPTY;
+        }
+
+        @Override
+        public StringValues getStringValues() {
+            return StringValues.EMPTY;
+        }
+
+        @Override
+        public ScriptDocValues getScriptValues() {
+            return ScriptDocValues.EMPTY;
+        }
     }
 
     public static class WithOrdinals extends IntArrayAtomicFieldData {
@@ -835,6 +909,7 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
             private final Iter.Single iter = new Iter.Single();
 
             LongValues(int[] values) {
+                assert values.length != 0;
                 this.values = values;
             }
 

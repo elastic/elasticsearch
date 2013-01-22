@@ -108,7 +108,7 @@ public class IndicesStoreTests extends AbstractNodesTests {
         startNode("server2");
 
         logger.info("--> running cluster_health");
-        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.status());
 
         logger.info("--> making sure that shard and it's replica are allocated on server1 and server3 but not on server2");

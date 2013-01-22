@@ -35,6 +35,10 @@ public class FieldDataType {
         this(type, null, ImmutableMap.<String, String>of());
     }
 
+    public FieldDataType(String type, String format) {
+        this(type, format, ImmutableMap.<String, String>of());
+    }
+
     public FieldDataType(String type, @Nullable String format, ImmutableMap<String, String> options) {
         this.type = type;
         this.format = format;

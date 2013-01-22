@@ -269,6 +269,10 @@ public class QueryParseContext {
         return indexQueryParser.mapperService.smartName(name, getTypes());
     }
 
+    public FieldMapper smartNameFieldMapper(String name) {
+        return indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes());
+    }
+
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
         return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
     }

@@ -365,7 +365,7 @@ public class XFilteredQuery extends Query {
 
         if (queryRewritten != query) {
             // rewrite to a new FilteredQuery wrapping the rewritten query
-            final Query rewritten = new XFilteredQuery(queryRewritten, filter);
+            final Query rewritten = new XFilteredQuery(queryRewritten, filter, strategy);
             rewritten.setBoost(this.getBoost());
             return rewritten;
         } else {

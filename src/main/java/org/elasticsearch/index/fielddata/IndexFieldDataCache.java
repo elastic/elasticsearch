@@ -59,6 +59,9 @@ public interface IndexFieldDataCache {
             return (FD) cache.get(context.reader().getCoreCacheKey(), new Callable<AtomicFieldData>() {
                 @Override
                 public AtomicFieldData call() throws Exception {
+                    if (context.reader() instanceof SegmentReader) {
+                        ((SegmentReader) context.reader()).addCoreClosedListener(FieldBased.this);
+                    }
                     return indexFieldData.loadDirect(context);
                 }
             });

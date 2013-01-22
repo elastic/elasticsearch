@@ -73,7 +73,7 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
 
     @Override
     public void renameFile(Directory dir, String from, String to) throws IOException {
-        File directory = ((FSDirectory) dir).getDirectory();
+        File directory = ((RateLimitedFSDirectory) dir).wrappedDirectory().getDirectory();
         File old = new File(directory, from);
         File nu = new File(directory, to);
         if (nu.exists())
@@ -103,7 +103,7 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
 
     @Override
     public void fullDelete(Directory dir) throws IOException {
-        FSDirectory fsDirectory = (FSDirectory) dir;
+        FSDirectory fsDirectory = ((RateLimitedFSDirectory) dir).wrappedDirectory();
         FileSystemUtils.deleteRecursively(fsDirectory.getDirectory());
         // if we are the last ones, delete also the actual index
         String[] list = fsDirectory.getDirectory().getParentFile().list();
@@ -111,6 +111,20 @@ public abstract class FsDirectoryService extends AbstractIndexShardComponent imp
             FileSystemUtils.deleteRecursively(fsDirectory.getDirectory().getParentFile());
         }
     }
+    
+    @Override
+    public Directory[] build() throws IOException {
+        File[] locations = indexStore.shardIndexLocations(shardId);
+        Directory[] dirs = new Directory[locations.length];
+        for (int i = 0; i < dirs.length; i++) {
+            FileSystemUtils.mkdirs(locations[i]);
+            FSDirectory wrapped = newFSDirectory(locations[i], buildLockFactory());
+            dirs[i] = new RateLimitedFSDirectory(wrapped, this, this) ;
+        }
+        return dirs;
+    }
+    
+    protected abstract FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException;
 
     @Override
     public void onPause(long nanos) {

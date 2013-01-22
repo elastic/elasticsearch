@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -60,7 +61,7 @@ public class FilteredQueryParser implements QueryParser {
 
         String currentFieldName = null;
         XContentParser.Token token;
-        XFilteredQuery.FilterStrategy filterStrategy = XFilteredQuery.CUSTOM_FILTER_STRATEGY;
+        FilteredQuery.FilterStrategy filterStrategy = XFilteredQuery.CUSTOM_FILTER_STRATEGY;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -79,11 +80,11 @@ public class FilteredQueryParser implements QueryParser {
                 if ("strategy".equals(currentFieldName)) {
                     String value = parser.text();
                     if ("query_first".equals(value) || "queryFirst".equals(value)) {
-                        filterStrategy = XFilteredQuery.QUERY_FIRST_FILTER_STRATEGY;
+                        filterStrategy = FilteredQuery.QUERY_FIRST_FILTER_STRATEGY;
                     } else if ("random_access_random".equals(value) || "randomAccessAlways".equals(value)) {
                         filterStrategy = XFilteredQuery.ALWAYS_RANDOM_ACCESS_FILTER_STRATEGY;
                     } else if ("leap_frog".equals(value) || "leapFrog".equals(value)) {
-                        filterStrategy = XFilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
+                        filterStrategy = FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
                     } else if (value.startsWith("random_access_")) {
                         int threshold = Integer.parseInt(value.substring("random_access_".length()));
                         filterStrategy = new XFilteredQuery.CustomRandomAccessFilterStrategy(threshold);
@@ -91,9 +92,9 @@ public class FilteredQueryParser implements QueryParser {
                         int threshold = Integer.parseInt(value.substring("randomAccess".length()));
                         filterStrategy = new XFilteredQuery.CustomRandomAccessFilterStrategy(threshold);
                     } else if ("leap_frog_query_first".equals(value) || "leapFrogQueryFirst".equals(value)) {
-                        filterStrategy = XFilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
+                        filterStrategy = FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;
                     } else if ("leap_frog_filter_first".equals(value) || "leapFrogFilterFirst".equals(value)) {
-                        filterStrategy = XFilteredQuery.LEAP_FROG_FILTER_FIRST_STRATEGY;
+                        filterStrategy = FilteredQuery.LEAP_FROG_FILTER_FIRST_STRATEGY;
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[filtered] strategy value not supported [" + value + "]");
                     }

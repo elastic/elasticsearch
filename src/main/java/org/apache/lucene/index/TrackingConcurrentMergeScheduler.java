@@ -87,10 +87,8 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             logger.trace("merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size", merge.info == null ? "_na_" : merge.info.info.name, merge.segments.size(), totalNumDocs, new ByteSizeValue(totalSizeInBytes), new ByteSizeValue(merge.estimatedMergeBytes));
         }
         try {
-            TrackingMergeScheduler.setCurrentMerge(merge);
             super.doMerge(merge);
         } finally {
-            TrackingMergeScheduler.removeCurrentMerge();
             long took = System.currentTimeMillis() - time;
 
             currentMerges.dec();

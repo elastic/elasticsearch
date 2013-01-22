@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.store.fs;
 
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.XSimpleFSDirectory;
+import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -41,13 +41,7 @@ public class SimpleFsDirectoryService extends FsDirectoryService {
     }
 
     @Override
-    public Directory[] build() throws IOException {
-        File[] locations = indexStore.shardIndexLocations(shardId);
-        Directory[] dirs = new Directory[locations.length];
-        for (int i = 0; i < dirs.length; i++) {
-            FileSystemUtils.mkdirs(locations[i]);
-            dirs[i] = new XSimpleFSDirectory(locations[i], buildLockFactory(), this, this);
-        }
-        return dirs;
+    protected FSDirectory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
+        return new SimpleFSDirectory(location, lockFactory);
     }
 }

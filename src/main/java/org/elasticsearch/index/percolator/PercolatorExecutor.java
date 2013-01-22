@@ -22,7 +22,7 @@ package org.elasticsearch.index.percolator;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.memory.CustomMemoryIndex;
+import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -292,7 +292,9 @@ public class PercolatorExecutor extends AbstractIndexComponent {
 
     private Response percolate(DocAndQueryRequest request) throws ElasticSearchException {
         // first, parse the source doc into a MemoryIndex
-        final CustomMemoryIndex memoryIndex = new CustomMemoryIndex();
+        final MemoryIndex memoryIndex = new MemoryIndex();
+        // TODO MemoryIndex now supports a reset call that reuses the internal memory
+        // maybe we can utilize this here.
 
         // TODO: This means percolation does not support nested docs...
         for (IndexableField field : request.doc().rootDoc().getFields()) {
@@ -307,6 +309,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             try {
                 tokenStream = field.tokenStream(request.doc().analyzer());
                 if (tokenStream != null) {
+                    tokenStream.reset();
                     memoryIndex.addField(field.name(), tokenStream, field.boost());
                 }
             } catch (IOException e) {

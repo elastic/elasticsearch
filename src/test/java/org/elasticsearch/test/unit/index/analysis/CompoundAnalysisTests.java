@@ -98,6 +98,7 @@ public class CompoundAnalysisTests {
         allEntries.reset();
 
         TokenStream stream = AllTokenStream.allTokenStream("_all", allEntries, analyzer);
+        stream.reset();
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 
         List<String> terms = new ArrayList<String>();

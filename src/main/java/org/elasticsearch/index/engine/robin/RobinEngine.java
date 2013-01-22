@@ -255,11 +255,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         translogIdGenerator.set(Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY)));
                     } else {
                         translogIdGenerator.set(System.currentTimeMillis());
-                        indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                        indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                        indexWriter.commit();
                     }
                 } else {
                     translogIdGenerator.set(System.currentTimeMillis());
-                    indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                    indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogIdGenerator.get())).map());
+                    indexWriter.commit();
                 }
                 translog.newTranslog(translogIdGenerator.get());
                 this.searcherManager = buildSearchManager(indexWriter);
@@ -823,7 +825,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         if (flushNeeded || flush.force()) {
                             flushNeeded = false;
                             long translogId = translogIdGenerator.incrementAndGet();
-                            indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.commit();
                             translog.newTranslog(translogId);
                         }
 
@@ -862,7 +865,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         try {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
-                            indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                            indexWriter.commit();
                             if (flush.force()) {
                                 // if we force, we might not have committed, we need to check that its the same id
                                 Map<String, String> commitUserData = Lucene.readSegmentInfos(store.directory()).getUserData();
@@ -914,7 +918,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     // other flushes use flushLock
                     try {
                         long translogId = translog.currentId();
-                        indexWriter.commit(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                        indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
+                        indexWriter.commit();
                     } catch (OutOfMemoryError e) {
                         translog.revertTransient();
                         failEngine(e);

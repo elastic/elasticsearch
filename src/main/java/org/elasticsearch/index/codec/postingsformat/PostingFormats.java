@@ -23,10 +23,10 @@ import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
-import org.apache.lucene.codecs.lucene40.Lucene40PostingsFormat;
+import org.apache.lucene.codecs.lucene41.Lucene41PostingsFormat;
 import org.apache.lucene.codecs.memory.DirectPostingsFormat;
 import org.apache.lucene.codecs.memory.MemoryPostingsFormat;
-import org.apache.lucene.codecs.pulsing.Pulsing40PostingsFormat;
+import org.apache.lucene.codecs.pulsing.Pulsing41PostingsFormat;
 import org.elasticsearch.common.collect.MapBuilder;
 
 /**
@@ -72,10 +72,10 @@ public class PostingFormats {
         buildInPostingFormatsX.put("direct", new PreBuiltPostingsFormatProvider.Factory("direct", new DirectPostingsFormat()));
         buildInPostingFormatsX.put("memory", new PreBuiltPostingsFormatProvider.Factory("memory", new MemoryPostingsFormat()));
         // LUCENE UPGRADE: Need to change this to the relevant ones on a lucene upgrade
-        buildInPostingFormatsX.put("pulsing", new PreBuiltPostingsFormatProvider.Factory("pulsing", new Pulsing40PostingsFormat()));
-        buildInPostingFormatsX.put("bloom_pulsing", new PreBuiltPostingsFormatProvider.Factory("bloom_pulsing", new BloomFilteringPostingsFormat(new Pulsing40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory())));
-        buildInPostingFormatsX.put("default", new PreBuiltPostingsFormatProvider.Factory("default", new Lucene40PostingsFormat()));
-        buildInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", new BloomFilteringPostingsFormat(new Lucene40PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory())));
+        buildInPostingFormatsX.put("pulsing", new PreBuiltPostingsFormatProvider.Factory("pulsing", new Pulsing41PostingsFormat()));
+        buildInPostingFormatsX.put("bloom_pulsing", new PreBuiltPostingsFormatProvider.Factory("bloom_pulsing", new BloomFilteringPostingsFormat(new Pulsing41PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory())));
+        buildInPostingFormatsX.put("default", new PreBuiltPostingsFormatProvider.Factory("default", new Lucene41PostingsFormat()));
+        buildInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", new BloomFilteringPostingsFormat(new Lucene41PostingsFormat(), new BloomFilterPostingsFormatProvider.CustomBloomFilterFactory())));
 
         builtInPostingFormats = buildInPostingFormatsX.immutableMap();
     }

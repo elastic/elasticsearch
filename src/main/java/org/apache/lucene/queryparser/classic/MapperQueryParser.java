@@ -518,6 +518,7 @@ public class MapperQueryParser extends QueryParser {
         TokenStream source;
         try {
             source = getAnalyzer().tokenStream(field, new StringReader(termStr));
+            source.reset();
         } catch (IOException e) {
             return super.getPrefixQuery(field, termStr);
         }
@@ -660,6 +661,7 @@ public class MapperQueryParser extends QueryParser {
                 if (isWithinToken) {
                     try {
                         TokenStream source = getAnalyzer().tokenStream(field, new FastStringReader(tmp.toString()));
+                        source.reset();
                         CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                         if (source.incrementToken()) {
                             String term = termAtt.toString();
@@ -689,6 +691,7 @@ public class MapperQueryParser extends QueryParser {
         if (isWithinToken) {
             try {
                 TokenStream source = getAnalyzer().tokenStream(field, new FastStringReader(tmp.toString()));
+                source.reset();
                 CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
                 if (source.incrementToken()) {
                     String term = termAtt.toString();

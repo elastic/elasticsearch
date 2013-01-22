@@ -78,7 +78,7 @@ public class FilteredQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("strategy".equals(currentFieldName)) {
                     String value = parser.text();
-                    if ("query_filter".equals(value) || "queryFirst".equals(value)) {
+                    if ("query_first".equals(value) || "queryFirst".equals(value)) {
                         filterStrategy = XFilteredQuery.QUERY_FIRST_FILTER_STRATEGY;
                     } else if ("random_access_random".equals(value) || "randomAccessAlways".equals(value)) {
                         filterStrategy = XFilteredQuery.ALWAYS_RANDOM_ACCESS_FILTER_STRATEGY;

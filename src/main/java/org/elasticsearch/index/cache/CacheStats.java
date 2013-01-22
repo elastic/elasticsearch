@@ -34,40 +34,26 @@ import java.io.IOException;
  */
 public class CacheStats implements Streamable, ToXContent {
 
-    long fieldEvictions;
     long filterEvictions;
     long filterCount;
-    long fieldSize;
     long filterSize;
     long idCacheSize;
 
     public CacheStats() {
     }
 
-    public CacheStats(long fieldEvictions, long filterEvictions, long fieldSize, long filterSize, long filterCount, long idCacheSize) {
-        this.fieldEvictions = fieldEvictions;
+    public CacheStats(long filterEvictions, long filterSize, long filterCount, long idCacheSize) {
         this.filterEvictions = filterEvictions;
-        this.fieldSize = fieldSize;
         this.filterSize = filterSize;
         this.filterCount = filterCount;
         this.idCacheSize = idCacheSize;
     }
 
     public void add(CacheStats stats) {
-        this.fieldEvictions += stats.fieldEvictions;
         this.filterEvictions += stats.filterEvictions;
-        this.fieldSize += stats.fieldSize;
         this.filterSize += stats.filterSize;
         this.filterCount += stats.filterCount;
         this.idCacheSize += stats.idCacheSize;
-    }
-
-    public long fieldEvictions() {
-        return this.fieldEvictions;
-    }
-
-    public long getFieldEvictions() {
-        return this.fieldEvictions();
     }
 
     public long filterEvictions() {
@@ -92,22 +78,6 @@ public class CacheStats implements Streamable, ToXContent {
 
     public long getFilterCount() {
         return filterCount;
-    }
-
-    public long fieldSizeInBytes() {
-        return this.fieldSize;
-    }
-
-    public long getFieldSizeInBytes() {
-        return fieldSizeInBytes();
-    }
-
-    public ByteSizeValue fieldSize() {
-        return new ByteSizeValue(fieldSize);
-    }
-
-    public ByteSizeValue getFieldSize() {
-        return this.fieldSize();
     }
 
     public long filterSizeInBytes() {
@@ -145,9 +115,6 @@ public class CacheStats implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.CACHE);
-        builder.field(Fields.FIELD_EVICTIONS, fieldEvictions);
-        builder.field(Fields.FIELD_SIZE, fieldSize().toString());
-        builder.field(Fields.FIELD_SIZE_IN_BYTES, fieldSize);
         builder.field(Fields.FILTER_COUNT, filterCount);
         builder.field(Fields.FILTER_EVICTIONS, filterEvictions);
         builder.field(Fields.FILTER_SIZE, filterSize().toString());
@@ -160,9 +127,6 @@ public class CacheStats implements Streamable, ToXContent {
 
     static final class Fields {
         static final XContentBuilderString CACHE = new XContentBuilderString("cache");
-        static final XContentBuilderString FIELD_SIZE = new XContentBuilderString("field_size");
-        static final XContentBuilderString FIELD_SIZE_IN_BYTES = new XContentBuilderString("field_size_in_bytes");
-        static final XContentBuilderString FIELD_EVICTIONS = new XContentBuilderString("field_evictions");
         static final XContentBuilderString FILTER_EVICTIONS = new XContentBuilderString("filter_evictions");
         static final XContentBuilderString FILTER_COUNT = new XContentBuilderString("filter_count");
         static final XContentBuilderString FILTER_SIZE = new XContentBuilderString("filter_size");
@@ -179,9 +143,7 @@ public class CacheStats implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        fieldEvictions = in.readVLong();
         filterEvictions = in.readVLong();
-        fieldSize = in.readVLong();
         filterSize = in.readVLong();
         filterCount = in.readVLong();
         idCacheSize = in.readVLong();
@@ -189,9 +151,7 @@ public class CacheStats implements Streamable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(fieldEvictions);
         out.writeVLong(filterEvictions);
-        out.writeVLong(fieldSize);
         out.writeVLong(filterSize);
         out.writeVLong(filterCount);
         out.writeVLong(idCacheSize);

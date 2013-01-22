@@ -49,6 +49,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
@@ -153,6 +154,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     private final IndexQueryParserService queryParserService;
 
     private final IndexCache indexCache;
+    private final IndexFieldDataService fieldDataService;
 
     private final Map<String, Query> queries = ConcurrentCollections.newConcurrentMap();
 
@@ -162,11 +164,12 @@ public class PercolatorExecutor extends AbstractIndexComponent {
     @Inject
     public PercolatorExecutor(Index index, @IndexSettings Settings indexSettings,
                               MapperService mapperService, IndexQueryParserService queryParserService,
-                              IndexCache indexCache) {
+                              IndexCache indexCache, IndexFieldDataService fieldDataService) {
         super(index, indexSettings);
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
         this.indexCache = indexCache;
+        this.fieldDataService = fieldDataService;
     }
 
     public void setIndicesService(IndicesService indicesService) {
@@ -347,6 +350,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
         } finally {
             // explicitly clear the reader, since we can only register on callback on SegmentReader
             indexCache.clear(searcher.getIndexReader());
+            fieldDataService.clear(searcher.getIndexReader());
         }
 
         return new Response(matches, request.doc().mappingsModified());

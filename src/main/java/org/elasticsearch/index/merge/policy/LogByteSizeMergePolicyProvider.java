@@ -209,11 +209,11 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         }
 
         @Override
-        public MergeSpecification findMerges(SegmentInfos infos) throws IOException {
+        public MergeSpecification findMerges(MergeTrigger trigger, SegmentInfos infos) throws IOException {
             if (enableMerge.get() == Boolean.FALSE) {
                 return null;
             }
-            return super.findMerges(infos);
+            return super.findMerges(trigger, infos);
         }
 
         @Override

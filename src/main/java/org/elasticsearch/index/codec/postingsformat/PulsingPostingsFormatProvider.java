@@ -21,7 +21,7 @@ package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.BlockTreeTermsWriter;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.pulsing.Pulsing40PostingsFormat;
+import org.apache.lucene.codecs.pulsing.Pulsing41PostingsFormat;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -50,7 +50,7 @@ public class PulsingPostingsFormatProvider extends AbstractPostingsFormatProvide
     private final int freqCutOff;
     private final int minBlockSize;
     private final int maxBlockSize;
-    private final Pulsing40PostingsFormat postingsFormat;
+    private final Pulsing41PostingsFormat postingsFormat;
 
     @Inject
     public PulsingPostingsFormatProvider(@Assisted String name, @Assisted Settings postingsFormatSettings) {
@@ -58,7 +58,7 @@ public class PulsingPostingsFormatProvider extends AbstractPostingsFormatProvide
         this.freqCutOff = postingsFormatSettings.getAsInt("freq_cut_off", 1);
         this.minBlockSize = postingsFormatSettings.getAsInt("min_block_size", BlockTreeTermsWriter.DEFAULT_MIN_BLOCK_SIZE);
         this.maxBlockSize = postingsFormatSettings.getAsInt("max_block_size", BlockTreeTermsWriter.DEFAULT_MAX_BLOCK_SIZE);
-        this.postingsFormat = new Pulsing40PostingsFormat(freqCutOff, minBlockSize, maxBlockSize);
+        this.postingsFormat = new Pulsing41PostingsFormat(freqCutOff, minBlockSize, maxBlockSize);
     }
 
     public int freqCutOff() {

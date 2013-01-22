@@ -90,6 +90,7 @@ public class SynonymsAnalysisTest {
         allEntries.reset();
 
         TokenStream stream = AllTokenStream.allTokenStream("_all", allEntries, analyzer);
+        stream.reset();
         CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 
         StringBuilder sb = new StringBuilder();

@@ -215,7 +215,7 @@ public class IncludeNestedDocsQuery extends Query {
             return parentScorer.score();
         }
 
-        public float freq() throws IOException {
+        public int freq() throws IOException {
             return parentScorer.freq();
         }
 

@@ -230,7 +230,7 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
         }
 
         @Override
-        public float freq() throws IOException {
+        public int freq() throws IOException {
             // We don't have the original child query hit info here...
             // But the freq of the children could be collector and returned here, but makes this Scorer more expensive.
             return 1;

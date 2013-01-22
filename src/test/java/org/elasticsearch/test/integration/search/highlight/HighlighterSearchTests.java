@@ -241,8 +241,8 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(search.hits().hits()[0].highlightFields().get("title").fragments()[0].string(), equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
         assertThat(search.hits().hits()[0].highlightFields().get("title").fragments()[1].string(), equalTo("The <em>bug</em> is bugging us"));
         assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments().length, equalTo(2));
-//    assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[0], equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
-        assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[0].string(), equalTo("highlighting <em>bug</em> present in elasticsearch")); // FastVectorHighlighter starts highlighting from startOffset - margin
+        assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[0].string(), equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
+//        assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[0].string(), equalTo("highlighting <em>bug</em> present in elasticsearch")); // FastVectorHighlighter starts highlighting from startOffset - margin
         assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[1].string(), equalTo("The <em>bug</em> is bugging us"));
 
         search = client.prepareSearch()
@@ -253,7 +253,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(search.hits().totalHits(), equalTo(1l));
         assertThat(search.hits().hits().length, equalTo(1));
         assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments().length, equalTo(2));
-        assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[0].string(), equalTo("text to <em>highlight</em>"));
+        assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[0].string(), equalTo("some text to <em>highlight</em>"));
         assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[1].string(), equalTo("<em>highlight</em> other text"));
     }
 
@@ -559,7 +559,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         SearchResponse search = client.prepareSearch()
                 .setQuery(fieldQuery("title", "bug"))
-                .addHighlightedField("title", 50, 1, 10)
+                .addHighlightedField("title", 30, 1, 10)
                 .execute().actionGet();
 
         assertThat(Arrays.toString(search.shardFailures()), search.failedShards(), equalTo(0));
@@ -634,7 +634,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         SearchResponse search = client.prepareSearch()
                 .setQuery(fieldQuery("title", "test"))
                 .setHighlighterEncoder("html")
-                .addHighlightedField("title", 50, 1, 10)
+                .addHighlightedField("title", 30, 1, 10)
                 .execute().actionGet();
 
 

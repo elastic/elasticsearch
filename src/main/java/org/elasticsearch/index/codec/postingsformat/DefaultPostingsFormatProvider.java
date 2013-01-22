@@ -21,7 +21,7 @@ package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.BlockTreeTermsWriter;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene40.Lucene40PostingsFormat;
+import org.apache.lucene.codecs.lucene41.Lucene41PostingsFormat;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -46,14 +46,14 @@ public class DefaultPostingsFormatProvider extends AbstractPostingsFormatProvide
 
     private final int minBlockSize;
     private final int maxBlockSize;
-    private final Lucene40PostingsFormat postingsFormat;
+    private final Lucene41PostingsFormat postingsFormat;
 
     @Inject
     public DefaultPostingsFormatProvider(@Assisted String name, @Assisted Settings postingsFormatSettings) {
         super(name);
         this.minBlockSize = postingsFormatSettings.getAsInt("min_block_size", BlockTreeTermsWriter.DEFAULT_MIN_BLOCK_SIZE);
         this.maxBlockSize = postingsFormatSettings.getAsInt("max_block_size", BlockTreeTermsWriter.DEFAULT_MAX_BLOCK_SIZE);
-        this.postingsFormat = new Lucene40PostingsFormat(minBlockSize, maxBlockSize);
+        this.postingsFormat = new Lucene41PostingsFormat(minBlockSize, maxBlockSize);
     }
 
     public int minBlockSize() {

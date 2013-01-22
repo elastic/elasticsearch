@@ -303,7 +303,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
         }
 
         @Override
-        public float freq() throws IOException {
+        public int freq() throws IOException {
             return docs[index].count; // The number of matches in the child doc, which is propagated to parent
         }
     }

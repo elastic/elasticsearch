@@ -96,6 +96,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         }
     }
 
+    public FieldDataStats stats() {
+        // TODO: compute the memory size here...
+        return new FieldDataStats();
+    }
+
     public <IFD extends IndexFieldData> IFD getForField(FieldMapper mapper) {
         return getForField(mapper.names(), mapper.fieldDataType2());
     }

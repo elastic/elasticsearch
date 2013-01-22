@@ -32,7 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.mvel.MvelScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -193,8 +193,8 @@ public class ScriptService extends AbstractComponent {
         return search(compile(lang, script), lookup, vars);
     }
 
-    public SearchScript search(MapperService mapperService, FieldDataCache fieldDataCache, String lang, String script, @Nullable Map<String, Object> vars) {
-        return search(compile(lang, script), new SearchLookup(mapperService, fieldDataCache, null), vars);
+    public SearchScript search(MapperService mapperService, IndexFieldDataService fieldDataService, String lang, String script, @Nullable Map<String, Object> vars) {
+        return search(compile(lang, script), new SearchLookup(mapperService, fieldDataService, null), vars);
     }
 
     public Object execute(CompiledScript compiledScript, Map vars) {

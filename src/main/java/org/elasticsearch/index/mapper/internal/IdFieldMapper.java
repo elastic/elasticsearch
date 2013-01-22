@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -140,6 +141,11 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType fieldDataType() {
+        return new FieldDataType("string");
     }
 
     @Override

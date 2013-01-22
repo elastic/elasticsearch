@@ -24,46 +24,30 @@ import com.google.common.collect.ImmutableSet;
 import gnu.trove.iterator.TLongIntIterator;
 import gnu.trove.map.hash.TLongIntHashMap;
 import gnu.trove.set.hash.TLongHashSet;
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
-import org.elasticsearch.common.util.concurrent.ThreadLocals;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.longs.LongFieldData;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Set;
 
 /**
  *
  */
 public class TermsLongFacetCollector extends AbstractFacetCollector {
 
-    static ThreadLocal<ThreadLocals.CleanableValue<Deque<TLongIntHashMap>>> cache = new ThreadLocal<ThreadLocals.CleanableValue<Deque<TLongIntHashMap>>>() {
-        @Override
-        protected ThreadLocals.CleanableValue<Deque<TLongIntHashMap>> initialValue() {
-            return new ThreadLocals.CleanableValue<Deque<TLongIntHashMap>>(new ArrayDeque<TLongIntHashMap>());
-        }
-    };
-
-
-    private final FieldDataCache fieldDataCache;
-
-    private final String indexFieldName;
+    private final IndexNumericFieldData indexFieldData;
 
     private final TermsFacet.ComparatorType comparatorType;
 
@@ -71,43 +55,20 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
     private final int numberOfShards;
 
-    private final FieldDataType fieldDataType;
-
-    private LongFieldData fieldData;
+    private LongValues values;
 
     private final StaticAggregatorValueProc aggregator;
 
     private final SearchScript script;
 
-    public TermsLongFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                   ImmutableSet<BytesRef> excluded, String scriptLang, String script, Map<String, Object> params) {
+    public TermsLongFacetCollector(String facetName, IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+                                   ImmutableSet<BytesRef> excluded, SearchScript script) {
         super(facetName);
-        this.fieldDataCache = context.fieldDataCache();
+        this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] doesn't have a type, can't run terms long facet collector on it");
-        }
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        if (smartMappers.mapper().fieldDataType() != FieldDataType.DefaultTypes.LONG) {
-            throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] is not of long type, can't run terms long facet collector on it");
-        }
-
-        this.indexFieldName = smartMappers.mapper().names().indexName();
-        this.fieldDataType = smartMappers.mapper().fieldDataType();
-
-        if (script != null) {
-            this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
-        } else {
-            this.script = null;
-        }
+        this.script = script;
 
         if (this.script == null && excluded.isEmpty()) {
             aggregator = new StaticAggregatorValueProc(CacheRecycler.popLongIntMap());
@@ -115,16 +76,17 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
             aggregator = new AggregatorValueProc(CacheRecycler.popLongIntMap(), excluded, this.script);
         }
 
-        if (allTerms) {
-            try {
-                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
-                    LongFieldData fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
-                    fieldData.forEachValue(aggregator);
-                }
-            } catch (Exception e) {
-                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
-            }
-        }
+        // TODO: we need to support this with the new field data....
+//        if (allTerms) {
+//            try {
+//                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+//                    LongFieldData fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
+//                    fieldData.forEachValue(aggregator);
+//                }
+//            } catch (Exception e) {
+//                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
+//            }
+//        }
     }
 
     @Override
@@ -136,7 +98,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, context.reader(), indexFieldName);
+        values = indexFieldData.load(context).getLongValues();
         if (script != null) {
             script.setNextReader(context);
         }
@@ -144,7 +106,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, aggregator);
+        values.forEachValueInDoc(doc, aggregator);
     }
 
     @Override
@@ -221,7 +183,7 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    public static class StaticAggregatorValueProc implements LongFieldData.ValueInDocProc, LongFieldData.ValueProc {
+    public static class StaticAggregatorValueProc implements LongValues.ValueInDocProc {
 
         private final TLongIntHashMap facets;
 
@@ -230,11 +192,6 @@ public class TermsLongFacetCollector extends AbstractFacetCollector {
 
         public StaticAggregatorValueProc(TLongIntHashMap facets) {
             this.facets = facets;
-        }
-
-        @Override
-        public void onValue(long value) {
-            facets.putIfAbsent(value, 0);
         }
 
         @Override

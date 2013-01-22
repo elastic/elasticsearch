@@ -35,9 +35,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -154,6 +154,11 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType() {
+        return new org.elasticsearch.index.fielddata.FieldDataType("long");
+    }
+
+    @Override
     protected int maxPrecisionStep() {
         return 64;
     }
@@ -244,8 +249,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newLongRange(fieldDataCache, names.indexName(),
+    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData) fieldData.getForField(this),
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
@@ -288,11 +293,6 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
         final long value = ipToLong(ipAsString);
         return new LongFieldMapper.CustomLongNumericField(this, value, fieldType);
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.LONG;
     }
 
     @Override

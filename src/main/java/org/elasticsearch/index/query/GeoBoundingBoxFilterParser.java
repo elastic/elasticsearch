@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -174,13 +175,12 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         }
         GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
 
-        fieldName = mapper.names().indexName();
-
         Filter filter;
         if ("indexed".equals(type)) {
             filter = IndexedGeoBoundingBoxFilter.create(topLeft, bottomRight, geoMapper);
         } else if ("memory".equals(type)) {
-            filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, fieldName, parseContext.indexCache().fieldData());
+            IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
+            filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, indexFieldData);
         } else {
             throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");
         }

@@ -531,22 +531,24 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        logger.info("--> sort with no missing");
+        logger.info("--> sort with no missing (same as missing _last)");
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC))
                 .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(3l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
-        assertThat(searchResponse.hits().getAt(1).id(), equalTo("2"));
-        assertThat(searchResponse.hits().getAt(2).id(), equalTo("3"));
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo("3"));
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo("2"));
 
         logger.info("--> sort with missing _last");
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC).missing("_last"))
                 .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(3l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
@@ -558,6 +560,7 @@ public class SimpleSortTests extends AbstractNodesTests {
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC).missing("_first"))
                 .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
 
         assertThat(searchResponse.hits().getTotalHits(), equalTo(3l));
         assertThat(searchResponse.hits().getAt(0).id(), equalTo("2"));

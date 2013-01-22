@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NamedCustomAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -209,6 +210,11 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType fieldDataType() {
+        return new FieldDataType("string");
     }
 
     @Override

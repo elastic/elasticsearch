@@ -24,9 +24,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.*;
 
@@ -233,13 +233,13 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
         FieldMapper mapper = smartMappers.mapper();
-        if (mapper.fieldDataType() != GeoPointFieldDataType.TYPE) {
+        if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
         GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
-        fieldName = mapper.names().indexName();
 
-        Filter filter = new GeoDistanceRangeFilter(lat, lon, from, to, includeLower, includeUpper, geoDistance, fieldName, geoMapper, parseContext.indexCache().fieldData(), optimizeBbox);
+        IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
+        Filter filter = new GeoDistanceRangeFilter(lat, lon, from, to, includeLower, includeUpper, geoDistance, geoMapper, indexFieldData, optimizeBbox);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

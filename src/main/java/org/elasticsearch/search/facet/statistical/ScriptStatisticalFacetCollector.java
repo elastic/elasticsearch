@@ -35,15 +35,10 @@ import java.util.Map;
 public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
-
     private double min = Double.POSITIVE_INFINITY;
-
     private double max = Double.NEGATIVE_INFINITY;
-
     private double total = 0;
-
     private double sumOfSquares = 0.0;
-
     private long count;
 
     public ScriptStatisticalFacetCollector(String facetName, String scriptLang, String script, Map<String, Object> params, SearchContext context) {

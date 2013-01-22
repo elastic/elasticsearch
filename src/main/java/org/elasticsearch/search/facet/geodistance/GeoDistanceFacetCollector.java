@@ -21,14 +21,11 @@ package org.elasticsearch.search.facet.geodistance;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,10 +35,9 @@ import java.io.IOException;
  */
 public class GeoDistanceFacetCollector extends AbstractFacetCollector {
 
-    protected final String indexFieldName;
+    protected final IndexGeoPointFieldData indexFieldData;
 
     protected final double lat;
-
     protected final double lon;
 
     protected final DistanceUnit unit;
@@ -49,15 +45,12 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
     protected final GeoDistance geoDistance;
     protected final GeoDistance.FixedSourceDistance fixedSourceDistance;
 
-    protected final FieldDataCache fieldDataCache;
-
-    protected GeoPointFieldData fieldData;
+    protected GeoPointValues values;
 
     protected final GeoDistanceFacet.Entry[] entries;
+    protected GeoPointValues.LatLonValueInDocProc aggregator;
 
-    protected GeoPointFieldData.ValueInDocProc aggregator;
-
-    public GeoDistanceFacetCollector(String facetName, String fieldName, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
+    public GeoDistanceFacetCollector(String facetName, IndexGeoPointFieldData indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance,
                                      GeoDistanceFacet.Entry[] entries, SearchContext context) {
         super(facetName);
         this.lat = lat;
@@ -65,30 +58,14 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
         this.unit = unit;
         this.entries = entries;
         this.geoDistance = geoDistance;
-        this.fieldDataCache = context.fieldDataCache();
-
+        this.indexFieldData = indexFieldData;
         this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, unit);
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-        if (smartMappers.mapper().fieldDataType() != GeoPointFieldDataType.TYPE) {
-            throw new FacetPhaseExecutionException(facetName, "field [" + fieldName + "] is not a geo_point field");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        this.indexFieldName = smartMappers.mapper().names().indexName();
         this.aggregator = new Aggregator(fixedSourceDistance, entries);
     }
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, context.reader(), indexFieldName);
+        values = indexFieldData.load(context).getGeoPointValues();
     }
 
     @Override
@@ -96,7 +73,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
         for (GeoDistanceFacet.Entry entry : entries) {
             entry.foundInDoc = false;
         }
-        fieldData.forEachValueInDoc(doc, aggregator);
+        values.forEachLatLonValueInDoc(doc, aggregator);
     }
 
     @Override
@@ -104,7 +81,7 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
         return new InternalGeoDistanceFacet(facetName, entries);
     }
 
-    public static class Aggregator implements GeoPointFieldData.ValueInDocProc {
+    public static class Aggregator implements GeoPointValues.LatLonValueInDocProc {
 
         private final GeoDistance.FixedSourceDistance fixedSourceDistance;
 
@@ -113,6 +90,10 @@ public class GeoDistanceFacetCollector extends AbstractFacetCollector {
         public Aggregator(GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistanceFacet.Entry[] entries) {
             this.fixedSourceDistance = fixedSourceDistance;
             this.entries = entries;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override

@@ -22,8 +22,8 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.FieldComparatorSource;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.field.function.sort.DoubleFieldsFunctionDataComparator;
-import org.elasticsearch.index.field.function.sort.StringFieldsFunctionDataComparator;
+import org.elasticsearch.index.fielddata.fieldcomparator.DoubleScriptDataComparator;
+import org.elasticsearch.index.fielddata.fieldcomparator.StringScriptDataComparator;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -81,9 +81,9 @@ public class ScriptSortParser implements SortParser {
         SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
         FieldComparatorSource fieldComparatorSource;
         if ("string".equals(type)) {
-            fieldComparatorSource = StringFieldsFunctionDataComparator.comparatorSource(searchScript);
+            fieldComparatorSource = StringScriptDataComparator.comparatorSource(searchScript);
         } else if ("number".equals(type)) {
-            fieldComparatorSource = DoubleFieldsFunctionDataComparator.comparatorSource(searchScript);
+            fieldComparatorSource = DoubleScriptDataComparator.comparatorSource(searchScript);
         } else {
             throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
         }

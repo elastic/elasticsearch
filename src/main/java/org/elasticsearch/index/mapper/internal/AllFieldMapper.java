@@ -26,6 +26,7 @@ import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
@@ -149,6 +150,11 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType() {
+        throw new ElasticSearchIllegalArgumentException("using field data on _all field is not supported");
     }
 
     @Override

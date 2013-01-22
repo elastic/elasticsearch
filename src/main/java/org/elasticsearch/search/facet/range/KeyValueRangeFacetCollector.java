@@ -20,13 +20,10 @@
 package org.elasticsearch.search.facet.range;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,53 +33,26 @@ import java.io.IOException;
  */
 public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
 
-    private final String keyIndexFieldName;
-
-    private final String valueIndexFieldName;
-
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType keyFieldDataType;
-    private NumericFieldData keyFieldData;
-
-    private final FieldDataType valueFieldDataType;
+    private final IndexNumericFieldData keyIndexFieldData;
+    private final IndexNumericFieldData valueIndexFieldData;
 
     private final RangeFacet.Entry[] entries;
-
     private final RangeProc rangeProc;
 
-    public KeyValueRangeFacetCollector(String facetName, String keyFieldName, String valueFieldName, RangeFacet.Entry[] entries, SearchContext context) {
+    private DoubleValues keyValues;
+
+    public KeyValueRangeFacetCollector(String facetName, IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, RangeFacet.Entry[] entries, SearchContext context) {
         super(facetName);
         this.entries = entries;
-        this.fieldDataCache = context.fieldDataCache();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(keyFieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + keyFieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        keyIndexFieldName = smartMappers.mapper().names().indexName();
-        keyFieldDataType = smartMappers.mapper().fieldDataType();
-
-        smartMappers = context.smartFieldMappers(valueFieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + valueFieldName + "]");
-        }
-        valueIndexFieldName = smartMappers.mapper().names().indexName();
-        valueFieldDataType = smartMappers.mapper().fieldDataType();
-
+        this.keyIndexFieldData = keyIndexFieldData;
+        this.valueIndexFieldData = valueIndexFieldData;
         this.rangeProc = new RangeProc(entries);
     }
 
     @Override
     protected void doSetNextReader(AtomicReaderContext context) throws IOException {
-        keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, context.reader(), keyIndexFieldName);
-        rangeProc.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, context.reader(), valueIndexFieldName);
+        keyValues = keyIndexFieldData.load(context).getDoubleValues();
+        rangeProc.valueValues = valueIndexFieldData.load(context).getDoubleValues();
     }
 
     @Override
@@ -90,7 +60,7 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
         for (RangeFacet.Entry entry : entries) {
             entry.foundInDoc = false;
         }
-        keyFieldData.forEachValueInDoc(doc, rangeProc);
+        keyValues.forEachValueInDoc(doc, rangeProc);
     }
 
     @Override
@@ -98,14 +68,18 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
         return new InternalRangeFacet(facetName, entries);
     }
 
-    public static class RangeProc implements NumericFieldData.DoubleValueInDocProc {
+    public static class RangeProc implements DoubleValues.ValueInDocProc {
 
         private final RangeFacet.Entry[] entries;
 
-        NumericFieldData valueFieldData;
+        DoubleValues valueValues;
 
         public RangeProc(RangeFacet.Entry[] entries) {
             this.entries = entries;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override
@@ -117,10 +91,9 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
                 if (value >= entry.getFrom() && value < entry.getTo()) {
                     entry.foundInDoc = true;
                     entry.count++;
-                    if (valueFieldData.multiValued()) {
-                        double[] valuesValues = valueFieldData.doubleValues(docId);
-                        entry.totalCount += valuesValues.length;
-                        for (double valueValue : valuesValues) {
+                    if (valueValues.isMultiValued()) {
+                        for (DoubleValues.Iter iter = valueValues.getIter(docId); iter.hasNext(); ) {
+                            double valueValue = iter.next();
                             entry.total += valueValue;
                             if (valueValue < entry.min) {
                                 entry.min = valueValue;
@@ -128,9 +101,10 @@ public class KeyValueRangeFacetCollector extends AbstractFacetCollector {
                             if (valueValue > entry.max) {
                                 entry.max = valueValue;
                             }
+                            entry.totalCount++;
                         }
-                    } else {
-                        double valueValue = valueFieldData.doubleValue(docId);
+                    } else if (valueValues.hasValue(docId)) {
+                        double valueValue = valueValues.getValue(docId);
                         entry.totalCount++;
                         entry.total += valueValue;
                         if (valueValue < entry.min) {

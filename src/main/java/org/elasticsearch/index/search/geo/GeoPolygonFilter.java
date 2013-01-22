@@ -25,9 +25,9 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.mapper.geo.GeoPoint;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,14 +39,11 @@ public class GeoPolygonFilter extends Filter {
 
     private final Point[] points;
 
-    private final String fieldName;
+    private final IndexGeoPointFieldData indexFieldData;
 
-    private final FieldDataCache fieldDataCache;
-
-    public GeoPolygonFilter(Point[] points, String fieldName, FieldDataCache fieldDataCache) {
+    public GeoPolygonFilter(Point[] points, IndexGeoPointFieldData indexFieldData) {
         this.points = points;
-        this.fieldName = fieldName;
-        this.fieldDataCache = fieldDataCache;
+        this.indexFieldData = indexFieldData;
     }
 
     public Point[] points() {
@@ -54,27 +51,27 @@ public class GeoPolygonFilter extends Filter {
     }
 
     public String fieldName() {
-        return this.fieldName;
+        return indexFieldData.getFieldNames().indexName();
     }
 
     @Override
     public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
-        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, context.reader(), fieldName);
-        return new GeoPolygonDocIdSet(context.reader().maxDoc(), acceptedDocs, fieldData, points);
+        final GeoPointValues values = indexFieldData.load(context).getGeoPointValues();
+        return new GeoPolygonDocIdSet(context.reader().maxDoc(), acceptedDocs, values, points);
     }
 
     @Override
     public String toString() {
-        return "GeoPolygonFilter(" + fieldName + ", " + Arrays.toString(points) + ")";
+        return "GeoPolygonFilter(" + indexFieldData.getFieldNames().indexName() + ", " + Arrays.toString(points) + ")";
     }
 
     public static class GeoPolygonDocIdSet extends MatchDocIdSet {
-        private final GeoPointFieldData fieldData;
+        private final GeoPointValues values;
         private final Point[] points;
 
-        public GeoPolygonDocIdSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointFieldData fieldData, Point[] points) {
+        public GeoPolygonDocIdSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, Point[] points) {
             super(maxDoc, acceptDocs);
-            this.fieldData = fieldData;
+            this.values = values;
             this.points = points;
         }
 
@@ -85,22 +82,21 @@ public class GeoPolygonFilter extends Filter {
 
         @Override
         protected boolean matchDoc(int doc) {
-            if (!fieldData.hasValue(doc)) {
+            if (!values.hasValue(doc)) {
                 return false;
             }
 
-            if (fieldData.multiValued()) {
-                double[] lats = fieldData.latValues(doc);
-                double[] lons = fieldData.lonValues(doc);
-                for (int i = 0; i < lats.length; i++) {
-                    if (pointInPolygon(points, lats[i], lons[i])) {
+            if (values.isMultiValued()) {
+                GeoPointValues.Iter iter = values.getIter(doc);
+                while (iter.hasNext()) {
+                    GeoPoint point = iter.next();
+                    if (pointInPolygon(points, point.lat(), point.lon())) {
                         return true;
                     }
                 }
             } else {
-                double lat = fieldData.latValue(doc);
-                double lon = fieldData.lonValue(doc);
-                return pointInPolygon(points, lat, lon);
+                GeoPoint point = values.getValue(doc);
+                return pointInPolygon(points, point.lat(), point.lon());
             }
             return false;
         }

@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.field.data.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
@@ -285,6 +284,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     public DoubleFieldMapper lonMapper() {
         return lonMapper;
+    }
+
+    public GeoStringFieldMapper stringMapper() {
+        return this.geoStringMapper;
     }
 
     public boolean isEnableLatLon() {
@@ -581,8 +584,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
 
         @Override
-        public FieldDataType fieldDataType() {
-            return GeoPointFieldDataType.TYPE;
+        public org.elasticsearch.index.fielddata.FieldDataType fieldDataType() {
+            return new org.elasticsearch.index.fielddata.FieldDataType("geo_point");
         }
 
         public GeoPointFieldMapper geoMapper() {

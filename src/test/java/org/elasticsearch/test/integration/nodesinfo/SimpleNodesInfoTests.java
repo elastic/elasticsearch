@@ -19,14 +19,15 @@
 
 package org.elasticsearch.test.integration.nodesinfo;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,10 +46,14 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
     @Test
     public void testNodesInfos() {
         startNode("server1");
-        startNode("server2", ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", 2)); 
-        /* Use minimum master nodes here to ensure we joined the cluster such that both servers see each other to execute the node info. */
+        startNode("server2");
+
+        ClusterHealthResponse clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.status());
+
         String server1NodeId = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
         String server2NodeId = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
+        logger.info("--> started nodes: " + server1NodeId + " and " + server2NodeId);
 
         NodesInfoResponse response = client("server1").admin().cluster().prepareNodesInfo().execute().actionGet();
         assertThat(response.nodes().length, equalTo(2));

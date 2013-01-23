@@ -21,13 +21,13 @@ package org.elasticsearch.test.integration.validate;
 
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.hamcrest.Matcher;
 import org.testng.annotations.AfterClass;

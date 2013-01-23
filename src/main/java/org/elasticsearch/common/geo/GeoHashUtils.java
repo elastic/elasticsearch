@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.elasticsearch.index.search.geo;
+package org.elasticsearch.common.geo;
 
 import gnu.trove.map.hash.TIntIntHashMap;
 
@@ -112,10 +112,10 @@ public class GeoHashUtils {
         return geohash.toString();
     }
 
-    public static double[] decode(String geohash) {
-        double[] ret = new double[2];
-        decode(geohash, ret);
-        return ret;
+    public static GeoPoint decode(String geohash) {
+        GeoPoint point = new GeoPoint();
+        decode(geohash, point);
+        return point;
     }
 
     /**
@@ -124,7 +124,7 @@ public class GeoHashUtils {
      * @param geohash Geohash to deocde
      * @return Array with the latitude at index 0, and longitude at index 1
      */
-    public static void decode(String geohash, double[] ret) {
+    public static void decode(String geohash, GeoPoint ret) {
 //        double[] latInterval = {-90.0, 90.0};
 //        double[] lngInterval = {-180.0, 180.0};
         double latInterval0 = -90.0;
@@ -160,10 +160,9 @@ public class GeoHashUtils {
 
         }
 //        latitude = (latInterval[0] + latInterval[1]) / 2D;
-        ret[0] = (latInterval0 + latInterval1) / 2D;
 //        longitude = (lngInterval[0] + lngInterval[1]) / 2D;
-        ret[1] = (lngInterval0 + lngInterval1) / 2D;
 
+        ret.reset((latInterval0 + latInterval1) / 2D, (lngInterval0 + lngInterval1) / 2D);
 //        return ret;
     }
 }

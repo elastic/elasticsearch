@@ -17,9 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.geo;
-
-import org.elasticsearch.index.search.geo.GeoHashUtils;
+package org.elasticsearch.common.geo;
 
 /**
  *
@@ -40,6 +38,32 @@ public class GeoPoint {
     public GeoPoint reset(double lat, double lon) {
         this.lat = lat;
         this.lon = lon;
+        return this;
+    }
+
+    public GeoPoint resetLat(double lat) {
+        this.lat = lat;
+        return this;
+    }
+
+    public GeoPoint resetLon(double lon) {
+        this.lon = lon;
+        return this;
+    }
+
+    public GeoPoint resetFromString(String value) {
+        int comma = value.indexOf(',');
+        if (comma != -1) {
+            lat = Double.parseDouble(value.substring(0, comma).trim());
+            lon = Double.parseDouble(value.substring(comma + 1).trim());
+        } else {
+            resetFromGeoHash(value);
+        }
+        return this;
+    }
+
+    public GeoPoint resetFromGeoHash(String hash) {
+        GeoHashUtils.decode(hash, this);
         return this;
     }
 
@@ -94,5 +118,9 @@ public class GeoPoint {
         temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         return result;
+    }
+
+    public String toString() {
+        return "[" + lat + ", " + lon + "]";
     }
 }

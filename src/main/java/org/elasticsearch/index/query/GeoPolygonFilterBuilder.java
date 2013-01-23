@@ -20,9 +20,9 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +34,7 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
     private final String name;
 
-    private final List<Point> points = Lists.newArrayList();
+    private final List<GeoPoint> points = Lists.newArrayList();
 
     private Boolean cache;
     private String cacheKey;
@@ -53,13 +53,13 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
      * @return
      */
     public GeoPolygonFilterBuilder addPoint(double lat, double lon) {
-        points.add(new Point(lat, lon));
+        points.add(new GeoPoint(lat, lon));
         return this;
     }
 
     public GeoPolygonFilterBuilder addPoint(String geohash) {
-        double[] values = GeoHashUtils.decode(geohash);
-        return addPoint(values[0], values[1]);
+        points.add(GeoHashUtils.decode(geohash));
+        return this;
     }
 
     /**
@@ -89,8 +89,8 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
         builder.startObject(name);
         builder.startArray("points");
-        for (Point point : points) {
-            builder.startArray().value(point.lon).value(point.lat).endArray();
+        for (GeoPoint point : points) {
+            builder.startArray().value(point.lon()).value(point.lat()).endArray();
         }
         builder.endArray();
         builder.endObject();

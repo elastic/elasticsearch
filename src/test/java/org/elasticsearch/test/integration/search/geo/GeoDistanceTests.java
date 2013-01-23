@@ -21,8 +21,8 @@ package org.elasticsearch.test.integration.search.geo;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;

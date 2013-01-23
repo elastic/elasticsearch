@@ -1803,10 +1803,10 @@ public class SimpleIndexQueryParserTests {
         XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery.query();
         InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
-        assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
-        assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
-        assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
-        assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
+        assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat(), closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
     }
 
 
@@ -1819,10 +1819,10 @@ public class SimpleIndexQueryParserTests {
         XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
         InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
-        assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
-        assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
-        assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
-        assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
+        assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat(), closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
     }
 
     @Test
@@ -1834,10 +1834,10 @@ public class SimpleIndexQueryParserTests {
         XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
         InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
-        assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
-        assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
-        assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
-        assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
+        assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat(), closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
     }
 
     @Test
@@ -1849,10 +1849,10 @@ public class SimpleIndexQueryParserTests {
         XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
         InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
-        assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
-        assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
-        assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
-        assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
+        assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat(), closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
     }
 
     @Test
@@ -1864,10 +1864,10 @@ public class SimpleIndexQueryParserTests {
         XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
         InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
-        assertThat(filter.topLeft().lat, closeTo(40, 0.00001));
-        assertThat(filter.topLeft().lon, closeTo(-70, 0.00001));
-        assertThat(filter.bottomRight().lat, closeTo(30, 0.00001));
-        assertThat(filter.bottomRight().lon, closeTo(-80, 0.00001));
+        assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
+        assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
+        assertThat(filter.bottomRight().lat(), closeTo(30, 0.00001));
+        assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
     }
 
     @Test
@@ -1881,12 +1881,12 @@ public class SimpleIndexQueryParserTests {
         GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
-        assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
-        assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
-        assertThat(filter.points()[1].lat, closeTo(30, 0.00001));
-        assertThat(filter.points()[1].lon, closeTo(-80, 0.00001));
-        assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
-        assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
+        assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon(), closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat(), closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon(), closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat(), closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
     }
 
     @Test
@@ -1899,12 +1899,12 @@ public class SimpleIndexQueryParserTests {
         GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
-        assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
-        assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
-        assertThat(filter.points()[1].lat, closeTo(30, 0.00001));
-        assertThat(filter.points()[1].lon, closeTo(-80, 0.00001));
-        assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
-        assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
+        assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon(), closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat(), closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon(), closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat(), closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
     }
 
     @Test
@@ -1917,12 +1917,12 @@ public class SimpleIndexQueryParserTests {
         GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
-        assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
-        assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
-        assertThat(filter.points()[1].lat, closeTo(30, 0.00001));
-        assertThat(filter.points()[1].lon, closeTo(-80, 0.00001));
-        assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
-        assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
+        assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon(), closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat(), closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon(), closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat(), closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
     }
 
     @Test
@@ -1935,12 +1935,12 @@ public class SimpleIndexQueryParserTests {
         GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
-        assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
-        assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
-        assertThat(filter.points()[1].lat, closeTo(30, 0.00001));
-        assertThat(filter.points()[1].lon, closeTo(-80, 0.00001));
-        assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
-        assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
+        assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon(), closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat(), closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon(), closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat(), closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
     }
 
     @Test
@@ -1953,12 +1953,12 @@ public class SimpleIndexQueryParserTests {
         GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(3));
-        assertThat(filter.points()[0].lat, closeTo(40, 0.00001));
-        assertThat(filter.points()[0].lon, closeTo(-70, 0.00001));
-        assertThat(filter.points()[1].lat, closeTo(30, 0.00001));
-        assertThat(filter.points()[1].lon, closeTo(-80, 0.00001));
-        assertThat(filter.points()[2].lat, closeTo(20, 0.00001));
-        assertThat(filter.points()[2].lon, closeTo(-90, 0.00001));
+        assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
+        assertThat(filter.points()[0].lon(), closeTo(-70, 0.00001));
+        assertThat(filter.points()[1].lat(), closeTo(30, 0.00001));
+        assertThat(filter.points()[1].lon(), closeTo(-80, 0.00001));
+        assertThat(filter.points()[2].lat(), closeTo(20, 0.00001));
+        assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
     }
 
     @Test

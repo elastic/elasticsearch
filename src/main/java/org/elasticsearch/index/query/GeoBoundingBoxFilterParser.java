@@ -20,6 +20,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
@@ -27,7 +30,8 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.*;
+import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
+import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxFilter;
 
 import java.io.IOException;
 
@@ -56,8 +60,8 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        Point topLeft = new Point();
-        Point bottomRight = new Point();
+        GeoPoint topLeft = new GeoPoint();
+        GeoPoint bottomRight = new GeoPoint();
 
         String filterName = null;
         String currentFieldName = null;
@@ -76,7 +80,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else if (token == XContentParser.Token.START_ARRAY) {
-                        Point point = null;
+                        GeoPoint point = null;
                         if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
                             point = topLeft;
                         } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
@@ -85,15 +89,15 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
 
                         if (point != null) {
                             token = parser.nextToken();
-                            point.lon = parser.doubleValue();
+                            point.resetLon(parser.doubleValue());
                             token = parser.nextToken();
-                            point.lat = parser.doubleValue();
+                            point.resetLat(parser.doubleValue());
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                             }
                         }
                     } else if (token == XContentParser.Token.START_OBJECT) {
-                        Point point = null;
+                        GeoPoint point = null;
                         if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
                             point = topLeft;
                         } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
@@ -106,13 +110,11 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
                                     if (currentFieldName.equals(GeoPointFieldMapper.Names.LAT)) {
-                                        point.lat = parser.doubleValue();
+                                        point.resetLat(parser.doubleValue());
                                     } else if (currentFieldName.equals(GeoPointFieldMapper.Names.LON)) {
-                                        point.lon = parser.doubleValue();
+                                        point.resetLon(parser.doubleValue());
                                     } else if (currentFieldName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                                        double[] values = GeoHashUtils.decode(parser.text());
-                                        point.lat = values[0];
-                                        point.lon = values[1];
+                                        GeoHashUtils.decode(parser.text(), point);
                                     }
                                 }
                             }
@@ -121,7 +123,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
                         if ("field".equals(currentFieldName)) {
                             fieldName = parser.text();
                         } else {
-                            Point point = null;
+                            GeoPoint point = null;
                             if ("top_left".equals(currentFieldName) || "topLeft".equals(currentFieldName)) {
                                 point = topLeft;
                             } else if ("bottom_right".equals(currentFieldName) || "bottomRight".equals(currentFieldName)) {
@@ -130,15 +132,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
 
                             if (point != null) {
                                 String value = parser.text();
-                                int comma = value.indexOf(',');
-                                if (comma != -1) {
-                                    point.lat = Double.parseDouble(value.substring(0, comma).trim());
-                                    point.lon = Double.parseDouble(value.substring(comma + 1).trim());
-                                } else {
-                                    double[] values = GeoHashUtils.decode(value);
-                                    point.lat = values[0];
-                                    point.lon = values[1];
-                                }
+                                point.resetFromString(value);
                             }
                         }
                     }

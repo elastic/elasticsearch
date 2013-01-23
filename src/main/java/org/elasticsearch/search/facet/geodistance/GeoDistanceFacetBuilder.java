@@ -21,10 +21,10 @@ package org.elasticsearch.search.facet.geodistance;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
-import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 
@@ -36,8 +36,6 @@ import java.util.Map;
  * A geo distance builder allowing to create a facet of distances from a specific location including the
  * number of hits within each distance range, and aggregated data (like totals of either the distance or
  * cusotm value fields).
- *
- *
  */
 public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
 

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.search.geo.GeoDistance;
 
 import java.io.IOException;
 

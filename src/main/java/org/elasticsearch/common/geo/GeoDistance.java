@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.search.geo;
+package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -136,8 +136,8 @@ public enum GeoDistance {
             maxLon = MAX_LON;
         }
 
-        Point topLeft = new Point(Math.toDegrees(maxLat), Math.toDegrees(minLon));
-        Point bottomRight = new Point(Math.toDegrees(minLat), Math.toDegrees(maxLon));
+        GeoPoint topLeft = new GeoPoint(Math.toDegrees(maxLat), Math.toDegrees(minLon));
+        GeoPoint bottomRight = new GeoPoint(Math.toDegrees(minLat), Math.toDegrees(maxLon));
         if (minLon > maxLon) {
             return new Meridian180DistanceBoundingCheck(topLeft, bottomRight);
         }
@@ -164,9 +164,9 @@ public enum GeoDistance {
 
         boolean isWithin(double targetLatitude, double targetLongitude);
 
-        Point topLeft();
+        GeoPoint topLeft();
 
-        Point bottomRight();
+        GeoPoint bottomRight();
     }
 
     public static AlwaysDistanceBoundingCheck ALWAYS_INSTANCE = new AlwaysDistanceBoundingCheck();
@@ -178,65 +178,65 @@ public enum GeoDistance {
         }
 
         @Override
-        public Point topLeft() {
+        public GeoPoint topLeft() {
             return null;
         }
 
         @Override
-        public Point bottomRight() {
+        public GeoPoint bottomRight() {
             return null;
         }
     }
 
     public static class Meridian180DistanceBoundingCheck implements DistanceBoundingCheck {
 
-        private final Point topLeft;
-        private final Point bottomRight;
+        private final GeoPoint topLeft;
+        private final GeoPoint bottomRight;
 
-        public Meridian180DistanceBoundingCheck(Point topLeft, Point bottomRight) {
+        public Meridian180DistanceBoundingCheck(GeoPoint topLeft, GeoPoint bottomRight) {
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
         }
 
         @Override
         public boolean isWithin(double targetLatitude, double targetLongitude) {
-            return (targetLatitude >= bottomRight.lat && targetLatitude <= topLeft.lat) &&
-                    (targetLongitude >= topLeft.lon || targetLongitude <= bottomRight.lon);
+            return (targetLatitude >= bottomRight.lat() && targetLatitude <= topLeft.lat()) &&
+                    (targetLongitude >= topLeft.lon() || targetLongitude <= bottomRight.lon());
         }
 
         @Override
-        public Point topLeft() {
+        public GeoPoint topLeft() {
             return topLeft;
         }
 
         @Override
-        public Point bottomRight() {
+        public GeoPoint bottomRight() {
             return bottomRight;
         }
     }
 
     public static class SimpleDistanceBoundingCheck implements DistanceBoundingCheck {
-        private final Point topLeft;
-        private final Point bottomRight;
+        private final GeoPoint topLeft;
+        private final GeoPoint bottomRight;
 
-        public SimpleDistanceBoundingCheck(Point topLeft, Point bottomRight) {
+        public SimpleDistanceBoundingCheck(GeoPoint topLeft, GeoPoint bottomRight) {
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
         }
 
         @Override
         public boolean isWithin(double targetLatitude, double targetLongitude) {
-            return (targetLatitude >= bottomRight.lat && targetLatitude <= topLeft.lat) &&
-                    (targetLongitude >= topLeft.lon && targetLongitude <= bottomRight.lon);
+            return (targetLatitude >= bottomRight.lat() && targetLatitude <= topLeft.lat()) &&
+                    (targetLongitude >= topLeft.lon() && targetLongitude <= bottomRight.lon());
         }
 
         @Override
-        public Point topLeft() {
+        public GeoPoint topLeft() {
             return topLeft;
         }
 
         @Override
-        public Point bottomRight() {
+        public GeoPoint bottomRight() {
             return bottomRight;
         }
     }

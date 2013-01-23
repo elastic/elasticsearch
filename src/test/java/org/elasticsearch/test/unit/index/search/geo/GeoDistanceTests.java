@@ -19,15 +19,13 @@
 
 package org.elasticsearch.test.unit.index.search.geo;
 
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.search.geo.GeoDistance;
-import org.elasticsearch.index.search.geo.Point;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -49,22 +47,22 @@ public class GeoDistanceTests {
 
     @Test
     public void testArcDistanceVsPlaneInEllipsis() {
-        Point centre = new Point(48.8534100, 2.3488000);
-        Point northernPoint = new Point(48.8801108681, 2.35152032666);
-        Point westernPoint = new Point(48.85265, 2.308896);
+        GeoPoint centre = new GeoPoint(48.8534100, 2.3488000);
+        GeoPoint northernPoint = new GeoPoint(48.8801108681, 2.35152032666);
+        GeoPoint westernPoint = new GeoPoint(48.85265, 2.308896);
 
         // With GeoDistance.ARC both the northern and western points are within the 4km range
-        assertThat(GeoDistance.ARC.calculate(centre.lat, centre.lon, northernPoint.lat,
-                northernPoint.lon, DistanceUnit.KILOMETERS), lessThan(4D));
-        assertThat(GeoDistance.ARC.calculate(centre.lat, centre.lon, westernPoint.lat,
-                westernPoint.lon, DistanceUnit.KILOMETERS), lessThan(4D));
+        assertThat(GeoDistance.ARC.calculate(centre.lat(), centre.lon(), northernPoint.lat(),
+                northernPoint.lon(), DistanceUnit.KILOMETERS), lessThan(4D));
+        assertThat(GeoDistance.ARC.calculate(centre.lat(), centre.lon(), westernPoint.lat(),
+                westernPoint.lon(), DistanceUnit.KILOMETERS), lessThan(4D));
 
         // With GeoDistance.PLANE, only the northern point is within the 4km range,
         // the western point is outside of the range due to the simple math it employs,
         // meaning results will appear elliptical
-        assertThat(GeoDistance.PLANE.calculate(centre.lat, centre.lon, northernPoint.lat,
-                northernPoint.lon, DistanceUnit.KILOMETERS), lessThan(4D));
-        assertThat(GeoDistance.PLANE.calculate(centre.lat, centre.lon, westernPoint.lat,
-                westernPoint.lon, DistanceUnit.KILOMETERS), greaterThan(4D));
+        assertThat(GeoDistance.PLANE.calculate(centre.lat(), centre.lon(), northernPoint.lat(),
+                northernPoint.lon(), DistanceUnit.KILOMETERS), lessThan(4D));
+        assertThat(GeoDistance.PLANE.calculate(centre.lat(), centre.lon(), westernPoint.lat(),
+                westernPoint.lon(), DistanceUnit.KILOMETERS), greaterThan(4D));
     }
 }

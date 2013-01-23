@@ -19,6 +19,12 @@
 
 package org.elasticsearch.test.unit.index.percolator;
 
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -28,6 +34,7 @@ import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -41,6 +48,7 @@ import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
 import org.elasticsearch.script.ScriptModule;
@@ -48,6 +56,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -65,20 +74,20 @@ public class PercolatorExecutorTests {
 
     private PercolatorExecutor percolatorExecutor;
 
-    @BeforeClass
+    @BeforeTest
     public void buildPercolatorService() {
         Settings settings = ImmutableSettings.settingsBuilder()
                 //.put("index.cache.filter.type", "none")
                 .build();
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
+                new IndexSettingsModule(index, settings),
                 new CodecModule(settings),
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
                 new ScriptModule(settings),
                 new IndicesQueriesModule(),
                 new MapperServiceModule(),
-                new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings),
                 new IndexEngineModule(settings),
@@ -117,6 +126,7 @@ public class PercolatorExecutorTests {
                 .endObject().endObject().endObject();
         BytesReference sourceWithType = docWithType.bytes();
 
+        percolatorExecutor.clearQueries(); // remove all previously added queries
         PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(0));
 
@@ -150,5 +160,91 @@ public class PercolatorExecutorTests {
         percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", source));
         assertThat(percolate.matches(), hasSize(1));
         assertThat(percolate.matches(), hasItem("test1"));
+    }
+    
+    @Test
+    public void testConcurrentPerculator() throws InterruptedException, IOException {
+        // introduce the doc
+        XContentBuilder bothQueriesB = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .field("field1", 1)
+                .field("field2", "value")
+                .endObject().endObject();
+        final BytesReference bothQueries = bothQueriesB.bytes();
+
+        XContentBuilder onlyTest1B = XContentFactory.jsonBuilder().startObject().startObject("doc")
+                .field("field2", "value")
+                .endObject().endObject();
+        XContentBuilder onlyTest2B = XContentFactory.jsonBuilder().startObject().startObject("doc")
+        .field("field1", 1)
+        .endObject().endObject();
+        final BytesReference onlyTest1 = onlyTest1B.bytes();
+        final BytesReference onlyTest2 = onlyTest2B.bytes();
+        final PercolatorExecutor executor = this.percolatorExecutor;
+        percolatorExecutor.clearQueries(); // remove all previously added queries
+        // this adds the mapping and ensures that we do a NRQ for field 1
+        PercolatorExecutor.Response percolate = percolatorExecutor.percolate(new PercolatorExecutor.SourceRequest("type1", bothQueries));
+        assertThat(percolate.matches(), hasSize(0));
+        executor.addQuery("test1", termQuery("field2", "value"));
+        executor.addQuery("test2", termQuery("field1", 1));
+        
+        final IndexSettingsService settingsService = injector.getInstance(IndexSettingsService.class);
+        final CountDownLatch start = new CountDownLatch(1);
+        final AtomicBoolean stop = new AtomicBoolean(false);
+        final AtomicInteger counts = new AtomicInteger(0);
+        Thread[] threads = new Thread[5];
+        
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread() {
+              public void run() {
+                  try {
+
+                 
+                  start.await();
+               
+                  PercolatorExecutor.Response percolate;
+                  while(!stop.get()) {
+                      int count = counts.incrementAndGet();
+                      if ((count % 100) == 0) {
+                          ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder();
+                          builder.put(PercolatorExecutor.PERCOLATE_POOL_MAX_MEMORY, 1 + (counts.get() % 10), ByteSizeUnit.MB);
+                          builder.put(PercolatorExecutor.PERCOLATE_POOL_SIZE, 1 + (counts.get() % 10));
+                          builder.put(PercolatorExecutor.PERCOLATE_TIMEOUT, 1 + (counts.get() % 1000), TimeUnit.MILLISECONDS);
+                          settingsService.refreshSettings(builder.build());
+                      }
+                      
+                      if ((count > 10000)) {
+                          stop.set(true);
+                      }
+                      if (count % 3 == 0) {
+                          percolate = executor.percolate(new PercolatorExecutor.SourceRequest("type1", bothQueries));
+                          assertThat(percolate.matches(), hasSize(2));
+                          assertThat(percolate.matches(), hasItems("test1", "test2"));
+                      } else if (count % 3 == 1) {
+                          percolate = executor.percolate(new PercolatorExecutor.SourceRequest("type1", onlyTest1));
+                          assertThat(percolate.matches(), hasSize(1));
+                          assertThat(percolate.matches(), hasItems("test1"));    
+                      }  else {
+                          percolate = executor.percolate(new PercolatorExecutor.SourceRequest("type1", onlyTest2));
+                          assertThat(percolate.matches(), hasSize(1));
+                          assertThat(percolate.matches(), hasItems("test2"));    
+                      }
+
+                      
+                  }
+                  
+                  } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                      return;
+                  }
+              }
+            };
+            threads[i].start();
+        }
+        
+        start.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
+        
     }
 }

@@ -866,26 +866,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                             translog.newTransientTranslog(translogId);
                             indexWriter.setCommitData(MapBuilder.<String, String>newMapBuilder().put(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)).map());
                             indexWriter.commit();
-                            if (flush.force()) {
-                                // if we force, we might not have committed, we need to check that its the same id
-                                Map<String, String> commitUserData = Lucene.readSegmentInfos(store.directory()).getUserData();
-                                long committedTranslogId = Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY));
-                                if (committedTranslogId != translogId) {
-                                    // we did not commit anything, revert to the old translog
-                                    translog.revertTransient();
-                                } else {
-                                    makeTransientCurrent = true;
-                                }
-                            } else {
-                                makeTransientCurrent = true;
-                            }
-                            if (makeTransientCurrent) {
-                                refreshVersioningTable(threadPool.estimatedTimeInMillis());
-                                // we need to move transient to current only after we refresh
-                                // so items added to current will still be around for realtime get
-                                // when tans overrides it
-                                translog.makeTransientCurrent();
-                            }
+                            refreshVersioningTable(threadPool.estimatedTimeInMillis());
+                            // we need to move transient to current only after we refresh
+                            // so items added to current will still be around for realtime get
+                            // when tans overrides it
+                            translog.makeTransientCurrent();
                         } catch (OutOfMemoryError e) {
                             translog.revertTransient();
                             failEngine(e);

@@ -21,10 +21,29 @@ package org.elasticsearch.index.fielddata.ordinals;
 
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
+import java.util.Map;
+
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
  */
 public interface Ordinals {
+
+    static class Factories {
+
+        public static Ordinals createFromFlatOrdinals(int[][] ordinals, int numOrds, Map<String, String> options) {
+            String multiOrdinals = options.get("multi_ordinals");
+            if ("flat".equals(multiOrdinals)) {
+                return new MultiFlatArrayOrdinals(ordinals, numOrds);
+            }
+            int multiOrdinalsMaxDocs = 16777216; // Equal to 64MB per storage array
+            String multiOrdinalsMaxDocsVal = options.get("multi_ordinals_max_docs");
+            if (multiOrdinalsMaxDocsVal != null) {
+                multiOrdinalsMaxDocs = Integer.valueOf(multiOrdinalsMaxDocsVal);
+            }
+
+            return new SparseMultiArrayOrdinals(ordinals, numOrds, multiOrdinalsMaxDocs);
+        }
+    }
 
     /**
      * Are the ordinals backed by a single ordinals array?

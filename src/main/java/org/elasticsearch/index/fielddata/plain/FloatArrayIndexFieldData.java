@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -146,7 +146,11 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
             for (int i = 0; i < nativeOrdinals.length; i++) {
                 nativeOrdinals[i] = ordinals.get(i);
             }
-            return new FloatArrayAtomicFieldData.WithOrdinals(values.toArray(new float[values.size()]), reader.maxDoc(), new MultiFlatArrayOrdinals(nativeOrdinals, termOrd));
+            return new FloatArrayAtomicFieldData.WithOrdinals(
+                    values.toArray(new float[values.size()]),
+                    reader.maxDoc(),
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+            );
         }
     }
 

@@ -30,6 +30,7 @@ import java.util.Arrays;
 
 /**
  */
+@Deprecated
 public class LZFCompressedIndexInput extends CompressedIndexInput<LZFCompressorContext> {
 
     private final ChunkDecoder decoder;

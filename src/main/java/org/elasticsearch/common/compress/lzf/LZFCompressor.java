@@ -24,9 +24,11 @@ import com.ning.compress.lzf.LZFChunk;
 import com.ning.compress.lzf.LZFEncoder;
 import com.ning.compress.lzf.util.ChunkDecoderFactory;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.*;
+import org.elasticsearch.common.compress.CompressedIndexInput;
+import org.elasticsearch.common.compress.CompressedStreamInput;
+import org.elasticsearch.common.compress.CompressedStreamOutput;
+import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
@@ -136,10 +138,5 @@ public class LZFCompressor implements Compressor {
     @Override
     public CompressedIndexInput indexInput(IndexInput in) throws IOException {
         return new LZFCompressedIndexInput(in, decoder);
-    }
-
-    @Override
-    public CompressedIndexOutput indexOutput(IndexOutput out) throws IOException {
-        return new LZFCompressedIndexOutput(out);
     }
 }

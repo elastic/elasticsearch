@@ -26,7 +26,9 @@ import java.io.EOFException;
 import java.io.IOException;
 
 /**
+ * @deprecated Used only for backward comp. to read old compressed files, since we now use codec based compression
  */
+@Deprecated
 public abstract class CompressedIndexInput<T extends CompressorContext> extends IndexInput {
 
     private IndexInput in;

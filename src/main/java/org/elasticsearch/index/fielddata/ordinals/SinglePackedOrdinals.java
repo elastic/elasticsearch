@@ -39,6 +39,11 @@ public class SinglePackedOrdinals implements Ordinals {
     }
 
     @Override
+    public boolean hasSingleArrayBackingStorage() {
+        return reader.hasArray();
+    }
+
+    @Override
     public Object getBackingStorage() {
         if (reader.hasArray()) {
             return reader.getArray();

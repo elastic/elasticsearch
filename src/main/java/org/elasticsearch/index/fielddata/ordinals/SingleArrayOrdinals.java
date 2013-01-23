@@ -38,6 +38,11 @@ public class SingleArrayOrdinals implements Ordinals {
     }
 
     @Override
+    public boolean hasSingleArrayBackingStorage() {
+        return true;
+    }
+
+    @Override
     public Object getBackingStorage() {
         return ordinals;
     }

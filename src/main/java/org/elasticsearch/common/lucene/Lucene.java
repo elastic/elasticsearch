@@ -42,7 +42,7 @@ import java.lang.reflect.Field;
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_40;
+    public static final Version VERSION = Version.LUCENE_41;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -56,6 +56,9 @@ public class Lucene {
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
+        }
+        if ("4.1".equals(version)) {
+            return Version.LUCENE_41;
         }
         if ("4.0".equals(version)) {
             return Version.LUCENE_40;

@@ -20,10 +20,10 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.util.*;
-import org.elasticsearch.index.mapper.geo.GeoPoint;
-import org.elasticsearch.index.search.geo.GeoDistance;
 import org.joda.time.MutableDateTime;
 
 /**

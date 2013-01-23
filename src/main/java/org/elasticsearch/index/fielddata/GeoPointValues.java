@@ -20,8 +20,8 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.util.GeoPointArrayRef;
-import org.elasticsearch.index.mapper.geo.GeoPoint;
 
 /**
  */

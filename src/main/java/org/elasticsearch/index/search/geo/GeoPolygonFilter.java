@@ -24,10 +24,10 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.geo.GeoPoint;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,16 +37,16 @@ import java.util.Arrays;
  */
 public class GeoPolygonFilter extends Filter {
 
-    private final Point[] points;
+    private final GeoPoint[] points;
 
     private final IndexGeoPointFieldData indexFieldData;
 
-    public GeoPolygonFilter(Point[] points, IndexGeoPointFieldData indexFieldData) {
+    public GeoPolygonFilter(GeoPoint[] points, IndexGeoPointFieldData indexFieldData) {
         this.points = points;
         this.indexFieldData = indexFieldData;
     }
 
-    public Point[] points() {
+    public GeoPoint[] points() {
         return points;
     }
 
@@ -67,9 +67,9 @@ public class GeoPolygonFilter extends Filter {
 
     public static class GeoPolygonDocIdSet extends MatchDocIdSet {
         private final GeoPointValues values;
-        private final Point[] points;
+        private final GeoPoint[] points;
 
-        public GeoPolygonDocIdSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, Point[] points) {
+        public GeoPolygonDocIdSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, GeoPoint[] points) {
             super(maxDoc, acceptDocs);
             this.values = values;
             this.points = points;
@@ -101,16 +101,16 @@ public class GeoPolygonFilter extends Filter {
             return false;
         }
 
-        private static boolean pointInPolygon(Point[] points, double lat, double lon) {
+        private static boolean pointInPolygon(GeoPoint[] points, double lat, double lon) {
             int i;
             int j = points.length - 1;
             boolean inPoly = false;
 
             for (i = 0; i < points.length; i++) {
-                if (points[i].lon < lon && points[j].lon >= lon
-                        || points[j].lon < lon && points[i].lon >= lon) {
-                    if (points[i].lat + (lon - points[i].lon) /
-                            (points[j].lon - points[i].lon) * (points[j].lat - points[i].lat) < lat) {
+                if (points[i].lon() < lon && points[j].lon() >= lon
+                        || points[j].lon() < lon && points[i].lon() >= lon) {
+                    if (points[i].lat() + (lon - points[i].lon()) /
+                            (points[j].lon() - points[i].lon()) * (points[j].lat() - points[i].lat()) < lat) {
                         inPoly = !inPoly;
                     }
                 }

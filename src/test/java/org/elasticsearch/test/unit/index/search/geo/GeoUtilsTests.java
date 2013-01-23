@@ -19,8 +19,8 @@
 
 package org.elasticsearch.test.unit.index.search.geo;
 
-import org.elasticsearch.index.search.geo.GeoUtils;
-import org.elasticsearch.index.search.geo.Point;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -85,7 +85,7 @@ public class GeoUtilsTests {
         // Now with points, to check for longitude shifting with latitude normalization
         // We've gone past the north pole and down the other side, the longitude will
         // be shifted by 180
-        assertNormalizedPoint(new Point(90.5, 10), new Point(89.5, -170));
+        assertNormalizedPoint(new GeoPoint(90.5, 10), new GeoPoint(89.5, -170));
 
         // Every 10-units, multiple full turns
         for (int shift = -20; shift <= 20; ++shift) {
@@ -199,7 +199,7 @@ public class GeoUtilsTests {
         assertThat(GeoUtils.normalizeLat(+18000000000091.0), equalTo(GeoUtils.normalizeLat(+091.0)));
     }
 
-    private static void assertNormalizedPoint(Point input, Point expected) {
+    private static void assertNormalizedPoint(GeoPoint input, GeoPoint expected) {
         GeoUtils.normalizePoint(input);
         assertThat(input, equalTo(expected));
     }

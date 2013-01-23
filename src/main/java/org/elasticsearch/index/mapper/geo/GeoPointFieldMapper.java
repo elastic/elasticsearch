@@ -23,6 +23,9 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -34,9 +37,6 @@ import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
-import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.index.search.geo.GeoUtils;
-import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
 import java.util.Map;
@@ -387,10 +387,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
         if (normalizeLat || normalizeLon) {
-            Point point = new Point(lat, lon);
+            GeoPoint point = new GeoPoint(lat, lon);
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-            lat = point.lat;
-            lon = point.lon;
+            lat = point.lat();
+            lon = point.lon();
         }
 
         if (validateLat) {
@@ -419,38 +419,33 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     }
 
     private void parseGeohash(ParseContext context, String geohash) throws IOException {
-        double[] values = GeoHashUtils.decode(geohash);
-        double lat = values[0];
-        double lon = values[1];
+        GeoPoint point = GeoHashUtils.decode(geohash);
 
         if (normalizeLat || normalizeLon) {
-            Point point = new Point(lat, lon);
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-            lat = point.lat;
-            lon = point.lon;
         }
 
         if (validateLat) {
-            if (lat > 90.0 || lat < -90.0) {
-                throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + lat + "] for " + name);
+            if (point.lat() > 90.0 || point.lat() < -90.0) {
+                throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name);
             }
         }
         if (validateLon) {
-            if (lon > 180.0 || lon < -180) {
-                throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + lon + "] for " + name);
+            if (point.lon() > 180.0 || point.lon() < -180) {
+                throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name);
             }
         }
 
-        context.externalValue(Double.toString(lat) + ',' + Double.toString(lon));
+        context.externalValue(Double.toString(point.lat()) + ',' + Double.toString(point.lat()));
         geoStringMapper.parse(context);
         if (enableGeoHash) {
             context.externalValue(geohash);
             geohashMapper.parse(context);
         }
         if (enableLatLon) {
-            context.externalValue(lat);
+            context.externalValue(point.lat());
             latMapper.parse(context);
-            context.externalValue(lon);
+            context.externalValue(point.lon());
             lonMapper.parse(context);
         }
     }

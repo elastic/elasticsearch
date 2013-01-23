@@ -26,13 +26,14 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.docset.AndDocIdSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
-import org.elasticsearch.index.mapper.geo.GeoPoint;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
@@ -55,10 +56,10 @@ public class GeoDistanceRangeFilter extends Filter {
 
     private final IndexGeoPointFieldData indexFieldData;
 
-    public GeoDistanceRangeFilter(double lat, double lon, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper, GeoDistance geoDistance, GeoPointFieldMapper mapper, IndexGeoPointFieldData indexFieldData,
+    public GeoDistanceRangeFilter(GeoPoint point, Double lowerVal, Double upperVal, boolean includeLower, boolean includeUpper, GeoDistance geoDistance, GeoPointFieldMapper mapper, IndexGeoPointFieldData indexFieldData,
                                   String optimizeBbox) {
-        this.lat = lat;
-        this.lon = lon;
+        this.lat = point.lat();
+        this.lon = point.lon();
         this.geoDistance = geoDistance;
         this.indexFieldData = indexFieldData;
 

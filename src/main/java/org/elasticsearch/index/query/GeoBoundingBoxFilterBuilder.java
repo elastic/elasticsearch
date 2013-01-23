@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
 
@@ -31,11 +31,11 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
 
     private final String name;
 
-    private Point topLeft;
+    private GeoPoint topLeft;
 
     private String topLeftGeohash;
 
-    private Point bottomRight;
+    private GeoPoint bottomRight;
 
     private String bottomRightGeohash;
 
@@ -57,9 +57,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
      * @param lon The longitude
      */
     public GeoBoundingBoxFilterBuilder topLeft(double lat, double lon) {
-        topLeft = new Point();
-        topLeft.lat = lat;
-        topLeft.lon = lon;
+        topLeft = new GeoPoint(lat, lon);
         return this;
     }
 
@@ -70,9 +68,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
      * @param lon The longitude
      */
     public GeoBoundingBoxFilterBuilder bottomRight(double lat, double lon) {
-        bottomRight = new Point();
-        bottomRight.lat = lat;
-        bottomRight.lon = lon;
+        bottomRight = new GeoPoint(lat, lon);
         return this;
     }
 
@@ -124,7 +120,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         if (topLeftGeohash != null) {
             builder.field("top_left", topLeftGeohash);
         } else if (topLeft != null) {
-            builder.startArray("top_left").value(topLeft.lon).value(topLeft.lat).endArray();
+            builder.startArray("top_left").value(topLeft.lon()).value(topLeft.lat()).endArray();
         } else {
             throw new QueryBuilderException("geo_bounding_box requires 'top_left' to be set");
         }
@@ -132,7 +128,7 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         if (bottomRightGeohash != null) {
             builder.field("bottom_right", bottomRightGeohash);
         } else if (bottomRight != null) {
-            builder.startArray("bottom_right").value(bottomRight.lon).value(bottomRight.lat).endArray();
+            builder.startArray("bottom_right").value(bottomRight.lon()).value(bottomRight.lat()).endArray();
         } else {
             throw new QueryBuilderException("geo_bounding_box requires 'bottom_right' to be set");
         }

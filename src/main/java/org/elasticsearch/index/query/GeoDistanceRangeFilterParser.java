@@ -20,6 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,7 +32,7 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.*;
+import org.elasticsearch.index.search.geo.GeoDistanceRangeFilter;
 
 import java.io.IOException;
 
@@ -65,8 +69,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         CacheKeyFilter.Key cacheKey = null;
         String filterName = null;
         String currentFieldName = null;
-        double lat = 0;
-        double lon = 0;
+        GeoPoint point = new GeoPoint();
         String fieldName = null;
         Object vFrom = null;
         Object vTo = null;
@@ -82,12 +85,13 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 token = parser.nextToken();
-                lon = parser.doubleValue();
+                double lon = parser.doubleValue();
                 token = parser.nextToken();
-                lat = parser.doubleValue();
+                double lat = parser.doubleValue();
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                 }
+                point.reset(lat, lon);
                 fieldName = currentFieldName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -98,13 +102,11 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                         currentName = parser.currentName();
                     } else if (token.isValue()) {
                         if (currentName.equals(GeoPointFieldMapper.Names.LAT)) {
-                            lat = parser.doubleValue();
+                            point.resetLat(parser.doubleValue());
                         } else if (currentName.equals(GeoPointFieldMapper.Names.LON)) {
-                            lon = parser.doubleValue();
+                            point.resetLon(parser.doubleValue());
                         } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                            double[] values = GeoHashUtils.decode(parser.text());
-                            lat = values[0];
-                            lon = values[1];
+                            GeoHashUtils.decode(parser.text(), point);
                         }
                     }
                 }
@@ -164,15 +166,13 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                 } else if (currentFieldName.equals("distance_type") || currentFieldName.equals("distanceType")) {
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LAT_SUFFIX)) {
-                    lat = parser.doubleValue();
+                    point.resetLat(parser.doubleValue());
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LAT_SUFFIX.length());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LON_SUFFIX)) {
-                    lon = parser.doubleValue();
+                    point.resetLon(parser.doubleValue());
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.LON_SUFFIX.length());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.GEOHASH_SUFFIX)) {
-                    double[] values = GeoHashUtils.decode(parser.text());
-                    lat = values[0];
-                    lon = values[1];
+                    GeoHashUtils.decode(parser.text(), point);
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
@@ -186,17 +186,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
                 } else {
-                    // assume the value is the actual value
-                    String value = parser.text();
-                    int comma = value.indexOf(',');
-                    if (comma != -1) {
-                        lat = Double.parseDouble(value.substring(0, comma).trim());
-                        lon = Double.parseDouble(value.substring(comma + 1).trim());
-                    } else {
-                        double[] values = GeoHashUtils.decode(value);
-                        lat = values[0];
-                        lon = values[1];
-                    }
+                    point.resetFromString(parser.text());
                     fieldName = currentFieldName;
                 }
             }
@@ -222,10 +212,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         }
 
         if (normalizeLat || normalizeLon) {
-            Point point = new Point(lat, lon);
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-            lat = point.lat;
-            lon = point.lon;
         }
 
         MapperService.SmartNameFieldMappers smartMappers = parseContext.smartFieldMappers(fieldName);
@@ -239,7 +226,7 @@ public class GeoDistanceRangeFilterParser implements FilterParser {
         GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
 
         IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
-        Filter filter = new GeoDistanceRangeFilter(lat, lon, from, to, includeLower, includeUpper, geoDistance, geoMapper, indexFieldData, optimizeBbox);
+        Filter filter = new GeoDistanceRangeFilter(point, from, to, includeLower, includeUpper, geoDistance, geoMapper, indexFieldData, optimizeBbox);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

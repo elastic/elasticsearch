@@ -19,16 +19,14 @@
 
 package org.elasticsearch.search.sort;
 
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.search.geo.GeoDistance;
 
 import java.io.IOException;
 
 /**
  * A geo distance based sorting on a geo point like field.
- *
- *
  */
 public class GeoDistanceSortBuilder extends SortBuilder {
 

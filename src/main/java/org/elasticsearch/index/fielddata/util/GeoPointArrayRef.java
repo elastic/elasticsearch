@@ -20,7 +20,7 @@
 package org.elasticsearch.index.fielddata.util;
 
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.index.mapper.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoPoint;
 
 import java.util.AbstractList;
 import java.util.RandomAccess;

@@ -43,9 +43,9 @@ public class SparseMultiArrayOrdinals implements Ordinals {
     private final int[][] storageOrdinals;
 
     // The n-th bit to shift the index of the storage array to inside the lookup pointer
-    private final int storageShift;
-    private final int numOrds;
-    private final int numDocs;
+    final int storageShift;
+    final int numOrds;
+    final int numDocs;
 
     private long size;
 
@@ -173,8 +173,8 @@ public class SparseMultiArrayOrdinals implements Ordinals {
         private final SparseMultiArrayOrdinals parent;
         private final int[] lookup;
         private final int[][] ordinals;
-        private final IterImpl iter;
 
+        private final IterImpl iter;
         private final IntArrayRef intsScratch;
 
         public Docs(SparseMultiArrayOrdinals parent, int[] lookup, int[][] ordinals) {

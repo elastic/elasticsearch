@@ -39,6 +39,11 @@ public class DocIdOrdinals implements Ordinals {
     }
 
     @Override
+    public boolean hasSingleArrayBackingStorage() {
+        return false;
+    }
+
+    @Override
     public Object getBackingStorage() {
         return null;
     }

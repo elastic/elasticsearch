@@ -387,12 +387,14 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         Object ordsStorage = docToOrd.ordinals().getBackingStorage();
         FieldComparator<BytesRef> perSegComp = null;
 
-        if (ordsStorage instanceof byte[]) {
-            perSegComp = new ByteOrdComparator((byte[]) ordsStorage, termsIndex, docBase);
-        } else if (ordsStorage instanceof short[]) {
-            perSegComp = new ShortOrdComparator((short[]) ordsStorage, termsIndex, docBase);
-        } else if (ordsStorage instanceof int[]) {
-            perSegComp = new IntOrdComparator((int[]) ordsStorage, termsIndex, docBase);
+        if (docToOrd.ordinals().hasSingleArrayBackingStorage()) {
+            if (ordsStorage instanceof byte[]) {
+                perSegComp = new ByteOrdComparator((byte[]) ordsStorage, termsIndex, docBase);
+            } else if (ordsStorage instanceof short[]) {
+                perSegComp = new ShortOrdComparator((short[]) ordsStorage, termsIndex, docBase);
+            } else if (ordsStorage instanceof int[]) {
+                perSegComp = new IntOrdComparator((int[]) ordsStorage, termsIndex, docBase);
+            }
         }
         // Don't specialize the long[] case since it's not
         // possible, ie, worse case is MAX_INT-1 docs with

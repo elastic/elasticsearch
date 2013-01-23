@@ -19,13 +19,17 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
  */
 public interface Ordinals {
+
+    /**
+     * Are the ordinals backed by a single ordinals array?
+     */
+    boolean hasSingleArrayBackingStorage();
 
     /**
      * Returns the backing storage for this ordinals.

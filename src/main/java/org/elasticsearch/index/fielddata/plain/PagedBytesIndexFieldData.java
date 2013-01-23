@@ -31,7 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.SingleArrayOrdinals;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -175,7 +175,11 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
             for (int i = 0; i < nativeOrdinals.length; i++) {
                 nativeOrdinals[i] = ordinals.get(i);
             }
-            return new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffsetReader, new MultiFlatArrayOrdinals(nativeOrdinals, termOrd));
+            return new PagedBytesAtomicFieldData(
+                    bytesReader,
+                    termOrdToBytesOffsetReader,
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+            );
         }
 
     }

@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.SingleArrayOrdinals;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -143,7 +143,10 @@ public class ConcreteBytesRefIndexFieldData extends AbstractIndexFieldData<Concr
             for (int i = 0; i < nativeOrdinals.length; i++) {
                 nativeOrdinals[i] = ordinals.get(i);
             }
-            return new ConcreteBytesRefAtomicFieldData(values.toArray(new BytesRef[values.size()]), new MultiFlatArrayOrdinals(nativeOrdinals, termOrd));
+            return new ConcreteBytesRefAtomicFieldData(
+                    values.toArray(new BytesRef[values.size()]),
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+            );
         }
     }
 

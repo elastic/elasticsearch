@@ -29,7 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -149,7 +149,12 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
             for (int i = 0; i < nativeOrdinals.length; i++) {
                 nativeOrdinals[i] = ordinals.get(i);
             }
-            return new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(lon.toArray(new double[lon.size()]), lat.toArray(new double[lat.size()]), reader.maxDoc(), new MultiFlatArrayOrdinals(nativeOrdinals, termOrd));
+            return new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(
+                    lon.toArray(new double[lon.size()]),
+                    lat.toArray(new double[lat.size()]),
+                    reader.maxDoc(),
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+            );
         }
     }
 

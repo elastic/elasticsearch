@@ -24,10 +24,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.store.*;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.compress.CompressedIndexOutput;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
@@ -37,7 +35,6 @@ import org.elasticsearch.common.lucene.store.ChecksumIndexOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
@@ -55,30 +52,6 @@ import java.util.zip.Adler32;
  */
 public class Store extends AbstractIndexShardComponent {
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                "index.store.compress.stored",
-                "index.store.compress.tv"
-        );
-    }
-
-    class ApplySettings implements IndexSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            boolean compressStored = settings.getAsBoolean("index.store.compress.stored", Store.this.compressStored);
-            if (compressStored != Store.this.compressStored) {
-                logger.info("updating [index.store.compress.stored] from [{}] to [{}]", Store.this.compressStored, compressStored);
-                Store.this.compressStored = compressStored;
-            }
-            boolean compressTv = settings.getAsBoolean("index.store.compress.tv", Store.this.compressTv);
-            if (compressTv != Store.this.compressTv) {
-                logger.info("updating [index.store.compress.tv] from [{}] to [{}]", Store.this.compressTv, compressTv);
-                Store.this.compressTv = compressTv;
-            }
-        }
-    }
-
-
     static final String CHECKSUMS_PREFIX = "_checksums-";
 
     public static final boolean isChecksum(String name) {
@@ -86,8 +59,6 @@ public class Store extends AbstractIndexShardComponent {
     }
 
     private final IndexStore indexStore;
-
-    private final IndexSettingsService indexSettingsService;
 
     private final DirectoryService directoryService;
 
@@ -101,27 +72,13 @@ public class Store extends AbstractIndexShardComponent {
 
     private final boolean sync;
 
-    private volatile boolean compressStored;
-    private volatile boolean compressTv;
-
-    private final ApplySettings applySettings = new ApplySettings();
-
-
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, IndexSettingsService indexSettingsService, DirectoryService directoryService) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, DirectoryService directoryService) throws IOException {
         super(shardId, indexSettings);
         this.indexStore = indexStore;
-        this.indexSettingsService = indexSettingsService;
         this.directoryService = directoryService;
         this.sync = componentSettings.getAsBoolean("sync", true); // TODO we don't really need to fsync when using shared gateway...
         this.directory = new StoreDirectory(directoryService.build());
-
-        this.compressStored = componentSettings.getAsBoolean("compress.stored", false);
-        this.compressTv = componentSettings.getAsBoolean("compress.tv", false);
-
-        logger.debug("using compress.stored [{}], compress.tv [{}]", compressStored, compressTv);
-
-        indexSettingsService.addListener(applySettings);
     }
 
     public IndexStore indexStore() {
@@ -292,7 +249,6 @@ public class Store extends AbstractIndexShardComponent {
     }
 
     public void close() throws IOException {
-        indexSettingsService.removeListener(applySettings);
         directory.close();
     }
 
@@ -477,17 +433,8 @@ public class Store extends AbstractIndexShardComponent {
                         computeChecksum = false;
                     }
                 }
-                if (!raw && ((compressStored && name.endsWith(".fdt")) || (compressTv && name.endsWith(".tvf")))) {
-                    if (computeChecksum) {
-                        // with compression, there is no need for buffering when doing checksums
-                        // since we have buffering on the compressed index output
-                        out = new ChecksumIndexOutput(out, new Adler32());
-                    }
-                    out = CompressorFactory.defaultCompressor().indexOutput(out);
-                } else {
-                    if (computeChecksum) {
-                        out = new BufferedChecksumIndexOutput(out, new Adler32());
-                    }
+                if (computeChecksum) {
+                    out = new BufferedChecksumIndexOutput(out, new Adler32());
                 }
                 return new StoreIndexOutput(metaData, out, name);
             }
@@ -500,6 +447,7 @@ public class Store extends AbstractIndexShardComponent {
                 throw new FileNotFoundException(name);
             }
             IndexInput in = metaData.directory().openInput(name, context);
+            // Only for backward comp. since we now use Lucene codec compression
             if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
                 Compressor compressor = CompressorFactory.compressor(in);
                 if (compressor != null) {
@@ -515,6 +463,7 @@ public class Store extends AbstractIndexShardComponent {
             if (metaData == null) {
                 throw new FileNotFoundException(name);
             }
+            // Only for backward comp. since we now use Lucene codec compression
             if (name.endsWith(".fdt") || name.endsWith(".tvf")) {
                 // rely on the slicer from the base class that uses an input, since they might be compressed...
                 // note, it seems like slicers are only used in compound file format..., so not relevant for now
@@ -613,9 +562,6 @@ public class Store extends AbstractIndexShardComponent {
             out.close();
             String checksum = null;
             IndexOutput underlying = out;
-            if (out instanceof CompressedIndexOutput) {
-                underlying = ((CompressedIndexOutput) out).underlying();
-            }
             if (underlying instanceof BufferedChecksumIndexOutput) {
                 checksum = Long.toString(((BufferedChecksumIndexOutput) underlying).digest().getValue(), Character.MAX_RADIX);
             } else if (underlying instanceof ChecksumIndexOutput) {

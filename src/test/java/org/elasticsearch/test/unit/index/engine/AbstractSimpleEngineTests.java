@@ -122,11 +122,11 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     protected Store createStore() throws IOException {
-        return new Store(shardId, EMPTY_SETTINGS, null, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS), new RamDirectoryService(shardId, EMPTY_SETTINGS));
+        return new Store(shardId, EMPTY_SETTINGS, null, new RamDirectoryService(shardId, EMPTY_SETTINGS));
     }
 
     protected Store createStoreReplica() throws IOException {
-        return new Store(shardId, EMPTY_SETTINGS, null, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS), new RamDirectoryService(shardId, EMPTY_SETTINGS));
+        return new Store(shardId, EMPTY_SETTINGS, null, new RamDirectoryService(shardId, EMPTY_SETTINGS));
     }
 
     protected Translog createTranslog() {

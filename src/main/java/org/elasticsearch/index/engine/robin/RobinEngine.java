@@ -49,7 +49,6 @@ import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.merge.policy.EnableMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
@@ -990,9 +989,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             if (indexWriter == null) {
                 throw new EngineClosedException(shardId, failedEngine);
             }
-            if (indexWriter.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
-                ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).enableMerge();
-            }
             indexWriter.maybeMerge();
         } catch (OutOfMemoryError e) {
             failEngine(e);
@@ -1006,9 +1002,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             throw new OptimizeFailedEngineException(shardId, e);
         } finally {
             rwl.readLock().unlock();
-            if (indexWriter != null && indexWriter.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
-                ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).disableMerge();
-            }
         }
     }
 
@@ -1022,9 +1015,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             try {
                 if (indexWriter == null) {
                     throw new EngineClosedException(shardId, failedEngine);
-                }
-                if (indexWriter.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
-                    ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).enableMerge();
                 }
                 if (optimize.onlyExpungeDeletes()) {
                     indexWriter.forceMergeDeletes(false);
@@ -1046,9 +1036,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 throw new OptimizeFailedEngineException(shardId, e);
             } finally {
                 rwl.readLock().unlock();
-                if (indexWriter != null && indexWriter.getConfig().getMergePolicy() instanceof EnableMergePolicy) {
-                    ((EnableMergePolicy) indexWriter.getConfig().getMergePolicy()).disableMerge();
-                }
                 optimizeMutex.set(false);
             }
         }

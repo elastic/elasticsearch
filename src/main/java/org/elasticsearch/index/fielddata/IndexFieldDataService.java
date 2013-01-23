@@ -113,10 +113,10 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     }
 
     public <IFD extends IndexFieldData> IFD getForField(FieldMapper.Names fieldNames, FieldDataType type) {
-        IndexFieldData fieldData = loadedFieldData.get(type.getType());
+        IndexFieldData fieldData = loadedFieldData.get(fieldNames.indexName());
         if (fieldData == null) {
             synchronized (loadedFieldData) {
-                fieldData = loadedFieldData.get(type.getType());
+                fieldData = loadedFieldData.get(fieldNames.indexName());
                 if (fieldData == null) {
                     IndexFieldData.Builder builder = null;
                     if (type.getFormat() != null) {

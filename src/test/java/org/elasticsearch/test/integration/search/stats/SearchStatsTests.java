@@ -87,7 +87,7 @@ public class SearchStatsTests extends AbstractNodesTests {
         assertThat(indicesStats.total().search().groupStats().get("group1").fetchTimeInMillis(), greaterThan(0l));
 
         NodesStatsResponse nodeStats = client.admin().cluster().prepareNodesStats().execute().actionGet();
-        assertThat(nodeStats.nodes()[0].indices().search().total().queryCount(), greaterThan(0l));
-        assertThat(nodeStats.nodes()[0].indices().search().total().queryTimeInMillis(), greaterThan(0l));
+        assertThat(nodeStats.nodes()[0].indices().getSearch().total().queryCount(), greaterThan(0l));
+        assertThat(nodeStats.nodes()[0].indices().getSearch().total().queryTimeInMillis(), greaterThan(0l));
     }
 }

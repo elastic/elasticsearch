@@ -21,10 +21,14 @@ package org.elasticsearch.index.fielddata;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalListener;
+import com.google.common.cache.RemovalNotification;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.concurrent.Callable;
 
@@ -41,14 +45,35 @@ public interface IndexFieldDataCache {
 
     void clear(Index index, IndexReader reader);
 
+    interface Listener {
+
+        void onLoad(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData fieldData);
+
+        void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, @Nullable AtomicFieldData fieldData);
+    }
+
     /**
      * The resident field data cache is a *per field* cache that keeps all the values in memory.
      */
-    static abstract class FieldBased implements IndexFieldDataCache, SegmentReader.CoreClosedListener {
+    static abstract class FieldBased implements IndexFieldDataCache, SegmentReader.CoreClosedListener, RemovalListener<Object, AtomicFieldData> {
+        private final Index index;
+        private final FieldMapper.Names fieldNames;
+        private final FieldDataType fieldDataType;
+        private final Listener listener;
         private final Cache<Object, AtomicFieldData> cache;
 
-        protected FieldBased(Cache<Object, AtomicFieldData> cache) {
-            this.cache = cache;
+        protected FieldBased(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, Listener listener, CacheBuilder cache) {
+            this.index = index;
+            this.fieldNames = fieldNames;
+            this.fieldDataType = fieldDataType;
+            this.listener = listener;
+            cache.removalListener(this);
+            this.cache = cache.build();
+        }
+
+        @Override
+        public void onRemoval(RemovalNotification<Object, AtomicFieldData> notification) {
+            listener.onUnload(index, fieldNames, fieldDataType, notification.getValue());
         }
 
         @Override
@@ -65,7 +90,9 @@ public interface IndexFieldDataCache {
                     if (context.reader() instanceof SegmentReader) {
                         ((SegmentReader) context.reader()).addCoreClosedListener(FieldBased.this);
                     }
-                    return indexFieldData.loadDirect(context);
+                    AtomicFieldData fieldData = indexFieldData.loadDirect(context);
+                    listener.onLoad(index, fieldNames, fieldDataType, fieldData);
+                    return fieldData;
                 }
             });
         }
@@ -88,15 +115,15 @@ public interface IndexFieldDataCache {
 
     static class Resident extends FieldBased {
 
-        public Resident() {
-            super(CacheBuilder.newBuilder().<Object, AtomicFieldData>build());
+        public Resident(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, Listener listener) {
+            super(index, fieldNames, fieldDataType, listener, CacheBuilder.newBuilder());
         }
     }
 
     static class Soft extends FieldBased {
 
-        public Soft() {
-            super(CacheBuilder.newBuilder().softValues().<Object, AtomicFieldData>build());
+        public Soft(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, Listener listener) {
+            super(index, fieldNames, fieldDataType, listener, CacheBuilder.newBuilder().softValues());
         }
     }
 }

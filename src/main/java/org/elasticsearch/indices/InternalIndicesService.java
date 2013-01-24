@@ -42,6 +42,7 @@ import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataModule;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.flush.FlushStats;
@@ -186,6 +187,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         GetStats getStats = new GetStats();
         SearchStats searchStats = new SearchStats();
         CacheStats cacheStats = new CacheStats();
+        FieldDataStats fieldDataStats = new FieldDataStats();
         MergeStats mergeStats = new MergeStats();
         RefreshStats refreshStats = new RefreshStats();
         FlushStats flushStats = new FlushStats();
@@ -211,8 +213,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 flushStats.add(indexShard.flushStats());
             }
             cacheStats.add(indexService.cache().stats());
+            fieldDataStats.add(indexService.fieldData().stats());
         }
-        return new NodeIndicesStats(storeStats, docsStats, indexingStats, getStats, searchStats, cacheStats, mergeStats, refreshStats, flushStats);
+        return new NodeIndicesStats(storeStats, docsStats, indexingStats, getStats, searchStats, cacheStats, fieldDataStats, mergeStats, refreshStats, flushStats);
     }
 
     /**

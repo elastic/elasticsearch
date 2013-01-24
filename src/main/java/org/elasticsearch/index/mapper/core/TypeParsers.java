@@ -118,6 +118,8 @@ public class TypeParsers {
                 builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
             } else if (propName.equals("similarity")) {
                 builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
+            } else if (propName.equals("fielddata")) {
+                builder.fieldDataSettings(propNode.toString());
             }
         }
     }

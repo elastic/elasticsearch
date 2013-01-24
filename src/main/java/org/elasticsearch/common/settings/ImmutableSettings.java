@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Classes;
@@ -585,6 +586,18 @@ public class ImmutableSettings implements Settings {
         public Builder put(Properties properties) {
             for (Map.Entry entry : properties.entrySet()) {
                 map.put((String) entry.getKey(), (String) entry.getValue());
+            }
+            return this;
+        }
+
+        public Builder loadFromDelimitedString(String value, char delimiter) {
+            String[] values = Strings.splitStringToArray(value, delimiter);
+            for (String s : values) {
+                int index = s.indexOf('=');
+                if (index == -1) {
+                    throw new ElasticSearchIllegalArgumentException("value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
+                }
+                map.put(s.substring(0, index), s.substring(index + 1));
             }
             return this;
         }

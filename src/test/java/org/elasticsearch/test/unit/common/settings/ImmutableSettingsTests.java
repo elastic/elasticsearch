@@ -62,4 +62,21 @@ public class ImmutableSettingsTests {
 
     }
 
+    @Test
+    public void testLoadFromDelimitedString() {
+        Settings settings = settingsBuilder()
+                .loadFromDelimitedString("key1=value1;key2=value2", ';')
+                .build();
+        assertThat(settings.get("key1"), equalTo("value1"));
+        assertThat(settings.get("key2"), equalTo("value2"));
+        assertThat(settings.getAsMap().size(), equalTo(2));
+
+        settings = settingsBuilder()
+                .loadFromDelimitedString("key1=value1;key2=value2;", ';')
+                .build();
+        assertThat(settings.get("key1"), equalTo("value1"));
+        assertThat(settings.get("key2"), equalTo("value2"));
+        assertThat(settings.getAsMap().size(), equalTo(2));
+    }
+
 }

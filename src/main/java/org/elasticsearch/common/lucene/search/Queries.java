@@ -143,7 +143,7 @@ public class Queries {
     private static Pattern spacePattern = Pattern.compile(" ");
     private static Pattern lessThanPattern = Pattern.compile("<");
 
-    static int calculateMinShouldMatch(int optionalClauseCount, String spec) {
+    public static int calculateMinShouldMatch(int optionalClauseCount, String spec) {
         int result = optionalClauseCount;
         spec = spec.trim();
 

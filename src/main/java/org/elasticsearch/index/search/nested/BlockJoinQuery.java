@@ -295,11 +295,11 @@ public class BlockJoinQuery extends Query {
                 }
 
                 int totalScore = 0;
-                int totalFreq = 0;
                 float maxScore = Float.NEGATIVE_INFINITY;
                 int maxFreq = 0;
 
                 childDocUpto = 0;
+                parentFreq = 0;
                 do {
 
                     //System.out.println("  c=" + nextChildDoc);
@@ -318,7 +318,7 @@ public class BlockJoinQuery extends Query {
                         maxScore = Math.max(childScore, maxScore);
                         maxFreq = Math.max(childFreq, maxFreq);
                         totalScore += childScore;
-                        totalFreq += childFreq;
+                        parentFreq += childFreq;
                     }
 
                     // CHANGE:
@@ -334,15 +334,12 @@ public class BlockJoinQuery extends Query {
                 switch (scoreMode) {
                     case Avg:
                         parentScore = totalScore / childDocUpto;
-                        parentFreq = totalFreq / childDocUpto;
                         break;
                     case Max:
                         parentScore = maxScore;
-                        parentFreq = maxFreq;
                         break;
                     case Total:
                         parentScore = totalScore;
-                        parentFreq = totalFreq;
                         break;
                     case None:
                         break;

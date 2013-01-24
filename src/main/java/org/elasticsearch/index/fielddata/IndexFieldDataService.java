@@ -119,17 +119,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 fieldData = loadedFieldData.get(fieldNames.indexName());
                 if (fieldData == null) {
                     IndexFieldData.Builder builder = null;
-                    if (type.getFormat() != null) {
-                        builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), type.getFormat()));
-                        if (builder == null) {
-                            logger.warn("failed to find format [" + type.getFormat() + "] for field [" + fieldNames.fullName() + "], will use default");
-                        }
-                    }
-                    String format = indexSettings.get("index.fielddata.type." + type.getType() + ".format", null);
+                    String format = type.getSettings().get("format", indexSettings.get("index.fielddata.type." + type.getType() + ".format", null));
                     if (format != null) {
-                        builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), type.getFormat()));
+                        builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
                         if (builder == null) {
-                            logger.warn("failed to find index level type format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
+                            logger.warn("failed to find format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
                         }
                     }
                     if (builder == null) {
@@ -140,17 +134,13 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                     }
 
                     IndexFieldDataCache cache;
-                    if (type.getOptions().containsKey("cache")) {
-                        String cacheType = type.getOptions().get("cache");
-                        if ("resident".equals(cacheType)) {
-                            cache = new IndexFieldDataCache.Resident();
-                        } else if ("soft".equals(cacheType)) {
-                            cache = new IndexFieldDataCache.Soft();
-                        } else {
-                            throw new ElasticSearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
-                        }
-                    } else {
+                    String cacheType = type.getSettings().get("cache", indexSettings.get("index.fielddata.cache", "resident"));
+                    if ("resident".equals(cacheType)) {
                         cache = new IndexFieldDataCache.Resident();
+                    } else if ("soft".equals(cacheType)) {
+                        cache = new IndexFieldDataCache.Soft();
+                    } else {
+                        throw new ElasticSearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
                     }
 
                     fieldData = builder.build(index, indexSettings, fieldNames, type, cache);

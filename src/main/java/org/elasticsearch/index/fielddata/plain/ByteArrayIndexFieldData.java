@@ -149,7 +149,7 @@ public class ByteArrayIndexFieldData extends AbstractIndexFieldData<ByteArrayAto
             return new ByteArrayAtomicFieldData.WithOrdinals(
                     values.toArray(new byte[values.size()]),
                     reader.maxDoc(),
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
             );
         }
     }

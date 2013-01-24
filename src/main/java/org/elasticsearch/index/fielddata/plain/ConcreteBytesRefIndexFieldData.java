@@ -145,7 +145,7 @@ public class ConcreteBytesRefIndexFieldData extends AbstractIndexFieldData<Concr
             }
             return new ConcreteBytesRefAtomicFieldData(
                     values.toArray(new BytesRef[values.size()]),
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
             );
         }
     }

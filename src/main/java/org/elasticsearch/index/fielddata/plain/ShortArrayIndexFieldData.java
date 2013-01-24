@@ -149,7 +149,7 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
             return new ShortArrayAtomicFieldData.WithOrdinals(
                     values.toArray(new short[values.size()]),
                     reader.maxDoc(),
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
             );
         }
     }

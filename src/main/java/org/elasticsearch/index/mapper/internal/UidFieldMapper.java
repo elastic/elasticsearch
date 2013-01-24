@@ -26,6 +26,7 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -129,7 +130,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public FieldDataType fieldDataType() {
-        return new FieldDataType("string", "paged_bytes");
+        return new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes"));
     }
 
     @Override

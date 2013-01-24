@@ -360,6 +360,10 @@ public class ImmutableSettings implements Settings {
         }
     }
 
+    public static Builder builder() {
+        return new Builder();
+    }
+
     /**
      * Returns a builder to be used in order to build settings.
      */

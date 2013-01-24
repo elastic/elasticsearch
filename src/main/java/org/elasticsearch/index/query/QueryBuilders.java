@@ -65,6 +65,16 @@ public abstract class QueryBuilders {
     public static MatchQueryBuilder matchQuery(String name, Object text) {
         return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.BOOLEAN);
     }
+    
+    /**
+     * Creates a common query for the provided field name and text.
+     *
+     * @param name The field name.
+     * @param text The query text (to be analyzed).
+     */
+    public static CommonTermsQueryBuilder commonTerms(String name, Object text) {
+        return new CommonTermsQueryBuilder(name, text);
+    }
 
     /**
      * Creates a match query with type "BOOLEAN" for the provided field name and text.

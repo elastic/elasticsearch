@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -104,7 +105,43 @@ public class SimpleQueryTests extends AbstractNodesTests {
             assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
         }
     }
+    
+    @Test
+    public void testCommonTermsQuery() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
 
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
+                .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown").setRefresh(true).execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("standard")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        // standard drops "the" since its a stopword
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
+    }
+    
     @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
         // backwards compat test!

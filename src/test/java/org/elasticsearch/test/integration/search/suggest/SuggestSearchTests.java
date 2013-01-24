@@ -62,11 +62,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
     @Test
     public void testSimple() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").execute().actionGet();
 
         client.prepareIndex("test", "type1")
@@ -138,12 +134,9 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
     @Test
     public void testEmpty() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
 
         SearchResponse search = client.prepareSearch()
                 .setQuery(matchQuery("text", "spellcecker"))
@@ -178,11 +171,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
     @Test
     public void testWithMultipleCommands() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").execute().actionGet();
 
         client.prepareIndex("test", "type1")
@@ -251,11 +240,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
     @Test
     public void testSizeAndSort() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+        client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").execute().actionGet();
 
         Map<String, Integer> termsAndDocCount = new HashMap<String, Integer>();

@@ -41,6 +41,7 @@ import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -102,6 +103,8 @@ public class SearchSourceBuilder implements ToXContent {
     private BytesReference facetsBinary;
 
     private HighlightBuilder highlightBuilder;
+
+    private SuggestBuilder suggestBuilder;
 
     private TObjectFloatHashMap<String> indexBoost = null;
 
@@ -398,6 +401,13 @@ public class SearchSourceBuilder implements ToXContent {
     public SearchSourceBuilder highlight(HighlightBuilder highlightBuilder) {
         this.highlightBuilder = highlightBuilder;
         return this;
+    }
+
+    public SuggestBuilder suggest() {
+        if (suggestBuilder == null) {
+            suggestBuilder = new SuggestBuilder();
+        }
+        return suggestBuilder;
     }
 
     /**
@@ -707,6 +717,10 @@ public class SearchSourceBuilder implements ToXContent {
 
         if (highlightBuilder != null) {
             highlightBuilder.toXContent(builder, params);
+        }
+
+        if (suggestBuilder != null) {
+            suggestBuilder.toXContent(builder, params);
         }
 
         if (stats != null) {

@@ -35,6 +35,7 @@ import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
+import org.elasticsearch.search.suggest.SuggestPhase;
 
 import java.util.Map;
 
@@ -44,10 +45,12 @@ import java.util.Map;
 public class QueryPhase implements SearchPhase {
 
     private final FacetPhase facetPhase;
+    private final SuggestPhase suggestPhase;
 
     @Inject
-    public QueryPhase(FacetPhase facetPhase) {
+    public QueryPhase(FacetPhase facetPhase, SuggestPhase suggestPhase) {
         this.facetPhase = facetPhase;
+        this.suggestPhase = suggestPhase;
     }
 
     @Override
@@ -68,7 +71,8 @@ public class QueryPhase implements SearchPhase {
                 .put("min_score", new MinScoreParseElement())
                 .put("minScore", new MinScoreParseElement())
                 .put("timeout", new TimeoutParseElement())
-                .putAll(facetPhase.parseElements());
+                .putAll(facetPhase.parseElements())
+                .putAll(suggestPhase.parseElements());
         return parseElements.build();
     }
 
@@ -185,6 +189,7 @@ public class QueryPhase implements SearchPhase {
             searchContext.searcher().processedScope();
         }
 
+        suggestPhase.execute(searchContext);
         facetPhase.execute(searchContext);
     }
 }

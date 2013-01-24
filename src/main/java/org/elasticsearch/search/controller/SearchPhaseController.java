@@ -48,6 +48,7 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.suggest.Suggest;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -373,7 +374,38 @@ public class SearchPhaseController extends AbstractComponent {
             }
         }
 
+        // merge suggest results
+        Suggest suggest = null;
+        if (!queryResults.isEmpty()) {
+            List<Suggest.Suggestion> mergedSuggestions = null;
+            for (QuerySearchResultProvider resultProvider : queryResults.values()) {
+                Suggest shardResult = resultProvider.queryResult().suggest();
+                if (shardResult == null) {
+                    continue;
+                }
+
+                if (mergedSuggestions == null) {
+                    mergedSuggestions = shardResult.getSuggestions();
+                    continue;
+                }
+
+                for (Suggest.Suggestion shardCommand : shardResult.getSuggestions()) {
+                    for (Suggest.Suggestion mergedSuggestion : mergedSuggestions) {
+                        if (mergedSuggestion.getName().equals(shardCommand.getName())) {
+                            mergedSuggestion.reduce(shardCommand);
+                        }
+                    }
+                }
+            }
+            if (mergedSuggestions != null) {
+                suggest = new Suggest(mergedSuggestions);
+                for (Suggest.Suggestion suggestion : mergedSuggestions) {
+                    suggestion.trim();
+                }
+            }
+        }
+
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
-        return new InternalSearchResponse(searchHits, facets, timedOut);
+        return new InternalSearchResponse(searchHits, facets, suggest, timedOut);
     }
 }

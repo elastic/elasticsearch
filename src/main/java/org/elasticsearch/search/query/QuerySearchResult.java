@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
@@ -43,6 +44,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private int size;
     private TopDocs topDocs;
     private InternalFacets facets;
+    private Suggest suggest;
     private boolean searchTimedOut;
 
     public QuerySearchResult() {
@@ -101,6 +103,14 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         this.facets = facets;
     }
 
+    public Suggest suggest() {
+        return suggest;
+    }
+
+    public void suggest(Suggest suggest) {
+        this.suggest = suggest;
+    }
+
     public int from() {
         return from;
     }
@@ -136,6 +146,9 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         if (in.readBoolean()) {
             facets = InternalFacets.readFacets(in);
         }
+        if (in.readBoolean()) {
+            suggest = Suggest.readSuggest(in);
+        }
         searchTimedOut = in.readBoolean();
     }
 
@@ -152,6 +165,12 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         } else {
             out.writeBoolean(true);
             facets.writeTo(out);
+        }
+        if (suggest == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            suggest.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
     }

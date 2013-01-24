@@ -31,6 +31,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
 
@@ -103,6 +104,10 @@ public class SearchResponse extends ActionResponse implements ToXContent {
      */
     public Facets facets() {
         return internalResponse.facets();
+    }
+
+    public Suggest suggest() {
+        return internalResponse.suggest();
     }
 
     /**

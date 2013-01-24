@@ -251,7 +251,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                         FieldQuery fieldQuery = null;
                         if (entry == null) {
                             FragListBuilder fragListBuilder;
-                            AbstractFragmentsBuilder fragmentsBuilder;
+                            BaseFragmentsBuilder fragmentsBuilder;
 
                             BoundaryScanner boundaryScanner = SimpleBoundaryScanner2.DEFAULT;
                             if (field.boundaryMaxScan() != SimpleBoundaryScanner2.DEFAULT_MAX_SCAN || field.boundaryChars() != SimpleBoundaryScanner2.DEFAULT_BOUNDARY_CHARS) {

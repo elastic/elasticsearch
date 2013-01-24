@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.testng.annotations.Test;
 
@@ -30,6 +30,6 @@ public class PagedBytesStringFieldDataTests extends StringFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", "paged_bytes", ImmutableMap.<String, String>of());
+        return new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes"));
     }
 }

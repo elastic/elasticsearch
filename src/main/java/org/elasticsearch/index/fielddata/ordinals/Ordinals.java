@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
-
-import java.util.Map;
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
@@ -30,18 +30,16 @@ public interface Ordinals {
 
     static class Factories {
 
-        public static Ordinals createFromFlatOrdinals(int[][] ordinals, int numOrds, Map<String, String> options) {
-            String multiOrdinals = options.get("multi_ordinals");
+        public static Ordinals createFromFlatOrdinals(int[][] ordinals, int numOrds, Settings settings) {
+            String multiOrdinals = settings.get("multi_ordinals", "sparse");
             if ("flat".equals(multiOrdinals)) {
                 return new MultiFlatArrayOrdinals(ordinals, numOrds);
+            } else if ("sparse".equals(multiOrdinals)) {
+                int multiOrdinalsMaxDocs = settings.getAsInt("multi_ordinals_max_docs", 16777216 /*Equal to 64MB per storage array*/);
+                return new SparseMultiArrayOrdinals(ordinals, numOrds, multiOrdinalsMaxDocs);
+            } else {
+                throw new ElasticSearchIllegalArgumentException("no applicable fielddata multi_ordinals value, got [" + multiOrdinals + "]");
             }
-            int multiOrdinalsMaxDocs = 16777216; // Equal to 64MB per storage array
-            String multiOrdinalsMaxDocsVal = options.get("multi_ordinals_max_docs");
-            if (multiOrdinalsMaxDocsVal != null) {
-                multiOrdinalsMaxDocs = Integer.valueOf(multiOrdinalsMaxDocsVal);
-            }
-
-            return new SparseMultiArrayOrdinals(ordinals, numOrds, multiOrdinalsMaxDocs);
         }
     }
 

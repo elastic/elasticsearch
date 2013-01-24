@@ -149,7 +149,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
             return new DoubleArrayAtomicFieldData.WithOrdinals(
                     values.toArray(new double[values.size()]),
                     reader.maxDoc(),
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
             );
         }
     }

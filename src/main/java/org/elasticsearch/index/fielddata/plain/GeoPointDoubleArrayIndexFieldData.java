@@ -153,7 +153,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
                     lon.toArray(new double[lon.size()]),
                     lat.toArray(new double[lat.size()]),
                     reader.maxDoc(),
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
             );
         }
     }

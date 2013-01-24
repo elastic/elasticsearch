@@ -19,42 +19,54 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  */
 public class FieldDataType {
 
     private final String type;
-    @Nullable
-    private final String format;
-    private final ImmutableMap<String, String> options;
+    private final Settings settings;
 
     public FieldDataType(String type) {
-        this(type, null, ImmutableMap.<String, String>of());
+        this(type, ImmutableSettings.Builder.EMPTY_SETTINGS);
     }
 
-    public FieldDataType(String type, String format) {
-        this(type, format, ImmutableMap.<String, String>of());
+    public FieldDataType(String type, Settings.Builder builder) {
+        this(type, builder.build());
     }
 
-    public FieldDataType(String type, @Nullable String format, ImmutableMap<String, String> options) {
+    public FieldDataType(String type, Settings settings) {
         this.type = type;
-        this.format = format;
-        this.options = options;
+        this.settings = settings;
     }
 
     public String getType() {
         return this.type;
     }
 
-    @Nullable
-    public String getFormat() {
-        return this.format;
+    public Settings getSettings() {
+        return this.settings;
     }
 
-    public ImmutableMap<String, String> getOptions() {
-        return this.options;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        FieldDataType that = (FieldDataType) o;
+
+        if (!settings.equals(that.settings)) return false;
+        if (!type.equals(that.type)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = type.hashCode();
+        result = 31 * result + settings.hashCode();
+        return result;
     }
 }

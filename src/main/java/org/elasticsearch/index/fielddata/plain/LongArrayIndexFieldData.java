@@ -149,7 +149,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
             return new LongArrayAtomicFieldData.WithOrdinals(
                     values.toArray(new long[values.size()]),
                     reader.maxDoc(),
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
             );
         }
     }

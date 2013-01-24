@@ -178,7 +178,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
             return new PagedBytesAtomicFieldData(
                     bytesReader,
                     termOrdToBytesOffsetReader,
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getOptions())
+                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
             );
         }
 

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.testng.annotations.Test;
 
@@ -30,6 +30,6 @@ public class ConcreteBytesStringFieldDataTests extends StringFieldDataTests {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", "concrete_bytes", ImmutableMap.<String, String>of());
+        return new FieldDataType("string", ImmutableSettings.builder().put("format", "concrete_bytes"));
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.google.common.base.Objects;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -33,10 +34,13 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XTermsFilter;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -140,6 +144,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         public T similarity(SimilarityProvider similarity) {
             return super.similarity(similarity);
         }
+
+        public T fieldDataSettings(String settings) {
+            return super.fieldDataSettings(settings);
+        }
     }
 
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
@@ -154,6 +162,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         protected boolean indexOptionsSet = false;
         protected PostingsFormatProvider provider;
         protected SimilarityProvider similarity;
+        @Nullable
+        protected Settings fieldDataSettings;
 
         protected Builder(String name, FieldType fieldType) {
             super(name);
@@ -245,6 +255,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return builder;
         }
 
+        protected T fieldDataSettings(String settings) {
+            this.fieldDataSettings = ImmutableSettings.builder().loadFromDelimitedString(settings, ';').build();
+            return builder;
+        }
+
         protected Names buildNames(BuilderContext context) {
             return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context), context.path().sourcePath());
         }
@@ -267,8 +282,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     protected PostingsFormatProvider postingsFormat;
     protected final SimilarityProvider similarity;
 
+    protected Settings customFieldDataSettings;
+    protected FieldDataType fieldDataType;
+
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, NamedAnalyzer indexAnalyzer,
-                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat, SimilarityProvider similarity) {
+                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat, SimilarityProvider similarity,
+                                  @Nullable Settings fieldDataSettings) {
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -293,6 +312,16 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
         this.postingsFormat = postingsFormat;
         this.similarity = similarity;
+
+        this.customFieldDataSettings = fieldDataSettings;
+        if (fieldDataSettings == null) {
+            this.fieldDataType = defaultFieldDataType();
+        } else {
+            // create a new field data type, with the default settings as well as the "new ones"
+            this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
+                    ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(fieldDataSettings)
+            );
+        }
     }
 
     @Nullable
@@ -311,6 +340,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     public abstract FieldType defaultFieldType();
+
+    public abstract FieldDataType defaultFieldDataType();
+
+    @Override
+    public final FieldDataType fieldDataType() {
+        return fieldDataType;
+    }
 
     @Override
     public FieldType fieldType() {
@@ -547,6 +583,15 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             if (fieldMergeWith.postingsFormat != null) {
                 this.postingsFormat = fieldMergeWith.postingsFormat;
             }
+            if (fieldMergeWith.customFieldDataSettings != null) {
+                if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
+                    this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
+                    this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
+                            ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
+                    );
+                    mergeContext.addFieldDataChange(this);
+                }
+            }
         }
     }
 
@@ -619,6 +664,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
+        }
+
+        if (customFieldDataSettings != null) {
+            builder.field("fielddata", customFieldDataSettings.toDelimitedString(';'));
         }
     }
 

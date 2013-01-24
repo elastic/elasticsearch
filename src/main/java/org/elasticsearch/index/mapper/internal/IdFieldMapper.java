@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -93,7 +94,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            return new IdFieldMapper(name, indexName, boost, fieldType, path, provider);
+            return new IdFieldMapper(name, indexName, boost, fieldType, path, provider, fieldDataSettings);
         }
     }
 
@@ -124,13 +125,13 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     protected IdFieldMapper(String name, String indexName, FieldType fieldType) {
-        this(name, indexName, Defaults.BOOST, fieldType, Defaults.PATH, null);
+        this(name, indexName, Defaults.BOOST, fieldType, Defaults.PATH, null, null);
     }
 
     protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, String path,
-                            PostingsFormatProvider provider) {
+                            PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, provider, null);
+                Lucene.KEYWORD_ANALYZER, provider, null, fieldDataSettings);
         this.path = path;
     }
 
@@ -144,7 +145,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public FieldDataType fieldDataType() {
+    public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
     }
 

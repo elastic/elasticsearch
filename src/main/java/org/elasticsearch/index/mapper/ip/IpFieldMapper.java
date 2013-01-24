@@ -30,12 +30,14 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
@@ -114,7 +116,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         public IpFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context), provider, similarity);
+                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -141,10 +143,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     protected IpFieldMapper(Names names, int precisionStep,
                             float boost, FieldType fieldType,
                             String nullValue, Explicit<Boolean> ignoreMalformed,
-                            PostingsFormatProvider provider, SimilarityProvider similarity) {
+                            PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
         super(names, precisionStep, null, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
-                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), provider, similarity);
+                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
     }
 
@@ -154,8 +156,8 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType() {
-        return new org.elasticsearch.index.fielddata.FieldDataType("long");
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("long");
     }
 
     @Override

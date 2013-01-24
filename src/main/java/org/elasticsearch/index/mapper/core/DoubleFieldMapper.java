@@ -33,6 +33,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -89,7 +90,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             DoubleFieldMapper fieldMapper = new DoubleFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
-                    ignoreMalformed(context), provider, similarity);
+                    ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -119,10 +120,10 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     protected DoubleFieldMapper(Names names, int precisionStep, String fuzzyFactor,
                                 float boost, FieldType fieldType,
                                 Double nullValue, Explicit<Boolean> ignoreMalformed,
-                                PostingsFormatProvider provider, SimilarityProvider similarity) {
+                                PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
         super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_double/" + precisionStep, new NumericDoubleAnalyzer(precisionStep)),
-                new NamedAnalyzer("_double/max", new NumericDoubleAnalyzer(Integer.MAX_VALUE)), provider, similarity);
+                new NamedAnalyzer("_double/max", new NumericDoubleAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
@@ -133,7 +134,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     }
 
     @Override
-    public FieldDataType fieldDataType() {
+    public FieldDataType defaultFieldDataType() {
         return new FieldDataType("double");
     }
 

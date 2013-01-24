@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
+import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
 
@@ -41,16 +42,19 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private InternalFacets facets;
 
+    private Suggest suggest;
+
     private boolean timedOut;
 
-    public static final InternalSearchResponse EMPTY = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, false);
+    public static final InternalSearchResponse EMPTY = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[0], 0, 0), null, null, false);
 
     private InternalSearchResponse() {
     }
 
-    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, boolean timedOut) {
+    public InternalSearchResponse(InternalSearchHits hits, InternalFacets facets, Suggest suggest, boolean timedOut) {
         this.hits = hits;
         this.facets = facets;
+        this.suggest = suggest;
         this.timedOut = timedOut;
     }
 
@@ -66,11 +70,18 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         return facets;
     }
 
+    public Suggest suggest() {
+        return suggest;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         hits.toXContent(builder, params);
         if (facets != null) {
             facets.toXContent(builder, params);
+        }
+        if (suggest != null) {
+            suggest.toXContent(builder, params);
         }
         return builder;
     }
@@ -87,6 +98,9 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         if (in.readBoolean()) {
             facets = InternalFacets.readFacets(in);
         }
+        if (in.readBoolean()) {
+            suggest = Suggest.readSuggest(in);
+        }
         timedOut = in.readBoolean();
     }
 
@@ -98,6 +112,12 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             facets.writeTo(out);
+        }
+        if (suggest == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            suggest.writeTo(out);
         }
         out.writeBoolean(timedOut);
     }

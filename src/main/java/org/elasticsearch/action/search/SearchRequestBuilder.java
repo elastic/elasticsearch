@@ -37,6 +37,7 @@ import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.util.Map;
 
@@ -647,6 +648,22 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#setText(String)}.
+     */
+    public SearchRequestBuilder setSuggestText(String globalText) {
+        suggestBuilder().setText(globalText);
+        return this;
+    }
+
+    /**
+     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#addSuggestion(org.elasticsearch.search.suggest.SuggestBuilder.Suggestion)}.
+     */
+    public SearchRequestBuilder addSuggestion(SuggestBuilder.Suggestion suggestion) {
+        suggestBuilder().addSuggestion(suggestion);
+        return this;
+    }
+
+    /**
      * Sets the source of the request as a json string. Note, settings anything other
      * than the search type will cause this source to be overridden, consider using
      * {@link #setExtraSource(String)}.
@@ -818,4 +835,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     private HighlightBuilder highlightBuilder() {
         return sourceBuilder().highlighter();
     }
+
+    private SuggestBuilder suggestBuilder() {
+        return sourceBuilder().suggest();
+    }
+
 }

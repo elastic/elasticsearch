@@ -34,11 +34,13 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
@@ -89,7 +91,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType,
-                    nullValue, ignoreMalformed(context), provider, similarity);
+                    nullValue, ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -118,10 +120,10 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     protected IntegerFieldMapper(Names names, int precisionStep, String fuzzyFactor,
                                  float boost, FieldType fieldType,
                                  Integer nullValue, Explicit<Boolean> ignoreMalformed,
-                                 PostingsFormatProvider provider, SimilarityProvider similarity) {
+                                 PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
         super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_int/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
-                new NamedAnalyzer("_int/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider, similarity);
+                new NamedAnalyzer("_int/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
@@ -132,8 +134,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public org.elasticsearch.index.fielddata.FieldDataType fieldDataType() {
-        return new org.elasticsearch.index.fielddata.FieldDataType("int");
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("int");
     }
 
     @Override

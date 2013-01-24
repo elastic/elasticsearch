@@ -22,7 +22,9 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -83,7 +85,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
         @Override
         public TTLFieldMapper build(BuilderContext context) {
-            return new TTLFieldMapper(fieldType, enabled, defaultTTL, ignoreMalformed(context), provider);
+            return new TTLFieldMapper(fieldType, enabled, defaultTTL, ignoreMalformed(context), provider, fieldDataSettings);
         }
     }
 
@@ -112,14 +114,14 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     private long defaultTTL;
 
     public TTLFieldMapper() {
-        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, null);
+        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, null, null);
     }
 
     protected TTLFieldMapper(FieldType fieldType, boolean enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
-                             PostingsFormatProvider provider) {
+                             PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
                 Defaults.FUZZY_FACTOR, Defaults.BOOST, fieldType, Defaults.NULL_VALUE, ignoreMalformed,
-                provider, null);
+                provider, null, fieldDataSettings);
         this.enabled = enabled;
         this.defaultTTL = defaultTTL;
     }

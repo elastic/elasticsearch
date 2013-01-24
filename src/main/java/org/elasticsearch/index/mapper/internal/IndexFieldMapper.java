@@ -23,8 +23,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -80,7 +82,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            return new IndexFieldMapper(name, indexName, boost, fieldType, enabled, provider);
+            return new IndexFieldMapper(name, indexName, boost, fieldType, enabled, provider, fieldDataSettings);
         }
     }
 
@@ -108,13 +110,13 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     protected IndexFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED, null);
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED, null, null);
     }
 
     public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, boolean enabled,
-                            PostingsFormatProvider provider) {
+                            PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, provider, null);
+                Lucene.KEYWORD_ANALYZER, provider, null, fieldDataSettings);
         this.enabled = enabled;
     }
 
@@ -128,7 +130,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     @Override
-    public FieldDataType fieldDataType() {
+    public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
     }
 

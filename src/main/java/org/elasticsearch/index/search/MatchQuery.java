@@ -135,7 +135,7 @@ public class MatchQuery {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
-    public Query parse(Type type, String fieldName, Object value) {
+    public Query parse(Type type, String fieldName, Object value) throws IOException {
         FieldMapper mapper = null;
         final String field;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
@@ -190,107 +190,61 @@ public class MatchQuery {
         }
 
         // Logic similar to QueryParser#getFieldQuery
-        TokenStream source = null;
-        CachingTokenFilter buffer = null;
-        CharTermAttribute termAtt = null;
-        PositionIncrementAttribute posIncrAtt = null;
-        boolean success = false;
-        try {
-            source = analyzer.tokenStream(field, new FastStringReader(value.toString()));
-            source.reset();
-            success = true;
-        } catch (IOException ex) {
-            //LUCENE 4 UPGRADE not sure what todo here really lucene 3.6 had a tokenStream that didn't throw an exc.
-            // success==false if we hit an exception
-        }
+        final TokenStream source = analyzer.tokenStream(field, new FastStringReader(value.toString()));
+        source.reset();
         int numTokens = 0;
         int positionCount = 0;
         boolean severalTokensAtSamePosition = false;
-
-        if (success) {
-            buffer = new CachingTokenFilter(source);
-            buffer.reset();
-            if (buffer.hasAttribute(CharTermAttribute.class)) {
-                termAtt = buffer.getAttribute(CharTermAttribute.class);
+        
+        final CachingTokenFilter buffer = new CachingTokenFilter(source);
+        buffer.reset();
+        final CharTermAttribute termAtt = buffer.addAttribute(CharTermAttribute.class);
+        final PositionIncrementAttribute posIncrAtt = buffer.addAttribute(PositionIncrementAttribute.class);
+        boolean hasMoreTokens =  buffer.incrementToken();
+        while (hasMoreTokens) {
+            numTokens++;
+            int positionIncrement = posIncrAtt.getPositionIncrement();
+            if (positionIncrement != 0) {
+                positionCount += positionIncrement;
+            } else {
+                severalTokensAtSamePosition = true;
             }
-            if (buffer.hasAttribute(PositionIncrementAttribute.class)) {
-                posIncrAtt = buffer.getAttribute(PositionIncrementAttribute.class);
-            }
-
-            boolean hasMoreTokens = false;
-            if (termAtt != null) {
-                try {
-                    hasMoreTokens = buffer.incrementToken();
-                    while (hasMoreTokens) {
-                        numTokens++;
-                        int positionIncrement = (posIncrAtt != null) ? posIncrAtt.getPositionIncrement() : 1;
-                        if (positionIncrement != 0) {
-                            positionCount += positionIncrement;
-                        } else {
-                            severalTokensAtSamePosition = true;
-                        }
-                        hasMoreTokens = buffer.incrementToken();
-                    }
-                } catch (IOException e) {
-                    // ignore
-                }
-            }
-            // rewind the buffer stream
-            buffer.reset();
+            hasMoreTokens = buffer.incrementToken();
         }
-        try {
-            // close original stream - all tokens buffered
-            if (source != null) {
-                source.close();
-            }
-        } catch (IOException e) {
-            // ignore
-        }
+        // rewind the buffer stream
+        buffer.reset();
+        source.close();
 
         if (numTokens == 0) {
             return zeroTermsQuery();
         } else if (type == Type.BOOLEAN) {
             if (numTokens == 1) {
-                try {
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                } catch (IOException e) {
-                    // safe to ignore, because we know the number of tokens
-                }
+                boolean hasNext = buffer.incrementToken();
+                assert hasNext == true;
                 //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
-                Query q = newTermQuery(mapper, new Term(field, termToByteRef(termAtt, new BytesRef())));
+                final Query q = newTermQuery(mapper, new Term(field, termToByteRef(termAtt, new BytesRef())));
                 return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             }
             BooleanQuery q = new BooleanQuery(positionCount == 1);
             for (int i = 0; i < numTokens; i++) {
-                try {
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                } catch (IOException e) {
-                    // safe to ignore, because we know the number of tokens
-                }
+                boolean hasNext = buffer.incrementToken();
+                assert hasNext == true;
                 //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
-                Query currentQuery = newTermQuery(mapper, new Term(field, termToByteRef(termAtt, new BytesRef())));
+                final Query currentQuery = newTermQuery(mapper, new Term(field, termToByteRef(termAtt, new BytesRef())));
                 q.add(currentQuery, occur);
             }
             return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
         } else if (type == Type.PHRASE) {
             if (severalTokensAtSamePosition) {
-                MultiPhraseQuery mpq = new MultiPhraseQuery();
+                final MultiPhraseQuery mpq = new MultiPhraseQuery();
                 mpq.setSlop(phraseSlop);
-                List<Term> multiTerms = new ArrayList<Term>();
+                final List<Term> multiTerms = new ArrayList<Term>();
                 int position = -1;
                 for (int i = 0; i < numTokens; i++) {
                     int positionIncrement = 1;
-                    try {
-                        boolean hasNext = buffer.incrementToken();
-                        assert hasNext == true;
-                        if (posIncrAtt != null) {
-                            positionIncrement = posIncrAtt.getPositionIncrement();
-                        }
-                    } catch (IOException e) {
-                        // safe to ignore, because we know the number of tokens
-                    }
+                    boolean hasNext = buffer.incrementToken();
+                    assert hasNext == true;
+                    positionIncrement = posIncrAtt.getPositionIncrement();
 
                     if (positionIncrement > 0 && multiTerms.size() > 0) {
                         if (enablePositionIncrements) {
@@ -314,20 +268,11 @@ public class MatchQuery {
                 PhraseQuery pq = new PhraseQuery();
                 pq.setSlop(phraseSlop);
                 int position = -1;
-
-
                 for (int i = 0; i < numTokens; i++) {
                     int positionIncrement = 1;
-
-                    try {
-                        boolean hasNext = buffer.incrementToken();
-                        assert hasNext == true;
-                        if (posIncrAtt != null) {
-                            positionIncrement = posIncrAtt.getPositionIncrement();
-                        }
-                    } catch (IOException e) {
-                        // safe to ignore, because we know the number of tokens
-                    }
+                    boolean hasNext = buffer.incrementToken();
+                    assert hasNext == true;
+                    positionIncrement = posIncrAtt.getPositionIncrement();
 
                     if (enablePositionIncrements) {
                         position += positionIncrement;
@@ -347,15 +292,9 @@ public class MatchQuery {
             int position = -1;
             for (int i = 0; i < numTokens; i++) {
                 int positionIncrement = 1;
-                try {
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                    if (posIncrAtt != null) {
-                        positionIncrement = posIncrAtt.getPositionIncrement();
-                    }
-                } catch (IOException e) {
-                    // safe to ignore, because we know the number of tokens
-                }
+                boolean hasNext = buffer.incrementToken();
+                assert hasNext == true;
+                positionIncrement = posIncrAtt.getPositionIncrement();
 
                 if (positionIncrement > 0 && multiTerms.size() > 0) {
                     if (enablePositionIncrements) {
@@ -406,7 +345,7 @@ public class MatchQuery {
     }
 
     private static BytesRef termToByteRef(CharTermAttribute attr, BytesRef ref) {
-        UnicodeUtil.UTF16toUTF8WithHash(attr.buffer(), 0, attr.length(), ref);
+        UnicodeUtil.UTF16toUTF8(attr.buffer(), 0, attr.length(), ref);
         return ref;
     }
 

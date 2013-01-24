@@ -48,6 +48,8 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest<ClusterHeal
 
     private String waitForNodes = "";
 
+    private boolean local = false;
+
     ClusterHealthRequest() {
     }
 
@@ -127,6 +129,15 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest<ClusterHeal
         return this;
     }
 
+    public ClusterHealthRequest local(boolean local) {
+        this.local = local;
+        return this;
+    }
+
+    public boolean local() {
+        return this.local;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         return null;
@@ -151,6 +162,7 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest<ClusterHeal
         waitForRelocatingShards = in.readInt();
         waitForActiveShards = in.readInt();
         waitForNodes = in.readString();
+        local = in.readBoolean();
     }
 
     @Override
@@ -174,5 +186,6 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest<ClusterHeal
         out.writeInt(waitForRelocatingShards);
         out.writeInt(waitForActiveShards);
         out.writeString(waitForNodes);
+        out.writeBoolean(local);
     }
 }

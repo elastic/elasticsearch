@@ -325,6 +325,15 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public String toDelimitedString(char delimiter) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : settings.entrySet()) {
+            sb.append(entry.getKey()).append("=").append(entry.getValue()).append(delimiter);
+        }
+        return sb.toString();
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

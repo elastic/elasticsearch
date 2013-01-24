@@ -246,6 +246,11 @@ public interface Settings {
     Version getAsVersion(String setting, Version defaultVersion) throws SettingsException;
 
     /**
+     * Returns the settings as delimited string.
+     */
+    String toDelimitedString(char delimiter);
+
+    /**
      * A settings builder interface.
      */
     interface Builder {

@@ -78,4 +78,18 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
 
         IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache);
     }
+
+    public interface WithOrdinals<FD extends AtomicFieldData.WithOrdinals> extends IndexFieldData<FD> {
+
+        /**
+         * Loads the atomic field data for the reader, possibly cached.
+         */
+        FD load(AtomicReaderContext context);
+
+        /**
+         * Loads directly the atomic field data for the reader, ignoring any caching involved.
+         */
+        FD loadDirect(AtomicReaderContext context) throws Exception;
+    }
+
 }

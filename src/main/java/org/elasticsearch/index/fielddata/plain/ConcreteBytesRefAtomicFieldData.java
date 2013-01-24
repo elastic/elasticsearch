@@ -22,7 +22,8 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
@@ -31,7 +32,7 @@ import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
-public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<ScriptDocValues.Strings> {
+public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
 
     public static ConcreteBytesRefAtomicFieldData empty(int numDocs) {
         return new Empty(numDocs);
@@ -81,12 +82,12 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
     }
 
     @Override
-    public OrdinalsBytesValues getBytesValues() {
+    public BytesValues.WithOrdinals getBytesValues() {
         return ordinals.isMultiValued() ? new BytesValues.Multi(values, ordinals.ordinals()) : new BytesValues.Single(values, ordinals.ordinals());
     }
 
     @Override
-    public OrdinalsHashedBytesValues getHashedBytesValues() {
+    public HashedBytesValues.WithOrdinals getHashedBytesValues() {
         if (hashes == null) {
             int[] hashes = new int[values.length];
             for (int i = 0; i < values.length; i++) {
@@ -99,7 +100,7 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
     }
 
     @Override
-    public OrdinalsStringValues getStringValues() {
+    public StringValues.WithOrdinals getStringValues() {
         return ordinals.isMultiValued() ? new StringValues.Multi(values, ordinals.ordinals()) : new StringValues.Single(values, ordinals.ordinals());
     }
 
@@ -108,7 +109,7 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
         return new ScriptDocValues.Strings(getStringValues());
     }
 
-    static abstract class BytesValues implements org.elasticsearch.index.fielddata.OrdinalsBytesValues {
+    static abstract class BytesValues implements org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
 
         protected final BytesRef[] values;
         protected final Ordinals.Docs ordinals;
@@ -292,7 +293,7 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
         }
     }
 
-    static abstract class HashedBytesValues implements org.elasticsearch.index.fielddata.OrdinalsHashedBytesValues {
+    static abstract class HashedBytesValues implements org.elasticsearch.index.fielddata.HashedBytesValues.WithOrdinals {
 
         protected final BytesRef[] values;
         protected final int[] hashes;
@@ -438,7 +439,7 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
         }
     }
 
-    static abstract class StringValues implements OrdinalsStringValues {
+    static abstract class StringValues implements org.elasticsearch.index.fielddata.StringValues.WithOrdinals {
 
         protected final BytesRef[] values;
         protected final Ordinals.Docs ordinals;
@@ -619,18 +620,18 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicOrdinalFieldData<S
         }
 
         @Override
-        public OrdinalsBytesValues getBytesValues() {
-            return new OrdinalsBytesValues.Empty((EmptyOrdinals) ordinals);
+        public BytesValues.WithOrdinals getBytesValues() {
+            return new BytesValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
         }
 
         @Override
-        public OrdinalsHashedBytesValues getHashedBytesValues() {
-            return new OrdinalsHashedBytesValues.Empty((EmptyOrdinals) ordinals);
+        public HashedBytesValues.WithOrdinals getHashedBytesValues() {
+            return new HashedBytesValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
         }
 
         @Override
-        public OrdinalsStringValues getStringValues() {
-            return new OrdinalsStringValues.Empty((EmptyOrdinals) ordinals);
+        public StringValues.WithOrdinals getStringValues() {
+            return new StringValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
         }
 
         @Override

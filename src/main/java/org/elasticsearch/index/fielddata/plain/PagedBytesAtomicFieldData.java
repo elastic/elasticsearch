@@ -25,7 +25,8 @@ import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
@@ -34,7 +35,7 @@ import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
-public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptDocValues.Strings> {
+public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
 
     public static PagedBytesAtomicFieldData empty(int numDocs) {
         return new Empty(numDocs);
@@ -86,12 +87,12 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
     }
 
     @Override
-    public OrdinalsBytesValues getBytesValues() {
+    public BytesValues.WithOrdinals getBytesValues() {
         return ordinals.isMultiValued() ? new BytesValues.Multi(bytes, termOrdToBytesOffset, ordinals.ordinals()) : new BytesValues.Single(bytes, termOrdToBytesOffset, ordinals.ordinals());
     }
 
     @Override
-    public OrdinalsHashedBytesValues getHashedBytesValues() {
+    public HashedBytesValues.WithOrdinals getHashedBytesValues() {
         if (hashes == null) {
             int numberOfValues = termOrdToBytesOffset.size();
             int[] hashes = new int[numberOfValues];
@@ -106,7 +107,7 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
     }
 
     @Override
-    public OrdinalsStringValues getStringValues() {
+    public StringValues.WithOrdinals getStringValues() {
         return ordinals.isMultiValued() ? new StringValues.Multi(bytes, termOrdToBytesOffset, ordinals.ordinals()) : new StringValues.Single(bytes, termOrdToBytesOffset, ordinals.ordinals());
     }
 
@@ -115,7 +116,7 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
         return new ScriptDocValues.Strings(getStringValues());
     }
 
-    static abstract class BytesValues implements org.elasticsearch.index.fielddata.OrdinalsBytesValues {
+    static abstract class BytesValues implements org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
 
         protected final PagedBytes.Reader bytes;
         protected final PackedInts.Reader termOrdToBytesOffset;
@@ -291,7 +292,7 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
         }
     }
 
-    static abstract class HashedBytesValues implements org.elasticsearch.index.fielddata.OrdinalsHashedBytesValues {
+    static abstract class HashedBytesValues implements org.elasticsearch.index.fielddata.HashedBytesValues.WithOrdinals {
 
         protected final PagedBytes.Reader bytes;
         protected final PackedInts.Reader termOrdToBytesOffset;
@@ -441,7 +442,7 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
         }
     }
 
-    static abstract class StringValues implements OrdinalsStringValues {
+    static abstract class StringValues implements org.elasticsearch.index.fielddata.StringValues.WithOrdinals {
 
         protected final PagedBytes.Reader bytes;
         protected final PackedInts.Reader termOrdToBytesOffset;
@@ -630,18 +631,18 @@ public class PagedBytesAtomicFieldData implements AtomicOrdinalFieldData<ScriptD
         }
 
         @Override
-        public OrdinalsBytesValues getBytesValues() {
-            return new OrdinalsBytesValues.Empty((EmptyOrdinals) ordinals);
+        public BytesValues.WithOrdinals getBytesValues() {
+            return new BytesValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
         }
 
         @Override
-        public OrdinalsHashedBytesValues getHashedBytesValues() {
+        public HashedBytesValues.WithOrdinals getHashedBytesValues() {
             return new HashedBytesValues.Empty((EmptyOrdinals) ordinals);
         }
 
         @Override
-        public OrdinalsStringValues getStringValues() {
-            return new OrdinalsStringValues.Empty((EmptyOrdinals) ordinals);
+        public StringValues.WithOrdinals getStringValues() {
+            return new StringValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
         }
 
         @Override

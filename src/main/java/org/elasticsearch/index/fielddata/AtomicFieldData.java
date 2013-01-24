@@ -64,4 +64,21 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
      */
     Script getScriptValues();
 
+    interface WithOrdinals<Script extends ScriptDocValues> extends AtomicFieldData<Script> {
+
+        /**
+         * Use a non thread safe (lightweight) view of the values as bytes.
+         */
+        BytesValues.WithOrdinals getBytesValues();
+
+        /**
+         * Use a non thread safe (lightweight) view of the values as bytes.
+         */
+        HashedBytesValues.WithOrdinals getHashedBytesValues();
+
+        /**
+         * Use a non thread safe (lightweight) view of the values as strings.
+         */
+        StringValues.WithOrdinals getStringValues();
+    }
 }

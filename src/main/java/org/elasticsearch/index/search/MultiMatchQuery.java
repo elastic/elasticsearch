@@ -25,6 +25,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.QueryParseContext;
 
+import java.io.IOException;
 import java.util.Map;
 
 public class MultiMatchQuery extends MatchQuery {
@@ -44,7 +45,7 @@ public class MultiMatchQuery extends MatchQuery {
         super(parseContext);
     }
 
-    public Query parse(Type type, Map<String, Float> fieldNames, Object value) {
+    public Query parse(Type type, Map<String, Float> fieldNames, Object value) throws IOException {
         if (fieldNames.size() == 1) {
             Map.Entry<String, Float> fieldBoost = fieldNames.entrySet().iterator().next();
             Float boostValue = fieldBoost.getValue();

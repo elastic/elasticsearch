@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
@@ -70,6 +71,16 @@ public class HasChildFilterParser implements FilterParser {
                     String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
                     try {
                         query = parseContext.parseInnerQuery();
+                        queryFound = true;
+                    } finally {
+                        QueryParseContext.setTypes(origTypes);
+                    }
+                } else if ("filter".equals(currentFieldName)) {
+                    // TODO handle `filter` element before `type` element...
+                    String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
+                    try {
+                        Filter innerFilter = parseContext.parseInnerFilter();
+                        query = new ConstantScoreQuery(innerFilter);
                         queryFound = true;
                     } finally {
                         QueryParseContext.setTypes(origTypes);

@@ -673,6 +673,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     protected static String indexOptionToString(IndexOptions indexOption) {
         switch (indexOption) {
+            case DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS:
+                return TypeParsers.INDEX_OPTIONS_OFFSETS;
             case DOCS_AND_FREQS:
                 return TypeParsers.INDEX_OPTIONS_FREQS;
             case DOCS_AND_FREQS_AND_POSITIONS:

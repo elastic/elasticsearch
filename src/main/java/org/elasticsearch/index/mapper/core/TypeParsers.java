@@ -41,6 +41,7 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_DOCS = "docs";
     public static final String INDEX_OPTIONS_FREQS = "freqs";
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
+    public static final String INDEX_OPTIONS_OFFSETS = "offsets";
 
     public static void parseNumberField(NumberFieldMapper.Builder builder, String name, Map<String, Object> numberNode, Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, numberNode, parserContext);
@@ -124,10 +125,11 @@ public class TypeParsers {
         }
     }
 
-    // LUCENE 4 UPGRADE: when ew move into feature mode, we need to support DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS
     private static IndexOptions nodeIndexOptionValue(final Object propNode) {
         final String value = propNode.toString();
-        if (INDEX_OPTIONS_POSITIONS.equalsIgnoreCase(value)) {
+        if (INDEX_OPTIONS_OFFSETS.equalsIgnoreCase(value)) {
+            return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS;
+        } else if (INDEX_OPTIONS_POSITIONS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
         } else if (INDEX_OPTIONS_FREQS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS_AND_FREQS;

@@ -21,6 +21,8 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
 import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
@@ -283,6 +285,87 @@ public interface BytesValues {
             @Override
             public void onMissing(int docId) {
                 proc.onMissing(docId);
+            }
+        }
+    }
+
+    /**
+     * Bytes values that are based on ordinals.
+     */
+    static interface WithOrdinals extends BytesValues {
+
+        Ordinals.Docs ordinals();
+
+        BytesRef getValueByOrd(int ord);
+
+        /**
+         * Returns the bytes value for the docId, with the provided "ret" which will be filled with the
+         * result which will also be returned. If there is no value for this docId, the length will be 0.
+         * Note, the bytes are not "safe".
+         */
+        BytesRef getValueScratchByOrd(int ord, BytesRef ret);
+
+        BytesRef getSafeValueByOrd(int ord);
+
+        public static class Empty extends BytesValues.Empty implements WithOrdinals {
+
+            private final Ordinals ordinals;
+
+            public Empty(EmptyOrdinals ordinals) {
+                this.ordinals = ordinals;
+            }
+
+            @Override
+            public Ordinals.Docs ordinals() {
+                return ordinals.ordinals();
+            }
+
+            @Override
+            public BytesRef getValueByOrd(int ord) {
+                return null;
+            }
+
+            @Override
+            public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
+                ret.length = 0;
+                return ret;
+            }
+
+            @Override
+            public BytesRef getSafeValueByOrd(int ord) {
+                return null;
+            }
+        }
+
+        public static class StringBased extends BytesValues.StringBased implements WithOrdinals {
+
+            private final StringValues.WithOrdinals values;
+
+            public StringBased(StringValues.WithOrdinals values) {
+                super(values);
+                this.values = values;
+            }
+
+            @Override
+            public Ordinals.Docs ordinals() {
+                return values.ordinals();
+            }
+
+            @Override
+            public BytesRef getValueByOrd(int ord) {
+                scratch.copyChars(values.getValueByOrd(ord));
+                return scratch;
+            }
+
+            @Override
+            public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
+                ret.copyChars(values.getValueByOrd(ord));
+                return ret;
+            }
+
+            @Override
+            public BytesRef getSafeValueByOrd(int ord) {
+                return new BytesRef(values.getValueByOrd(ord));
             }
         }
     }

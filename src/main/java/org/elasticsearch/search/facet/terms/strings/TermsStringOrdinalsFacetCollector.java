@@ -25,8 +25,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
-import org.elasticsearch.index.fielddata.IndexOrdinalFieldData;
-import org.elasticsearch.index.fielddata.OrdinalsBytesValues;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
@@ -46,7 +46,7 @@ import java.util.regex.Pattern;
  */
 public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
-    private final IndexOrdinalFieldData indexFieldData;
+    private final IndexFieldData.WithOrdinals indexFieldData;
 
     private final TermsFacet.ComparatorType comparatorType;
 
@@ -56,7 +56,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
     private final int minCount;
 
-    private OrdinalsBytesValues values;
+    private BytesValues.WithOrdinals values;
 
     private final List<ReaderAggregator> aggregators;
 
@@ -69,7 +69,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
     private final Matcher matcher;
 
-    public TermsStringOrdinalsFacetCollector(String facetName, IndexOrdinalFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public TermsStringOrdinalsFacetCollector(String facetName, IndexFieldData.WithOrdinals indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                              ImmutableSet<BytesRef> excluded, Pattern pattern) {
         super(facetName);
         this.indexFieldData = indexFieldData;
@@ -215,14 +215,14 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
     public static class ReaderAggregator implements Ordinals.Docs.OrdinalInDocProc {
 
-        final OrdinalsBytesValues values;
+        final BytesValues.WithOrdinals values;
         final int[] counts;
 
         int position = 0;
         BytesRef current;
         int total;
 
-        public ReaderAggregator(OrdinalsBytesValues values) {
+        public ReaderAggregator(BytesValues.WithOrdinals values) {
             this.values = values;
             this.counts = CacheRecycler.popIntArray(values.ordinals().getNumOrds());
         }

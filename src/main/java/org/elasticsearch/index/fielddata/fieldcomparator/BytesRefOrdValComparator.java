@@ -23,9 +23,8 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexOrdinalFieldData;
-import org.elasticsearch.index.fielddata.OrdinalsBytesValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.io.IOException;
@@ -43,7 +42,7 @@ import java.io.IOException;
  */
 public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
-    final IndexOrdinalFieldData indexFieldData;
+    final IndexFieldData.WithOrdinals indexFieldData;
 
     /* Ords for each slot.
        @lucene.internal */
@@ -66,7 +65,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
     /* Current reader's doc ord/values.
        @lucene.internal */
-    OrdinalsBytesValues termsIndex;
+    BytesValues.WithOrdinals termsIndex;
 
     /* Bottom slot, or -1 if queue isn't full yet
        @lucene.internal */
@@ -89,7 +88,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
     final BytesRef tempBR = new BytesRef();
 
-    public BytesRefOrdValComparator(IndexOrdinalFieldData indexFieldData, int numHits) {
+    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals indexFieldData, int numHits) {
         this.indexFieldData = indexFieldData;
         ords = new int[numHits];
         values = new BytesRef[numHits];
@@ -191,10 +190,10 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     // Used per-segment when bit width of doc->ord is 8:
     private final class ByteOrdComparator extends PerSegmentComparator {
         private final byte[] readerOrds;
-        private final OrdinalsBytesValues termsIndex;
+        private final BytesValues.WithOrdinals termsIndex;
         private final int docBase;
 
-        public ByteOrdComparator(byte[] readerOrds, OrdinalsBytesValues termsIndex, int docBase) {
+        public ByteOrdComparator(byte[] readerOrds, BytesValues.WithOrdinals termsIndex, int docBase) {
             this.readerOrds = readerOrds;
             this.termsIndex = termsIndex;
             this.docBase = docBase;
@@ -237,10 +236,10 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     // Used per-segment when bit width of doc->ord is 16:
     private final class ShortOrdComparator extends PerSegmentComparator {
         private final short[] readerOrds;
-        private final OrdinalsBytesValues termsIndex;
+        private final BytesValues.WithOrdinals termsIndex;
         private final int docBase;
 
-        public ShortOrdComparator(short[] readerOrds, OrdinalsBytesValues termsIndex, int docBase) {
+        public ShortOrdComparator(short[] readerOrds, BytesValues.WithOrdinals termsIndex, int docBase) {
             this.readerOrds = readerOrds;
             this.termsIndex = termsIndex;
             this.docBase = docBase;
@@ -283,10 +282,10 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     // Used per-segment when bit width of doc->ord is 32:
     private final class IntOrdComparator extends PerSegmentComparator {
         private final int[] readerOrds;
-        private final OrdinalsBytesValues termsIndex;
+        private final BytesValues.WithOrdinals termsIndex;
         private final int docBase;
 
-        public IntOrdComparator(int[] readerOrds, OrdinalsBytesValues termsIndex, int docBase) {
+        public IntOrdComparator(int[] readerOrds, BytesValues.WithOrdinals termsIndex, int docBase) {
             this.readerOrds = readerOrds;
             this.termsIndex = termsIndex;
             this.docBase = docBase;
@@ -331,10 +330,10 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     final class AnyOrdComparator extends PerSegmentComparator {
         private final IndexFieldData fieldData;
         private final Ordinals.Docs readerOrds;
-        private final OrdinalsBytesValues termsIndex;
+        private final BytesValues.WithOrdinals termsIndex;
         private final int docBase;
 
-        public AnyOrdComparator(IndexFieldData fieldData, OrdinalsBytesValues termsIndex, int docBase) {
+        public AnyOrdComparator(IndexFieldData fieldData, BytesValues.WithOrdinals termsIndex, int docBase) {
             this.fieldData = fieldData;
             this.readerOrds = termsIndex.ordinals();
             this.termsIndex = termsIndex;
@@ -449,11 +448,11 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         return values[slot];
     }
 
-    final protected static int binarySearch(OrdinalsBytesValues a, BytesRef key) {
+    final protected static int binarySearch(BytesValues.WithOrdinals a, BytesRef key) {
         return binarySearch(a, key, 1, a.ordinals().getNumDocs() - 1);
     }
 
-    final protected static int binarySearch(OrdinalsBytesValues a, BytesRef key, int low, int high) {
+    final protected static int binarySearch(BytesValues.WithOrdinals a, BytesRef key, int low, int high) {
 
         while (low <= high) {
             int mid = (low + high) >>> 1;

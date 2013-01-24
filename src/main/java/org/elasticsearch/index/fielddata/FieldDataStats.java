@@ -55,6 +55,12 @@ public class FieldDataStats implements Streamable, ToXContent {
         return new ByteSizeValue(memorySize);
     }
 
+    public static FieldDataStats readFieldDataStats(StreamInput in) throws IOException {
+        FieldDataStats stats = new FieldDataStats();
+        stats.readFrom(in);
+        return stats;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();

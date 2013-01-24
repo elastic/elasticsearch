@@ -22,9 +22,11 @@ package org.elasticsearch.index.fielddata;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -38,7 +40,7 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  */
-public class IndexFieldDataService extends AbstractIndexComponent {
+public class IndexFieldDataService extends AbstractIndexComponent implements IndexFieldDataCache.Listener {
 
     private final static ImmutableMap<String, IndexFieldData.Builder> buildersByType;
     private final static ImmutableMap<Tuple<String, String>, IndexFieldData.Builder> buildersByTypeAndFormat;
@@ -69,6 +71,8 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     }
 
     private final ConcurrentMap<String, IndexFieldData> loadedFieldData = ConcurrentCollections.newConcurrentMap();
+
+    private final CounterMetric memoryUsedInBytes = new CounterMetric();
 
     public IndexFieldDataService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
@@ -103,9 +107,22 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         }
     }
 
+    @Override
+    public void onLoad(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData fieldData) {
+        assert index.equals(this.index);
+        memoryUsedInBytes.inc(fieldData.getMemorySizeInBytes());
+    }
+
+    @Override
+    public void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, @Nullable AtomicFieldData fieldData) {
+        assert index.equals(this.index);
+        if (fieldData != null) {
+            memoryUsedInBytes.dec(fieldData.getMemorySizeInBytes());
+        }
+    }
+
     public FieldDataStats stats() {
-        // TODO: compute the memory size here...
-        return new FieldDataStats();
+        return new FieldDataStats(memoryUsedInBytes.count());
     }
 
     public <IFD extends IndexFieldData> IFD getForField(FieldMapper mapper) {
@@ -136,9 +153,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                     IndexFieldDataCache cache;
                     String cacheType = type.getSettings().get("cache", indexSettings.get("index.fielddata.cache", "resident"));
                     if ("resident".equals(cacheType)) {
-                        cache = new IndexFieldDataCache.Resident();
+                        cache = new IndexFieldDataCache.Resident(index, fieldNames, type, this);
                     } else if ("soft".equals(cacheType)) {
-                        cache = new IndexFieldDataCache.Soft();
+                        cache = new IndexFieldDataCache.Soft(index, fieldNames, type, this);
                     } else {
                         throw new ElasticSearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
                     }

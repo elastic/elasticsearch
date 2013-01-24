@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.google.common.base.Objects;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -583,10 +584,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                 this.postingsFormat = fieldMergeWith.postingsFormat;
             }
             if (fieldMergeWith.customFieldDataSettings != null) {
-                this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
-                this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
-                        ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
-                );
+                if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
+                    this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
+                    this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
+                            ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
+                    );
+                    mergeContext.addFieldDataChange(this);
+                }
             }
         }
     }

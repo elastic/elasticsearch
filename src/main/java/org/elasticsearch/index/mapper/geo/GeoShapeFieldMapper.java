@@ -139,7 +139,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct,
                                FieldType fieldType, PostingsFormatProvider provider) {
-        super(names, 1, fieldType, null, null, provider, null);
+        super(names, 1, fieldType, null, null, provider, null, null);
         this.spatialStrategy = new TermQueryPrefixTreeStrategy(names, prefixTree, distanceErrorPct);
     }
 
@@ -149,8 +149,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public FieldDataType fieldDataType() {
-        throw new ElasticSearchIllegalArgumentException("field data on geo_shape field is not supported");
+    public FieldDataType defaultFieldDataType() {
+        return null;
     }
 
     @Override

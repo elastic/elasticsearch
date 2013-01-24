@@ -22,9 +22,11 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
@@ -98,7 +100,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
             }
             return new TimestampFieldMapper(fieldType, enabled, path, dateTimeFormatter, parseUpperInclusive,
-                    ignoreMalformed(context), provider);
+                    ignoreMalformed(context), provider, fieldDataSettings);
         }
     }
 
@@ -129,16 +131,16 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     public TimestampFieldMapper() {
         this(new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER,
-                Defaults.PARSE_UPPER_INCLUSIVE, Defaults.IGNORE_MALFORMED, null);
+                Defaults.PARSE_UPPER_INCLUSIVE, Defaults.IGNORE_MALFORMED, null, null);
     }
 
     protected TimestampFieldMapper(FieldType fieldType, boolean enabled, String path,
                                    FormatDateTimeFormatter dateTimeFormatter, boolean parseUpperInclusive,
-                                   Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider) {
+                                   Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, Defaults.BOOST, fieldType,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
-                parseUpperInclusive, ignoreMalformed, provider, null);
+                parseUpperInclusive, ignoreMalformed, provider, null, fieldDataSettings);
         this.enabled = enabled;
         this.path = path;
     }

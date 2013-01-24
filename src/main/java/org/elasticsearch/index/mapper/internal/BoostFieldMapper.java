@@ -27,10 +27,10 @@ import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -88,7 +88,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    precisionStep, boost, fieldType, nullValue, provider);
+                    precisionStep, boost, fieldType, nullValue, provider, fieldDataSettings);
         }
     }
 
@@ -117,14 +117,14 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     protected BoostFieldMapper(String name, String indexName) {
         this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
-                Defaults.NULL_VALUE, null);
+                Defaults.NULL_VALUE, null, null);
     }
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType,
-                               Float nullValue, PostingsFormatProvider provider) {
+                               Float nullValue, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(name, indexName, indexName, name), precisionStep, null, boost, fieldType,
                 Defaults.IGNORE_MALFORMED, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
-                new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)), provider, null);
+                new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)), provider, null, fieldDataSettings);
         this.nullValue = nullValue;
     }
 
@@ -134,8 +134,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    public FieldDataType fieldDataType() {
-        throw new ElasticSearchIllegalArgumentException("not implemented");
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("float");
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -90,7 +91,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             LongFieldMapper fieldMapper = new LongFieldMapper(buildNames(context),
                     precisionStep, fuzzyFactor, boost, fieldType, nullValue,
-                    ignoreMalformed(context), provider, similarity);
+                    ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -119,10 +120,10 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     protected LongFieldMapper(Names names, int precisionStep, String fuzzyFactor,
                               float boost, FieldType fieldType,
                               Long nullValue, Explicit<Boolean> ignoreMalformed,
-                              PostingsFormatProvider provider, SimilarityProvider similarity) {
+                              PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
         super(names, precisionStep, fuzzyFactor, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_long/" + precisionStep, new NumericLongAnalyzer(precisionStep)),
-                new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)), provider, similarity);
+                new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
@@ -133,7 +134,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public FieldDataType fieldDataType() {
+    public FieldDataType defaultFieldDataType() {
         return new FieldDataType("long");
     }
 

@@ -41,7 +41,7 @@ public class SearchStatsTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        Settings settings = settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).build();
+        Settings settings = settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build();
         startNode("server1", settings);
         startNode("server2", settings);
         client = getClient();

@@ -384,7 +384,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("number_of_shards", numberOfShards))
+                .setSettings(settingsBuilder().put("index.number_of_shards", numberOfShards))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested").startObject("properties")

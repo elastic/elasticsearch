@@ -61,7 +61,7 @@ public class GeoDistanceSearchBenchmark {
                     .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                     .endObject().endObject().string();
             client.admin().indices().prepareCreate("test")
-                    .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1).put("number_of_replicas", 0))
+                    .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                     .addMapping("type1", mapping)
                     .execute().actionGet();
 

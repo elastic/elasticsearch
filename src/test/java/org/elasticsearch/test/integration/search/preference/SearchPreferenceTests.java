@@ -40,7 +40,7 @@ public class SearchPreferenceTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        Settings settings = settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 1).build();
+        Settings settings = settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build();
         startNode("server1", settings);
         startNode("server2", settings);
         client = getClient();
@@ -60,7 +60,7 @@ public class SearchPreferenceTests extends AbstractNodesTests {
     public void noPreferenceRandom() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 1).put("number_of_replicas", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 1)).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();

@@ -22,7 +22,7 @@ public class SimpleMultiSearchTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        Settings settings = settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).build();
+        Settings settings = settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build();
         startNode("node1", settings);
         startNode("node2", settings);
         client = getClient();

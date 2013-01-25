@@ -86,7 +86,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title and don't use term vector, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "no").endObject()
@@ -141,7 +141,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
@@ -196,7 +196,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").endObject()
@@ -512,7 +512,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -546,7 +546,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -582,7 +582,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes")
                         .endObject().endObject().endObject())
@@ -620,7 +620,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -652,7 +652,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     public void testMultiMapperVectorWithStore() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
@@ -693,7 +693,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     public void testMultiMapperVectorFromSource() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
@@ -734,7 +734,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     public void testMultiMapperNoVectorWithStore() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "no").endObject()
@@ -775,7 +775,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     public void testMultiMapperNoVectorFromSource() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "no").endObject()
@@ -820,7 +820,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "no").endObject()
                         .endObject().endObject().endObject())
@@ -856,7 +856,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -926,7 +926,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
-                .put("number_of_shards", 1).put("number_of_replicas", 0))
+                .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("tags").field("type", "string").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -1053,7 +1053,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
-                .put("number_of_shards", 1).put("number_of_replicas", 0))
+                .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("tags").field("type", "string").endObject()
                         .endObject().endObject().endObject())

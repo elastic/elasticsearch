@@ -31,6 +31,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -77,6 +79,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final TransportService transportService;
 
     private final ClusterService clusterService;
+
+    private AllocationService allocationService;
 
     private final ClusterName clusterName;
 
@@ -159,6 +163,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     public void setNodeService(@Nullable NodeService nodeService) {
         this.nodeService = nodeService;
+    }
+
+    @Override
+    public void setAllocationService(AllocationService allocationService) {
+        this.allocationService = allocationService;
     }
 
     @Override
@@ -370,7 +379,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                         return rejoin(currentState, "not enough master nodes");
                     }
-                    return currentState;
+                    // eagerly run reroute to remove dead nodes from routing table
+                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(currentState).build());
+                    return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
                 }
             });
         } else {
@@ -399,7 +410,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                     return rejoin(currentState, "not enough master nodes");
                 }
-                return currentState;
+                // eagerly run reroute to remove dead nodes from routing table
+                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(currentState).build());
+                return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
             }
 
             @Override

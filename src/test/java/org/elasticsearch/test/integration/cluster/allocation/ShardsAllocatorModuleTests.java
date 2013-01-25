@@ -1,4 +1,4 @@
-package org.elasticsearch.test.unit.cluster.routing.allocation;
+package org.elasticsearch.test.integration.cluster.allocation;
 
 /*
  * Licensed to ElasticSearch and Shay Banon under one

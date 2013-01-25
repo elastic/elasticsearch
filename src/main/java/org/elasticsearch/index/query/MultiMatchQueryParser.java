@@ -145,6 +145,8 @@ public class MultiMatchQueryParser implements QueryParser {
                     multiMatchQuery.setUseDisMax(parser.booleanValue());
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
                     multiMatchQuery.setTieBreaker(parser.floatValue());
+                }  else if ("cutoff_frequency".equals(currentFieldName)) {
+                    multiMatchQuery.setCommonTermsCutoff(parser.floatValue());
                 } else if ("lenient".equals(currentFieldName)) {
                     multiMatchQuery.setLenient(parser.booleanValue());
                 } else {

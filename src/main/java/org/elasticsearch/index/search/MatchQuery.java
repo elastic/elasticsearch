@@ -25,6 +25,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.CommonTermsQuery;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
@@ -70,19 +72,24 @@ public class MatchQuery {
     protected int phraseSlop = 0;
 
     protected String fuzziness = null;
+    
     protected int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
+    
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
+    
     //LUCENE 4 UPGRADE we need a default value for this!
     protected boolean transpositions = false;
 
-
     protected MultiTermQuery.RewriteMethod rewriteMethod;
+
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
     protected boolean lenient;
 
     protected ZeroTermsQuery zeroTermsQuery = ZeroTermsQuery.NONE;
-
+    
+    protected Float commonTermsCutoff = null;
+    
     public MatchQuery(QueryParseContext parseContext) {
         this.parseContext = parseContext;
     }
@@ -93,6 +100,10 @@ public class MatchQuery {
 
     public void setOccur(BooleanClause.Occur occur) {
         this.occur = occur;
+    }
+    
+    public void setCommonTermsCutoff(float cutoff) {
+        this.commonTermsCutoff = Float.valueOf(cutoff);
     }
 
     public void setEnablePositionIncrements(boolean enablePositionIncrements) {
@@ -221,19 +232,27 @@ public class MatchQuery {
             if (numTokens == 1) {
                 boolean hasNext = buffer.incrementToken();
                 assert hasNext == true;
-                //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
-                final Query q = newTermQuery(mapper, new Term(field, termToByteRef(termAtt, new BytesRef())));
+                final Query q = newTermQuery(mapper, new Term(field, termToByteRef(termAtt)));
                 return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             }
-            BooleanQuery q = new BooleanQuery(positionCount == 1);
-            for (int i = 0; i < numTokens; i++) {
-                boolean hasNext = buffer.incrementToken();
-                assert hasNext == true;
-                //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
-                final Query currentQuery = newTermQuery(mapper, new Term(field, termToByteRef(termAtt, new BytesRef())));
-                q.add(currentQuery, occur);
+            if (commonTermsCutoff != null) {
+                ExtendedCommonTermsQuery q = new ExtendedCommonTermsQuery(occur, occur, commonTermsCutoff, positionCount == 1);
+                for (int i = 0; i < numTokens; i++) {
+                    boolean hasNext = buffer.incrementToken();
+                    assert hasNext == true;
+                    q.add(new Term(field, termToByteRef(termAtt)));
+                }
+                return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
+            } else {
+                BooleanQuery q = new BooleanQuery(positionCount == 1);
+                for (int i = 0; i < numTokens; i++) {
+                    boolean hasNext = buffer.incrementToken();
+                    assert hasNext == true;
+                    final Query currentQuery = newTermQuery(mapper, new Term(field, termToByteRef(termAtt)));
+                    q.add(currentQuery, occur);
+                }
+                return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             }
-            return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
         } else if (type == Type.PHRASE) {
             if (severalTokensAtSamePosition) {
                 final MultiPhraseQuery mpq = new MultiPhraseQuery();
@@ -256,7 +275,7 @@ public class MatchQuery {
                     }
                     position += positionIncrement;
                     //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8 
-                    multiTerms.add(new Term(field, termToByteRef(termAtt, new BytesRef())));
+                    multiTerms.add(new Term(field, termToByteRef(termAtt)));
                 }
                 if (enablePositionIncrements) {
                     mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
@@ -277,9 +296,9 @@ public class MatchQuery {
                     if (enablePositionIncrements) {
                         position += positionIncrement;
                         //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
-                        pq.add(new Term(field, termToByteRef(termAtt, new BytesRef())), position);
+                        pq.add(new Term(field, termToByteRef(termAtt)), position);
                     } else {
-                        pq.add(new Term(field, termToByteRef(termAtt, new BytesRef())));
+                        pq.add(new Term(field, termToByteRef(termAtt)));
                     }
                 }
                 return wrapSmartNameQuery(pq, smartNameFieldMappers, parseContext);
@@ -305,8 +324,7 @@ public class MatchQuery {
                     multiTerms.clear();
                 }
                 position += positionIncrement;
-                //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
-                multiTerms.add(new Term(field, termToByteRef(termAtt, new BytesRef())));
+                multiTerms.add(new Term(field, termToByteRef(termAtt)));
             }
             if (enablePositionIncrements) {
                 mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
@@ -343,8 +361,9 @@ public class MatchQuery {
         }
         return new TermQuery(term);
     }
-
-    private static BytesRef termToByteRef(CharTermAttribute attr, BytesRef ref) {
+    
+    private static BytesRef termToByteRef(CharTermAttribute attr) {
+        final BytesRef ref = new BytesRef();
         UnicodeUtil.UTF16toUTF8(attr.buffer(), 0, attr.length(), ref);
         return ref;
     }

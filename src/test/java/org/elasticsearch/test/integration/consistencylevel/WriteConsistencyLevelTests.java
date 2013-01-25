@@ -46,7 +46,7 @@ public class WriteConsistencyLevelTests extends AbstractNodesTests {
     @Test
     public void testWriteConsistencyLevelReplication2() throws Exception {
         startNode("node1");
-        client("node1").admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1).put("number_of_replicas", 2)).execute().actionGet();
+        client("node1").admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).execute().actionGet();
 
         ClusterHealthResponse clusterHealth = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(1).setWaitForYellowStatus().execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.status());

@@ -71,7 +71,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         client = getClient();
 
         client.admin().indices().create(createIndexRequest("test")
-                .settings(settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).put("routing.hash.type", "simple")))
+                .settings(settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).put("routing.hash.type", "simple")))
                 .actionGet();
 
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();

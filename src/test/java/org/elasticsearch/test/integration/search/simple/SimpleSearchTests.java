@@ -58,7 +58,7 @@ public class SimpleSearchTests extends AbstractNodesTests {
     public void simpleIpTests() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -79,7 +79,7 @@ public class SimpleSearchTests extends AbstractNodesTests {
     @Test
     public void simpleIdTests() {
         client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefresh(true).execute().actionGet();
         // id is not indexed, but lets see that we automatically convert to

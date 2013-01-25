@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
@@ -58,6 +60,8 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private final DiscoveryNodeService discoveryNodeService;
 
+    private AllocationService allocationService;
+
     private final ClusterName clusterName;
 
     private DiscoveryNode localNode;
@@ -86,6 +90,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     @Override
     public void setNodeService(@Nullable NodeService nodeService) {
         // nothing to do here
+    }
+
+    @Override
+    public void setAllocationService(AllocationService allocationService) {
+        this.allocationService = allocationService;
     }
 
     @Override
@@ -209,7 +218,10 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         if (delta.added()) {
                             logger.warn("No new nodes should be created when a new discovery view is accepted");
                         }
-                        return newClusterStateBuilder().state(currentState).nodes(newNodes).build();
+                        // reroute here, so we eagerly remove dead nodes from the routing
+                        ClusterState updatedState = newClusterStateBuilder().state(currentState).nodes(newNodes).build();
+                        RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).build());
+                        return newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
                     }
                 });
             }

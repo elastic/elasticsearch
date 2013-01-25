@@ -20,9 +20,14 @@
 package org.elasticsearch.search.highlight;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.XCommonTermsQuery;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
@@ -31,6 +36,7 @@ import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public final class CustomQueryScorer extends QueryScorer {
@@ -97,6 +103,14 @@ public final class CustomQueryScorer extends QueryScorer {
             } else if (query instanceof XFilteredQuery) {
                 query = ((XFilteredQuery) query).getQuery();
                 extract(query, terms);
+            } else if (query instanceof XCommonTermsQuery) {
+                XCommonTermsQuery ctq = ((XCommonTermsQuery)query);
+                List<Term> ctqTerms = ctq.terms();
+                BooleanQuery bq = new BooleanQuery();
+                for (Term term : ctqTerms) {
+                    bq.add(new TermQuery(term), Occur.SHOULD);    
+                }
+                extract(bq, terms);
             }
         }
 

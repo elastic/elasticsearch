@@ -67,6 +67,8 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
     private Boolean lenient;
 
+    private Float cutoffFrequency = null;
+    
     /**
      * Constructs a new text query.
      */
@@ -191,6 +193,17 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         this.lenient = lenient;
         return this;
     }
+    
+    
+    /**
+     * Set a cutoff value in [0..1] (or absolute number >=1) representing the
+     * maximum threshold of a terms document frequency to be considered a low
+     * frequency term.
+     */
+    public MultiMatchQueryBuilder cutoffFrequency(float cutoff) {
+        this.cutoffFrequency = cutoff;
+        return this;
+    }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -254,6 +267,10 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
         if (lenient != null) {
             builder.field("lenient", lenient);
+        }
+        
+        if (cutoffFrequency != null) {
+            builder.field("cutoff_frequency", cutoffFrequency);
         }
 
         builder.endObject();

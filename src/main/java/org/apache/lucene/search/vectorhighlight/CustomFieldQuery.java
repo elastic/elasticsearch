@@ -20,6 +20,7 @@
 package org.apache.lucene.search.vectorhighlight;
 
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -97,9 +98,11 @@ public class CustomFieldQuery extends FieldQuery {
             }
         } else if (sourceQuery instanceof FiltersFunctionScoreQuery) {
             flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
+        } else if (sourceQuery instanceof ExtendedCommonTermsQuery) {
+            flatten(((ExtendedCommonTermsQuery)sourceQuery).rewrite(reader), reader, flatQueries);
         } else {
             super.flatten(sourceQuery, reader, flatQueries);
-        }
+        } 
     }
 
     void flatten(Filter sourceFilter, IndexReader reader, Collection<Query> flatQueries) throws IOException {

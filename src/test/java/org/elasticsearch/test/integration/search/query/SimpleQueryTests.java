@@ -120,7 +120,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute().actionGet();
-        client.prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown").setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").setRefresh(true).execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3)).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
@@ -139,6 +139,32 @@ public class SimpleQueryTests extends AbstractNodesTests {
         // standard drops "the" since its a stopword
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
+        
+        // try the same with match query
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.OR)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("standard")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        // standard drops "the" since its a stopword
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
+        
+        // try the same with multi match query
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.multiMatchQuery("the quick brown", "field1", "field2").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3")); // better score due to different query stats
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
     }
     

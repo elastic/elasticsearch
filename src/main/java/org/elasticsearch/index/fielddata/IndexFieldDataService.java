@@ -47,7 +47,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
 
     static {
         buildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
-                .put("string", new ConcreteBytesRefIndexFieldData.Builder())
+                .put("string", new PagedBytesIndexFieldData.Builder())
                 .put("float", new FloatArrayIndexFieldData.Builder())
                 .put("double", new DoubleArrayIndexFieldData.Builder())
                 .put("byte", new ByteArrayIndexFieldData.Builder())

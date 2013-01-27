@@ -101,6 +101,31 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
         return entries().iterator();
     }
 
+    @Override
+    public Facet reduce(List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        InternalGeoDistanceFacet agg = (InternalGeoDistanceFacet) facets.get(0);
+        for (int i = 1; i < facets.size(); i++) {
+            InternalGeoDistanceFacet geoDistanceFacet = (InternalGeoDistanceFacet) facets.get(i);
+            for (int j = 0; j < geoDistanceFacet.entries.length; j++) {
+                GeoDistanceFacet.Entry aggEntry = agg.entries[j];
+                GeoDistanceFacet.Entry currentEntry = geoDistanceFacet.entries[j];
+                aggEntry.count += currentEntry.count;
+                aggEntry.totalCount += currentEntry.totalCount;
+                aggEntry.total += currentEntry.total;
+                if (currentEntry.min < aggEntry.min) {
+                    aggEntry.min = currentEntry.min;
+                }
+                if (currentEntry.max > aggEntry.max) {
+                    aggEntry.max = currentEntry.max;
+                }
+            }
+        }
+        return agg;
+    }
+
     public static InternalGeoDistanceFacet readGeoDistanceFacet(StreamInput in) throws IOException {
         InternalGeoDistanceFacet facet = new InternalGeoDistanceFacet();
         facet.readFrom(in);

@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  *
@@ -33,6 +32,4 @@ public interface FacetProcessor {
     String[] types();
 
     FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException;
-
-    Facet reduce(String name, List<Facet> facets);
 }

@@ -21,8 +21,6 @@ package org.elasticsearch.search.facet;
 
 /**
  * A search facet.
- *
- *
  */
 public interface Facet {
 

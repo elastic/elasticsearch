@@ -27,6 +27,7 @@ import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -172,6 +173,36 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     public double getStdDeviation() {
         return stdDeviation();
+    }
+
+    @Override
+    public Facet reduce(List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        double min = Double.NaN;
+        double max = Double.NaN;
+        double total = 0;
+        double sumOfSquares = 0;
+        long count = 0;
+
+        for (Facet facet : facets) {
+            if (!facet.name().equals(name)) {
+                continue;
+            }
+            InternalStatisticalFacet statsFacet = (InternalStatisticalFacet) facet;
+            if (statsFacet.min() < min || Double.isNaN(min)) {
+                min = statsFacet.min();
+            }
+            if (statsFacet.max() > max || Double.isNaN(max)) {
+                max = statsFacet.max();
+            }
+            total += statsFacet.total();
+            sumOfSquares += statsFacet.sumOfSquares();
+            count += statsFacet.count();
+        }
+
+        return new InternalStatisticalFacet(name, min, max, total, sumOfSquares, count);
     }
 
     static final class Fields {

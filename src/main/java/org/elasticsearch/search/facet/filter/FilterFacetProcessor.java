@@ -24,13 +24,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetProcessor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  *
@@ -52,17 +50,5 @@ public class FilterFacetProcessor extends AbstractComponent implements FacetProc
     public FacetCollector parse(String facetName, XContentParser parser, SearchContext context) throws IOException {
         Filter facetFilter = context.queryParserService().parseInnerFilter(parser);
         return new FilterFacetCollector(facetName, facetFilter, context.filterCache());
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        if (facets.size() == 1) {
-            return facets.get(0);
-        }
-        int count = 0;
-        for (Facet facet : facets) {
-            count += ((FilterFacet) facet).count();
-        }
-        return new InternalFilterFacet(name, count);
     }
 }

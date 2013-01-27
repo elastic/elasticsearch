@@ -27,6 +27,7 @@ import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -98,6 +99,20 @@ public class InternalQueryFacet implements QueryFacet, InternalFacet {
      */
     public long getCount() {
         return count;
+    }
+
+    @Override
+    public Facet reduce(List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        int count = 0;
+        for (Facet facet : facets) {
+            if (facet.name().equals(name)) {
+                count += ((QueryFacet) facet).count();
+            }
+        }
+        return new InternalQueryFacet(name, count);
     }
 
     static final class Fields {

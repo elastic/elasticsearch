@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -37,7 +36,6 @@ import org.elasticsearch.search.facet.histogram.unbounded.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -154,11 +152,5 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
             // we have a value field, and its different than the key
             return new ValueHistogramFacetCollector(facetName, keyIndexFieldData, valueIndexFieldData, interval, comparatorType, context);
         }
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalHistogramFacet first = (InternalHistogramFacet) facets.get(0);
-        return first.reduce(name, facets);
     }
 }

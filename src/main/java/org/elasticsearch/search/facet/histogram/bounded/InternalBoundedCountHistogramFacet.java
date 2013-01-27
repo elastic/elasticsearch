@@ -221,7 +221,7 @@ public class InternalBoundedCountHistogramFacet extends InternalHistogramFacet {
     }
 
     @Override
-    public Facet reduce(String name, List<Facet> facets) {
+    public Facet reduce(List<Facet> facets) {
         if (facets.size() == 1) {
             InternalBoundedCountHistogramFacet firstHistoFacet = (InternalBoundedCountHistogramFacet) facets.get(0);
             if (comparatorType != ComparatorType.KEY) {

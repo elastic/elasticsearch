@@ -31,7 +31,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -172,11 +171,5 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
                 return new TermsStringFacetCollector(facetName, indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
             }
         }
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalTermsFacet first = (InternalTermsFacet) facets.get(0);
-        return first.reduce(name, facets);
     }
 }

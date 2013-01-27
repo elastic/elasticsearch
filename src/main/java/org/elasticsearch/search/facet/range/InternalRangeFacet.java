@@ -101,6 +101,35 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         return entries().iterator();
     }
 
+    @Override
+    public Facet reduce(List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        InternalRangeFacet agg = null;
+        for (Facet facet : facets) {
+            InternalRangeFacet geoDistanceFacet = (InternalRangeFacet) facet;
+            if (agg == null) {
+                agg = geoDistanceFacet;
+            } else {
+                for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
+                    RangeFacet.Entry aggEntry = agg.entries[i];
+                    RangeFacet.Entry currentEntry = geoDistanceFacet.entries[i];
+                    aggEntry.count += currentEntry.count;
+                    aggEntry.totalCount += currentEntry.totalCount;
+                    aggEntry.total += currentEntry.total;
+                    if (currentEntry.min < aggEntry.min) {
+                        aggEntry.min = currentEntry.min;
+                    }
+                    if (currentEntry.max > aggEntry.max) {
+                        aggEntry.max = currentEntry.max;
+                    }
+                }
+            }
+        }
+        return agg;
+    }
+
     public static InternalRangeFacet readRangeFacet(StreamInput in) throws IOException {
         InternalRangeFacet facet = new InternalRangeFacet();
         facet.readFrom(in);

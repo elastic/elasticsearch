@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -155,34 +154,5 @@ public class RangeFacetProcessor extends AbstractComponent implements FacetProce
             // we have a value field, and its different than the key
             return new KeyValueRangeFacetCollector(facetName, keyIndexFieldData, valueIndexFieldData, rangeEntries, context);
         }
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        if (facets.size() == 1) {
-            return facets.get(0);
-        }
-        InternalRangeFacet agg = null;
-        for (Facet facet : facets) {
-            InternalRangeFacet geoDistanceFacet = (InternalRangeFacet) facet;
-            if (agg == null) {
-                agg = geoDistanceFacet;
-            } else {
-                for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
-                    RangeFacet.Entry aggEntry = agg.entries[i];
-                    RangeFacet.Entry currentEntry = geoDistanceFacet.entries[i];
-                    aggEntry.count += currentEntry.count;
-                    aggEntry.totalCount += currentEntry.totalCount;
-                    aggEntry.total += currentEntry.total;
-                    if (currentEntry.min < aggEntry.min) {
-                        aggEntry.min = currentEntry.min;
-                    }
-                    if (currentEntry.max > aggEntry.max) {
-                        aggEntry.max = currentEntry.max;
-                    }
-                }
-            }
-        }
-        return agg;
     }
 }

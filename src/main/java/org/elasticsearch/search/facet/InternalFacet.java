@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -33,6 +34,8 @@ import java.io.IOException;
 public interface InternalFacet extends Facet, Streamable, ToXContent {
 
     String streamType();
+
+    Facet reduce(List<Facet> facets);
 
     public static interface Stream {
         Facet readFacet(String type, StreamInput in) throws IOException;

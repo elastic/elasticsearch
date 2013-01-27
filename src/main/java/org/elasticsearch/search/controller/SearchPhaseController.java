@@ -39,7 +39,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetProcessors;
+import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
@@ -73,14 +73,11 @@ public class SearchPhaseController extends AbstractComponent {
 
     private static final ShardDoc[] EMPTY = new ShardDoc[0];
 
-    private final FacetProcessors facetProcessors;
-
     private final boolean optimizeSingleShard;
 
     @Inject
-    public SearchPhaseController(Settings settings, FacetProcessors facetProcessors) {
+    public SearchPhaseController(Settings settings) {
         super(settings);
-        this.facetProcessors = facetProcessors;
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
     }
 
@@ -317,8 +314,10 @@ public class SearchPhaseController extends AbstractComponent {
                             }
                         }
                     }
-                    Facet aggregatedFacet = facetProcessors.processor(facet.type()).reduce(facet.name(), namedFacets);
-                    aggregatedFacets.add(aggregatedFacet);
+                    if (!namedFacets.isEmpty()) {
+                        Facet aggregatedFacet = ((InternalFacet) namedFacets.get(0)).reduce(namedFacets);
+                        aggregatedFacets.add(aggregatedFacet);
+                    }
                 }
                 facets = new InternalFacets(aggregatedFacets);
             }

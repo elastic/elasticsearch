@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -42,7 +41,6 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -210,12 +208,6 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                 return DateTimeZone.forID(text);
             }
         }
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalDateHistogramFacet first = (InternalDateHistogramFacet) facets.get(0);
-        return first.reduce(name, facets);
     }
 
     static interface DateFieldParser {

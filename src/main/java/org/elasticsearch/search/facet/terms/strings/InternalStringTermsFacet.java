@@ -224,7 +224,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public Facet reduce(String name, List<Facet> facets) {
+    public Facet reduce(List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }

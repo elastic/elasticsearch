@@ -262,6 +262,11 @@ public class RecoveryTarget extends AbstractComponent {
                 return;
             }
 
+            if (cause instanceof DelayRecoveryException) {
+                listener.onRetryRecovery(TimeValue.timeValueMillis(500), recoveryStatus);
+                return;
+            }
+
             // here, we check against ignore recovery options
 
             // in general, no need to clean the shard on ignored recovery, since we want to try and reuse it later

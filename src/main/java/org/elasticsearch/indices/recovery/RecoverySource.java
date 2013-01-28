@@ -24,6 +24,9 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -64,16 +67,19 @@ public class RecoverySource extends AbstractComponent {
     private final IndicesService indicesService;
     private final RecoverySettings recoverySettings;
 
+    private final ClusterService clusterService;
+
     private final TimeValue internalActionTimeout;
     private final TimeValue internalActionLongTimeout;
 
 
     @Inject
     public RecoverySource(Settings settings, TransportService transportService, IndicesService indicesService,
-                          RecoverySettings recoverySettings) {
+                          RecoverySettings recoverySettings, ClusterService clusterService) {
         super(settings);
         this.transportService = transportService;
         this.indicesService = indicesService;
+        this.clusterService = clusterService;
 
         this.recoverySettings = recoverySettings;
 
@@ -84,6 +90,27 @@ public class RecoverySource extends AbstractComponent {
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
         final InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
+
+        // verify that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
+        // the index operations will not be routed to it properly
+        RoutingNode node = clusterService.state().readOnlyRoutingNodes().node(request.targetNode().id());
+        if (node == null) {
+            throw new DelayRecoveryException("source node does not have the node [" + request.targetNode() + "] in its state yet..");
+        }
+        ShardRouting targetShardRouting = null;
+        for (ShardRouting shardRouting : node) {
+            if (shardRouting.shardId().equals(request.shardId())) {
+                targetShardRouting = shardRouting;
+                break;
+            }
+        }
+        if (targetShardRouting == null) {
+            throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+        }
+        if (!targetShardRouting.initializing()) {
+            throw new DelayRecoveryException("source node has the state of the target shard to be [" + targetShardRouting.state() + "], expecting to be [initializing]");
+        }
+
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
         final RecoveryResponse response = new RecoveryResponse();
         shard.recover(new Engine.RecoveryHandler() {

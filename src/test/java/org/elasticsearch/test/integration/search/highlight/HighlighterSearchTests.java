@@ -1000,7 +1000,50 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
                 equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
     }
+    
+    
+    @Test
+    public void testPhrasePrefix() throws ElasticSearchException, IOException {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+            // its ok
+        }
+        client.admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
+        client.prepareIndex("test", "type1", "0")
+                .setSource("field0", "The quick brown fox jumps over the lazy dog", "field1", "The quick brown fox jumps over the lazy dog")
+                .setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type1", "1")
+        .setSource("field1", "The quick browse button is a fancy thing, right bro?")
+        .setRefresh(true).execute().actionGet();
+        logger.info("--> highlighting and searching on field0");
+        SearchSourceBuilder source = searchSource()
+                .query(matchPhrasePrefixQuery("field0", "quick bro" ))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
+
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field0").fragments()[0].string(), equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+        
+        logger.info("--> highlighting and searching on field1");
+        source = searchSource()
+                .query(matchPhrasePrefixQuery("field1","quick bro" ))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
+
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick browse</x> button is a fancy thing, right bro?"));
+        assertThat(searchResponse.hits().getAt(1).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick brown</x> fox jumps over the lazy dog"));
+    }
+    
     @Test
     public void testPlainHighlightDifferentFragmenter() throws Exception {
         try {

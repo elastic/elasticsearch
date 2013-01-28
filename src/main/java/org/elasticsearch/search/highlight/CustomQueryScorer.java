@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.highlight;
 
+import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.XCommonTermsQuery;
@@ -31,6 +32,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
 import org.apache.lucene.search.highlight.WeightedSpanTermExtractor;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -111,6 +113,10 @@ public final class CustomQueryScorer extends QueryScorer {
                     bq.add(new TermQuery(term), Occur.SHOULD);    
                 }
                 extract(bq, terms);
+            } else if (query instanceof MultiPhrasePrefixQuery) {
+                MultiPhrasePrefixQuery q = ((MultiPhrasePrefixQuery)query);
+                AtomicReader atomicReader = getLeafContextForField(q.getField()).reader();
+                extract(q.rewrite(atomicReader), terms);
             }
         }
 

@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collection;
+import java.util.List;
 
 /**
  *
@@ -86,18 +87,39 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(((FilteredQuery) sourceQuery).getQuery(), reader, flatQueries);
             flatten(((FilteredQuery) sourceQuery).getFilter(), reader, flatQueries);
         } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
-            try {
-                flatten(sourceQuery.rewrite(reader), reader, flatQueries);
-            } catch (IOException e) {
-                // ignore
-            }
+            flatten(sourceQuery.rewrite(reader), reader, flatQueries);
         } else if (sourceQuery instanceof FiltersFunctionScoreQuery) {
             flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
+        } else if (sourceQuery instanceof MultiPhraseQuery) {
+            MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
+            convertMultiPhraseQuery(0, new int[q.getTermArrays().size()] , q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
         } else {
             super.flatten(sourceQuery, reader, flatQueries);
         }
     }
-
+    
+    private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, List<Term[]> terms, int[] pos, IndexReader reader, Collection<Query> flatQueries) throws IOException {
+        /*
+         * we walk all possible ways and for each path down the MPQ we create a PhraseQuery this is what FieldQuery supports.
+         * It seems expensive but most queries will pretty small.
+         */
+        if (currentPos == terms.size()) {
+            PhraseQuery query = new PhraseQuery();
+            query.setBoost(orig.getBoost());
+            query.setSlop(orig.getSlop());
+            for (int i = 0; i < termsIdx.length; i++) {
+                query.add(terms.get(i)[termsIdx[i]], pos[i]);
+            }
+            this.flatten(query, reader, flatQueries);
+        } else {
+            Term[] t = terms.get(currentPos);
+            for (int i = 0; i < t.length; i++) {
+                termsIdx[currentPos] = i;
+                convertMultiPhraseQuery(currentPos+1, termsIdx, orig, terms, pos, reader, flatQueries);
+            }
+        }
+    }
+    
     void flatten(Filter sourceFilter, IndexReader reader, Collection<Query> flatQueries) throws IOException {
         Boolean highlight = highlightFilters.get();
         if (highlight == null || highlight.equals(Boolean.FALSE)) {

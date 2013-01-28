@@ -44,7 +44,6 @@ public class SuggestionSearchContext {
 
     public static class Suggestion {
 
-        private String suggester;
         private BytesRef text;
         private String field;
         private Analyzer analyzer;
@@ -61,14 +60,6 @@ public class SuggestionSearchContext {
         private Integer minWordLength;
         private Float minDocFreq;
         private Integer shardSize;
-
-        public String suggester() {
-            return suggester;
-        }
-
-        public void suggester(String suggester) {
-            this.suggester = suggester;
-        }
 
         public BytesRef text() {
             return text;

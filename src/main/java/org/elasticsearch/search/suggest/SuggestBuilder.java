@@ -74,13 +74,9 @@ public class SuggestBuilder implements ToXContent {
         if (globalText != null) {
             builder.field("text", globalText);
         }
-
-        builder.startObject("suggestions");
         for (Suggestion suggestion : suggestions) {
             builder = suggestion.toXContent(builder, params);
         }
-        builder.endObject();
-
         builder.endObject();
         return builder;
     }
@@ -116,13 +112,12 @@ public class SuggestBuilder implements ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);
-            if (suggester != null) {
-                builder.field("suggester", suggester);
-            }
             if (text != null) {
                 builder.field("text", text);
             }
+            builder.startObject(suggester);
             builder = innerToXContent(builder, params);
+            builder.endObject();
             builder.endObject();
             return builder;
         }

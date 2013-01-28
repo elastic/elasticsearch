@@ -86,11 +86,7 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
             List<Suggestion> suggestions = new ArrayList<Suggestion>(2);
             for (Map.Entry<String, SuggestionSearchContext.Suggestion> entry : suggest.suggestions().entrySet()) {
                 SuggestionSearchContext.Suggestion suggestion = entry.getValue();
-                if ("fuzzy".equals(suggestion.suggester())) {
-                    suggestions.add(executeDirectSpellChecker(entry.getKey(), suggestion, context, spare));
-                } else {
-                    throw new ElasticSearchIllegalArgumentException("Unsupported suggester[" + suggestion.suggester() + "]");
-                }
+                suggestions.add(executeDirectSpellChecker(entry.getKey(), suggestion, context, spare));
             }
             context.queryResult().suggest(new Suggest(suggestions));
         } catch (IOException e) {
@@ -133,12 +129,12 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
                     token.term, suggestion.shardSize(), indexReader, suggestion.suggestMode()
             );
             Text key = new BytesText(new BytesArray(token.term.bytes()));
-            Suggestion.Term resultTerm = new Suggestion.Term(key, token.startOffset, token.endOffset);
+            Suggestion.Entry resultEntry = new Suggestion.Entry(key, token.startOffset, token.endOffset - token.startOffset);
             for (SuggestWord suggestWord : suggestedWords) {
                 Text word = new StringText(suggestWord.string);
-                resultTerm.addSuggested(new Suggestion.Term.SuggestedTerm(word, suggestWord.freq, suggestWord.score));
+                resultEntry.addOption(new Suggestion.Entry.Option(word, suggestWord.freq, suggestWord.score));
             }
-            response.addTerm(resultTerm);
+            response.addTerm(resultEntry);
         }
         return response;
     }
@@ -164,15 +160,15 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
     }
 
     private static Comparator<SuggestWord> LUCENE_FREQUENCY = new SuggestWordFrequencyComparator();
-    public static Comparator<Suggestion.Term.SuggestedTerm> SCORE = new Score();
-    public static Comparator<Suggestion.Term.SuggestedTerm> FREQUENCY = new Frequency();
+    public static Comparator<Suggestion.Entry.Option> SCORE = new Score();
+    public static Comparator<Suggestion.Entry.Option> FREQUENCY = new Frequency();
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
     // Highest score first, then highest freq first, then lowest term first
-    public static class Score implements Comparator<Suggestion.Term.SuggestedTerm> {
+    public static class Score implements Comparator<Suggestion.Entry.Option> {
 
         @Override
-        public int compare(Suggestion.Term.SuggestedTerm first, Suggestion.Term.SuggestedTerm second) {
+        public int compare(Suggestion.Entry.Option first, Suggestion.Entry.Option second) {
             // first criteria: the distance
             int cmp = Float.compare(second.getScore(), first.getScore());
             if (cmp != 0) {
@@ -180,24 +176,24 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
             }
 
             // second criteria (if first criteria is equal): the popularity
-            cmp = second.getFrequency() - first.getFrequency();
+            cmp = second.getFreq() - first.getFreq();
             if (cmp != 0) {
                 return cmp;
             }
             // third criteria: term text
-            return first.getTerm().compareTo(second.getTerm());
+            return first.getText().compareTo(second.getText());
         }
 
     }
 
     // Same behaviour as comparators in suggest module, but for SuggestedWord
     // Highest freq first, then highest score first, then lowest term first
-    public static class Frequency implements Comparator<Suggestion.Term.SuggestedTerm> {
+    public static class Frequency implements Comparator<Suggestion.Entry.Option> {
 
         @Override
-        public int compare(Suggestion.Term.SuggestedTerm first, Suggestion.Term.SuggestedTerm second) {
+        public int compare(Suggestion.Entry.Option first, Suggestion.Entry.Option second) {
             // first criteria: the popularity
-            int cmp = second.getFrequency() - first.getFrequency();
+            int cmp = second.getFreq() - first.getFreq();
             if (cmp != 0) {
                 return cmp;
             }
@@ -209,7 +205,7 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
             }
 
             // third criteria: term text
-            return first.getTerm().compareTo(second.getTerm());
+            return first.getText().compareTo(second.getText());
         }
 
     }

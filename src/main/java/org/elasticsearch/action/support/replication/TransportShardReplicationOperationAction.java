@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.TimeoutClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -320,7 +319,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         private final Request request;
 
-        private DiscoveryNodes nodes;
+        private ClusterState clusterState;
 
         private ShardIterator shardIt;
 
@@ -347,8 +346,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
          * Returns <tt>true</tt> if the action starting to be performed on the primary (or is done).
          */
         public boolean start(final boolean fromClusterEvent) throws ElasticSearchException {
-            final ClusterState clusterState = clusterService.state();
-            nodes = clusterState.nodes();
+            this.clusterState = clusterService.state();
             try {
                 ClusterBlockException blockException = checkGlobalBlock(clusterState, request);
                 if (blockException != null) {
@@ -392,7 +390,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (!shard.primary()) {
                     continue;
                 }
-                if (!shard.active() || !nodes.nodeExists(shard.currentNodeId())) {
+                if (!shard.active() || !clusterState.nodes().nodeExists(shard.currentNodeId())) {
                     retry(fromClusterEvent, null);
                     return false;
                 }
@@ -422,7 +420,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 }
 
                 foundPrimary = true;
-                if (shard.currentNodeId().equals(nodes.localNodeId())) {
+                if (shard.currentNodeId().equals(clusterState.nodes().localNodeId())) {
                     if (request.operationThreaded()) {
                         request.beforeLocalFork();
                         threadPool.executor(executor).execute(new Runnable() {
@@ -435,7 +433,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         performOnPrimary(shard.id(), fromClusterEvent, shard, clusterState);
                     }
                 } else {
-                    DiscoveryNode node = nodes.get(shard.currentNodeId());
+                    DiscoveryNode node = clusterState.nodes().get(shard.currentNodeId());
                     transportService.sendRequest(node, transportAction, request, transportOptions, new BaseTransportResponseHandler<Response>() {
 
                         @Override
@@ -495,7 +493,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     @Override
                     public void onClose() {
                         clusterService.remove(this);
-                        listener.onFailure(new NodeClosedException(nodes.localNode()));
+                        listener.onFailure(new NodeClosedException(clusterState.nodes().localNode()));
                     }
 
                     @Override
@@ -559,6 +557,14 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return;
             }
 
+            // we double check on the state, if it got changed we need to make sure we take the latest one cause
+            // maybe a replica shard started its recovery process and we need to apply it there...
+            ClusterState newState = clusterService.state();
+            if (clusterState != newState) {
+                clusterState = newState;
+                shardIt = shards(newState, request);
+            }
+
             // initialize the counter
             int replicaCounter = shardIt.assignedReplicasIncludingRelocating();
 
@@ -620,7 +626,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         void performOnReplica(final PrimaryResponse<Response, ReplicaRequest> response, final AtomicInteger counter, final ShardRouting shard, String nodeId) {
             // if we don't have that node, it means that it might have failed and will be created again, in
             // this case, we don't have to do the operation, and just let it failover
-            if (!nodes.nodeExists(nodeId)) {
+            if (!clusterState.nodes().nodeExists(nodeId)) {
                 if (counter.decrementAndGet() == 0) {
                     listener.onResponse(response.response());
                 }
@@ -628,8 +634,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
 
             final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId().id(), response.replicaRequest());
-            if (!nodeId.equals(nodes.localNodeId())) {
-                DiscoveryNode node = nodes.get(nodeId);
+            if (!nodeId.equals(clusterState.nodes().localNodeId())) {
+                DiscoveryNode node = clusterState.nodes().get(nodeId);
                 transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(TransportResponse.Empty vResponse) {

@@ -25,8 +25,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
@@ -1009,7 +1011,22 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         } catch (IndexMissingException e) {
             // its ok
         }
-        client.admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
+        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.put("index.analysis.filter.synonym.type", "synonym");
+        builder.putArray("index.analysis.filter.synonym.synonyms", "quick => fast");
+        
+        XContentBuilder type2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type2")
+        .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+        .startObject("properties")
+        .startObject("field4").field("type", "string").field("termVector", "with_positions_offsets").field("analyzer", "synonym").endObject()
+        .startObject("field3").field("type", "string").field("analyzer", "synonym").endObject()
+        .endObject()
+        .endObject().endObject();
+        
+        
+        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()).addMapping("type2", type2Mapping).execute().actionGet();
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "0")
@@ -1042,6 +1059,51 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         assertThat(searchResponse.hits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick browse</x> button is a fancy thing, right bro?"));
         assertThat(searchResponse.hits().getAt(1).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick brown</x> fox jumps over the lazy dog"));
+        
+        // with synonyms
+        client.prepareIndex("test", "type2", "0")
+        .setSource("field4", "The quick brown fox jumps over the lazy dog", "field3", "The quick brown fox jumps over the lazy dog")
+        .setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type2", "1")
+        .setSource("field4", "The quick browse button is a fancy thing, right bro?").setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type2", "2")
+        .setSource("field4", "a quick fast blue car")
+        .setRefresh(true).execute().actionGet();
+        
+        source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field3", "fast bro")).from(0).size(60).explain(true)
+                .highlight(highlight().field("field3").order("score").preTags("<x>").postTags("</x>"));
+
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field3").fragments()[0].string(),
+                equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+
+        logger.info("--> highlighting and searching on field4");
+        source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "the fast bro")).from(0).size(60).explain(true)
+                .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
+
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field4").fragments()[0].string(),
+                equalTo("<x>The quick browse</x> button is a fancy thing, right bro?"));
+        assertThat(searchResponse.hits().getAt(1).highlightFields().get("field4").fragments()[0].string(),
+                equalTo("<x>The quick brown</x> fox jumps over the lazy dog"));
+        
+        logger.info("--> highlighting and searching on field4");
+        source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca")).from(0).size(60).explain(true)
+                .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
+
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field4").fragments()[0].string(),
+                equalTo("<x>a quick fast blue car</x>"));
+        
     }
     
     @Test

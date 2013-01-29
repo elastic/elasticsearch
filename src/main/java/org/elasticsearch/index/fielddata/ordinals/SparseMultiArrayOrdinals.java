@@ -71,14 +71,14 @@ public class SparseMultiArrayOrdinals implements Ordinals {
         this.lookup = new int[maxDoc];
         this.numDocs = loadedOrds[0].length;
         this.numOrds = numOrds;
-        List<TIntArrayList> allStorageArrays = new ArrayList<TIntArrayList>();
+        List<int[]> allStorageArrays = new ArrayList<int[]>();
 
         TIntArrayList currentStorageArray = new TIntArrayList(maxSize);
         currentStorageArray.add(Integer.MIN_VALUE);
 
         TIntArrayList currentDocOrs = new TIntArrayList();
         for (int doc = 0; doc < maxDoc; doc++) {
-            currentDocOrs.clear();
+            currentDocOrs.resetQuick();
             for (int[] currentOrds : loadedOrds) {
                 int currentOrd = currentOrds[doc];
                 if (currentOrd == 0) {
@@ -93,8 +93,8 @@ public class SparseMultiArrayOrdinals implements Ordinals {
                     throw new ElasticSearchException("Doc[" + doc + "] has " + currentDocOrs.size() + " ordinals, but it surpasses the limit of " + maxSize);
                 }
 
-                allStorageArrays.add(currentStorageArray);
-                currentStorageArray = new TIntArrayList(maxSize);
+                allStorageArrays.add(currentStorageArray.toArray());
+                currentStorageArray.resetQuick();
                 currentStorageArray.add(Integer.MIN_VALUE);
                 currentStorageArrayOffset = 1;
             }
@@ -115,12 +115,12 @@ public class SparseMultiArrayOrdinals implements Ordinals {
         }
 
         if (!currentStorageArray.isEmpty()) {
-            allStorageArrays.add(currentStorageArray);
+            allStorageArrays.add(currentStorageArray.toArray());
         }
 
         this.storageOrdinals = new int[allStorageArrays.size()][];
         for (int i = 0; i < this.storageOrdinals.length; i++) {
-            this.storageOrdinals[i] = allStorageArrays.get(i).toArray();
+            this.storageOrdinals[i] = allStorageArrays.get(i);
         }
     }
 

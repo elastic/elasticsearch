@@ -19,15 +19,17 @@
 
 package org.elasticsearch.test.unit.index.fielddata.ordinals;
 
-import org.elasticsearch.index.fielddata.ordinals.MultiFlatArrayOrdinals;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
 /**
  */
 public class FlatMultiOrdinalsTests extends MultiOrdinalsTests {
 
     @Override
-    protected Ordinals creationMultiOrdinals(int[][] ordinals, int maxOrds) {
-        return new MultiFlatArrayOrdinals(ordinals, maxOrds);
+    protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder, ImmutableSettings.Builder settings) {
+        settings.put("multi_ordinals", "flat");
+        return builder.build(settings.build());
     }
 }

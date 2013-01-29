@@ -21,8 +21,13 @@ package org.elasticsearch.index.fielddata.plain;
 
 import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.FieldCache;
+import org.apache.lucene.search.FieldCache.StopFillCacheException;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
+import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
@@ -30,10 +35,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
-
-import java.util.ArrayList;
 
 /**
  */
@@ -79,83 +84,56 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
         if (terms == null) {
             return GeoPointDoubleArrayAtomicFieldData.EMPTY;
         }
-
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final TDoubleArrayList lat = new TDoubleArrayList();
         final TDoubleArrayList lon = new TDoubleArrayList();
-        ArrayList<int[]> ordinals = new ArrayList<int[]>();
-        int[] idx = new int[reader.maxDoc()];
-        ordinals.add(new int[reader.maxDoc()]);
-
         lat.add(0); // first "t" indicates null value
         lon.add(0); // first "t" indicates null value
-        int termOrd = 1;  // current term number
-
-        TermsEnum termsEnum = terms.iterator(null);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
+        final CharsRef spare = new CharsRef();
         try {
-            DocsEnum docsEnum = null;
-            for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-
-                String location = term.utf8ToString();
-                int comma = location.indexOf(',');
-                lat.add(Double.parseDouble(location.substring(0, comma)));
-                lon.add(Double.parseDouble(location.substring(comma + 1)));
-
-                docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
-                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                    int[] ordinal;
-                    if (idx[docId] >= ordinals.size()) {
-                        ordinal = new int[reader.maxDoc()];
-                        ordinals.add(ordinal);
-                    } else {
-                        ordinal = ordinals.get(idx[docId]);
+            BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null), reader.getLiveDocs());
+            BytesRef term;
+            while((term = iter.next()) != null) { 
+                UnicodeUtil.UTF8toUTF16(term, spare);
+                boolean parsed = false;
+                for (int i = spare.offset; i < spare.length; i++) {
+                    if (spare.chars[i] == ',') { // safes a string creation 
+                        lat.add(Double.parseDouble(new String(spare.chars, spare.offset, (i - spare.offset))));
+                        lon.add(Double.parseDouble(new String(spare.chars, (spare.offset + (i+1)), spare.length - ((i + 1) - spare.offset))));
+                        parsed = true;
+                        break;
                     }
-                    ordinal[docId] = termOrd;
-                    idx[docId]++;
                 }
-                termOrd++;
+                assert parsed;
             }
-        } catch (RuntimeException e) {
-            if (e.getClass().getName().endsWith("StopFillCacheException")) {
-                // all is well, in case numeric parsers are used.
-            } else {
-                throw e;
-            }
-        }
-
-        if (ordinals.size() == 1) {
-            int[] nativeOrdinals = ordinals.get(0);
-            FixedBitSet set = new FixedBitSet(reader.maxDoc());
-            double[] sLat = new double[reader.maxDoc()];
-            double[] sLon = new double[reader.maxDoc()];
-            boolean allHaveValue = true;
-            for (int i = 0; i < nativeOrdinals.length; i++) {
-                int nativeOrdinal = nativeOrdinals[i];
-                if (nativeOrdinal == 0) {
-                    allHaveValue = false;
-                } else {
-                    set.set(i);
+        
+            Ordinals build = builder.build(fieldDataType.getSettings());
+            if (!build.isMultiValued()) {
+                Docs ordinals = build.ordinals();
+                double[] sLat = new double[reader.maxDoc()];
+                double[] sLon = new double[reader.maxDoc()];
+                for (int i = 0; i < sLat.length; i++) {
+                    int nativeOrdinal = ordinals.getOrd(i);
                     sLat[i] = lat.get(nativeOrdinal);
                     sLon[i] = lon.get(nativeOrdinal);
                 }
-            }
-            if (allHaveValue) {
-                return new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, reader.maxDoc());
+                FixedBitSet set = builder.buildDocsWithValuesSet();
+                if (set == null) {
+                    return new GeoPointDoubleArrayAtomicFieldData.Single(sLon, sLat, reader.maxDoc());
+                } else {
+                    return new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, reader.maxDoc(), set);
+                }
             } else {
-                return new GeoPointDoubleArrayAtomicFieldData.SingleFixedSet(sLon, sLat, reader.maxDoc(), set);
+                return new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(
+                        lon.toArray(new double[lon.size()]),
+                        lat.toArray(new double[lat.size()]),
+                        reader.maxDoc(), build);
             }
-        } else {
-            int[][] nativeOrdinals = new int[ordinals.size()][];
-            for (int i = 0; i < nativeOrdinals.length; i++) {
-                nativeOrdinals[i] = ordinals.get(i);
-            }
-            return new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(
-                    lon.toArray(new double[lon.size()]),
-                    lat.toArray(new double[lat.size()]),
-                    reader.maxDoc(),
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
-            );
+        } finally {
+            builder.close();
         }
+
     }
 
     @Override

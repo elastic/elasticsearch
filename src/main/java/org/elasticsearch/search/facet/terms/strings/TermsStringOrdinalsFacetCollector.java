@@ -99,7 +99,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         if (current != null) {
             missing += current.counts[0];
             total += current.total - current.counts[0];
-            if (current.values.ordinals().getNumOrds() > 1) {
+            if (current.values.ordinals().getNumOrds() > 0) {
                 aggregators.add(current);
             }
         }
@@ -118,7 +118,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             missing += current.counts[0];
             total += current.total - current.counts[0];
             // if we have values for this one, add it
-            if (current.values.ordinals().getNumOrds() > 1) {
+            if (current.values.ordinals().getNumOrds() > 0) {
                 aggregators.add(current);
             }
         }
@@ -221,10 +221,13 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         int position = 0;
         BytesRef current;
         int total;
+        private final int numOrds;
 
         public ReaderAggregator(BytesValues.WithOrdinals values) {
             this.values = values;
-            this.counts = CacheRecycler.popIntArray(values.ordinals().getNumOrds());
+            this.numOrds = values.ordinals().getNumOrds();
+
+            this.counts = CacheRecycler.popIntArray(numOrds);
         }
 
         @Override
@@ -234,7 +237,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         }
 
         public boolean nextPosition() {
-            if (++position >= values.ordinals().getNumOrds()) {
+            if (++position > numOrds) {
                 return false;
             }
             current = values.getValueByOrd(position);

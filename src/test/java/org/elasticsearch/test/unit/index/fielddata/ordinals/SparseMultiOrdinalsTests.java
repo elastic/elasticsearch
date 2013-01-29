@@ -20,7 +20,10 @@
 package org.elasticsearch.test.unit.index.fielddata.ordinals;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.SparseMultiArrayOrdinals;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.testng.annotations.Test;
@@ -34,26 +37,28 @@ import static org.testng.Assert.fail;
 public class SparseMultiOrdinalsTests extends MultiOrdinalsTests {
 
     @Override
-    protected Ordinals creationMultiOrdinals(int[][] ordinals, int maxOrds) {
-        return new SparseMultiArrayOrdinals(ordinals, maxOrds, 64);
+    protected Ordinals creationMultiOrdinals(OrdinalsBuilder builder, ImmutableSettings.Builder settings) {
+        settings.put("multi_ordinals", "sparse");
+        return builder.build(settings.build());
     }
 
     @Test
     public void testMultiValuesSurpassOrdinalsLimit() throws Exception {
-        int maxDoc = 2;
+        OrdinalsBuilder builder = new OrdinalsBuilder(2);
         int maxOrds = 128;
-        int[][] ords = new int[maxOrds][maxDoc];
-        // Doc 1
-        ords[0][0] = 2;
-        ords[1][0] = 4;
-
-        // Doc 2
         for (int i = 0; i < maxOrds; i++) {
-            ords[i][1] = (i + 1);
+            builder.nextOrdinal();
+            if (i == 2 || i == 4) {
+                builder.addDoc(0);
+            }
+            builder.addDoc(1);
+            
         }
-
+        
         try {
-            creationMultiOrdinals(ords, maxOrds);
+            Builder builder2 = ImmutableSettings.builder();
+            builder2.put("multi_ordinals_max_docs", 64);
+            creationMultiOrdinals(builder, builder2);
             fail("Exception should have been throwed");
         } catch (ElasticSearchException e) {
 
@@ -64,39 +69,33 @@ public class SparseMultiOrdinalsTests extends MultiOrdinalsTests {
     public void testMultiValuesDocsWithOverlappingStorageArrays() throws Exception {
         int maxDoc = 7;
         int maxOrds = 15;
-        int[][] ords = new int[maxOrds][maxDoc];
-        // Doc 1
-        for (int i = 0; i < 10; i++) {
-            ords[i][0] = (i + 1);
+        OrdinalsBuilder builder = new OrdinalsBuilder(maxDoc);
+        for (int i = 0; i < maxOrds; i++) {
+            builder.nextOrdinal();
+            if (i < 10) {
+                builder.addDoc(0);
+            }
+            builder.addDoc(1);
+            if (i == 0) {
+                builder.addDoc(2);
+            }
+            if (i < 5) {
+                builder.addDoc(3);
+
+            }
+            if (i < 6) {
+                builder.addDoc(4);
+
+            }
+            if (i == 1) {
+                builder.addDoc(5);
+            }
+            if (i < 10) {
+                builder.addDoc(6);
+            }
         }
-
-        // Doc 2
-        for (int i = 0; i < 15; i++) {
-            ords[i][1] = (i + 1);
-        }
-
-        // Doc 3
-        ords[0][2] = 1;
-
-        // Doc 4
-        for (int i = 0; i < 5; i++) {
-            ords[i][3] = (i + 1);
-        }
-
-        // Doc 5
-        for (int i = 0; i < 6; i++) {
-            ords[i][4] = (i + 1);
-        }
-
-        // Doc 6
-        ords[0][5] = 2;
-
-        // Doc 7
-        for (int i = 0; i < 10; i++) {
-            ords[i][6] = (i + 1);
-        }
-
-        Ordinals ordinals = new SparseMultiArrayOrdinals(ords, maxOrds, 20);
+      
+        Ordinals ordinals = new SparseMultiArrayOrdinals(builder, 64);
         Ordinals.Docs docs = ordinals.ordinals();
         assertThat(docs.getNumDocs(), equalTo(maxDoc));
         assertThat(docs.getNumOrds(), equalTo(maxOrds)); // Includes null ord

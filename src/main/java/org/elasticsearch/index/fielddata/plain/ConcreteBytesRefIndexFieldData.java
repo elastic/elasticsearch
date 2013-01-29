@@ -20,7 +20,10 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.FieldCache;
+import org.apache.lucene.search.FieldCache.StopFillCacheException;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -31,6 +34,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.SingleArrayOrdinals;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -85,71 +89,17 @@ public class ConcreteBytesRefIndexFieldData extends AbstractIndexFieldData<Concr
             size = 1024;
         }
         final ArrayList<BytesRef> values = new ArrayList<BytesRef>((int) size);
-        ArrayList<int[]> ordinals = new ArrayList<int[]>();
-        int[] idx = new int[reader.maxDoc()];
-        ordinals.add(new int[reader.maxDoc()]);
-
         values.add(null); // first "t" indicates null value
-        int termOrd = 1;  // current term number
-
-        TermsEnum termsEnum = terms.iterator(null);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
         try {
-            DocsEnum docsEnum = null;
-            for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+            BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null), reader.getLiveDocs());
+            BytesRef term;
+            while((term = iter.next()) != null) {
                 values.add(BytesRef.deepCopyOf(term));
-                docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
-                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                    int[] ordinal;
-                    if (idx[docId] >= ordinals.size()) {
-                        ordinal = new int[reader.maxDoc()];
-                        ordinals.add(ordinal);
-                    } else {
-                        ordinal = ordinals.get(idx[docId]);
-                    }
-                    ordinal[docId] = termOrd;
-                    idx[docId]++;
-                }
-                termOrd++;
             }
-        } catch (RuntimeException e) {
-            if (e.getClass().getName().endsWith("StopFillCacheException")) {
-                // all is well, in case numeric parsers are used.
-            } else {
-                throw e;
-            }
-        }
-
-        if (ordinals.size() == 1) {
-            // optimizing to DocIdOrdinals which will use less memory removes the "order" notion of ordinals
-            // we can potentially do this, but only for things like facet processes
-            // that don't require order
-//            int[] nativeOrdinals = ordinals.get(0);
-//            boolean allHaveValue = true;
-//            for (int nativeOrdinal : nativeOrdinals) {
-//                if (nativeOrdinal == 0) {
-//                    allHaveValue = false;
-//                    break;
-//                }
-//            }
-//            if (allHaveValue) {
-//                BytesRef[] convertedValues = new BytesRef[values.size()];
-//                for (int i = 1; i < nativeOrdinals.length; i++) {
-//                    convertedValues[i] = values.get(nativeOrdinals[i]);
-//                }
-//                return new ConcreteBytesRefAtomicFieldData(convertedValues, DocIdOrdinals.INSTANCE);
-//            } else {
-//                return new ConcreteBytesRefAtomicFieldData(values.toArray(new BytesRef[values.size()]), new SingleArrayOrdinals(nativeOrdinals));
-//            }
-            return new ConcreteBytesRefAtomicFieldData(values.toArray(new BytesRef[values.size()]), new SingleArrayOrdinals(ordinals.get(0), termOrd));
-        } else {
-            int[][] nativeOrdinals = new int[ordinals.size()][];
-            for (int i = 0; i < nativeOrdinals.length; i++) {
-                nativeOrdinals[i] = ordinals.get(i);
-            }
-            return new ConcreteBytesRefAtomicFieldData(
-                    values.toArray(new BytesRef[values.size()]),
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
-            );
+            return new ConcreteBytesRefAtomicFieldData(values.toArray(new BytesRef[values.size()]), builder.build(fieldDataType.getSettings()));
+        } finally {
+            builder.close();
         }
     }
 

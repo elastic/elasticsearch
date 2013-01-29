@@ -27,7 +27,7 @@ import org.elasticsearch.index.fielddata.util.IntArrayRef;
  * values a docId has. Ordinals are populated in order from the first flat array
  * value to the next.
  */
-public class MultiFlatArrayOrdinals implements Ordinals {
+public final class MultiFlatArrayOrdinals implements Ordinals {
 
     // ordinals with value 0 indicates no value
     private final int[][] ordinals;

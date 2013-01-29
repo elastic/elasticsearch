@@ -58,7 +58,7 @@ public class EmptyOrdinals implements Ordinals {
 
     @Override
     public int getNumOrds() {
-        return 1;
+        return 0;
     }
 
     @Override

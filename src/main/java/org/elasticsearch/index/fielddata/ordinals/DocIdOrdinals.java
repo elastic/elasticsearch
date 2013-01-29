@@ -65,7 +65,7 @@ public class DocIdOrdinals implements Ordinals {
 
     @Override
     public int getNumOrds() {
-        return numDocs + 1;
+        return numDocs;
     }
 
     @Override

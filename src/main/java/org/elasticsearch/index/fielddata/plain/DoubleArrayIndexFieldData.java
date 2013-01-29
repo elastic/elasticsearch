@@ -22,8 +22,11 @@ package org.elasticsearch.index.fielddata.plain;
 import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.FieldCache;
+import org.apache.lucene.search.FieldCache.StopFillCacheException;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -31,10 +34,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
-
-import java.util.ArrayList;
 
 /**
  */
@@ -79,79 +82,47 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
 
     @Override
     public DoubleArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+        
         AtomicReader reader = context.reader();
-
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
             return DoubleArrayAtomicFieldData.EMPTY;
         }
-
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
         final TDoubleArrayList values = new TDoubleArrayList();
-        ArrayList<int[]> ordinals = new ArrayList<int[]>();
-        int[] idx = new int[reader.maxDoc()];
-        ordinals.add(new int[reader.maxDoc()]);
 
         values.add(0); // first "t" indicates null value
-        int termOrd = 1;  // current term number
-
-        TermsEnum termsEnum = terms.iterator(null);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
         try {
-            DocsEnum docsEnum = null;
-            for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
-                values.add(FieldCache.NUMERIC_UTILS_DOUBLE_PARSER.parseDouble(term));
-                docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
-                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                    int[] ordinal;
-                    if (idx[docId] >= ordinals.size()) {
-                        ordinal = new int[reader.maxDoc()];
-                        ordinals.add(ordinal);
-                    } else {
-                        ordinal = ordinals.get(idx[docId]);
-                    }
-                    ordinal[docId] = termOrd;
-                    idx[docId]++;
+            final BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric64Bit(terms.iterator(null)), reader.getLiveDocs());
+            BytesRef term;
+            while((term = iter.next()) != null) {
+                values.add(NumericUtils.sortableLongToDouble(NumericUtils.prefixCodedToLong(term)));
+            }
+            Ordinals build = builder.build(fieldDataType.getSettings());
+            if (!build.isMultiValued()) {
+                Docs ordinals = build.ordinals();
+                double[] sValues = new double[reader.maxDoc()];
+                int maxDoc = reader.maxDoc();
+                for (int i = 0; i < maxDoc; i++) {
+                  sValues[i] = values.get(ordinals.getOrd(i));
                 }
-                termOrd++;
-            }
-        } catch (RuntimeException e) {
-            if (e.getClass().getName().endsWith("StopFillCacheException")) {
-                // all is well, in case numeric parsers are used.
-            } else {
-                throw e;
-            }
-        }
-
-        if (ordinals.size() == 1) {
-            int[] nativeOrdinals = ordinals.get(0);
-            FixedBitSet set = new FixedBitSet(reader.maxDoc());
-            double[] sValues = new double[reader.maxDoc()];
-            boolean allHaveValue = true;
-            for (int i = 0; i < nativeOrdinals.length; i++) {
-                int nativeOrdinal = nativeOrdinals[i];
-                if (nativeOrdinal == 0) {
-                    allHaveValue = false;
+                final FixedBitSet set = builder.buildDocsWithValuesSet();
+                if (set == null) {
+                    return new DoubleArrayAtomicFieldData.Single(sValues, reader.maxDoc());
                 } else {
-                    set.set(i);
-                    sValues[i] = values.get(nativeOrdinal);
+                    return new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, reader.maxDoc(), set);
                 }
-            }
-            if (allHaveValue) {
-                return new DoubleArrayAtomicFieldData.Single(sValues, reader.maxDoc());
             } else {
-                return new DoubleArrayAtomicFieldData.SingleFixedSet(sValues, reader.maxDoc(), set);
+                return new DoubleArrayAtomicFieldData.WithOrdinals(
+                        values.toArray(new double[values.size()]),
+                        reader.maxDoc(),
+                        build);
             }
-        } else {
-            int[][] nativeOrdinals = new int[ordinals.size()][];
-            for (int i = 0; i < nativeOrdinals.length; i++) {
-                nativeOrdinals[i] = ordinals.get(i);
-            }
-            return new DoubleArrayAtomicFieldData.WithOrdinals(
-                    values.toArray(new double[values.size()]),
-                    reader.maxDoc(),
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
-            );
+        } finally {
+            builder.close();
         }
+      
     }
 
     @Override

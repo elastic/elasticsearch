@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
@@ -137,9 +136,7 @@ public class MultiFlatArrayOrdinals implements Ordinals {
                     if (i == 0) return IntArrayRef.EMPTY;
                     break;
                 }
-                if (i >= intsScratch.values.length) {
-                    intsScratch.values = ArrayUtil.grow(intsScratch.values);
-                }
+                intsScratch.growIfNeeded(i);
                 intsScratch.values[i] = ordinal;
             }
             intsScratch.end = i;

@@ -31,6 +31,8 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.facet.FacetPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.RescorePhase;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
@@ -45,11 +47,13 @@ public class QueryPhase implements SearchPhase {
 
     private final FacetPhase facetPhase;
     private final SuggestPhase suggestPhase;
+    private RescorePhase rescorePhase;
 
     @Inject
-    public QueryPhase(FacetPhase facetPhase, SuggestPhase suggestPhase) {
+    public QueryPhase(FacetPhase facetPhase, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
         this.facetPhase = facetPhase;
         this.suggestPhase = suggestPhase;
+        this.rescorePhase = rescorePhase;
     }
 
     @Override
@@ -71,7 +75,8 @@ public class QueryPhase implements SearchPhase {
                 .put("minScore", new MinScoreParseElement())
                 .put("timeout", new TimeoutParseElement())
                 .putAll(facetPhase.parseElements())
-                .putAll(suggestPhase.parseElements());
+                .putAll(suggestPhase.parseElements())
+                .putAll(rescorePhase.parseElements());
         return parseElements.build();
     }
 
@@ -99,6 +104,7 @@ public class QueryPhase implements SearchPhase {
         }
 
         searchContext.searcher().inStage(ContextIndexSearcher.Stage.MAIN_QUERY);
+        boolean rescore = false;
         try {
             searchContext.queryResult().from(searchContext.from());
             searchContext.queryResult().size(searchContext.size());
@@ -106,7 +112,7 @@ public class QueryPhase implements SearchPhase {
             Query query = searchContext.query();
 
             TopDocs topDocs;
-            int numDocs = searchContext.from() + searchContext.size();
+            int numDocs = searchContext.from() + searchContext.size() ;
             if (numDocs == 0) {
                 // if 0 was asked, change it to 1 since 0 is not allowed
                 numDocs = 1;
@@ -122,6 +128,10 @@ public class QueryPhase implements SearchPhase {
                 topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
                         searchContext.trackScores(), searchContext.trackScores());
             } else {
+                if (searchContext.rescore() != null) {
+                    rescore = true;
+                    numDocs = Math.max(searchContext.rescore().window(), numDocs);
+                }
                 topDocs = searchContext.searcher().search(query, numDocs);
             }
             searchContext.queryResult().topDocs(topDocs);
@@ -130,7 +140,9 @@ public class QueryPhase implements SearchPhase {
         } finally {
             searchContext.searcher().finishStage(ContextIndexSearcher.Stage.MAIN_QUERY);
         }
-
+        if (rescore) { // only if we do a regular search
+            rescorePhase.execute(searchContext);
+        }
         suggestPhase.execute(searchContext);
         facetPhase.execute(searchContext);
     }

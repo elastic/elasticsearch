@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
 import gnu.trove.list.array.TIntArrayList;
-import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
@@ -244,9 +243,7 @@ public class SparseMultiArrayOrdinals implements Ordinals {
                 int ord;
                 while ((ord = ords[ordsIndex++]) > 0) {
                     intsScratch.values[i++] = ord;
-                    if (i >= intsScratch.values.length) {
-                        intsScratch.values = ArrayUtil.grow(intsScratch.values);
-                    }
+                    intsScratch.growIfNeeded(i);
                 }
                 intsScratch.values[i++] = -ord;
                 intsScratch.end = i;

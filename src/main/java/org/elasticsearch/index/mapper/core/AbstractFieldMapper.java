@@ -278,7 +278,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     protected float boost;
     protected final FieldType fieldType;
     protected final NamedAnalyzer indexAnalyzer;
-    protected final NamedAnalyzer searchAnalyzer;
+    protected NamedAnalyzer searchAnalyzer;
     protected PostingsFormatProvider postingsFormat;
     protected final SimilarityProvider similarity;
 
@@ -557,15 +557,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         }
-        if (this.searchAnalyzer == null) {
-            if (fieldMergeWith.searchAnalyzer != null) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
-            }
-        } else if (fieldMergeWith.searchAnalyzer == null) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
-        } else if (!this.searchAnalyzer.name().equals(fieldMergeWith.searchAnalyzer.name())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
-        }
 
         if (this.similarity == null) {
             if (fieldMergeWith.similarity() != null) {
@@ -582,6 +573,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             this.boost = fieldMergeWith.boost;
             if (fieldMergeWith.postingsFormat != null) {
                 this.postingsFormat = fieldMergeWith.postingsFormat;
+            }
+            if (fieldMergeWith.searchAnalyzer != null) {
+                this.searchAnalyzer = fieldMergeWith.searchAnalyzer;
             }
             if (fieldMergeWith.customFieldDataSettings != null) {
                 if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {

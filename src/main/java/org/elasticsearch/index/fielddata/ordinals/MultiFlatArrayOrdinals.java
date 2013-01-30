@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
@@ -28,13 +29,6 @@ import org.elasticsearch.index.fielddata.util.IntArrayRef;
  * value to the next.
  */
 public class MultiFlatArrayOrdinals implements Ordinals {
-
-    private ThreadLocal<IntArrayRef> intArrayRefCache = new ThreadLocal<IntArrayRef>() {
-        @Override
-        protected IntArrayRef initialValue() {
-            return new IntArrayRef(new int[ordinals.length]);
-        }
-    };
 
     // ordinals with value 0 indicates no value
     private final int[][] ordinals;
@@ -90,7 +84,7 @@ public class MultiFlatArrayOrdinals implements Ordinals {
 
     @Override
     public Docs ordinals() {
-        return new Docs(this, ordinals, intArrayRefCache.get());
+        return new Docs(this, ordinals);
     }
 
     public static class Docs implements Ordinals.Docs {
@@ -101,11 +95,11 @@ public class MultiFlatArrayOrdinals implements Ordinals {
 
         private final IntArrayRef intsScratch;
 
-        public Docs(MultiFlatArrayOrdinals parent, int[][] ordinals, IntArrayRef intsScratch) {
+        public Docs(MultiFlatArrayOrdinals parent, int[][] ordinals) {
             this.parent = parent;
             this.ordinals = ordinals;
             this.iter = new IterImpl(ordinals);
-            this.intsScratch = intsScratch;
+            this.intsScratch = new IntArrayRef(new int[16]);
         }
 
         @Override
@@ -142,6 +136,9 @@ public class MultiFlatArrayOrdinals implements Ordinals {
                 if (ordinal == 0) {
                     if (i == 0) return IntArrayRef.EMPTY;
                     break;
+                }
+                if (i >= intsScratch.values.length) {
+                    intsScratch.values = ArrayUtil.grow(intsScratch.values);
                 }
                 intsScratch.values[i] = ordinal;
             }

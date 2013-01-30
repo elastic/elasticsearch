@@ -20,7 +20,6 @@
 package org.elasticsearch.index.cache.id.simple;
 
 import gnu.trove.impl.Constants;
-import gnu.trove.map.hash.TIntObjectHashMap;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticSearchException;
@@ -51,11 +50,13 @@ import java.util.concurrent.ConcurrentMap;
 public class SimpleIdCache extends AbstractIndexComponent implements IdCache, SegmentReader.CoreClosedListener {
 
     private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
+    private final boolean reuse;
 
     @Inject
     public SimpleIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         idReaders = ConcurrentCollections.newConcurrentMap();
+        this.reuse = componentSettings.getAsBoolean("reuse", false);
     }
 
     @Override
@@ -229,12 +230,16 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     private HashedBytesArray checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, HashedBytesArray idAsBytes) {
         HashedBytesArray finalIdAsBytes;
         // go over and see if we can reuse this id
-        for (SimpleIdReaderCache idReaderCache : idReaders.values()) {
-            finalIdAsBytes = idReaderCache.canReuse(idAsBytes);
-            if (finalIdAsBytes != null) {
-                return finalIdAsBytes;
+
+        if (reuse) {
+            for (SimpleIdReaderCache idReaderCache : idReaders.values()) {
+                finalIdAsBytes = idReaderCache.canReuse(idAsBytes);
+                if (finalIdAsBytes != null) {
+                    return finalIdAsBytes;
+                }
             }
         }
+
         for (Map<String, TypeBuilder> map : builders.values()) {
             for (TypeBuilder typeBuilder : map.values()) {
                 finalIdAsBytes = typeBuilder.canReuse(idAsBytes);

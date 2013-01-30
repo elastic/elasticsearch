@@ -35,6 +35,7 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -662,7 +663,17 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         suggestBuilder().addSuggestion(suggestion);
         return this;
     }
-
+    
+    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer) {
+        rescoreBuilder().setRescorer(rescorer);
+        return this;
+    }
+    
+    public SearchRequestBuilder setRescoreWindow(int window) {
+        rescoreBuilder().setWindowSize(window);
+        return this;
+    }
+    
     /**
      * Sets the source of the request as a json string. Note, settings anything other
      * than the search type will cause this source to be overridden, consider using
@@ -838,6 +849,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     private SuggestBuilder suggestBuilder() {
         return sourceBuilder().suggest();
+    }
+    
+    private RescoreBuilder rescoreBuilder() {
+        return sourceBuilder().rescore();
     }
 
 }

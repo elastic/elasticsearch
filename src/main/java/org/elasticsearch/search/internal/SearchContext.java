@@ -58,6 +58,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -166,6 +167,8 @@ public class SearchContext implements Releasable {
     private SearchContextHighlight highlight;
 
     private SuggestionSearchContext suggest;
+    
+    private RescoreSearchContext rescore;
 
     private SearchLookup searchLookup;
 
@@ -176,6 +179,7 @@ public class SearchContext implements Releasable {
     private volatile long lastAccessTime;
 
     private List<Rewrite> rewrites = null;
+
 
     public SearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
@@ -312,6 +316,14 @@ public class SearchContext implements Releasable {
 
     public void suggest(SuggestionSearchContext suggest) {
         this.suggest = suggest;
+    }
+    
+    public RescoreSearchContext rescore() {
+        return this.rescore;
+    }
+    
+    public void rescore(RescoreSearchContext rescore) {
+        this.rescore = rescore;
     }
 
     public boolean hasScriptFields() {

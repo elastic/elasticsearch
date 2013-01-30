@@ -151,9 +151,20 @@ public abstract class NetworkUtils {
         if (intf == null)
             throw new IllegalArgumentException("Network interface pointer is null");
 
+        // getInetAddresses, as well as returning the addresses
+        // directly attached to the intf it is called on, also returns
+        // addresses tied to all subinterfaces.  We need to know what these
+        // are so we can ignore them in our selection.
+        Collection subAddresses = new ArrayList<InetAddress>();
+        for (Enumeration subInterfaces = intf.getSubInterfaces(); subInterfaces.hasMoreElements(); ) {
+            NetworkInterface subInterface = (NetworkInterface) subInterfaces.nextElement();
+            Enumeration subInterfaceAddrs = subInterface.getInetAddresses();
+            subAddresses.addAll(Collections.list(subInterfaceAddrs));
+        }
+        
         for (Enumeration addresses = intf.getInetAddresses(); addresses.hasMoreElements(); ) {
             InetAddress address = (InetAddress) addresses.nextElement();
-            if (!address.isLoopbackAddress()) {
+            if (!address.isLoopbackAddress() && !subAddresses.contains(address)) {
                 if ((address instanceof Inet4Address && ipVersion == StackType.IPv4) ||
                         (address instanceof Inet6Address && ipVersion == StackType.IPv6))
                     return address;

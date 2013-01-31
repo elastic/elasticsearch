@@ -34,7 +34,6 @@ import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
-import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -45,7 +44,7 @@ import java.util.Set;
  * connects the matching child docs to the related parent documents
  * using the {@link IdReaderTypeCache}.
  */
-public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
+public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 
     private final SearchContext searchContext;
     private final String parentType;
@@ -96,9 +95,9 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
             return this;
         }
 
-        int index = searchContext.scopePhases().indexOf(this);
+        int index = searchContext.rewrites().indexOf(this);
         ChildrenQuery rewrite = new ChildrenQuery(this, rewrittenChildQuery);
-        searchContext.scopePhases().set(index, rewrite);
+        searchContext.rewrites().set(index, rewrite);
         return rewrite;
     }
 
@@ -108,34 +107,24 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
     }
 
     @Override
-    public boolean requiresProcessing() {
-        return uidToScore == null;
-    }
+    public void contextRewrite(SearchContext searchContext) throws Exception {
+        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
-    @Override
-    public Collector collector() {
         uidToScore = CacheRecycler.popObjectFloatMap();
+        Collector collector;
         switch (scoreType) {
             case AVG:
                 uidToCount = CacheRecycler.popObjectIntMap();
-                return new AvgChildUidCollector(scoreType, searchContext, parentType, uidToScore, uidToCount);
+                collector = new AvgChildUidCollector(scoreType, searchContext, parentType, uidToScore, uidToCount);
+                break;
             default:
-                return new ChildUidCollector(scoreType, searchContext, parentType, uidToScore);
+                collector = new ChildUidCollector(scoreType, searchContext, parentType, uidToScore);
         }
+        searchContext.searcher().search(childQuery, collector);
     }
 
     @Override
-    public void processCollector(Collector collector) {
-        // Do nothing, we already have the references to the child scores and optionally the child count.
-    }
-
-    @Override
-    public String scope() {
-        return scope;
-    }
-
-    @Override
-    public void clear() {
+    public void contextClear() {
         if (uidToScore != null) {
             CacheRecycler.pushObjectFloatMap(uidToScore);
         }
@@ -144,11 +133,6 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
             CacheRecycler.pushObjectIntMap(uidToCount);
         }
         uidToCount = null;
-    }
-
-    @Override
-    public Query query() {
-        return childQuery;
     }
 
     @Override

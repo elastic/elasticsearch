@@ -122,7 +122,7 @@ public class HasParentFilterParser implements FilterParser {
         SearchContext searchContext = SearchContext.current();
 
         HasParentFilter parentFilter = HasParentFilter.create(executionType, query, null, parentType, searchContext);
-        searchContext.addScopePhase(parentFilter);
+        searchContext.addRewrite(parentFilter);
 
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, parentFilter);

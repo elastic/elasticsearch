@@ -27,7 +27,6 @@ import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
-import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,7 +35,7 @@ import java.util.*;
 /**
  *
  */
-public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
+public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     private Query query;
 
@@ -73,38 +72,52 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
     }
 
     @Override
-    public Query query() {
-        return this;
+    public void contextRewrite(SearchContext searchContext) throws Exception {
+        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
+
+        int numDocs = (searchContext.from() + searchContext.size());
+        if (numDocs == 0) {
+            numDocs = 1;
+        }
+        numDocs *= factor;
+        while (true) {
+            clear();
+//            if (topDocsPhase.scope() != null) {
+//                searchContext.searcher().processingScope(topDocsPhase.scope());
+//            }
+            TopDocs topDocs = searchContext.searcher().search(query, numDocs);
+//            if (topDocsPhase.scope() != null) {
+            // we mark the scope as processed, so we don't process it again, even if we need to rerun the query...
+//                searchContext.searcher().processedScope();
+//            }
+            processResults(topDocs, searchContext);
+
+            // check if we found enough docs, if so, break
+            if (numHits >= (searchContext.from() + searchContext.size())) {
+                break;
+            }
+            // if we did not find enough docs, check if it make sense to search further
+            if (topDocs.totalHits <= numDocs) {
+                break;
+            }
+            // if not, update numDocs, and search again
+            numDocs *= incrementalFactor;
+            if (numDocs > topDocs.totalHits) {
+                numDocs = topDocs.totalHits;
+            }
+        }
     }
 
     @Override
-    public String scope() {
-        return scope;
+    public void contextClear() {
     }
 
-    @Override
-    public void clear() {
+    void clear() {
         properlyInvoked[0] = true;
         parentDocs = null;
         numHits = 0;
     }
 
-    @Override
-    public int numHits() {
-        return numHits;
-    }
-
-    @Override
-    public int factor() {
-        return this.factor;
-    }
-
-    @Override
-    public int incrementalFactor() {
-        return this.incrementalFactor;
-    }
-
-    @Override
     public void processResults(TopDocs topDocs, SearchContext context) {
         Map<Object, TIntObjectHashMap<ParentDoc>> parentDocsPerReader = new HashMap<Object, TIntObjectHashMap<ParentDoc>>();
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {

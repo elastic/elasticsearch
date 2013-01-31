@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.facet;
 
-import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,9 +28,9 @@ import org.elasticsearch.index.search.nested.NestedChildrenCollector;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -64,7 +63,8 @@ public class FacetParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         XContentParser.Token token;
 
-        List<FacetCollector> facetCollectors = null;
+        List<FacetCollector> queryCollectors = null;
+        List<FacetCollector> globalCollectors = null;
 
         String topLevelFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -72,7 +72,7 @@ public class FacetParseElement implements SearchParseElement {
                 topLevelFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 FacetCollector facet = null;
-                String scope = ContextIndexSearcher.Scopes.MAIN;
+                boolean global = false;
                 String facetFieldName = null;
                 Filter filter = null;
                 boolean cacheFilter = true;
@@ -92,9 +92,7 @@ public class FacetParseElement implements SearchParseElement {
                         }
                     } else if (token.isValue()) {
                         if ("global".equals(facetFieldName)) {
-                            if (parser.booleanValue()) {
-                                scope = ContextIndexSearcher.Scopes.GLOBAL;
-                            }
+                            global = parser.booleanValue();
                         } else if ("scope".equals(facetFieldName) || "_scope".equals(facetFieldName)) {
                             throw new SearchParseException(context, "the [scope] support in facets have been removed");
                         } else if ("cache_filter".equals(facetFieldName) || "cacheFilter".equals(facetFieldName)) {
@@ -131,14 +129,21 @@ public class FacetParseElement implements SearchParseElement {
                     throw new SearchParseException(context, "no facet type found for facet named [" + topLevelFieldName + "]");
                 }
 
-                if (facetCollectors == null) {
-                    facetCollectors = Lists.newArrayList();
+                if (global) {
+                    if (globalCollectors == null) {
+                        globalCollectors = new ArrayList<FacetCollector>();
+                    }
+                    globalCollectors.add(facet);
+                } else {
+                    if (queryCollectors == null) {
+                        queryCollectors = new ArrayList<FacetCollector>();
+                    }
+                    queryCollectors.add(facet);
                 }
-                facetCollectors.add(facet);
-                context.searcher().addCollector(scope, facet);
+
             }
         }
 
-        context.facets(new SearchContextFacets(facetCollectors));
+        context.facets(new SearchContextFacets(queryCollectors, globalCollectors));
     }
 }

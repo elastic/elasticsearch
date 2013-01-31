@@ -188,15 +188,6 @@ public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
     }
 
     /**
-     * Marks the facet to run in a specific scope.
-     */
-    @Override
-    public DateHistogramFacetBuilder scope(String scope) {
-        super.scope(scope);
-        return this;
-    }
-
-    /**
      * An additional filter used to further filter down the set of documents the facet will run on.
      */
     @Override

@@ -97,15 +97,6 @@ public class HistogramScriptFacetBuilder extends AbstractFacetBuilder {
     }
 
     /**
-     * Marks the facet to run in a specific scope.
-     */
-    @Override
-    public HistogramScriptFacetBuilder scope(String scope) {
-        super.scope(scope);
-        return this;
-    }
-
-    /**
      * Sets the bounds from and to for the facet. Both performs bounds check and includes only
      * values within the bounds, and improves performance.
      */

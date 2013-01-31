@@ -31,7 +31,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
-import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -65,19 +64,6 @@ public class FacetPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        // add specific facets to nested queries...
-        if (context.nestedQueries() != null) {
-            for (Map.Entry<String, BlockJoinQuery> entry : context.nestedQueries().entrySet()) {
-                List<Collector> collectors = context.searcher().removeCollectors(entry.getKey());
-                if (collectors != null && !collectors.isEmpty()) {
-                    if (collectors.size() == 1) {
-                        entry.getValue().setCollector(collectors.get(0));
-                    } else {
-                        entry.getValue().setCollector(MultiCollector.wrap(collectors.toArray(new Collector[collectors.size()])));
-                    }
-                }
-            }
-        }
     }
 
     @Override

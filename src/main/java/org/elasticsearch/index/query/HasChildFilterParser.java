@@ -55,7 +55,6 @@ public class HasChildFilterParser implements FilterParser {
         Query query = null;
         boolean queryFound = false;
         String childType = null;
-        String scope = null;
 
         String executionType = "uid";
         String filterName = null;
@@ -92,7 +91,7 @@ public class HasChildFilterParser implements FilterParser {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
-                    scope = parser.text();
+                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_child] filter has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {// This option is experimental and will most likely be removed.
@@ -126,7 +125,7 @@ public class HasChildFilterParser implements FilterParser {
 
         SearchContext searchContext = SearchContext.current();
 
-        HasChildFilter childFilter = HasChildFilter.create(query, scope, parentType, childType, searchContext, executionType);
+        HasChildFilter childFilter = HasChildFilter.create(query, null, parentType, childType, searchContext, executionType);
         searchContext.addScopePhase(childFilter);
 
         if (filterName != null) {

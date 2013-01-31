@@ -31,8 +31,6 @@ import java.util.Map;
 
 /**
  * Term facets allow to collect frequency of terms within one (or more) field.
- *
- *
  */
 public class TermsFacetBuilder extends AbstractFacetBuilder {
     private String fieldName;
@@ -63,15 +61,6 @@ public class TermsFacetBuilder extends AbstractFacetBuilder {
      */
     public TermsFacetBuilder global(boolean global) {
         super.global(global);
-        return this;
-    }
-
-    /**
-     * Marks the facet to run in a specific scope.
-     */
-    @Override
-    public TermsFacetBuilder scope(String scope) {
-        super.scope(scope);
         return this;
     }
 

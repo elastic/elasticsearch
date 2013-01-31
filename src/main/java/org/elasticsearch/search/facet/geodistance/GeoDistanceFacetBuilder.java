@@ -202,15 +202,6 @@ public class GeoDistanceFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    /**
-     * Marks the facet to run in a specific scope.
-     */
-    @Override
-    public GeoDistanceFacetBuilder scope(String scope) {
-        super.scope(scope);
-        return this;
-    }
-
     public GeoDistanceFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;

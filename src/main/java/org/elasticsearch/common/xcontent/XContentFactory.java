@@ -115,9 +115,21 @@ public class XContentFactory {
      */
     public static XContentType xContentType(CharSequence content) {
         int length = content.length() < GUESS_HEADER_LENGTH ? content.length() : GUESS_HEADER_LENGTH;
+        if (length == 0) {
+            return null;
+        }
+        char first = content.charAt(0);
+        if (first == '{') {
+            return XContentType.JSON;
+        }
+        if (length > 2 && first == (char)SmileConstants.HEADER_BYTE_1 && content.charAt(1) == (char)SmileConstants.HEADER_BYTE_2 && content.charAt(2) == (char)SmileConstants.HEADER_BYTE_3) {
+            return XContentType.SMILE;
+        }
+        if (length > 2 && first == '-' && content.charAt(1) == '-' && content.charAt(2) == '-') {
+            return XContentType.YAML;
+        }
         for (int i = 0; i < length; i++) {
-            char c = content.charAt(i);
-            if (c == '{') {
+            if (content.charAt(i) == '{') {
                 return XContentType.JSON;
             }
         }

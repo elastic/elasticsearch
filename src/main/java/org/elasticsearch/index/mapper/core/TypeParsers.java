@@ -50,8 +50,6 @@ public class TypeParsers {
             Object propNode = entry.getValue();
             if (propName.equals("precision_step")) {
                 builder.precisionStep(nodeIntegerValue(propNode));
-            } else if (propName.equals("fuzzy_factor")) {
-                builder.fuzzyFactor(propNode.toString());
             } else if (propName.equals("ignore_malformed")) {
                 builder.ignoreMalformed(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_norms")) {

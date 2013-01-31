@@ -59,15 +59,12 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             FIELD_TYPE.freeze();
         }
 
-        public static final String FUZZY_FACTOR = null;
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit<Boolean>(false, false);
     }
 
     public abstract static class Builder<T extends Builder, Y extends NumberFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
 
         protected int precisionStep = Defaults.PRECISION_STEP;
-
-        protected String fuzzyFactor = Defaults.FUZZY_FACTOR;
 
         private Boolean ignoreMalformed;
 
@@ -100,11 +97,6 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             return builder;
         }
 
-        public T fuzzyFactor(String fuzzyFactor) {
-            this.fuzzyFactor = fuzzyFactor;
-            return builder;
-        }
-
         public T ignoreMalformed(boolean ignoreMalformed) {
             this.ignoreMalformed = ignoreMalformed;
             return builder;
@@ -123,10 +115,6 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected int precisionStep;
 
-    protected String fuzzyFactor;
-
-    protected double dFuzzyFactor;
-
     protected Boolean includeInAll;
 
     protected Explicit<Boolean> ignoreMalformed;
@@ -138,8 +126,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         }
     };
 
-    protected NumberFieldMapper(Names names, int precisionStep, @Nullable String fuzzyFactor,
-                                float boost, FieldType fieldType,
+    protected NumberFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
                                 Explicit<Boolean> ignoreMalformed, NamedAnalyzer indexAnalyzer,
                                 NamedAnalyzer searchAnalyzer, PostingsFormatProvider provider, SimilarityProvider similarity,
                                 @Nullable Settings fieldDataSettings) {
@@ -150,16 +137,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         } else {
             this.precisionStep = precisionStep;
         }
-        this.fuzzyFactor = fuzzyFactor;
-        this.dFuzzyFactor = parseFuzzyFactor(fuzzyFactor);
         this.ignoreMalformed = ignoreMalformed;
-    }
-
-    protected double parseFuzzyFactor(String fuzzyFactor) {
-        if (fuzzyFactor == null) {
-            return 1.0d;
-        }
-        return Double.parseDouble(fuzzyFactor);
     }
 
     @Override
@@ -237,9 +215,6 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     @Override
     public abstract Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions);
 
-    @Override
-    public abstract Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions);
-
     /**
      * A range filter based on the field data cache.
      */
@@ -265,8 +240,6 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             NumberFieldMapper nfmMergeWith = (NumberFieldMapper) mergeWith;
             this.precisionStep = nfmMergeWith.precisionStep;
             this.includeInAll = nfmMergeWith.includeInAll;
-            this.fuzzyFactor = nfmMergeWith.fuzzyFactor;
-            this.dFuzzyFactor = parseFuzzyFactor(nfmMergeWith.fuzzyFactor);
             if (nfmMergeWith.ignoreMalformed.explicit()) {
                 this.ignoreMalformed = nfmMergeWith.ignoreMalformed;
             }

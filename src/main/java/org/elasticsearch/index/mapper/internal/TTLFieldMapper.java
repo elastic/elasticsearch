@@ -120,7 +120,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     protected TTLFieldMapper(FieldType fieldType, boolean enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
                              PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
-                Defaults.FUZZY_FACTOR, Defaults.BOOST, fieldType, Defaults.NULL_VALUE, ignoreMalformed,
+                Defaults.BOOST, fieldType, Defaults.NULL_VALUE, ignoreMalformed,
                 provider, null, fieldDataSettings);
         this.enabled = enabled;
         this.defaultTTL = defaultTTL;

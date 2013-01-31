@@ -122,7 +122,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType,
                                Float nullValue, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
-        super(new Names(name, indexName, indexName, name), precisionStep, null, boost, fieldType,
+        super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType,
                 Defaults.IGNORE_MALFORMED, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)), provider, null, fieldDataSettings);
         this.nullValue = nullValue;
@@ -179,16 +179,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         float iValue = Float.parseFloat(value);
         float iSim = Float.parseFloat(minSim);
-        return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-    }
-
-    @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
-        float iValue = Float.parseFloat(value);
-        float iSim = (float) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 iValue - iSim,
                 iValue + iSim,

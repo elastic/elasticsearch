@@ -40,9 +40,13 @@ import java.io.IOException;
 import java.util.Set;
 
 /**
- * A query implementation that executes the wrapped child query and
- * connects the matching child docs to the related parent documents
- * using the {@link IdReaderTypeCache}.
+ * A query implementation that executes the wrapped child query and connects all the matching child docs to the related
+ * parent documents using the {@link IdReaderTypeCache}.
+ * <p/>
+ * This query is executed in two rounds. The first round resolves all the matching child documents and groups these
+ * documents by parent uid value. Also the child scores are aggregated per parent uid value. During the second round
+ * all parent documents having the same uid value that is collected in the first phase are emitted as hit including
+ * a score based on the aggregated child scores and score type.
  */
 public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 

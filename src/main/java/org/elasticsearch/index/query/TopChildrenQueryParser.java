@@ -122,7 +122,7 @@ public class TopChildrenQueryParser implements QueryParser {
 
         SearchContext searchContext = SearchContext.current();
         TopChildrenQuery childQuery = new TopChildrenQuery(query, null, childType, parentType, scoreType, factor, incrementalFactor);
-        searchContext.addScopePhase(childQuery);
+        searchContext.addRewrite(childQuery);
         return childQuery;
     }
 }

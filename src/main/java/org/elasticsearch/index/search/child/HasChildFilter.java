@@ -22,7 +22,6 @@ package org.elasticsearch.index.search.child;
 import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
-import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -44,7 +42,7 @@ import java.util.Map;
 /**
  *
  */
-public abstract class HasChildFilter extends Filter implements ScopePhase.CollectorPhase {
+public abstract class HasChildFilter extends Filter implements SearchContext.Rewrite {
 
     final Query childQuery;
     final String scope;
@@ -93,22 +91,6 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             super(childQuery, scope, parentType, childType, searchContext);
         }
 
-        public boolean requiresProcessing() {
-            return parentDocs == null;
-        }
-
-        public Collector collector() {
-            return new ChildCollector(parentType, searchContext);
-        }
-
-        public void processCollector(Collector collector) {
-            this.parentDocs = ((ChildCollector) collector).parentDocs();
-        }
-
-        public void clear() {
-            parentDocs = null;
-        }
-
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             if (parentDocs == null) {
                 throw new ElasticSearchIllegalStateException("has_child filter hasn't executed properly");
@@ -120,6 +102,18 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             return parentDocs.get(context.reader().getCoreCacheKey());
         }
 
+        @Override
+        public void contextRewrite(SearchContext searchContext) throws Exception {
+            searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
+            ChildCollector collector = new ChildCollector(parentType, searchContext);
+            searchContext.searcher().search(childQuery, collector);
+            this.parentDocs = collector.parentDocs();
+        }
+
+        @Override
+        public void contextClear() {
+            parentDocs = null;
+        }
     }
 
     static class Uid extends HasChildFilter {
@@ -128,19 +122,6 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
 
         Uid(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext) {
             super(childQuery, scope, parentType, childType, searchContext);
-        }
-
-        public boolean requiresProcessing() {
-            return collectedUids == null;
-        }
-
-        public Collector collector() {
-            collectedUids = CacheRecycler.popHashSet();
-            return new UidCollector(parentType, searchContext, collectedUids);
-        }
-
-        public void processCollector(Collector collector) {
-            collectedUids = ((UidCollector) collector).collectedUids;
         }
 
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
@@ -156,7 +137,16 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             }
         }
 
-        public void clear() {
+        @Override
+        public void contextRewrite(SearchContext searchContext) throws Exception {
+            searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
+            collectedUids = CacheRecycler.popHashSet();
+            UidCollector collector = new UidCollector(parentType, searchContext, collectedUids);
+            searchContext.searcher().search(childQuery, collector);
+        }
+
+        @Override
+        public void contextClear() {
             if (collectedUids != null) {
                 CacheRecycler.pushHashSet(collectedUids);
             }

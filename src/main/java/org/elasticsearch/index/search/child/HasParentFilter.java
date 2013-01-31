@@ -23,7 +23,6 @@ import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -37,7 +36,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
-import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -48,7 +46,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * A filter that only return child documents that are linked to the parent documents that matched with the inner query.
  */
-public abstract class HasParentFilter extends Filter implements ScopePhase.CollectorPhase {
+public abstract class HasParentFilter extends Filter implements SearchContext.Rewrite {
 
     final Query parentQuery;
     final String scope;
@@ -95,19 +93,6 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             super(query, scope, parentType, context);
         }
 
-        public boolean requiresProcessing() {
-            return parents == null;
-        }
-
-        public Collector collector() {
-            parents = CacheRecycler.popHashSet();
-            return new ParentUidsCollector(parents, context, parentType);
-        }
-
-        public void processCollector(Collector collector) {
-            parents = ((ParentUidsCollector) collector).collectedUids;
-        }
-
         public DocIdSet getDocIdSet(AtomicReaderContext readerContext, Bits acceptDocs) throws IOException {
             if (parents == null) {
                 throw new ElasticSearchIllegalStateException("has_parent filter hasn't executed properly");
@@ -121,7 +106,17 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             }
         }
 
-        public void clear() {
+        @Override
+        public void contextRewrite(SearchContext searchContext) throws Exception {
+            searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
+            parents = CacheRecycler.popHashSet();
+            ParentUidsCollector collector = new ParentUidsCollector(parents, context, parentType);
+            searchContext.searcher().search(parentQuery, collector);
+            parents = collector.collectedUids;
+        }
+
+        @Override
+        public void contextClear() {
             if (parents != null) {
                 CacheRecycler.pushHashSet(parents);
             }
@@ -185,18 +180,6 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             super(query, scope, parentType, context);
         }
 
-        public boolean requiresProcessing() {
-            return parentDocs == null;
-        }
-
-        public Collector collector() {
-            return new ParentDocsCollector();
-        }
-
-        public void processCollector(Collector collector) {
-            parentDocs = ((ParentDocsCollector) collector).segmentResults;
-        }
-
         public DocIdSet getDocIdSet(AtomicReaderContext readerContext, Bits acceptDocs) throws IOException {
             if (parentDocs == null) {
                 throw new ElasticSearchIllegalStateException("has_parent filter hasn't executed properly");
@@ -210,7 +193,16 @@ public abstract class HasParentFilter extends Filter implements ScopePhase.Colle
             }
         }
 
-        public void clear() {
+        @Override
+        public void contextRewrite(SearchContext searchContext) throws Exception {
+            searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
+            ParentDocsCollector collector = new ParentDocsCollector();
+            searchContext.searcher().search(parentQuery, collector);
+            parentDocs = collector.segmentResults;
+        }
+
+        @Override
+        public void contextClear() {
             parentDocs = null;
         }
 

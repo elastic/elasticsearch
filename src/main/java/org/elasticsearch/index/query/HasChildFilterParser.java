@@ -126,7 +126,7 @@ public class HasChildFilterParser implements FilterParser {
         SearchContext searchContext = SearchContext.current();
 
         HasChildFilter childFilter = HasChildFilter.create(query, null, parentType, childType, searchContext, executionType);
-        searchContext.addScopePhase(childFilter);
+        searchContext.addRewrite(childFilter);
 
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, childFilter);

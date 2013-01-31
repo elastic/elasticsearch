@@ -49,38 +49,28 @@ import static com.google.common.collect.Maps.newHashMap;
 public abstract class HasParentFilter extends Filter implements SearchContext.Rewrite {
 
     final Query parentQuery;
-    final String scope;
     final String parentType;
     final SearchContext context;
 
-    HasParentFilter(Query parentQuery, String scope, String parentType, SearchContext context) {
+    HasParentFilter(Query parentQuery, String parentType, SearchContext context) {
         this.parentQuery = parentQuery;
-        this.scope = scope;
         this.parentType = parentType;
         this.context = context;
-    }
-
-    public String scope() {
-        return scope;
-    }
-
-    public Query query() {
-        return parentQuery;
     }
 
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("parent_filter[").append(parentType).append("](").append(query()).append(')');
+        sb.append("parent_filter[").append(parentType).append("](").append(parentQuery).append(')');
         return sb.toString();
     }
 
-    public static HasParentFilter create(String executionType, Query query, String scope, String parentType, SearchContext context) {
+    public static HasParentFilter create(String executionType, Query query, String parentType, SearchContext context) {
         // This mechanism is experimental and will most likely be removed.
         if ("bitset".equals(executionType)) {
-            return new Bitset(query, scope, parentType, context);
+            return new Bitset(query, parentType, context);
         } else if ("uid".equals(executionType)) {
-            return new Uid(query, scope, parentType, context);
+            return new Uid(query, parentType, context);
         }
         throw new ElasticSearchIllegalStateException("Illegal has_parent execution type: " + executionType);
     }
@@ -89,8 +79,8 @@ public abstract class HasParentFilter extends Filter implements SearchContext.Re
 
         THashSet<HashedBytesArray> parents;
 
-        Uid(Query query, String scope, String parentType, SearchContext context) {
-            super(query, scope, parentType, context);
+        Uid(Query query, String parentType, SearchContext context) {
+            super(query, parentType, context);
         }
 
         public DocIdSet getDocIdSet(AtomicReaderContext readerContext, Bits acceptDocs) throws IOException {
@@ -176,8 +166,8 @@ public abstract class HasParentFilter extends Filter implements SearchContext.Re
 
         Map<Object, FixedBitSet> parentDocs;
 
-        Bitset(Query query, String scope, String parentType, SearchContext context) {
-            super(query, scope, parentType, context);
+        Bitset(Query query, String parentType, SearchContext context) {
+            super(query, parentType, context);
         }
 
         public DocIdSet getDocIdSet(AtomicReaderContext readerContext, Bits acceptDocs) throws IOException {

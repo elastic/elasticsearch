@@ -121,7 +121,7 @@ public class TopChildrenQueryParser implements QueryParser {
         query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
-        TopChildrenQuery childQuery = new TopChildrenQuery(query, null, childType, parentType, scoreType, factor, incrementalFactor);
+        TopChildrenQuery childQuery = new TopChildrenQuery(query, childType, parentType, scoreType, factor, incrementalFactor);
         searchContext.addRewrite(childQuery);
         return childQuery;
     }

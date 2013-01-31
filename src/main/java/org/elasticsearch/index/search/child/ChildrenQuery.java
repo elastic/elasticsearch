@@ -51,18 +51,16 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     private final String childType;
     private final Filter parentFilter;
     private final ScoreType scoreType;
-    private final String scope;
     private final Query childQuery;
 
     private TObjectFloatHashMap<HashedBytesArray> uidToScore;
     private TObjectIntHashMap<HashedBytesArray> uidToCount;
 
-    public ChildrenQuery(SearchContext searchContext, String parentType, String childType, Filter parentFilter, String scope, Query childQuery, ScoreType scoreType) {
+    public ChildrenQuery(SearchContext searchContext, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType) {
         this.searchContext = searchContext;
         this.parentType = parentType;
         this.childType = childType;
         this.parentFilter = parentFilter;
-        this.scope = scope;
         this.childQuery = childQuery;
         this.scoreType = scoreType;
     }
@@ -72,7 +70,6 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         this.parentType = unProcessedQuery.parentType;
         this.childType = unProcessedQuery.childType;
         this.parentFilter = unProcessedQuery.parentFilter;
-        this.scope = unProcessedQuery.scope;
         this.scoreType = unProcessedQuery.scoreType;
         this.childQuery = rewrittenChildQuery;
 

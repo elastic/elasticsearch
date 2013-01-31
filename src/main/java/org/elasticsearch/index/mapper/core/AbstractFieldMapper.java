@@ -477,12 +477,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
-        int edits = FuzzyQuery.floatToEdits((float) minSim, value.codePointCount(0, value.length()));
-        return new FuzzyQuery(names.createIndexNameTerm(indexedValueForSearch(value)), edits, prefixLength, maxExpansions, transpositions);
-    }
-
-    @Override
     public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
         if (method != null) {

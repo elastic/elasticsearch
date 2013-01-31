@@ -138,7 +138,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                                    FormatDateTimeFormatter dateTimeFormatter, boolean parseUpperInclusive,
                                    Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
-                Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, Defaults.BOOST, fieldType,
+                Defaults.PRECISION_STEP, Defaults.BOOST, fieldType,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
                 parseUpperInclusive, ignoreMalformed, provider, null, fieldDataSettings);
         this.enabled = enabled;

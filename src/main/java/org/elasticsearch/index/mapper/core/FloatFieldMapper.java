@@ -90,7 +90,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         public FloatFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             FloatFieldMapper fieldMapper = new FloatFieldMapper(buildNames(context),
-                    precisionStep, fuzzyFactor, boost, fieldType, nullValue,
+                    precisionStep, boost, fieldType, nullValue,
                     ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -117,9 +117,9 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
     private String nullValueAsString;
 
-    protected FloatFieldMapper(Names names, int precisionStep, String fuzzyFactor, float boost, FieldType fieldType,
+    protected FloatFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
                                Float nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(names, precisionStep, fuzzyFactor, boost, fieldType,
+        super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
                 new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
@@ -177,16 +177,6 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         float iValue = Float.parseFloat(value);
         float iSim = Float.parseFloat(minSim);
-        return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-    }
-
-    @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
-        float iValue = Float.parseFloat(value);
-        float iSim = (float) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 iValue - iSim,
                 iValue + iSim,
@@ -345,9 +335,6 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         super.doXContentBody(builder);
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
-        }
-        if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
-            builder.field("fuzzy_factor", fuzzyFactor);
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

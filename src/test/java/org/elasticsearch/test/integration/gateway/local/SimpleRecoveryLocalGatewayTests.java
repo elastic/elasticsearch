@@ -360,7 +360,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         logger.info("--> shutting down the nodes");
         client("node1").admin().cluster().prepareNodesShutdown().setDelay("10ms").setExit(false).execute().actionGet();
-        assertThat(waitForNodesToShutdown(TimeValue.timeValueSeconds(30), 4), equalTo(true));
+        assertThat(waitForNodesToShutdown(TimeValue.timeValueSeconds(30), "node1", "node2", "node3", "node4"), equalTo(true));
         logger.info("--> start the nodes back up");
         startNode("node1", settings);
         startNode("node2", settings);
@@ -375,7 +375,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         logger.info("--> shutting down the nodes");
         client("node1").admin().cluster().prepareNodesShutdown().setDelay("10ms").setExit(false).execute().actionGet();
-        assertThat(waitForNodesToShutdown(TimeValue.timeValueSeconds(30), 4), equalTo(true));
+        assertThat(waitForNodesToShutdown(TimeValue.timeValueSeconds(30), "node1", "node2", "node3", "node4"), equalTo(true));
 
         logger.info("--> start the nodes back up");
         startNode("node1", settings);
@@ -430,16 +430,4 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(client("node2").prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
     }
 
-    private boolean waitForNodesToShutdown(TimeValue timeout, int numberOfNodes) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        WAIT_FOR_CLOSING:
-        while ((System.currentTimeMillis() - start) < timeout.millis()) {
-            Thread.sleep(100);
-            for (int i = 1; i < numberOfNodes + 1; i++) {
-                if (!node("node" + i).isClosed()) continue WAIT_FOR_CLOSING;
-            }
-            return true;
-        }
-        return false;
-    }
 }

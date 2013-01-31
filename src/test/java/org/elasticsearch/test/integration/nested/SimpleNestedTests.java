@@ -439,8 +439,16 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         // test scope ones
         searchResponse = client.prepareSearch("test")
-                .setQuery(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue")).scope("my"))
-                .addFacet(FacetBuilders.termsStatsFacet("facet1").keyField("nested1.nested2.field2_1").valueField("nested1.nested2.field2_2").scope("my"))
+                .setQuery(
+                        nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue"))
+                )
+                .addFacet(
+                        FacetBuilders.termsStatsFacet("facet1")
+                                .keyField("nested1.nested2.field2_1")
+                                .valueField("nested1.nested2.field2_2")
+                                .nested("nested1.nested2")
+                                .facetFilter(nestedFilter("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue")).join(false))
+                )
                 .execute().actionGet();
 
         assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
@@ -553,12 +561,13 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         Explanation explanation = searchResponse.hits().hits()[0].explanation();
         assertThat(explanation.getValue(), equalTo(2f));
-        assertThat(explanation.getDescription(), equalTo("Score based on score mode Total and child doc range from 0 to 1"));
-        assertThat(explanation.getDetails().length, equalTo(2));
-        assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
-        assertThat(explanation.getDetails()[0].getDescription(), equalTo("Child[0]"));
-        assertThat(explanation.getDetails()[1].getValue(), equalTo(1f));
-        assertThat(explanation.getDetails()[1].getDescription(), equalTo("Child[1]"));
+        assertThat(explanation.getDescription(), equalTo("Score based on child doc range from 0 to 1"));
+        // TODO: Enable when changes from BlockJoinQuery#explain are added to Lucene (Most likely version 4.2)
+//        assertThat(explanation.getDetails().length, equalTo(2));
+//        assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
+//        assertThat(explanation.getDetails()[0].getDescription(), equalTo("Child[0]"));
+//        assertThat(explanation.getDetails()[1].getValue(), equalTo(1f));
+//        assertThat(explanation.getDetails()[1].getDescription(), equalTo("Child[1]"));
     }
 
 }

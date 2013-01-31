@@ -50,8 +50,6 @@ import java.util.List;
  *  }
  * }
  * </pre>
- *
- *
  */
 public class FacetParseElement implements SearchParseElement {
 
@@ -98,7 +96,7 @@ public class FacetParseElement implements SearchParseElement {
                                 scope = ContextIndexSearcher.Scopes.GLOBAL;
                             }
                         } else if ("scope".equals(facetFieldName) || "_scope".equals(facetFieldName)) {
-                            scope = parser.text();
+                            throw new SearchParseException(context, "the [scope] support in facets have been removed");
                         } else if ("cache_filter".equals(facetFieldName) || "cacheFilter".equals(facetFieldName)) {
                             cacheFilter = parser.booleanValue();
                         } else if ("nested".equals(facetFieldName)) {

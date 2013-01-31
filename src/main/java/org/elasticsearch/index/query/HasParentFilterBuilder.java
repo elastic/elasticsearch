@@ -31,7 +31,6 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
     private final QueryBuilder queryBuilder;
     private final FilterBuilder filterBuilder;
     private final String parentType;
-    private String scope;
     private String filterName;
     private String executionType;
 
@@ -53,11 +52,6 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
         this.parentType = parentType;
         this.queryBuilder = null;
         this.filterBuilder = parentFilter;
-    }
-
-    public HasParentFilterBuilder scope(String scope) {
-        this.scope = scope;
-        return this;
     }
 
     public HasParentFilterBuilder filterName(String filterName) {
@@ -86,9 +80,6 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
             filterBuilder.toXContent(builder, params);
         }
         builder.field("parent_type", parentType);
-        if (scope != null) {
-            builder.field("_scope", scope);
-        }
         if (filterName != null) {
             builder.field("_name", filterName);
         }

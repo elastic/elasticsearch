@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -63,9 +62,7 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -172,8 +169,6 @@ public class SearchContext implements Releasable {
     private volatile long lastAccessTime;
 
     private List<ScopePhase> scopePhases = null;
-
-    private Map<String, BlockJoinQuery> nestedQueries;
 
     public SearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
@@ -578,17 +573,6 @@ public class SearchContext implements Releasable {
             this.scopePhases = new ArrayList<ScopePhase>();
         }
         this.scopePhases.add(scopePhase);
-    }
-
-    public Map<String, BlockJoinQuery> nestedQueries() {
-        return this.nestedQueries;
-    }
-
-    public void addNestedQuery(String scope, BlockJoinQuery query) {
-        if (nestedQueries == null) {
-            nestedQueries = new HashMap<String, BlockJoinQuery>();
-        }
-        nestedQueries.put(scope, query);
     }
 
     public ScanContext scanContext() {

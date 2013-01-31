@@ -32,7 +32,6 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
     private final String parentType;
     private String scoreType;
     private String executionType;
-    private String scope;
     private float boost = 1.0f;
 
     /**
@@ -42,11 +41,6 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
     public HasParentQueryBuilder(String parentType, QueryBuilder parentQuery) {
         this.parentType = parentType;
         this.queryBuilder = parentQuery;
-    }
-
-    public HasParentQueryBuilder scope(String scope) {
-        this.scope = scope;
-        return this;
     }
 
     public HasParentQueryBuilder boost(float boost) {
@@ -78,9 +72,6 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("parent_type", parentType);
-        if (scope != null) {
-            builder.field("_scope", scope);
-        }
         if (scoreType != null) {
             builder.field("score_type", scoreType);
         }

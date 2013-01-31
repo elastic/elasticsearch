@@ -584,8 +584,15 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch("test")
-                .setQuery(topChildrenQuery("child", boolQuery().should(termQuery("c_field", "red")).should(termQuery("c_field", "yellow"))).scope("child1"))
-                .addFacet(termsFacet("facet1").field("c_field").scope("child1"))
+                .setQuery(
+                        topChildrenQuery("child", boolQuery().should(termQuery("c_field", "red")).should(termQuery("c_field", "yellow")))
+                )
+                .addFacet(
+                        termsFacet("facet1")
+                                .facetFilter(boolFilter().should(termFilter("c_field", "red")).should(termFilter("c_field", "yellow")))
+                                .field("c_field")
+                                .global(true)
+                )
                 .execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.failedShards(), equalTo(0));

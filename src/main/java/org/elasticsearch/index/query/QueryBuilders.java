@@ -440,6 +440,20 @@ public abstract class QueryBuilders {
     public static SpanOrQueryBuilder spanOrQuery() {
         return new SpanOrQueryBuilder();
     }
+    
+    /**
+     * Creates a {@link SpanQueryBuilder} which allows having a sub query
+     * which implements {@link MultiTermQueryBuilder}. This is useful for
+     * having e.g. wildcard or fuzzy queries inside spans.
+     * 
+     * @param multiTermQueryBuilder The {@link MultiTermQueryBuilder} that 
+     * backs the created builder.
+     * @return
+     */
+    
+    public static SpanMultiTermQueryBuilder spanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder){
+		return new SpanMultiTermQueryBuilder(multiTermQueryBuilder);
+    }
 
     public static FieldMaskingSpanQueryBuilder fieldMaskingSpanQuery(SpanQueryBuilder query, String field) {
         return new FieldMaskingSpanQueryBuilder(query, field);

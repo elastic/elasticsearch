@@ -28,7 +28,7 @@ import java.io.IOException;
  *
  *
  */
-public class RangeQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<RangeQueryBuilder> {
+public class RangeQueryBuilder extends BaseQueryBuilder implements MultiTermQueryBuilder, BoostableQueryBuilder<RangeQueryBuilder> {
 
     private final String name;
 

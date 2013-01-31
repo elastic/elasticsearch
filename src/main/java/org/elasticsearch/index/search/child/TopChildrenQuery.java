@@ -39,8 +39,6 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     private Query query;
 
-    private String scope;
-
     private String parentType;
 
     private String childType;
@@ -61,9 +59,8 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
     private boolean[] properlyInvoked = new boolean[]{false};
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(Query query, String scope, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
+    public TopChildrenQuery(Query query, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
         this.query = query;
-        this.scope = scope;
         this.childType = childType;
         this.parentType = parentType;
         this.scoreType = scoreType;

@@ -45,25 +45,15 @@ import java.util.Map;
 public abstract class HasChildFilter extends Filter implements SearchContext.Rewrite {
 
     final Query childQuery;
-    final String scope;
     final String parentType;
     final String childType;
     final SearchContext searchContext;
 
-    protected HasChildFilter(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext) {
+    protected HasChildFilter(Query childQuery, String parentType, String childType, SearchContext searchContext) {
         this.searchContext = searchContext;
         this.parentType = parentType;
         this.childType = childType;
-        this.scope = scope;
         this.childQuery = childQuery;
-    }
-
-    public Query query() {
-        return childQuery;
-    }
-
-    public String scope() {
-        return scope;
     }
 
     @Override
@@ -73,12 +63,12 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
         return sb.toString();
     }
 
-    public static HasChildFilter create(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext, String executionType) {
+    public static HasChildFilter create(Query childQuery, String parentType, String childType, SearchContext searchContext, String executionType) {
         // This mechanism is experimental and will most likely be removed.
         if ("bitset".equals(executionType)) {
-            return new Bitset(childQuery, scope, parentType, childType, searchContext);
+            return new Bitset(childQuery, parentType, childType, searchContext);
         } else if ("uid".endsWith(executionType)) {
-            return new Uid(childQuery, scope, parentType, childType, searchContext);
+            return new Uid(childQuery, parentType, childType, searchContext);
         }
         throw new ElasticSearchIllegalStateException("Illegal has_child execution type: " + executionType);
     }
@@ -87,8 +77,8 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
 
         private Map<Object, FixedBitSet> parentDocs;
 
-        public Bitset(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext) {
-            super(childQuery, scope, parentType, childType, searchContext);
+        public Bitset(Query childQuery, String parentType, String childType, SearchContext searchContext) {
+            super(childQuery, parentType, childType, searchContext);
         }
 
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
@@ -120,8 +110,8 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
 
         THashSet<HashedBytesArray> collectedUids;
 
-        Uid(Query childQuery, String scope, String parentType, String childType, SearchContext searchContext) {
-            super(childQuery, scope, parentType, childType, searchContext);
+        Uid(Query childQuery, String parentType, String childType, SearchContext searchContext) {
+            super(childQuery, parentType, childType, searchContext);
         }
 
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {

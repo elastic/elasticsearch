@@ -149,11 +149,11 @@ public class HasParentQueryParser implements QueryParser {
         SearchContext searchContext = SearchContext.current();
         Query query;
         if (score) {
-            ParentQuery parentQuery = new ParentQuery(searchContext, innerQuery, parentType, childTypes, childFilter, null);
+            ParentQuery parentQuery = new ParentQuery(searchContext, innerQuery, parentType, childTypes, childFilter);
             searchContext.addRewrite(parentQuery);
             query = parentQuery;
         } else {
-            HasParentFilter hasParentFilter = HasParentFilter.create(executionType, innerQuery, null, parentType, searchContext);
+            HasParentFilter hasParentFilter = HasParentFilter.create(executionType, innerQuery, parentType, searchContext);
             searchContext.addRewrite(hasParentFilter);
             query = new ConstantScoreQuery(hasParentFilter);
         }

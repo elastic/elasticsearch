@@ -51,21 +51,19 @@ import java.util.*;
 public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     private final SearchContext searchContext;
-    private final Query query;
+    private final Query childQuery;
     private final String parentType;
     private final String childType;
     private final ScoreType scoreType;
     private final int factor;
     private final int incrementalFactor;
 
-    // Need to know if this query is properly used, otherwise the results are unexpected for example in the count api
-    private boolean properlyInvoked = false;
     private ExtTHashMap<Object, ParentDoc[]> parentDocs;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(SearchContext searchContext, Query query, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
+    public TopChildrenQuery(SearchContext searchContext, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
         this.searchContext = searchContext;
-        this.query = query;
+        this.childQuery = childQuery;
         this.childType = childType;
         this.parentType = parentType;
         this.scoreType = scoreType;
@@ -75,19 +73,17 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     private TopChildrenQuery(TopChildrenQuery existing, Query rewrittenChildQuery) {
         this.searchContext = existing.searchContext;
-        this.query = rewrittenChildQuery;
+        this.childQuery = rewrittenChildQuery;
         this.parentType = existing.parentType;
         this.childType = existing.childType;
         this.scoreType = existing.scoreType;
         this.factor = existing.factor;
         this.incrementalFactor = existing.incrementalFactor;
         this.parentDocs = existing.parentDocs;
-        this.properlyInvoked = existing.properlyInvoked;
     }
 
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
-        properlyInvoked = true;
         this.parentDocs = CacheRecycler.popHashMap();
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
@@ -99,7 +95,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         numChildDocs *= factor;
         while (true) {
             parentDocs.clear();
-            TopDocs topChildDocs = searchContext.searcher().search(query, numChildDocs);
+            TopDocs topChildDocs = searchContext.searcher().search(childQuery, numChildDocs);
             parentHitsResolved = resolveParentDocuments(topChildDocs, searchContext);
 
             // check if we found enough docs, if so, break
@@ -201,8 +197,8 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        Query rewrittenChildQuery = query.rewrite(reader);
-        if (rewrittenChildQuery == query) {
+        Query rewrittenChildQuery = childQuery.rewrite(reader);
+        if (rewrittenChildQuery == childQuery) {
             return this;
         }
         int index = searchContext.rewrites().indexOf(this);
@@ -213,25 +209,21 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     @Override
     public void extractTerms(Set<Term> terms) {
-        query.extractTerms(terms);
+        childQuery.extractTerms(terms);
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        if (!properlyInvoked) {
+        if (parentDocs == null) {
             throw new ElasticSearchIllegalStateException("top_children query hasn't executed properly");
         }
 
-        if (parentDocs != null) {
-            return new ParentWeight(searcher, query.createWeight(searcher));
-        } else {
-            return query.createWeight(searcher);
-        }
+        return new ParentWeight(searcher, childQuery.createWeight(searcher));
     }
 
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("score_child[").append(childType).append("/").append(parentType).append("](").append(query.toString(field)).append(')');
+        sb.append("score_child[").append(childType).append("/").append(parentType).append("](").append(childQuery.toString(field)).append(')');
         sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }

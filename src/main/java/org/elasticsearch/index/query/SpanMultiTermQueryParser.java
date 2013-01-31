@@ -13,8 +13,8 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 public class SpanMultiTermQueryParser implements QueryParser {
 
-	private static final String NAME = "span_multi_term";
-	private static final Object MATCH_NAME = null;
+	public static final String NAME = "span_multi_term";
+	public static final String MATCH_NAME = "match";
 
 	@Inject
 	public SpanMultiTermQueryParser() {

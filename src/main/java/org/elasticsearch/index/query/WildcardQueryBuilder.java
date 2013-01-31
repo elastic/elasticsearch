@@ -33,7 +33,7 @@ import java.io.IOException;
  *
  *
  */
-public class WildcardQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<WildcardQueryBuilder> {
+public class WildcardQueryBuilder extends BaseQueryBuilder implements MultiTermQueryBuilder, BoostableQueryBuilder<WildcardQueryBuilder> {
 
     private final String name;
 

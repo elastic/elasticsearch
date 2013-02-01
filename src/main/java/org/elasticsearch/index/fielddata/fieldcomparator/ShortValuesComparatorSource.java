@@ -57,6 +57,6 @@ public class ShortValuesComparatorSource extends IndexFieldData.XFieldComparator
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).shortValue() : Short.parseShort(missingValue.toString());
         }
 
-        return new ShortValuesComparator(indexFieldData, dMissingValue, numHits);
+        return new ShortValuesComparator(indexFieldData, dMissingValue, numHits, reversed);
     }
 }

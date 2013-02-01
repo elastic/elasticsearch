@@ -64,7 +64,7 @@ public class ShortArrayRef extends AbstractList<Short> implements RandomAccess {
 
     @Override
     public boolean isEmpty() {
-        return size() != 0;
+        return size() == 0;
     }
 
     @Override

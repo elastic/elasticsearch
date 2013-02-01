@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.ByteValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.util.ByteArrayRef;
 
 import java.io.IOException;
 
@@ -32,14 +33,16 @@ public class ByteValuesComparator extends FieldComparator<Byte> {
 
     private final IndexNumericFieldData indexFieldData;
     private final byte missingValue;
+    private final boolean reversed;
 
-    protected final byte[] values;
+    private final byte[] values;
     private byte bottom;
     private ByteValues readerValues;
 
-    public ByteValuesComparator(IndexNumericFieldData indexFieldData, byte missingValue, int numHits) {
+    public ByteValuesComparator(IndexNumericFieldData indexFieldData, byte missingValue, int numHits, boolean reversed) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.reversed = reversed;
         this.values = new byte[numHits];
     }
 
@@ -81,7 +84,10 @@ public class ByteValuesComparator extends FieldComparator<Byte> {
 
     @Override
     public FieldComparator<Byte> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getByteValues();
+        readerValues = indexFieldData.load(context).getByteValues();
+        if (readerValues.isMultiValued()) {
+            readerValues = new MultiValuedBytesWrapper(readerValues, reversed);
+        }
         return this;
     }
 
@@ -102,4 +108,80 @@ public class ByteValuesComparator extends FieldComparator<Byte> {
             return 0;
         }
     }
+
+    public static class FilteredByteValues implements ByteValues {
+
+        protected final ByteValues delegate;
+
+        public FilteredByteValues(ByteValues delegate) {
+            this.delegate = delegate;
+        }
+
+        public boolean isMultiValued() {
+            return delegate.isMultiValued();
+        }
+
+        public boolean hasValue(int docId) {
+            return delegate.hasValue(docId);
+        }
+
+        public byte getValue(int docId) {
+            return delegate.getValue(docId);
+        }
+
+        public byte getValueMissing(int docId, byte missingValue) {
+            return delegate.getValueMissing(docId, missingValue);
+        }
+
+        public ByteArrayRef getValues(int docId) {
+            return delegate.getValues(docId);
+        }
+
+        public Iter getIter(int docId) {
+            return delegate.getIter(docId);
+        }
+
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            delegate.forEachValueInDoc(docId, proc);
+        }
+    }
+
+    private static final class MultiValuedBytesWrapper extends FilteredByteValues {
+
+        private final boolean reversed;
+
+        public MultiValuedBytesWrapper(ByteValues delegate, boolean reversed) {
+            super(delegate);
+            this.reversed = reversed;
+        }
+
+        @Override
+        public byte getValueMissing(int docId, byte missing) {
+            ByteValues.Iter iter = delegate.getIter(docId);
+            if (!iter.hasNext()) {
+                return missing;
+            }
+
+            byte currentVal = iter.next();
+            byte relevantVal = currentVal;
+            while (true) {
+                if (reversed) {
+                    if (currentVal > relevantVal) {
+                        relevantVal = currentVal;
+                    }
+                } else {
+                    if (currentVal < relevantVal) {
+                        relevantVal = currentVal;
+                    }
+                }
+                if (!iter.hasNext()) {
+                    break;
+                }
+                currentVal = iter.next();
+            }
+            return relevantVal;
+        }
+
+    }
+
 }

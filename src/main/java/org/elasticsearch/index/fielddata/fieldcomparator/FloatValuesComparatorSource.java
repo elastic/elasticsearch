@@ -57,6 +57,6 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).floatValue() : Float.parseFloat(missingValue.toString());
         }
 
-        return new FloatValuesComparator(indexFieldData, dMissingValue, numHits);
+        return new FloatValuesComparator(indexFieldData, dMissingValue, numHits, reversed);
     }
 }

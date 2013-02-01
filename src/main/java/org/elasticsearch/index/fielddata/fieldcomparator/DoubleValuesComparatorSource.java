@@ -57,6 +57,6 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).doubleValue() : Double.parseDouble(missingValue.toString());
         }
 
-        return new DoubleValuesComparator(indexFieldData, dMissingValue, numHits);
+        return new DoubleValuesComparator(indexFieldData, dMissingValue, numHits, reversed);
     }
 }

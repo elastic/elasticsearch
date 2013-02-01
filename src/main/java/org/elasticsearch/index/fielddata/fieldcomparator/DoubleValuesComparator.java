@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.util.DoubleArrayRef;
 
 import java.io.IOException;
 
@@ -32,14 +33,16 @@ public class DoubleValuesComparator extends FieldComparator<Double> {
 
     private final IndexNumericFieldData indexFieldData;
     private final double missingValue;
+    private final boolean reversed;
 
-    protected final double[] values;
+    private final double[] values;
     private double bottom;
     private DoubleValues readerValues;
 
-    public DoubleValuesComparator(IndexNumericFieldData indexFieldData, double missingValue, int numHits) {
+    public DoubleValuesComparator(IndexNumericFieldData indexFieldData, double missingValue, int numHits, boolean reversed) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.reversed = reversed;
         this.values = new double[numHits];
     }
 
@@ -81,7 +84,10 @@ public class DoubleValuesComparator extends FieldComparator<Double> {
 
     @Override
     public FieldComparator<Double> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getDoubleValues();
+        readerValues = indexFieldData.load(context).getDoubleValues();
+        if (readerValues.isMultiValued()) {
+            readerValues = new MultiValuedBytesWrapper(readerValues, reversed);
+        }
         return this;
     }
 
@@ -102,4 +108,81 @@ public class DoubleValuesComparator extends FieldComparator<Double> {
             return 0;
         }
     }
+
+    public static class FilteredByteValues implements DoubleValues {
+
+        protected final DoubleValues delegate;
+
+        public FilteredByteValues(DoubleValues delegate) {
+            this.delegate = delegate;
+        }
+
+        public boolean isMultiValued() {
+            return delegate.isMultiValued();
+        }
+
+        public boolean hasValue(int docId) {
+            return delegate.hasValue(docId);
+        }
+
+        public double getValue(int docId) {
+            return delegate.getValue(docId);
+        }
+
+        public double getValueMissing(int docId, double missingValue) {
+            return delegate.getValueMissing(docId, missingValue);
+        }
+
+        public DoubleArrayRef getValues(int docId) {
+            return delegate.getValues(docId);
+        }
+
+        public Iter getIter(int docId) {
+            return delegate.getIter(docId);
+        }
+
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            delegate.forEachValueInDoc(docId, proc);
+        }
+    }
+
+    private static final class MultiValuedBytesWrapper extends FilteredByteValues {
+
+        private final boolean reversed;
+
+        public MultiValuedBytesWrapper(DoubleValues delegate, boolean reversed) {
+            super(delegate);
+            this.reversed = reversed;
+        }
+
+        @Override
+        public double getValueMissing(int docId, double missing) {
+            DoubleValues.Iter iter = delegate.getIter(docId);
+            if (!iter.hasNext()) {
+                return missing;
+            }
+
+            double currentVal = iter.next();
+            double relevantVal = currentVal;
+            while (true) {
+                int cmp = Double.compare(currentVal, relevantVal);
+                if (reversed) {
+                    if (cmp > 0) {
+                        relevantVal = currentVal;
+                    }
+                } else {
+                    if (cmp < 0) {
+                        relevantVal = currentVal;
+                    }
+                }
+                if (!iter.hasNext()) {
+                    break;
+                }
+                currentVal = iter.next();
+            }
+            return relevantVal;
+        }
+
+    }
+
 }

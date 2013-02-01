@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.index.fielddata;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.*;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.util.*;
@@ -1489,4 +1490,106 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         d.add(new StringField("_id", "3", Field.Store.NO));
         writer.addDocument(d);
     }
+
+    @Test
+    public void testSortMultiValuesFields() throws Exception {
+        fillExtendedMvSet();
+        IndexFieldData indexFieldData = getForField("value");
+
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10,
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null)))); // defaults to _last
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(8));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).intValue(), equalTo(-10));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[1]).fields[0]).intValue(), equalTo(2));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[2]).fields[0]).intValue(), equalTo(3));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(3));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[3]).fields[0]).intValue(), equalTo(4));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(4));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(6));
+        assertThat(topDocs.scoreDocs[5].doc, equalTo(6));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[5]).fields[0]).intValue(), equalTo(8));
+        assertThat(topDocs.scoreDocs[6].doc, equalTo(1));
+//        assertThat(((FieldDoc) topDocs.scoreDocs[6]).fields[0], equalTo(null));
+        assertThat(topDocs.scoreDocs[7].doc, equalTo(5));
+//        assertThat(((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(null));
+
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10,
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null), true))); // defaults to _last
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(8));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(6));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).intValue(), equalTo(10));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(4));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[1]).fields[0]).intValue(), equalTo(8));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(3));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[2]).fields[0]).intValue(), equalTo(6));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(0));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[3]).fields[0]).intValue(), equalTo(4));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(2));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(3));
+        assertThat(topDocs.scoreDocs[5].doc, equalTo(7));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[5]).fields[0]).intValue(), equalTo(-8));
+        assertThat(topDocs.scoreDocs[6].doc, equalTo(1));
+//        assertThat(((FieldDoc) topDocs.scoreDocs[6]).fields[0], equalTo(null));
+        assertThat(topDocs.scoreDocs[7].doc, equalTo(5));
+//        assertThat(((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(null));
+
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10,
+                new Sort(new SortField("value", indexFieldData.comparatorSource("_first"))));
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(8));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(5));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(7));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(0));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(2));
+        assertThat(topDocs.scoreDocs[5].doc, equalTo(3));
+        assertThat(topDocs.scoreDocs[6].doc, equalTo(4));
+        assertThat(topDocs.scoreDocs[7].doc, equalTo(6));
+
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10,
+                new Sort(new SortField("value", indexFieldData.comparatorSource("_first"), true)));
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(8));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(5));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(6));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(4));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(3));
+        assertThat(topDocs.scoreDocs[5].doc, equalTo(0));
+        assertThat(topDocs.scoreDocs[6].doc, equalTo(2));
+        assertThat(topDocs.scoreDocs[7].doc, equalTo(7));
+
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10,
+                new Sort(new SortField("value", indexFieldData.comparatorSource("-9"))));
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(8));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(7));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(1));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(5));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(0));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(2));
+        assertThat(topDocs.scoreDocs[5].doc, equalTo(3));
+        assertThat(topDocs.scoreDocs[6].doc, equalTo(4));
+        assertThat(topDocs.scoreDocs[7].doc, equalTo(6));
+
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10,
+                new Sort(new SortField("value", indexFieldData.comparatorSource("9"), true)));
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(8));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(6));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(1));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(5));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(4));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(3));
+        assertThat(topDocs.scoreDocs[5].doc, equalTo(0));
+        assertThat(topDocs.scoreDocs[6].doc, equalTo(2));
+        assertThat(topDocs.scoreDocs[7].doc, equalTo(7));
+    }
+
 }

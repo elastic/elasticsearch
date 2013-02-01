@@ -163,6 +163,16 @@ public class SortParseElement implements SearchParseElement {
                 }
                 throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
             }
+
+            // Enable when we also know how to detect fields that do tokenize, but only emit one token
+            /*if (fieldMapper instanceof StringFieldMapper) {
+                StringFieldMapper stringFieldMapper = (StringFieldMapper) fieldMapper;
+                if (stringFieldMapper.fieldType().tokenized()) {
+                    // Fail early
+                    throw new SearchParseException(context, "Can't sort on tokenized string field[" + fieldName + "]");
+                }
+            }*/
+
             sortFields.add(new SortField(fieldMapper.names().indexName(), context.fieldData().getForField(fieldMapper).comparatorSource(missing), reverse));
         }
     }

@@ -76,9 +76,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
     @Override
     public long getMemorySizeInBytes() {
         if (size == -1) {
-            long size = 0;
-            size += RamUsage.NUM_BYTES_ARRAY_HEADER;
-            this.size = pool.getMemorySizeInBytes();
+            size = (RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_INT * lookup.length)) + pool.getMemorySizeInBytes();
         }
         return size;
     }

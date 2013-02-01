@@ -19,34 +19,28 @@
 
 package org.elasticsearch.test.unit.index.fielddata.ordinals;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.testng.annotations.Test;
 
+import java.util.*;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+
 /**
  */
 public abstract class MultiOrdinalsTests {
-    
+
     protected final Ordinals creationMultiOrdinals(OrdinalsBuilder builder) {
         return this.creationMultiOrdinals(builder, ImmutableSettings.builder());
     }
 
 
     protected abstract Ordinals creationMultiOrdinals(OrdinalsBuilder builder, ImmutableSettings.Builder settings);
-    
+
     @Test
     public void testRandomValues() {
         Random random = new Random(100);
@@ -65,12 +59,14 @@ public abstract class MultiOrdinalsTests {
             public int compare(OrdAndId o1, OrdAndId o2) {
                 if (o1.ord < o2.ord) {
                     return -1;
-                } if (o1.ord == o2.ord) {
+                }
+                if (o1.ord == o2.ord) {
                     if (o1.id < o2.id) {
                         return -1;
-                    } if (o1.id > o2.id) {
+                    }
+                    if (o1.id > o2.id) {
                         return 1;
-                    } 
+                    }
                     return 0;
                 }
                 return 1;
@@ -84,19 +80,21 @@ public abstract class MultiOrdinalsTests {
             }
             builder.addDoc(ordAndId.id);
         }
-        
+
         Collections.sort(ordsAndIds, new Comparator<OrdAndId>() {
 
             @Override
             public int compare(OrdAndId o1, OrdAndId o2) {
                 if (o1.id < o2.id) {
                     return -1;
-                } if (o1.id == o2.id) {
+                }
+                if (o1.id == o2.id) {
                     if (o1.ord < o2.ord) {
                         return -1;
-                    } if (o1.ord > o2.ord) {
+                    }
+                    if (o1.ord > o2.ord) {
                         return 1;
-                    } 
+                    }
                     return 0;
                 }
                 return 1;
@@ -114,7 +112,7 @@ public abstract class MultiOrdinalsTests {
                     assertThat(docs.getOrd(docId), equalTo(docOrds.get(0)));
                     IntArrayRef ref = docs.getOrds(docId);
                     assertThat(ref.start, equalTo(0));
-                    
+
                     for (int i = ref.start; i < ref.end; i++) {
                         assertThat(ref.values[i], equalTo(docOrds.get(i)));
                     }
@@ -122,10 +120,10 @@ public abstract class MultiOrdinalsTests {
                     for (int i = 0; i < array.length; i++) {
                         array[i] = docOrds.get(i);
                     }
-                    assertIter(docs.getIter(docId),  array);
+                    assertIter(docs.getIter(docId), array);
                     docs.forEachOrdinalInDoc(docId, assertOrdinalInProcDoc(array));
                 }
-                for (int i = docId+1; i < ordAndId.id; i++) {
+                for (int i = docId + 1; i < ordAndId.id; i++) {
                     assertThat(docs.getOrd(i), equalTo(0));
                 }
                 docId = ordAndId.id;
@@ -134,13 +132,13 @@ public abstract class MultiOrdinalsTests {
 
             }
         }
-        
+
     }
-    
+
     public static class OrdAndId {
         final int ord;
         final int id;
-        
+
         public OrdAndId(int ord, int id) {
             this.ord = ord;
             this.id = id;
@@ -193,12 +191,13 @@ public abstract class MultiOrdinalsTests {
             builder.nextOrdinal();
             builder.addDoc(5).addDoc(6);
         }
-        
+
 
         Ordinals ordinals = creationMultiOrdinals(builder);
         Ordinals.Docs docs = ordinals.ordinals();
         assertThat(docs.getNumDocs(), equalTo(maxDoc));
-        assertThat(docs.getNumOrds(), equalTo(maxOrds)); // Includes null ord
+        assertThat(docs.getNumOrds(), equalTo(maxOrds));
+        assertThat(docs.getMaxOrd(), equalTo(maxOrds + 1)); // Includes null ord
         assertThat(docs.isMultiValued(), equalTo(true));
 
         // Document 1

@@ -24,6 +24,7 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
 
 import java.io.IOException;
 
@@ -36,11 +37,14 @@ import java.io.IOException;
 public final class BytesRefValComparator extends FieldComparator<BytesRef> {
 
     private final IndexFieldData indexFieldData;
-    private BytesRef[] values;
-    private BytesValues docTerms;
-    private BytesRef bottom;
+    private final boolean reversed;
 
-    BytesRefValComparator(IndexFieldData indexFieldData, int numHits) {
+    private final BytesRef[] values;
+    private BytesRef bottom;
+    private BytesValues docTerms;
+
+    BytesRefValComparator(IndexFieldData indexFieldData, int numHits, boolean reversed) {
+        this.reversed = reversed;
         values = new BytesRef[numHits];
         this.indexFieldData = indexFieldData;
     }
@@ -62,7 +66,7 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
     }
 
     @Override
-    public int compareBottom(int doc) {
+    public int compareBottom(int doc) throws IOException {
         BytesRef val2 = docTerms.getValue(doc);
         if (bottom == null) {
             if (val2 == null) {
@@ -76,7 +80,7 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
     }
 
     @Override
-    public void copy(int slot, int doc) {
+    public void copy(int slot, int doc) throws IOException {
         if (values[slot] == null) {
             values[slot] = new BytesRef();
         }
@@ -86,6 +90,9 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
     @Override
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
         docTerms = indexFieldData.load(context).getBytesValues();
+        if (docTerms.isMultiValued()) {
+            docTerms = new MultiValuedBytesWrapper(docTerms, reversed);
+        }
         return this;
     }
 
@@ -116,4 +123,95 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
     public int compareDocToValue(int doc, BytesRef value) {
         return docTerms.getValue(doc).compareTo(value);
     }
+
+    public static class FilteredByteValues implements BytesValues {
+
+        protected final BytesValues delegate;
+
+        public FilteredByteValues(BytesValues delegate) {
+            this.delegate = delegate;
+        }
+
+        public boolean isMultiValued() {
+            return delegate.isMultiValued();
+        }
+
+        public boolean hasValue(int docId) {
+            return delegate.hasValue(docId);
+        }
+
+        public BytesRef getValue(int docId) {
+            return delegate.getValue(docId);
+        }
+
+        public BytesRef makeSafe(BytesRef bytes) {
+            return delegate.makeSafe(bytes);
+        }
+
+        public BytesRef getValueScratch(int docId, BytesRef ret) {
+            return delegate.getValueScratch(docId, ret);
+        }
+
+        public BytesRefArrayRef getValues(int docId) {
+            return delegate.getValues(docId);
+        }
+
+        public Iter getIter(int docId) {
+            return delegate.getIter(docId);
+        }
+
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            delegate.forEachValueInDoc(docId, proc);
+        }
+    }
+
+    private static final class MultiValuedBytesWrapper extends FilteredByteValues {
+
+        private final boolean reversed;
+
+        public MultiValuedBytesWrapper(BytesValues delegate, boolean reversed) {
+            super(delegate);
+            this.reversed = reversed;
+        }
+
+        @Override
+        public BytesRef getValueScratch(int docId, BytesRef scratch) {
+            BytesValues.Iter iter = delegate.getIter(docId);
+            if (!iter.hasNext()) {
+                return null;
+            }
+
+            BytesRef currentVal = iter.next();
+            BytesRef relevantVal = currentVal;
+            while (true) {
+                int cmp = currentVal.compareTo(relevantVal);
+                if (reversed) {
+                    if (cmp > 0) {
+                        relevantVal = currentVal;
+                    }
+                } else {
+                    if (cmp < 0) {
+                        relevantVal = currentVal;
+                    }
+                }
+                if (!iter.hasNext()) {
+                    break;
+                }
+                currentVal = iter.next();
+            }
+            return relevantVal;
+            /*if (reversed) {
+                BytesRefArrayRef ref = readerValues.getValues(docId);
+                if (ref.isEmpty()) {
+                    return null;
+                } else {
+                    return ref.values[ref.end - 1]; // last element is the highest value.
+                }
+            } else {
+                return readerValues.getValue(docId); // returns the lowest value
+            }*/
+        }
+
+    }
+
 }

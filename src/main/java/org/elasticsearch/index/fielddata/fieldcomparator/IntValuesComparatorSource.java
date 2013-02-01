@@ -57,6 +57,6 @@ public class IntValuesComparatorSource extends IndexFieldData.XFieldComparatorSo
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).intValue() : Integer.parseInt(missingValue.toString());
         }
 
-        return new IntValuesComparator(indexFieldData, dMissingValue, numHits);
+        return new IntValuesComparator(indexFieldData, dMissingValue, numHits, reversed);
     }
 }

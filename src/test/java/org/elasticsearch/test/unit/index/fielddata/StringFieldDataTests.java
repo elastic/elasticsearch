@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -358,6 +359,7 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         d.add(new StringField("_id", "2", Field.Store.NO));
         d.add(new StringField("value", "1", Field.Store.NO));
         writer.addDocument(d);
+        writer.commit(); // TODO: Have tests with more docs for sorting
 
         d = new Document();
         d.add(new StringField("_id", "3", Field.Store.NO));
@@ -483,6 +485,21 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         stringValues.forEachValueInDoc(0, new StringValuesVerifierProc(0).addExpected(two()).addExpected(four()));
         stringValues.forEachValueInDoc(1, new StringValuesVerifierProc(1).addExpected(one()));
         stringValues.forEachValueInDoc(2, new StringValuesVerifierProc(2).addExpected(three()));
+
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null))));
+        assertThat(topDocs.totalHits, equalTo(3));
+        assertThat(topDocs.scoreDocs.length, equalTo(3));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(2));
+
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null), true)));
+        assertThat(topDocs.totalHits, equalTo(3));
+        assertThat(topDocs.scoreDocs.length, equalTo(3));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(0));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(2));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
     }
 
     protected void fillMultiValueWithMissing() throws Exception {
@@ -745,4 +762,105 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         d.add(new StringField("_id", "3", Field.Store.NO));
         writer.addDocument(d);
     }
+
+    @Test
+    public void testSortMultiValuesFields() throws Exception {
+        fillExtendedMvSet();
+        IndexFieldData indexFieldData = getForField("value");
+
+        IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
+        TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10,
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null))));
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(8));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(1));
+        assertThat(((FieldDoc) topDocs.scoreDocs[0]).fields[0], equalTo(null));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(5));
+        assertThat(((FieldDoc) topDocs.scoreDocs[1]).fields[0], equalTo(null));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(7));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[2]).fields[0]).utf8ToString(), equalTo("!08"));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(0));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[3]).fields[0]).utf8ToString(), equalTo("02"));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(2));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).utf8ToString(), equalTo("03"));
+        assertThat(topDocs.scoreDocs[5].doc, equalTo(3));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[5]).fields[0]).utf8ToString(), equalTo("04"));
+        assertThat(topDocs.scoreDocs[6].doc, equalTo(4));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[6]).fields[0]).utf8ToString(), equalTo("06"));
+        assertThat(topDocs.scoreDocs[7].doc, equalTo(6));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[7]).fields[0]).utf8ToString(), equalTo("08"));
+
+        topDocs = searcher.search(new MatchAllDocsQuery(), 10,
+                new Sort(new SortField("value", indexFieldData.comparatorSource(null), true)));
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(8));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(6));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("10"));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(4));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[1]).fields[0]).utf8ToString(), equalTo("08"));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(3));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[2]).fields[0]).utf8ToString(), equalTo("06"));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(0));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[3]).fields[0]).utf8ToString(), equalTo("04"));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(2));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).utf8ToString(), equalTo("03"));
+        assertThat(topDocs.scoreDocs[5].doc, equalTo(7));
+        assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[5]).fields[0]).utf8ToString(), equalTo("!10"));
+        assertThat(topDocs.scoreDocs[6].doc, equalTo(1));
+        assertThat(((FieldDoc) topDocs.scoreDocs[6]).fields[0], equalTo(null));
+        assertThat(topDocs.scoreDocs[7].doc, equalTo(5));
+        assertThat(((FieldDoc) topDocs.scoreDocs[7]).fields[0], equalTo(null));
+    }
+
+    protected void fillExtendedMvSet() throws Exception {
+        Document d = new Document();
+        d.add(new StringField("_id", "1", Field.Store.NO));
+        d.add(new StringField("value", "02", Field.Store.NO));
+        d.add(new StringField("value", "04", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "2", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "3", Field.Store.NO));
+        d.add(new StringField("value", "03", Field.Store.NO));
+        writer.addDocument(d);
+        writer.commit();
+
+        d = new Document();
+        d.add(new StringField("_id", "4", Field.Store.NO));
+        d.add(new StringField("value", "04", Field.Store.NO));
+        d.add(new StringField("value", "05", Field.Store.NO));
+        d.add(new StringField("value", "06", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "5", Field.Store.NO));
+        d.add(new StringField("value", "06", Field.Store.NO));
+        d.add(new StringField("value", "07", Field.Store.NO));
+        d.add(new StringField("value", "08", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "6", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "7", Field.Store.NO));
+        d.add(new StringField("value", "08", Field.Store.NO));
+        d.add(new StringField("value", "09", Field.Store.NO));
+        d.add(new StringField("value", "10", Field.Store.NO));
+        writer.addDocument(d);
+        writer.commit();
+
+        d = new Document();
+        d.add(new StringField("_id", "8", Field.Store.NO));
+        d.add(new StringField("value", "!08", Field.Store.NO));
+        d.add(new StringField("value", "!09", Field.Store.NO));
+        d.add(new StringField("value", "!10", Field.Store.NO));
+        writer.addDocument(d);
+    }
+
 }

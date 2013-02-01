@@ -57,6 +57,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).longValue() : Long.parseLong(missingValue.toString());
         }
 
-        return new LongValuesComparator(indexFieldData, dMissingValue, numHits);
+        return new LongValuesComparator(indexFieldData, dMissingValue, numHits, reversed);
     }
 }

@@ -57,6 +57,6 @@ public class ByteValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).byteValue() : Byte.parseByte(missingValue.toString());
         }
 
-        return new ByteValuesComparator(indexFieldData, dMissingValue, numHits);
+        return new ByteValuesComparator(indexFieldData, dMissingValue, numHits, reversed);
     }
 }

@@ -604,4 +604,69 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         assertThat(searchResponse.failedShards(), equalTo(0));
     }
+
+    @Test
+    public void testSortLongMVField() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("long_values").field("type", "long").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
+                .array("long_values", 1l, 5l, 10l, 8l)
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
+                .array("long_values", 11l, 15l, 20l, 7l)
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
+                .array("long_values", 2l, 1l, 3l, -4l)
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(10)
+                .addSort("long_values", SortOrder.ASC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.hits().hits().length, equalTo(3));
+
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo(Integer.toString(3)));
+        assertThat(((Number) searchResponse.hits().getAt(0).sortValues()[0]).longValue(), equalTo(-4l));
+
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo(Integer.toString(1)));
+        assertThat(((Number) searchResponse.hits().getAt(1).sortValues()[0]).longValue(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo(Integer.toString(2)));
+        assertThat(((Number) searchResponse.hits().getAt(2).sortValues()[0]).longValue(), equalTo(7l));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(10)
+                .addSort("long_values", SortOrder.DESC)
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.hits().hits().length, equalTo(3));
+
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo(Integer.toString(2)));
+        assertThat(((Number) searchResponse.hits().getAt(0).sortValues()[0]).longValue(), equalTo(20l));
+
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo(Integer.toString(1)));
+        assertThat(((Number) searchResponse.hits().getAt(1).sortValues()[0]).longValue(), equalTo(10l));
+
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo(Integer.toString(3)));
+        assertThat(((Number) searchResponse.hits().getAt(2).sortValues()[0]).longValue(), equalTo(3l));
+    }
+
 }

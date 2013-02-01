@@ -815,7 +815,14 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: facet shouldn't fail when faceted field is mapped dynamically
+        // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
+        // be propagated to all nodes yet and some facets fail when the facet field is not defined
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("num").field("type", "integer").endObject()
+                .startObject("multi_num").field("type", "float").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
@@ -914,7 +921,11 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: Make sure facet doesn't fail in case of dynamic mapping
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("num").field("type", "integer").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 100)
@@ -960,7 +971,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: facet shouldn't fail when faceted field is mapped dynamically
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("num").field("type", "integer").endObject()
+                .startObject("multi_num").field("type", "float").endObject()
+                .startObject("date").field("type", "date").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
@@ -1207,7 +1224,15 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: facet shouldn't fail when faceted field is mapped dynamically
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("num").field("type", "integer").endObject()
+                .startObject("multi_num").field("type", "float").endObject()
+                .startObject("value").field("type", "integer").endObject()
+                .startObject("multi_value").field("type", "float").endObject()
+                .startObject("date").field("type", "date").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
@@ -1367,7 +1392,12 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: facet shouldn't fail when faceted field is mapped dynamically
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("num").field("type", "integer").endObject()
+                .startObject("date").field("type", "date").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
@@ -1481,7 +1511,12 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: facet shouldn't fail when faceted field is mapped dynamically
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("num").field("type", "integer").endObject()
+                .startObject("date").field("type", "date").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
@@ -1547,7 +1582,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: facet shouldn't fail when faceted field is mapped dynamically
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("field").field("type", "string").endObject()
+                .startObject("num").field("type", "integer").endObject()
+                .startObject("multi_num").field("type", "float").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
@@ -1731,7 +1772,14 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: facet shouldn't fail when faceted field is mapped dynamically
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("lField").field("type", "long").endObject()
+                .startObject("dField").field("type", "double").endObject()
+                .startObject("num").field("type", "float").endObject()
+                .startObject("multi_num").field("type", "integer").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
@@ -1804,7 +1852,11 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: facet shouldn't fail when faceted field is mapped dynamically
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("num").field("type", "float").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 20; i++) {

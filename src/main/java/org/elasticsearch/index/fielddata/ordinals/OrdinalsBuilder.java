@@ -247,10 +247,8 @@ public final class OrdinalsBuilder implements Closeable {
         return new FilteredTermsEnum(termsEnum, false) {
             @Override
             protected AcceptStatus accept(BytesRef term) throws IOException {
-                if (NumericUtils.getPrefixCodedLongShift(term) > 0) {
-                    return AcceptStatus.END;
-                } // we stop accepting terms once we moved across the prefix codec terms - redundant values!
-                return AcceptStatus.YES;
+                // we stop accepting terms once we moved across the prefix codec terms - redundant values!
+                return NumericUtils.getPrefixCodedLongShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
             }
         };
     }
@@ -264,10 +262,8 @@ public final class OrdinalsBuilder implements Closeable {
             
             @Override
             protected AcceptStatus accept(BytesRef term) throws IOException {
-                if (NumericUtils.getPrefixCodedIntShift(term) > 0) {
-                    return AcceptStatus.END;
-                } // we stop accepting terms once we moved across the prefix codec terms - redundant values!
-                return AcceptStatus.YES;
+                // we stop accepting terms once we moved across the prefix codec terms - redundant values!
+                return NumericUtils.getPrefixCodedIntShift(term) == 0 ? AcceptStatus.YES : AcceptStatus.END;
             }
         };
     }

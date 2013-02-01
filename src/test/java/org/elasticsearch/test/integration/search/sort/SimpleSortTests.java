@@ -431,7 +431,13 @@ public class SimpleSortTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: sort shouldn't fail when sort field is mapped dynamically
+        // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
+        // be propagated to all nodes yet and sort operation fail when the sort field is not defined
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("svalue").field("type", "string").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()

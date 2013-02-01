@@ -81,6 +81,10 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         // fixing maxMergeAtOnce, see TieredMergePolicy#setMaxMergeAtOnce
         if (!(segmentsPerTier >= maxMergeAtOnce)) {
             int newMaxMergeAtOnce = (int) segmentsPerTier;
+            // max merge at once should be at least 2
+            if (newMaxMergeAtOnce <= 1) {
+                newMaxMergeAtOnce = 2;
+            }
             logger.debug("[tiered] merge policy changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or equal to it", maxMergeAtOnce, newMaxMergeAtOnce, segmentsPerTier);
             this.maxMergeAtOnce = newMaxMergeAtOnce;
         }

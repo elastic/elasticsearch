@@ -1496,9 +1496,12 @@ public class SimpleIndexQueryParserTests {
 	
 	@Test
 	public void testSpanMultiTermFuzzyTermQuery() throws IOException {
-		FuzzyQuery expectedWrapped = new FuzzyQuery(new Term("user", "ki"), 0.7f, 1);
-		expectedWrapped.setBoost(1.08f);
-		testSpanMultiTerm("/org/elasticsearch/test/unit/index/query/span-multi-term-fuzzy-term.json", expectedWrapped);
+		IndexQueryParserService queryParser = queryParser();
+		String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/span-multi-term-fuzzy-term.json");
+		Query parsedQuery = queryParser.parse(query).query();
+		assertThat(parsedQuery, instanceOf(SpanMultiTermQueryWrapper.class));
+		SpanMultiTermQueryWrapper<MultiTermQuery> wrapper = (SpanMultiTermQueryWrapper<MultiTermQuery>) parsedQuery;
+		assertThat(wrapper.getField(), equalTo("user"));
 	}
 	
 	@Test

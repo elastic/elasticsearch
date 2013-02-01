@@ -221,13 +221,13 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         int position = 0;
         BytesRef current;
         int total;
-        private final int numOrds;
+        private final int maxOrd;
 
         public ReaderAggregator(BytesValues.WithOrdinals values) {
             this.values = values;
-            this.numOrds = values.ordinals().getNumOrds();
+            this.maxOrd = values.ordinals().getMaxOrd();
 
-            this.counts = CacheRecycler.popIntArray(numOrds);
+            this.counts = CacheRecycler.popIntArray(maxOrd);
         }
 
         @Override
@@ -237,7 +237,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         }
 
         public boolean nextPosition() {
-            if (++position > numOrds) {
+            if (++position >= maxOrd) {
                 return false;
             }
             current = values.getValueByOrd(position);

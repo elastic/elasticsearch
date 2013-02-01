@@ -33,17 +33,19 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
     private final int[] lookup;
     private final PositiveIntPool pool;
     private final int numOrds;
+    private final int maxOrd;
     private final int numDocs;
     private long size;
-    
+
     public SparseMultiArrayOrdinals(OrdinalsBuilder builder, int maxSize) {
-        int blockShift = Math.min(floorPow2(builder.getTotalNumOrds()<<1), floorPow2(maxSize));
+        int blockShift = Math.min(floorPow2(builder.getTotalNumOrds() << 1), floorPow2(maxSize));
         this.pool = new PositiveIntPool(Math.max(4, blockShift));
         this.numDocs = builder.maxDoc();
-        
-        
+
+
         this.lookup = new int[numDocs];
         this.numOrds = builder.getNumOrds();
+        this.maxOrd = numOrds + 1;
         IntArrayRef spare;
         for (int doc = 0; doc < numDocs; doc++) {
             spare = builder.docOrds(doc);
@@ -54,11 +56,11 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
                 lookup[doc] = spare.values[spare.start];
             } else {
                 int offset = pool.put(spare);
-                lookup[doc] = -(offset)-1;
+                lookup[doc] = -(offset) - 1;
             }
         }
     }
-    
+
     private static int floorPow2(int number) {
         return 31 - Integer.numberOfLeadingZeros(number);
     }
@@ -94,6 +96,11 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
     @Override
     public int getNumOrds() {
         return numOrds;
+    }
+
+    @Override
+    public int getMaxOrd() {
+        return maxOrd;
     }
 
     @Override
@@ -133,6 +140,11 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
         }
 
         @Override
+        public int getMaxOrd() {
+            return parent.getMaxOrd();
+        }
+
+        @Override
         public boolean isMultiValued() {
             return true;
         }
@@ -141,7 +153,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
         public int getOrd(int docId) {
             int pointer = lookup[docId];
             if (pointer < 0) {
-                return pool.getFirstFromOffset(-(pointer+1));
+                return pool.getFirstFromOffset(-(pointer + 1));
             }
             return pointer;
         }
@@ -157,7 +169,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
                 spare.values[0] = pointer;
                 return spare;
             } else {
-                pool.fill(spare, -(pointer+1));
+                pool.fill(spare, -(pointer + 1));
                 return spare;
             }
         }
@@ -173,7 +185,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
             if (pointer >= 0) {
                 proc.onOrdinal(docId, pointer);
             } else {
-                pool.fill(spare, -(pointer+1));
+                pool.fill(spare, -(pointer + 1));
                 for (int i = spare.start; i < spare.end; i++) {
                     proc.onOrdinal(docId, spare.values[i]);
                 }
@@ -194,7 +206,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
             public IterImpl reset(int docId) {
                 final int pointer = lookup[docId];
                 if (pointer < 0) {
-                    pool.fill(slice, -(pointer+1));
+                    pool.fill(slice, -(pointer + 1));
                 } else {
                     slice.values[0] = pointer;
                     slice.start = 0;
@@ -208,7 +220,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
             public int next() {
                 if (valuesOffset >= slice.end) {
                     return 0;
-                } 
+                }
                 return slice.values[slice.start + (valuesOffset++)];
             }
         }

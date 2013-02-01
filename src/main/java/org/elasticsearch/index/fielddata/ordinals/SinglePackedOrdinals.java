@@ -30,12 +30,14 @@ public class SinglePackedOrdinals implements Ordinals {
     // ordinals with value 0 indicates no value
     private final PackedInts.Reader reader;
     private final int numOrds;
+    private final int maxOrd;
 
     private long size = -1;
 
     public SinglePackedOrdinals(PackedInts.Reader reader, int numOrds) {
         this.reader = reader;
         this.numOrds = numOrds;
+        this.maxOrd = numOrds + 1;
     }
 
     @Override
@@ -75,6 +77,11 @@ public class SinglePackedOrdinals implements Ordinals {
     }
 
     @Override
+    public int getMaxOrd() {
+        return maxOrd;
+    }
+
+    @Override
     public Docs ordinals() {
         return new Docs(this, reader);
     }
@@ -105,6 +112,11 @@ public class SinglePackedOrdinals implements Ordinals {
         @Override
         public int getNumOrds() {
             return parent.getNumOrds();
+        }
+
+        @Override
+        public int getMaxOrd() {
+            return parent.getMaxOrd();
         }
 
         @Override

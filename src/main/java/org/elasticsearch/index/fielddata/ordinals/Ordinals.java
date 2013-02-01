@@ -52,9 +52,15 @@ public interface Ordinals {
     int getNumDocs();
 
     /**
-     * The number of ordinals.
+     * The number of ordinals, excluding the "0" ordinal indicating a missing value.
      */
     int getNumOrds();
+
+    /**
+     * Returns total unique ord count; this includes +1 for
+     * the null ord (always 0).
+     */
+    int getMaxOrd();
 
     /**
      * Returns a lightweight (non thread safe) view iterator of the ordinals.
@@ -80,9 +86,15 @@ public interface Ordinals {
         int getNumDocs();
 
         /**
-         * The number of ordinals.
+         * The number of ordinals, excluding the "0" ordinal (indicating a missing value).
          */
         int getNumOrds();
+
+        /**
+         * Returns total unique ord count; this includes +1 for
+         * the null ord (always 0).
+         */
+        int getMaxOrd();
 
         /**
          * Is one of the docs maps to more than one ordinal?

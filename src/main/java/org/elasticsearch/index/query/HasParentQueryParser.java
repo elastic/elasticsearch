@@ -59,7 +59,6 @@ public class HasParentQueryParser implements QueryParser {
         boolean queryFound = false;
         float boost = 1.0f;
         String parentType = null;
-        String scope = null;
         boolean score = false;
         String executionType = "uid";
 
@@ -85,7 +84,7 @@ public class HasParentQueryParser implements QueryParser {
                 if ("type".equals(currentFieldName) || "parent_type".equals(currentFieldName) || "parentType".equals(currentFieldName)) {
                     parentType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
-                    scope = parser.text();
+                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_parent] query has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {
                     executionType = parser.text();
                 } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
@@ -150,12 +149,12 @@ public class HasParentQueryParser implements QueryParser {
         SearchContext searchContext = SearchContext.current();
         Query query;
         if (score) {
-            ParentQuery parentQuery = new ParentQuery(searchContext, innerQuery, parentType, childTypes, childFilter, scope);
-            searchContext.addScopePhase(parentQuery);
+            ParentQuery parentQuery = new ParentQuery(searchContext, innerQuery, parentType, childTypes, childFilter);
+            searchContext.addRewrite(parentQuery);
             query = parentQuery;
         } else {
-            HasParentFilter hasParentFilter = HasParentFilter.create(executionType, innerQuery, scope, parentType, searchContext);
-            searchContext.addScopePhase(hasParentFilter);
+            HasParentFilter hasParentFilter = HasParentFilter.create(executionType, innerQuery, parentType, searchContext);
+            searchContext.addRewrite(hasParentFilter);
             query = new ConstantScoreQuery(hasParentFilter);
         }
         query.setBoost(boost);

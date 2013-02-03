@@ -97,6 +97,12 @@
             <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-join</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
 
 
         <!-- START: dependencies that are shaded -->

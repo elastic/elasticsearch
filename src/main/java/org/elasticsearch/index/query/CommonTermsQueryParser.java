@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
+
 import java.io.IOException;
 
 import org.apache.lucene.analysis.Analyzer;
@@ -26,6 +28,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.CommonTermsQuery;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.Query;
@@ -143,20 +146,15 @@ public class CommonTermsQueryParser implements QueryParser {
         if (value == null) {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
-        CommonTermsQuery query = new CommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords);
-        int numTerms = parseQueryString(query, value.toString(), fieldName, parseContext, queryAnalyzer);
-        if (numTerms == 0) {
-            return null;
-        }
-        if (minimumShouldMatch != null) {
-            query.setMinimumNumberShouldMatch(Queries.calculateMinShouldMatch(numTerms, minimumShouldMatch));
-        }
+        ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords);
         query.setBoost(boost);
-        return query;
+        return parseQueryString(query, value.toString(), fieldName, parseContext, queryAnalyzer, minimumShouldMatch);
     }
+        
 
-    private final int parseQueryString(CommonTermsQuery query, String queryString, String fieldName, QueryParseContext parseContext,
-            String queryAnalyzer) throws IOException {
+    private final Query parseQueryString(ExtendedCommonTermsQuery query, String queryString, String fieldName, QueryParseContext parseContext,
+            String queryAnalyzer, String minimumShouldMatch) throws IOException {
+    
         FieldMapper<?> mapper = null;
         String field;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
@@ -197,7 +195,11 @@ public class CommonTermsQueryParser implements QueryParser {
             query.add(new Term(field, ref));
             count++;
         }
-        return count;
-
+        
+        if (count == 0) {
+            return null;
+        }
+        query.setMinimumNumberShouldMatch(minimumShouldMatch);
+        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }
 }

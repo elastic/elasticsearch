@@ -29,10 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.IndexOrdinalFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -167,17 +165,11 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
         } else {
             if (script != null || "map".equals(executionHint)) {
                 return new TermsStringFacetCollector(facetName, indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
-            } else if (indexFieldData instanceof IndexOrdinalFieldData) {
-                return new TermsStringOrdinalsFacetCollector(facetName, (IndexOrdinalFieldData) indexFieldData, size, comparatorType, allTerms, context, excluded, pattern);
+            } else if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
+                return new TermsStringOrdinalsFacetCollector(facetName, (IndexFieldData.WithOrdinals) indexFieldData, size, comparatorType, allTerms, context, excluded, pattern);
             } else {
                 return new TermsStringFacetCollector(facetName, indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
             }
         }
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalTermsFacet first = (InternalTermsFacet) facets.get(0);
-        return first.reduce(name, facets);
     }
 }

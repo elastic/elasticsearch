@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.CommonTermsQuery;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -126,6 +128,8 @@ public class MatchQueryParser implements QueryParser {
                         matchQuery.setTranspositions(parser.booleanValue());
                     } else if ("lenient".equals(currentFieldName)) {
                         matchQuery.setLenient(parser.booleanValue());
+                    } else if ("cutoff_frequency".equals(currentFieldName)) {
+                        matchQuery.setCommonTermsCutoff(parser.floatValue());
                     } else if ("zero_terms_query".equals(currentFieldName)) {
                         String zeroTermsDocs = parser.text();
                         if ("none".equalsIgnoreCase(zeroTermsDocs)) {
@@ -161,8 +165,9 @@ public class MatchQueryParser implements QueryParser {
 
         if (query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+        } else if (query instanceof ExtendedCommonTermsQuery) {
+            ((ExtendedCommonTermsQuery)query).setMinimumNumberShouldMatch(minimumShouldMatch);
         }
-
         query.setBoost(boost);
         return query;
     }

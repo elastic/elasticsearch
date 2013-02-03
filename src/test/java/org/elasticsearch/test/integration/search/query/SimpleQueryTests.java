@@ -74,7 +74,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).execute().actionGet();
 
@@ -92,7 +92,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
@@ -105,7 +105,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
         }
     }
-    
+
     @Test
     public void testCommonTermsQuery() throws Exception {
         try {
@@ -116,32 +116,58 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute().actionGet();
-        client.prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown").setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").setRefresh(true).execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3)).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-        
-        
+
+
         searchResponse = client.prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.OR)).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(3l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
-        
+
         searchResponse = client.prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("standard")).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(3l));
         // standard drops "the" since its a stopword
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
+
+        // try the same with match query
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.OR)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "the quick brown").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND).analyzer("standard")).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        // standard drops "the" since its a stopword
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
+
+        // try the same with multi match query
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.multiMatchQuery("the quick brown", "field1", "field2").cutoffFrequency(3).operator(MatchQueryBuilder.Operator.AND)).execute().actionGet();
+        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3")); // better score due to different query stats
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
     }
-    
+
     @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
         // backwards compat test!
@@ -153,7 +179,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("omit_term_freq_and_positions", true).field("type", "string").endObject().endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
@@ -176,7 +202,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").execute().actionGet();
 
@@ -197,7 +223,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch().setQuery(queryString("v?l*e?1").analyzeWildcard(true)).execute().actionGet();
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
     }
-    
+
     @Test
     public void testLowercaseExpandedTerms() {
         try {
@@ -206,7 +232,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").execute().actionGet();
 
@@ -243,7 +269,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_type").field("index", index).endObject()
                         .endObject().endObject())
@@ -288,7 +314,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_id").field("index", index).endObject()
                         .endObject().endObject())
@@ -341,7 +367,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "value1_2").execute().actionGet();
@@ -362,7 +388,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "value1_2").execute().actionGet();
@@ -425,7 +451,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).execute().actionGet();
 
@@ -481,7 +507,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value4", "field3", "value3").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value5", "field3", "value2").execute().actionGet();
@@ -564,7 +590,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field1", "value2").execute().actionGet();
         client.admin().indices().prepareRefresh("test").execute().actionGet();
@@ -593,4 +619,35 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.hits().totalHits(), equalTo(2l));
     }
 
+    @Test
+    public void testFuzzyQueryString() {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("str", "shay", "date", "2012-02-05", "num", 20).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(queryString("str:kimcy~1"))
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(queryString("num:11~1"))
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+
+        // Note, this test fails, i.e returns 0 results, the reason is that Lucene QP only supports numbers after the ~
+        // once this is changed in lucene to support strings, then this test will fail (good!)
+        searchResponse = client.prepareSearch()
+                .setQuery(queryString("date:2012-02-02~1d"))
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+    }
 }

@@ -344,7 +344,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 FetchSearchResult result = searchService.executeFetchPhase(request);
                 listener.onResult(result);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {
@@ -378,7 +378,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 QuerySearchResult result = searchService.executeScan(request);
                 listener.onResult(result);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {

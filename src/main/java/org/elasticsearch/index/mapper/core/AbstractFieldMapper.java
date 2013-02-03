@@ -278,7 +278,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     protected float boost;
     protected final FieldType fieldType;
     protected final NamedAnalyzer indexAnalyzer;
-    protected final NamedAnalyzer searchAnalyzer;
+    protected NamedAnalyzer searchAnalyzer;
     protected PostingsFormatProvider postingsFormat;
     protected final SimilarityProvider similarity;
 
@@ -477,12 +477,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
-        int edits = FuzzyQuery.floatToEdits((float) minSim, value.codePointCount(0, value.length()));
-        return new FuzzyQuery(names.createIndexNameTerm(indexedValueForSearch(value)), edits, prefixLength, maxExpansions, transpositions);
-    }
-
-    @Override
     public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
         PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
         if (method != null) {
@@ -557,15 +551,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         }
-        if (this.searchAnalyzer == null) {
-            if (fieldMergeWith.searchAnalyzer != null) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
-            }
-        } else if (fieldMergeWith.searchAnalyzer == null) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
-        } else if (!this.searchAnalyzer.name().equals(fieldMergeWith.searchAnalyzer.name())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
-        }
 
         if (this.similarity == null) {
             if (fieldMergeWith.similarity() != null) {
@@ -582,6 +567,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             this.boost = fieldMergeWith.boost;
             if (fieldMergeWith.postingsFormat != null) {
                 this.postingsFormat = fieldMergeWith.postingsFormat;
+            }
+            if (fieldMergeWith.searchAnalyzer != null) {
+                this.searchAnalyzer = fieldMergeWith.searchAnalyzer;
             }
             if (fieldMergeWith.customFieldDataSettings != null) {
                 if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
@@ -673,6 +661,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     protected static String indexOptionToString(IndexOptions indexOption) {
         switch (indexOption) {
+            case DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS:
+                return TypeParsers.INDEX_OPTIONS_OFFSETS;
             case DOCS_AND_FREQS:
                 return TypeParsers.INDEX_OPTIONS_FREQS;
             case DOCS_AND_FREQS_AND_POSITIONS:

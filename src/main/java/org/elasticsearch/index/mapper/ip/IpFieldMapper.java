@@ -22,7 +22,10 @@ package org.elasticsearch.index.mapper.ip;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.NumericRangeFilter;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -140,11 +143,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     private String nullValue;
 
-    protected IpFieldMapper(Names names, int precisionStep,
-                            float boost, FieldType fieldType,
+    protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
                             String nullValue, Explicit<Boolean> ignoreMalformed,
                             PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(names, precisionStep, null, boost, fieldType,
+        super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
                 new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
@@ -225,13 +227,6 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
                 iValue - iSim,
                 iValue + iSim,
                 true, true);
-    }
-
-    @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
-        // Lucene 4 Upgrade: It's surprising this uses FuzzyQuery instead of NumericRangeQuery
-        int edits = FuzzyQuery.floatToEdits((float) minSim, value.codePointCount(0, value.length()));
-        return new FuzzyQuery(names.createIndexNameTerm(indexedValueForSearch(value)), edits, prefixLength, maxExpansions, transpositions);
     }
 
     @Override

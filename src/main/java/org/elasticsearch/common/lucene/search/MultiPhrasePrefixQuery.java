@@ -272,4 +272,8 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         return true;
     }
+    
+    public String getField() {
+        return field;
+    }
 }

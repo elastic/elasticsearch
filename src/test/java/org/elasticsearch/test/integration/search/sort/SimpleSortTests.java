@@ -52,7 +52,7 @@ public class SimpleSortTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        Settings settings = settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).build();
+        Settings settings = settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build();
         startNode("server1", settings);
         startNode("server2", settings);
         client = getClient();
@@ -124,7 +124,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type", "1").setSource("field", 2).execute().actionGet();
@@ -175,7 +175,7 @@ public class SimpleSortTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", numberOfShards).put("number_of_replicas", 0))
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("str_value").field("type", "string").endObject()
                         .startObject("boolean_value").field("type", "boolean").endObject()
@@ -431,7 +431,13 @@ public class SimpleSortTests extends AbstractNodesTests {
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        // TODO: sort shouldn't fail when sort field is mapped dynamically
+        // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
+        // be propagated to all nodes yet and sort operation fail when the sort field is not defined
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("svalue").field("type", "string").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()

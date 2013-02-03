@@ -142,8 +142,8 @@ public class SuggestSearchBenchMark {
                 System.err.println("No suggestions");
                 continue;
             }
-            List<Suggest.Suggestion.Term.SuggestedTerm> suggestedTerms = response.suggest().getSuggestions().get(0).getTerms().get(0).getSuggested();
-            if (suggestedTerms == null || suggestedTerms.isEmpty()) {
+            List<Suggest.Suggestion.Entry.Option> options = response.suggest().getSuggestions().get(0).getEntries().get(0).getOptions();
+            if (options == null || options.isEmpty()) {
                 System.err.println("No suggestions");
             }
             startChar++;

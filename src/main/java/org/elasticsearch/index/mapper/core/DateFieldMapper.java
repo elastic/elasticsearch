@@ -116,7 +116,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             }
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
-                    precisionStep, fuzzyFactor, boost, fieldType, nullValue,
+                    precisionStep, boost, fieldType, nullValue,
                     timeUnit, parseUpperInclusive, ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -153,11 +153,10 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     protected final TimeUnit timeUnit;
 
-    protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, String fuzzyFactor,
-                              float boost, FieldType fieldType,
+    protected DateFieldMapper(Names names, FormatDateTimeFormatter dateTimeFormatter, int precisionStep, float boost, FieldType fieldType,
                               String nullValue, TimeUnit timeUnit, boolean parseUpperInclusive, Explicit<Boolean> ignoreMalformed,
                               PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(names, precisionStep, fuzzyFactor, boost, fieldType,
+        super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_date/" + precisionStep,
                 new NumericDateAnalyzer(precisionStep, dateTimeFormatter.parser())),
                 new NamedAnalyzer("_date/max", new NumericDateAnalyzer(Integer.MAX_VALUE, dateTimeFormatter.parser())),
@@ -177,18 +176,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("long");
-    }
-
-    @Override
-    protected double parseFuzzyFactor(String fuzzyFactor) {
-        if (fuzzyFactor == null) {
-            return 1.0d;
-        }
-        try {
-            return TimeValue.parseTimeValue(fuzzyFactor, null).millis();
-        } catch (Exception e) {
-            return Double.parseDouble(fuzzyFactor);
-        }
     }
 
     @Override
@@ -260,16 +247,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             // not a time format
             iSim = (long) Double.parseDouble(minSim);
         }
-        return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-    }
-
-    @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
-        long iValue = dateMathParser.parse(value, System.currentTimeMillis());
-        long iSim = (long) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 iValue - iSim,
                 iValue + iSim,
@@ -425,9 +402,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         super.doXContentBody(builder);
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
-        }
-        if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
-            builder.field("fuzzy_factor", fuzzyFactor);
         }
         builder.field("format", dateTimeFormatter.format());
         if (nullValue != null) {

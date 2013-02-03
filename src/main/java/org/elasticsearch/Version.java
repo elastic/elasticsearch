@@ -102,6 +102,10 @@ public class Version implements Serializable {
     public static final Version V_0_20_2 = new Version(V_0_20_2_ID, false);
     public static final int V_0_20_3_ID = /*00*/200399;
     public static final Version V_0_20_3 = new Version(V_0_20_3_ID, false);
+    public static final int V_0_20_4_ID = /*00*/200499;
+    public static final Version V_0_20_4 = new Version(V_0_20_4_ID, false);
+    public static final int V_0_20_5_ID = /*00*/200599;
+    public static final Version V_0_20_5 = new Version(V_0_20_5_ID, false);
 
     public static final int V_0_21_0_Beta1_ID = /*00*/210001;
     public static final Version V_0_21_0_Beta1 = new Version(V_0_21_0_Beta1_ID, true);
@@ -117,6 +121,10 @@ public class Version implements Serializable {
             case V_0_21_0_Beta1_ID:
                 return V_0_21_0_Beta1;
 
+            case V_0_20_5_ID:
+                return V_0_20_5;
+            case V_0_20_4_ID:
+                return V_0_20_4;
             case V_0_20_3_ID:
                 return V_0_20_3;
             case V_0_20_2_ID:
@@ -242,7 +250,7 @@ public class Version implements Serializable {
     }
 
     public static void main(String[] args) {
-        System.out.println("ElasticSearch Version: " + Version.CURRENT + ", JVM: " + JvmInfo.jvmInfo().vmVersion());
+        System.out.println("ElasticSearch Version: " + Version.CURRENT + ", JVM: " + JvmInfo.jvmInfo().version() + "(" + JvmInfo.jvmInfo().vmVersion() + ")");
     }
 
     @Override

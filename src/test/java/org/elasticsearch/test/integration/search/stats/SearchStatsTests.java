@@ -41,7 +41,7 @@ public class SearchStatsTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        Settings settings = settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).build();
+        Settings settings = settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build();
         startNode("server1", settings);
         startNode("server2", settings);
         client = getClient();
@@ -63,11 +63,16 @@ public class SearchStatsTests extends AbstractNodesTests {
 
         for (int i = 0; i < 500; i++) {
             client.prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            if (i == 10) {
+                client.admin().indices().prepareRefresh("test1").execute().actionGet();
+            }
         }
         for (int i = 0; i < 500; i++) {
             client.prepareIndex("test2", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            if (i == 10) {
+                client.admin().indices().prepareRefresh("test1").execute().actionGet();
+            }
         }
-
         for (int i = 0; i < 200; i++) {
             client.prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
         }

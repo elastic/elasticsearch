@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -63,9 +62,7 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  *
@@ -86,6 +83,13 @@ public class SearchContext implements Releasable {
 
     public static SearchContext current() {
         return current.get();
+    }
+
+    public static interface Rewrite {
+
+        void contextRewrite(SearchContext searchContext) throws Exception;
+
+        void contextClear();
     }
 
     private final long id;
@@ -171,9 +175,7 @@ public class SearchContext implements Releasable {
 
     private volatile long lastAccessTime;
 
-    private List<ScopePhase> scopePhases = null;
-
-    private Map<String, BlockJoinQuery> nestedQueries;
+    private List<Rewrite> rewrites = null;
 
     public SearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
@@ -201,9 +203,9 @@ public class SearchContext implements Releasable {
             scanContext.clear();
         }
         // clear and scope phase we  have
-        if (scopePhases != null) {
-            for (ScopePhase scopePhase : scopePhases) {
-                scopePhase.clear();
+        if (rewrites != null) {
+            for (Rewrite rewrite : rewrites) {
+                rewrite.contextClear();
             }
         }
         engineSearcher.release();
@@ -569,26 +571,15 @@ public class SearchContext implements Releasable {
         return fetchResult;
     }
 
-    public List<ScopePhase> scopePhases() {
-        return this.scopePhases;
-    }
-
-    public void addScopePhase(ScopePhase scopePhase) {
-        if (this.scopePhases == null) {
-            this.scopePhases = new ArrayList<ScopePhase>();
+    public void addRewrite(Rewrite rewrite) {
+        if (this.rewrites == null) {
+            this.rewrites = new ArrayList<Rewrite>();
         }
-        this.scopePhases.add(scopePhase);
+        this.rewrites.add(rewrite);
     }
 
-    public Map<String, BlockJoinQuery> nestedQueries() {
-        return this.nestedQueries;
-    }
-
-    public void addNestedQuery(String scope, BlockJoinQuery query) {
-        if (nestedQueries == null) {
-            nestedQueries = new HashMap<String, BlockJoinQuery>();
-        }
-        nestedQueries.put(scope, query);
+    public List<Rewrite> rewrites() {
+        return this.rewrites;
     }
 
     public ScanContext scanContext() {

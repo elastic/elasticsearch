@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.merge;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
@@ -83,4 +84,44 @@ public class TestMergeMapperTests {
         assertThat(mergeResult.conflicts().length, equalTo(1));
         assertThat(mergeResult.conflicts()[0], equalTo("object mapping [obj] can't be changed from nested to non-nested"));
     }
+
+    @Test
+    public void testMergeSearchAnalyzer() throws Exception {
+        String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").field("search_analyzer", "whitespace").endObject().endObject()
+                .endObject().endObject().string();
+        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").field("search_analyzer", "keyword").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper existing = MapperTests.newParser().parse(mapping1);
+        DocumentMapper changed = MapperTests.newParser().parse(mapping2);
+
+        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("whitespace"));
+        DocumentMapper.MergeResult mergeResult = existing.merge(changed, mergeFlags().simulate(false));
+
+        assertThat(mergeResult.hasConflicts(), equalTo(false));
+        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("keyword"));
+    }
+
+    @Test
+    public void testNotChangeSearchAnalyzer() throws Exception {
+        String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").field("search_analyzer", "whitespace").endObject().endObject()
+                .endObject().endObject().string();
+        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").field("postings_format", "direct").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper existing = MapperTests.newParser().parse(mapping1);
+        DocumentMapper changed = MapperTests.newParser().parse(mapping2);
+
+        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("whitespace"));
+        DocumentMapper.MergeResult mergeResult = existing.merge(changed, mergeFlags().simulate(false));
+
+        assertThat(mergeResult.hasConflicts(), equalTo(false));
+        assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("whitespace"));
+        assertThat((existing.mappers().name("field").mapper().postingsFormatProvider()).name(), equalTo("direct"));
+    }
+
 }

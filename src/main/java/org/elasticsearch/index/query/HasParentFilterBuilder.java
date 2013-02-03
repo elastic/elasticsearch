@@ -29,23 +29,29 @@ import java.io.IOException;
 public class HasParentFilterBuilder extends BaseFilterBuilder {
 
     private final QueryBuilder queryBuilder;
+    private final FilterBuilder filterBuilder;
     private final String parentType;
-    private String scope;
     private String filterName;
     private String executionType;
 
     /**
-     * @param parentType The parent type
+     * @param parentType  The parent type
      * @param parentQuery The query that will be matched with parent documents
      */
     public HasParentFilterBuilder(String parentType, QueryBuilder parentQuery) {
         this.parentType = parentType;
         this.queryBuilder = parentQuery;
+        this.filterBuilder = null;
     }
 
-    public HasParentFilterBuilder scope(String scope) {
-        this.scope = scope;
-        return this;
+    /**
+     * @param parentType   The parent type
+     * @param parentFilter The filter that will be matched with parent documents
+     */
+    public HasParentFilterBuilder(String parentType, FilterBuilder parentFilter) {
+        this.parentType = parentType;
+        this.queryBuilder = null;
+        this.filterBuilder = parentFilter;
     }
 
     public HasParentFilterBuilder filterName(String filterName) {
@@ -55,7 +61,7 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
 
     /**
      * Expert: Sets the low level parent to child filtering implementation. Can be: 'bitset' or 'uid'
-     *
+     * <p/>
      * This option is experimental and will be removed.
      */
     public HasParentFilterBuilder executionType(String executionType) {
@@ -66,12 +72,14 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasParentFilterParser.NAME);
-        builder.field("query");
-        queryBuilder.toXContent(builder, params);
-        builder.field("parent_type", parentType);
-        if (scope != null) {
-            builder.field("_scope", scope);
+        if (queryBuilder != null) {
+            builder.field("query");
+            queryBuilder.toXContent(builder, params);
+        } else if (filterBuilder != null) {
+            builder.field("filter");
+            filterBuilder.toXContent(builder, params);
         }
+        builder.field("parent_type", parentType);
         if (filterName != null) {
             builder.field("_name", filterName);
         }

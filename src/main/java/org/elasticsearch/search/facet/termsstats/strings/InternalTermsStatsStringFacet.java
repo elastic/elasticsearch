@@ -245,7 +245,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
     }
 
     @Override
-    public Facet reduce(String name, List<Facet> facets) {
+    public Facet reduce(List<Facet> facets) {
         if (facets.size() == 1) {
             if (requiredSize == 0) {
                 // we need to sort it here!

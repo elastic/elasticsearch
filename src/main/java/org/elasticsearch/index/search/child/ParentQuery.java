@@ -32,7 +32,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
-import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -44,24 +43,22 @@ import java.util.Set;
  * connects the matching parent docs to the related child documents
  * using the {@link IdReaderTypeCache}.
  */
-public class ParentQuery extends Query implements ScopePhase.CollectorPhase {
+public class ParentQuery extends Query implements SearchContext.Rewrite {
 
     private final SearchContext searchContext;
     private final Query parentQuery;
     private final String parentType;
     private final Filter childrenFilter;
     private final List<String> childTypes;
-    private final String scope;
 
     private TObjectFloatHashMap<HashedBytesArray> uidToScore;
 
-    public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, List<String> childTypes, Filter childrenFilter, String scope) {
+    public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, List<String> childTypes, Filter childrenFilter) {
         this.searchContext = searchContext;
         this.parentQuery = parentQuery;
         this.parentType = parentType;
         this.childTypes = childTypes;
         this.childrenFilter = childrenFilter;
-        this.scope = scope;
     }
 
     private ParentQuery(ParentQuery unwritten, Query rewrittenParentQuery) {
@@ -70,43 +67,24 @@ public class ParentQuery extends Query implements ScopePhase.CollectorPhase {
         this.parentType = unwritten.parentType;
         this.childrenFilter = unwritten.childrenFilter;
         this.childTypes = unwritten.childTypes;
-        this.scope = unwritten.scope;
 
         this.uidToScore = unwritten.uidToScore;
     }
 
     @Override
-    public boolean requiresProcessing() {
-        return uidToScore == null;
-    }
-
-    @Override
-    public Collector collector() {
+    public void contextRewrite(SearchContext searchContext) throws Exception {
+        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
         uidToScore = CacheRecycler.popObjectFloatMap();
-        return new ParentUidCollector(uidToScore, searchContext, parentType);
+        ParentUidCollector collector = new ParentUidCollector(uidToScore, searchContext, parentType);
+        searchContext.searcher().search(parentQuery, collector);
     }
 
     @Override
-    public void processCollector(Collector collector) {
-        // Do nothing, we already have the references to the parent scores.
-    }
-
-    @Override
-    public String scope() {
-        return scope;
-    }
-
-    @Override
-    public void clear() {
+    public void contextClear() {
         if (uidToScore != null) {
             CacheRecycler.pushObjectFloatMap(uidToScore);
         }
         uidToScore = null;
-    }
-
-    @Override
-    public Query query() {
-        return parentQuery;
     }
 
     @Override
@@ -125,8 +103,8 @@ public class ParentQuery extends Query implements ScopePhase.CollectorPhase {
             return this;
         }
         ParentQuery rewrite = new ParentQuery(this, rewrittenChildQuery);
-        int index = searchContext.scopePhases().indexOf(this);
-        searchContext.scopePhases().set(index, rewrite);
+        int index = searchContext.rewrites().indexOf(this);
+        searchContext.rewrites().set(index, rewrite);
         return rewrite;
     }
 

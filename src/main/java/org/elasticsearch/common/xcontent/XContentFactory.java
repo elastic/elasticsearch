@@ -115,6 +115,21 @@ public class XContentFactory {
      */
     public static XContentType xContentType(CharSequence content) {
         int length = content.length() < GUESS_HEADER_LENGTH ? content.length() : GUESS_HEADER_LENGTH;
+        if (length == 0) {
+            return null;
+        }
+        char first = content.charAt(0);
+        if (first == '{') {
+            return XContentType.JSON;
+        }
+        // Should we throw a failure here? Smile idea is to use it in bytes....
+        if (length > 2 && first == SmileConstants.HEADER_BYTE_1 && content.charAt(1) == SmileConstants.HEADER_BYTE_2 && content.charAt(2) == SmileConstants.HEADER_BYTE_3) {
+            return XContentType.SMILE;
+        }
+        if (length > 2 && first == '-' && content.charAt(1) == '-' && content.charAt(2) == '-') {
+            return XContentType.YAML;
+        }
+
         for (int i = 0; i < length; i++) {
             char c = content.charAt(i);
             if (c == '{') {

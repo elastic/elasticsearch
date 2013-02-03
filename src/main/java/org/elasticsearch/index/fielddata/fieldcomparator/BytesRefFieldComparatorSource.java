@@ -22,7 +22,6 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexOrdinalFieldData;
 
 import java.io.IOException;
 
@@ -44,8 +43,8 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
         assert fieldname.equals(indexFieldData.getFieldNames().indexName());
-        if (indexFieldData.valuesOrdered() && indexFieldData instanceof IndexOrdinalFieldData) {
-            return new BytesRefOrdValComparator((IndexOrdinalFieldData) indexFieldData, numHits);
+        if (indexFieldData.valuesOrdered() && indexFieldData instanceof IndexFieldData.WithOrdinals) {
+            return new BytesRefOrdValComparator((IndexFieldData.WithOrdinals) indexFieldData, numHits);
         }
         return new BytesRefValComparator(indexFieldData, numHits);
     }

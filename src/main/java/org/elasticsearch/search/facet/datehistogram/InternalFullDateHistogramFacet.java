@@ -214,7 +214,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
     }
 
     @Override
-    public Facet reduce(String name, List<Facet> facets) {
+    public Facet reduce(List<Facet> facets) {
         if (facets.size() == 1) {
             // we need to sort it
             InternalFullDateHistogramFacet internalFacet = (InternalFullDateHistogramFacet) facets.get(0);

@@ -57,6 +57,12 @@ public class IntArrayRef extends AbstractList<Integer> implements RandomAccess {
         }
     }
 
+    public void growIfNeeded(int index) {
+        if (index >= values.length) {
+            values = ArrayUtil.grow(values);
+        }
+    }
+
     @Override
     public int size() {
         return end - start;

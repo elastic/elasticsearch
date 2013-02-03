@@ -26,13 +26,14 @@ import java.util.List;
 /**
  * An implementation of FragmentsBuilder that outputs score-order fragments.
  */
-public class XScoreOrderFragmentsBuilder extends AbstractFragmentsBuilder {
+public class XScoreOrderFragmentsBuilder extends BaseFragmentsBuilder {
 
     /**
      * a constructor.
      */
     public XScoreOrderFragmentsBuilder() {
         super();
+        setDiscreteMultiValueHighlighting(true);
     }
 
     /**
@@ -43,14 +44,17 @@ public class XScoreOrderFragmentsBuilder extends AbstractFragmentsBuilder {
      */
     public XScoreOrderFragmentsBuilder(String[] preTags, String[] postTags) {
         super(preTags, postTags);
+        setDiscreteMultiValueHighlighting(true);
     }
 
     public XScoreOrderFragmentsBuilder(BoundaryScanner bs) {
         super(bs);
+        setDiscreteMultiValueHighlighting(true);
     }
 
     public XScoreOrderFragmentsBuilder(String[] preTags, String[] postTags, BoundaryScanner bs) {
         super(preTags, postTags, bs);
+        setDiscreteMultiValueHighlighting(true);
     }
 
     /**

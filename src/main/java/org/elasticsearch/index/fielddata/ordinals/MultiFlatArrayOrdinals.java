@@ -27,19 +27,13 @@ import org.elasticsearch.index.fielddata.util.IntArrayRef;
  * values a docId has. Ordinals are populated in order from the first flat array
  * value to the next.
  */
-public class MultiFlatArrayOrdinals implements Ordinals {
-
-    private ThreadLocal<IntArrayRef> intArrayRefCache = new ThreadLocal<IntArrayRef>() {
-        @Override
-        protected IntArrayRef initialValue() {
-            return new IntArrayRef(new int[ordinals.length]);
-        }
-    };
+public final class MultiFlatArrayOrdinals implements Ordinals {
 
     // ordinals with value 0 indicates no value
     private final int[][] ordinals;
     private final int numDocs;
     private final int numOrds;
+    private final int maxOrd;
 
     private long size = -1;
 
@@ -48,6 +42,7 @@ public class MultiFlatArrayOrdinals implements Ordinals {
         this.ordinals = ordinals;
         this.numDocs = ordinals[0].length;
         this.numOrds = numOrds;
+        this.maxOrd = numOrds + 1;
     }
 
     @Override
@@ -89,8 +84,13 @@ public class MultiFlatArrayOrdinals implements Ordinals {
     }
 
     @Override
+    public int getMaxOrd() {
+        return this.maxOrd;
+    }
+
+    @Override
     public Docs ordinals() {
-        return new Docs(this, ordinals, intArrayRefCache.get());
+        return new Docs(this, ordinals);
     }
 
     public static class Docs implements Ordinals.Docs {
@@ -101,11 +101,11 @@ public class MultiFlatArrayOrdinals implements Ordinals {
 
         private final IntArrayRef intsScratch;
 
-        public Docs(MultiFlatArrayOrdinals parent, int[][] ordinals, IntArrayRef intsScratch) {
+        public Docs(MultiFlatArrayOrdinals parent, int[][] ordinals) {
             this.parent = parent;
             this.ordinals = ordinals;
             this.iter = new IterImpl(ordinals);
-            this.intsScratch = intsScratch;
+            this.intsScratch = new IntArrayRef(new int[16]);
         }
 
         @Override
@@ -121,6 +121,11 @@ public class MultiFlatArrayOrdinals implements Ordinals {
         @Override
         public int getNumOrds() {
             return parent.getNumOrds();
+        }
+
+        @Override
+        public int getMaxOrd() {
+            return parent.getMaxOrd();
         }
 
         @Override
@@ -143,6 +148,7 @@ public class MultiFlatArrayOrdinals implements Ordinals {
                     if (i == 0) return IntArrayRef.EMPTY;
                     break;
                 }
+                intsScratch.growIfNeeded(i);
                 intsScratch.values[i] = ordinal;
             }
             intsScratch.end = i;

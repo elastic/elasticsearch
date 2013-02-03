@@ -19,10 +19,7 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.InternalFacet;
-
-import java.util.List;
 
 /**
  *
@@ -33,6 +30,4 @@ public abstract class InternalDateHistogramFacet implements DateHistogramFacet, 
         InternalCountDateHistogramFacet.registerStreams();
         InternalFullDateHistogramFacet.registerStreams();
     }
-
-    public abstract Facet reduce(String name, List<Facet> facets);
 }

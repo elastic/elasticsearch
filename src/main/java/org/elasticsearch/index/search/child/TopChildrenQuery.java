@@ -25,46 +25,45 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
-import org.elasticsearch.search.internal.ScopePhase;
+import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.*;
 
 /**
- *
+ * A query that evaluates the top matching child documents (based on the score) in order to determine what
+ * parent documents to return. This query tries to find just enough child documents to return the the requested
+ * number of parent documents (or less if no other child document can be found).
+ * <p/>
+ * This query executes several internal searches. In the first round it tries to find ((request offset + requested size) * factor)
+ * child documents. The resulting child documents are mapped into their parent documents including the aggragted child scores.
+ * If not enough parent documents could be resolved then a subsequent round is executed, requesting previous requested
+ * documents times incremental_factor. This logic repeats until enough parent documents are resolved or until no more
+ * child documents are available.
+ * <p/>
+ * This query is most of the times faster than the {@link ChildrenQuery}. Usually enough parent documents can be returned
+ * in the first child document query round.
  */
-public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
+public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
-    private Query query;
+    private final SearchContext searchContext;
+    private final Query childQuery;
+    private final String parentType;
+    private final String childType;
+    private final ScoreType scoreType;
+    private final int factor;
+    private final int incrementalFactor;
 
-    private String scope;
-
-    private String parentType;
-
-    private String childType;
-
-    private ScoreType scoreType;
-
-    private int factor;
-
-    private int incrementalFactor;
-
-    private Map<Object, ParentDoc[]> parentDocs;
-
-    // Actual value can get lost during query rewriting in dfs phase, but this isn't an issue now.
-    private int numHits = 0;
-
-    // Need to know if this query is properly used, otherwise the results are unexpected for example in the count api
-    // Need to use boolean array instead of boolean primitive... b/c during query rewriting in dfs phase
-    private boolean[] properlyInvoked = new boolean[]{false};
+    private ExtTHashMap<Object, ParentDoc[]> parentDocs;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(Query query, String scope, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
-        this.query = query;
-        this.scope = scope;
+    public TopChildrenQuery(SearchContext searchContext, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
+        this.searchContext = searchContext;
+        this.childQuery = childQuery;
         this.childType = childType;
         this.parentType = parentType;
         this.scoreType = scoreType;
@@ -72,40 +71,59 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
         this.incrementalFactor = incrementalFactor;
     }
 
-    @Override
-    public Query query() {
-        return this;
+    private TopChildrenQuery(TopChildrenQuery existing, Query rewrittenChildQuery) {
+        this.searchContext = existing.searchContext;
+        this.childQuery = rewrittenChildQuery;
+        this.parentType = existing.parentType;
+        this.childType = existing.childType;
+        this.scoreType = existing.scoreType;
+        this.factor = existing.factor;
+        this.incrementalFactor = existing.incrementalFactor;
+        this.parentDocs = existing.parentDocs;
     }
 
     @Override
-    public String scope() {
-        return scope;
+    public void contextRewrite(SearchContext searchContext) throws Exception {
+        this.parentDocs = CacheRecycler.popHashMap();
+        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
+
+        int parentHitsResolved;
+        int numChildDocs = (searchContext.from() + searchContext.size());
+        if (numChildDocs == 0) {
+            numChildDocs = 1;
+        }
+        numChildDocs *= factor;
+        while (true) {
+            parentDocs.clear();
+            TopDocs topChildDocs = searchContext.searcher().search(childQuery, numChildDocs);
+            parentHitsResolved = resolveParentDocuments(topChildDocs, searchContext);
+
+            // check if we found enough docs, if so, break
+            if (parentHitsResolved >= (searchContext.from() + searchContext.size())) {
+                break;
+            }
+            // if we did not find enough docs, check if it make sense to search further
+            if (topChildDocs.totalHits <= numChildDocs) {
+                break;
+            }
+            // if not, update numDocs, and search again
+            numChildDocs *= incrementalFactor;
+            if (numChildDocs > topChildDocs.totalHits) {
+                numChildDocs = topChildDocs.totalHits;
+            }
+        }
     }
 
     @Override
-    public void clear() {
-        properlyInvoked[0] = true;
-        parentDocs = null;
-        numHits = 0;
+    public void contextClear() {
+        if (parentDocs != null) {
+            CacheRecycler.pushHashMap(parentDocs);
+            parentDocs = null;
+        }
     }
 
-    @Override
-    public int numHits() {
-        return numHits;
-    }
-
-    @Override
-    public int factor() {
-        return this.factor;
-    }
-
-    @Override
-    public int incrementalFactor() {
-        return this.incrementalFactor;
-    }
-
-    @Override
-    public void processResults(TopDocs topDocs, SearchContext context) {
+    int resolveParentDocuments(TopDocs topDocs, SearchContext context) {
+        int parentHitsResolved = 0;
         Map<Object, TIntObjectHashMap<ParentDoc>> parentDocsPerReader = new HashMap<Object, TIntObjectHashMap<ParentDoc>>();
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
@@ -134,7 +152,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
                     ParentDoc parentDoc = readerParentDocs.get(parentDocId);
                     if (parentDoc == null) {
-                        numHits++; // we have a hit on a parent
+                        parentHitsResolved++; // we have a hit on a parent
                         parentDoc = new ParentDoc();
                         parentDoc.docId = parentDocId;
                         parentDoc.count = 1;
@@ -152,12 +170,13 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
             }
         }
 
-        this.parentDocs = new HashMap<Object, ParentDoc[]>();
         for (Map.Entry<Object, TIntObjectHashMap<ParentDoc>> entry : parentDocsPerReader.entrySet()) {
             ParentDoc[] values = entry.getValue().values(new ParentDoc[entry.getValue().size()]);
             Arrays.sort(values, PARENT_DOC_COMP);
             parentDocs.put(entry.getKey(), values);
         }
+
+        return parentHitsResolved;
     }
 
     private static final ParentDocComparator PARENT_DOC_COMP = new ParentDocComparator();
@@ -169,7 +188,7 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
         }
     }
 
-    public static class ParentDoc {
+    static class ParentDoc {
         public int docId;
         public int count;
         public float maxScore = Float.NaN;
@@ -178,33 +197,33 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        Query newQ = query.rewrite(reader);
-        if (newQ == query) return this;
-        TopChildrenQuery bq = (TopChildrenQuery) this.clone();
-        bq.query = newQ;
-        return bq;
+        Query rewrittenChildQuery = childQuery.rewrite(reader);
+        if (rewrittenChildQuery == childQuery) {
+            return this;
+        }
+        int index = searchContext.rewrites().indexOf(this);
+        TopChildrenQuery rewrite = new TopChildrenQuery(this, rewrittenChildQuery);
+        searchContext.rewrites().set(index, rewrite);
+        return rewrite;
     }
 
     @Override
     public void extractTerms(Set<Term> terms) {
-        query.extractTerms(terms);
+        childQuery.extractTerms(terms);
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher) throws IOException {
-        if (!properlyInvoked[0]) {
+        if (parentDocs == null) {
             throw new ElasticSearchIllegalStateException("top_children query hasn't executed properly");
         }
 
-        if (parentDocs != null) {
-            return new ParentWeight(searcher, query.createWeight(searcher));
-        }
-        return query.createWeight(searcher);
+        return new ParentWeight(searcher, childQuery.createWeight(searcher));
     }
 
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("score_child[").append(childType).append("/").append(parentType).append("](").append(query.toString(field)).append(')');
+        sb.append("score_child[").append(childType).append("/").append(parentType).append("](").append(childQuery.toString(field)).append(')');
         sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }

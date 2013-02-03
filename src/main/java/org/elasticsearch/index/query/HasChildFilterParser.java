@@ -23,6 +23,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -54,7 +55,6 @@ public class HasChildFilterParser implements FilterParser {
         Query query = null;
         boolean queryFound = false;
         String childType = null;
-        String scope = null;
 
         String executionType = "uid";
         String filterName = null;
@@ -74,6 +74,16 @@ public class HasChildFilterParser implements FilterParser {
                     } finally {
                         QueryParseContext.setTypes(origTypes);
                     }
+                } else if ("filter".equals(currentFieldName)) {
+                    // TODO handle `filter` element before `type` element...
+                    String[] origTypes = QueryParseContext.setTypesWithPrevious(childType == null ? null : new String[]{childType});
+                    try {
+                        Filter innerFilter = parseContext.parseInnerFilter();
+                        query = new XConstantScoreQuery(innerFilter);
+                        queryFound = true;
+                    } finally {
+                        QueryParseContext.setTypes(origTypes);
+                    }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -81,7 +91,7 @@ public class HasChildFilterParser implements FilterParser {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
-                    scope = parser.text();
+                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_child] filter has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {// This option is experimental and will most likely be removed.
@@ -115,8 +125,8 @@ public class HasChildFilterParser implements FilterParser {
 
         SearchContext searchContext = SearchContext.current();
 
-        HasChildFilter childFilter = HasChildFilter.create(query, scope, parentType, childType, searchContext, executionType);
-        searchContext.addScopePhase(childFilter);
+        HasChildFilter childFilter = HasChildFilter.create(query, parentType, childType, searchContext, executionType);
+        searchContext.addRewrite(childFilter);
 
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, childFilter);

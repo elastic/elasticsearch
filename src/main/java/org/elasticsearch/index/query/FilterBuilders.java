@@ -352,7 +352,7 @@ public abstract class FilterBuilders {
     /**
      * A filter to filter based on the relationship between a shape and indexed shapes
      *
-     * @param name The shape field name
+     * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
     public static GeoShapeFilterBuilder geoShapeFilter(String name, Shape shape) {
@@ -392,8 +392,37 @@ public abstract class FilterBuilders {
         return new HasChildFilterBuilder(type, query);
     }
 
+    /**
+     * Constructs a child filter, with the child type and the filter to run against child documents, with
+     * the result of the filter being the *parent* documents.
+     *
+     * @param type   The child type
+     * @param filter The query to run against the child type
+     */
+    public static HasChildFilterBuilder hasChildFilter(String type, FilterBuilder filter) {
+        return new HasChildFilterBuilder(type, filter);
+    }
+
+    /**
+     * Constructs a parent filter, with the parent type and the query to run against parent documents, with
+     * the result of the filter being the *child* documents.
+     *
+     * @param parentType The parent type
+     * @param query      The query to run against the parent type
+     */
     public static HasParentFilterBuilder hasParentFilter(String parentType, QueryBuilder query) {
         return new HasParentFilterBuilder(parentType, query);
+    }
+
+    /**
+     * Constructs a parent filter, with the parent type and the filter to run against parent documents, with
+     * the result of the filter being the *child* documents.
+     *
+     * @param parentType The parent type
+     * @param filter     The filter to run against the parent type
+     */
+    public static HasParentFilterBuilder hasParentFilter(String parentType, FilterBuilder filter) {
+        return new HasParentFilterBuilder(parentType, filter);
     }
 
     public static BoolFilterBuilder boolFilter() {

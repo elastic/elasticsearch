@@ -218,7 +218,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     }
 
     @Override
-    public Facet reduce(String name, List<Facet> facets) {
+    public Facet reduce(List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }

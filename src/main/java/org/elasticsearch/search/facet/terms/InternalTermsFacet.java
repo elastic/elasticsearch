@@ -19,13 +19,10 @@
 
 package org.elasticsearch.search.facet.terms;
 
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
 import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
 import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
-
-import java.util.List;
 
 /**
  *
@@ -37,6 +34,4 @@ public abstract class InternalTermsFacet implements TermsFacet, InternalFacet {
         InternalLongTermsFacet.registerStream();
         InternalDoubleTermsFacet.registerStream();
     }
-
-    public abstract Facet reduce(String name, List<Facet> facets);
 }

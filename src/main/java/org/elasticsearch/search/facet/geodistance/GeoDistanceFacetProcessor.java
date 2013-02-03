@@ -33,7 +33,6 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -186,31 +185,5 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
 
         return new GeoDistanceFacetCollector(facetName, keyIndexFieldData, point.lat(), point.lon(), unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
                 context);
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalGeoDistanceFacet agg = null;
-        for (Facet facet : facets) {
-            InternalGeoDistanceFacet geoDistanceFacet = (InternalGeoDistanceFacet) facet;
-            if (agg == null) {
-                agg = geoDistanceFacet;
-            } else {
-                for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
-                    GeoDistanceFacet.Entry aggEntry = agg.entries[i];
-                    GeoDistanceFacet.Entry currentEntry = geoDistanceFacet.entries[i];
-                    aggEntry.count += currentEntry.count;
-                    aggEntry.totalCount += currentEntry.totalCount;
-                    aggEntry.total += currentEntry.total;
-                    if (currentEntry.min < aggEntry.min) {
-                        aggEntry.min = currentEntry.min;
-                    }
-                    if (currentEntry.max > aggEntry.max) {
-                        aggEntry.max = currentEntry.max;
-                    }
-                }
-            }
-        }
-        return agg;
     }
 }

@@ -128,6 +128,48 @@ public class MapperQueryParser extends QueryParser {
         this.analyzeWildcard = settings.analyzeWildcard();
     }
 
+    /**
+     * We override this one so we can get the fuzzy part to be treated as string, so people can do: "age:10~5". Note,
+     * we would love to support also "timestamp:2012-10-10~5d", but sadly the parser expects only numbers after the ~,
+     * hopefully we can change that in Lucene.
+     */
+    @Override
+    Query handleBareTokenQuery(String qfield, Token term, Token fuzzySlop, boolean prefix, boolean wildcard, boolean fuzzy, boolean regexp) throws ParseException {
+        Query q;
+
+        String termImage = discardEscapeChar(term.image);
+        if (wildcard) {
+            q = getWildcardQuery(qfield, term.image);
+        } else if (prefix) {
+            q = getPrefixQuery(qfield,
+                    discardEscapeChar(term.image.substring
+                            (0, term.image.length() - 1)));
+        } else if (regexp) {
+            q = getRegexpQuery(qfield, term.image.substring(1, term.image.length() - 1));
+        } else if (fuzzy) {
+//            float fms = fuzzyMinSim;
+//            try {
+//                fms = Float.valueOf(fuzzySlop.image.substring(1)).floatValue();
+//            } catch (Exception ignored) {
+//            }
+//            if (fms < 0.0f) {
+//                throw new ParseException("Minimum similarity for a FuzzyQuery has to be between 0.0f and 1.0f !");
+//            } else if (fms >= 1.0f && fms != (int) fms) {
+//                throw new ParseException("Fractional edit distances are not allowed!");
+//            }
+//            q = getFuzzyQuery(qfield, termImage, fms);
+            if (fuzzySlop.image.length() == 1) {
+                q = getFuzzyQuery(qfield, termImage, Float.toString(fuzzyMinSim));
+            } else {
+                q = getFuzzyQuery(qfield, termImage, fuzzySlop.image.substring(1));
+            }
+        } else {
+
+            q = getFieldQuery(qfield, termImage, false);
+        }
+        return q;
+    }
+
     @Override
     protected Query newTermQuery(Term term) {
         if (currentMapper != null) {
@@ -295,9 +337,9 @@ public class MapperQueryParser extends QueryParser {
             part2 = null;
         }
         if (lowercaseExpandedTerms) {
-            part1 = part1==null ? null : part1.toLowerCase(locale);
-            part2 = part2==null ? null : part2.toLowerCase(locale);
-          }
+            part1 = part1 == null ? null : part1.toLowerCase(locale);
+            part2 = part2 == null ? null : part2.toLowerCase(locale);
+        }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {
@@ -356,8 +398,7 @@ public class MapperQueryParser extends QueryParser {
         return newRangeQuery(field, part1, part2, startInclusive, endInclusive);
     }
 
-    @Override
-    protected Query getFuzzyQuery(String field, String termStr, float minSimilarity) throws ParseException {
+    protected Query getFuzzyQuery(String field, String termStr, String minSimilarity) throws ParseException {
         if (lowercaseExpandedTerms) {
             termStr = termStr.toLowerCase(locale);
         }
@@ -395,7 +436,7 @@ public class MapperQueryParser extends QueryParser {
         }
     }
 
-    private Query getFuzzyQuerySingle(String field, String termStr, float minSimilarity) throws ParseException {
+    private Query getFuzzyQuerySingle(String field, String termStr, String minSimilarity) throws ParseException {
         currentMapper = null;
         MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
         if (fieldMappers != null) {
@@ -413,7 +454,7 @@ public class MapperQueryParser extends QueryParser {
                 }
             }
         }
-        return super.getFuzzyQuery(field, termStr, minSimilarity);
+        return super.getFuzzyQuery(field, termStr, Float.parseFloat(minSimilarity));
     }
 
     @Override

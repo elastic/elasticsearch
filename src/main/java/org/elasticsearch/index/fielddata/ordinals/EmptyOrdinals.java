@@ -58,6 +58,11 @@ public class EmptyOrdinals implements Ordinals {
 
     @Override
     public int getNumOrds() {
+        return 0;
+    }
+
+    @Override
+    public int getMaxOrd() {
         return 1;
     }
 
@@ -86,7 +91,12 @@ public class EmptyOrdinals implements Ordinals {
 
         @Override
         public int getNumOrds() {
-            return parent.getNumOrds();
+            return 0;
+        }
+
+        @Override
+        public int getMaxOrd() {
+            return 1;
         }
 
         @Override

@@ -65,6 +65,11 @@ public class DocIdOrdinals implements Ordinals {
 
     @Override
     public int getNumOrds() {
+        return numDocs;
+    }
+
+    @Override
+    public int getMaxOrd() {
         return numDocs + 1;
     }
 
@@ -96,6 +101,11 @@ public class DocIdOrdinals implements Ordinals {
         @Override
         public int getNumOrds() {
             return parent.getNumOrds();
+        }
+
+        @Override
+        public int getMaxOrd() {
+            return parent.getMaxOrd();
         }
 
         @Override

@@ -25,8 +25,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
@@ -86,7 +88,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title and don't use term vector, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "no").endObject()
@@ -141,7 +143,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
@@ -196,7 +198,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").endObject()
@@ -512,7 +514,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -546,7 +548,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -582,7 +584,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes")
                         .endObject().endObject().endObject())
@@ -620,7 +622,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -652,7 +654,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     public void testMultiMapperVectorWithStore() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
@@ -693,7 +695,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     public void testMultiMapperVectorFromSource() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
@@ -734,7 +736,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     public void testMultiMapperNoVectorWithStore() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "no").endObject()
@@ -775,7 +777,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     public void testMultiMapperNoVectorFromSource() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "no").endObject()
@@ -820,7 +822,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "no").endObject()
                         .endObject().endObject().endObject())
@@ -856,7 +858,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 2))
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -926,7 +928,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
-                .put("number_of_shards", 1).put("number_of_replicas", 0))
+                .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("tags").field("type", "string").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
@@ -947,7 +949,163 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments()[0].string(), equalTo("this is a really long <em>tag</em> i would like to highlight"));
         assertThat(response.hits().hits()[0].highlightFields().get("tags").fragments()[1].string(), equalTo("here is another one that is very long and has the <em>tag</em> token near the end"));
     }
+    
+    @Test
+    public void testCommonTermsQuery() {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+            // its ok
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
+        client.prepareIndex("test", "type1")
+                .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
+                .setRefresh(true).execute().actionGet();
+
+        logger.info("--> highlighting and searching on field1");
+        SearchSourceBuilder source = searchSource()
+                .query(commonTerms("field2", "quick brown").cutoffFrequency(100))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
+
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+    }
+    
+    @Test
+    public void testCommonTermsTermVector() throws ElasticSearchException, IOException {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
+                .setRefresh(true).execute().actionGet();
+
+        logger.info("--> highlighting and searching on field1");
+        SearchSourceBuilder source = searchSource().query(commonTerms("field2", "quick brown").cutoffFrequency(100)).from(0).size(60)
+                .explain(true).highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
+
+        SearchResponse searchResponse = client.search(
+                searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
+                equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+    }
+    
+    
+    @Test
+    public void testPhrasePrefix() throws ElasticSearchException, IOException {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+            // its ok
+        }
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
+        builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
+        builder.put("index.analysis.filter.synonym.type", "synonym");
+        builder.putArray("index.analysis.filter.synonym.synonyms", "quick => fast");
+        
+        XContentBuilder type2Mapping = XContentFactory.jsonBuilder().startObject().startObject("type2")
+        .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+        .startObject("properties")
+        .startObject("field4").field("type", "string").field("termVector", "with_positions_offsets").field("analyzer", "synonym").endObject()
+        .startObject("field3").field("type", "string").field("analyzer", "synonym").endObject()
+        .endObject()
+        .endObject().endObject();
+        
+        
+        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()).addMapping("type2", type2Mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "0")
+                .setSource("field0", "The quick brown fox jumps over the lazy dog", "field1", "The quick brown fox jumps over the lazy dog")
+                .setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type1", "1")
+        .setSource("field1", "The quick browse button is a fancy thing, right bro?")
+        .setRefresh(true).execute().actionGet();
+        logger.info("--> highlighting and searching on field0");
+        SearchSourceBuilder source = searchSource()
+                .query(matchPhrasePrefixQuery("field0", "quick bro" ))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
+
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field0").fragments()[0].string(), equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+        
+        logger.info("--> highlighting and searching on field1");
+        source = searchSource()
+                .query(matchPhrasePrefixQuery("field1","quick bro" ))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
+
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick browse</x> button is a fancy thing, right bro?"));
+        assertThat(searchResponse.hits().getAt(1).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick brown</x> fox jumps over the lazy dog"));
+        
+        // with synonyms
+        client.prepareIndex("test", "type2", "0")
+        .setSource("field4", "The quick brown fox jumps over the lazy dog", "field3", "The quick brown fox jumps over the lazy dog")
+        .setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type2", "1")
+        .setSource("field4", "The quick browse button is a fancy thing, right bro?").setRefresh(true).execute().actionGet();
+        client.prepareIndex("test", "type2", "2")
+        .setSource("field4", "a quick fast blue car")
+        .setRefresh(true).execute().actionGet();
+        
+        source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field3", "fast bro")).from(0).size(60).explain(true)
+                .highlight(highlight().field("field3").order("score").preTags("<x>").postTags("</x>"));
+
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field3").fragments()[0].string(),
+                equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
+
+        logger.info("--> highlighting and searching on field4");
+        source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "the fast bro")).from(0).size(60).explain(true)
+                .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
+
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field4").fragments()[0].string(),
+                equalTo("<x>The quick browse</x> button is a fancy thing, right bro?"));
+        assertThat(searchResponse.hits().getAt(1).highlightFields().get("field4").fragments()[0].string(),
+                equalTo("<x>The quick brown</x> fox jumps over the lazy dog"));
+        
+        logger.info("--> highlighting and searching on field4");
+        source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca")).from(0).size(60).explain(true)
+                .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
+
+        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.hits().getAt(0).highlightFields().get("field4").fragments()[0].string(),
+                equalTo("<x>a quick fast blue car</x>"));
+        
+    }
+    
     @Test
     public void testPlainHighlightDifferentFragmenter() throws Exception {
         try {
@@ -957,7 +1115,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
-                .put("number_of_shards", 1).put("number_of_replicas", 0))
+                .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("tags").field("type", "string").endObject()
                         .endObject().endObject().endObject())

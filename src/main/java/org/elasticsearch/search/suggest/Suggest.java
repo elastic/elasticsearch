@@ -101,18 +101,12 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
     /**
      * The suggestion responses corresponding with the suggestions in the request.
      */
-    public static class Suggestion implements Streamable, ToXContent {
-
-        static class Fields {
-
-            static final XContentBuilderString TERMS = new XContentBuilderString("terms");
-
-        }
+    public static class Suggestion implements Iterable<Suggestion.Entry>, Streamable, ToXContent {
 
         private String name;
         private int size;
         private Sort sort;
-        private final List<Term> terms = new ArrayList<Term>(5);
+        private final List<Entry> entries = new ArrayList<Entry>(5);
 
         Suggestion() {
         }
@@ -123,16 +117,20 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
             this.sort = sort;
         }
 
-        void addTerm(Term term) {
-            terms.add(term);
+        void addTerm(Entry entry) {
+            entries.add(entry);
+        }
+
+        @Override
+        public Iterator<Entry> iterator() {
+            return entries.iterator();
         }
 
         /**
-         * @return The terms outputted by the suggest analyzer using the suggested text. Embeds the actual suggested
-         *         terms.
+         * @return The entries for this suggestion.
          */
-        public List<Term> getTerms() {
-            return terms;
+        public List<Entry> getEntries() {
+            return entries;
         }
 
         /**
@@ -144,23 +142,25 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
 
         /**
          * Merges the result of another suggestion into this suggestion.
+         * For internal usage.
          */
         public void reduce(Suggestion other) {
             assert name.equals(other.name);
-            assert terms.size() == other.terms.size();
-            for (int i = 0; i < terms.size(); i++) {
-                Term thisTerm = terms.get(i);
-                Term otherTerm = other.terms.get(i);
-                thisTerm.reduce(otherTerm, sort);
+            assert entries.size() == other.entries.size();
+            for (int i = 0; i < entries.size(); i++) {
+                Entry thisEntry = entries.get(i);
+                Entry otherEntry = other.entries.get(i);
+                thisEntry.reduce(otherEntry, sort);
             }
         }
 
         /**
-         * Trims the number of suggestions per suggest text term to the requested size.
+         * Trims the number of options per suggest text term to the requested size.
+         * For internal usage.
          */
         public void trim() {
-            for (Term term : terms) {
-                term.trim(size);
+            for (Entry entry : entries) {
+                entry.trim(size);
             }
         }
 
@@ -170,9 +170,9 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
             size = in.readVInt();
             sort = Sort.fromId(in.readByte());
             int size = in.readVInt();
-            terms.clear();
+            entries.clear();
             for (int i = 0; i < size; i++) {
-                terms.add(Term.read(in));
+                entries.add(Entry.read(in));
             }
         }
 
@@ -181,76 +181,73 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
             out.writeString(name);
             out.writeVInt(size);
             out.writeByte(sort.id());
-            out.writeVInt(terms.size());
-            for (Term term : terms) {
-                term.writeTo(out);
+            out.writeVInt(entries.size());
+            for (Entry entry : entries) {
+                entry.writeTo(out);
             }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(name);
-            builder.startArray(Fields.TERMS);
-            for (Term term : terms) {
-                term.toXContent(builder, params);
+            builder.startArray(name);
+            for (Entry entry : entries) {
+                entry.toXContent(builder, params);
             }
             builder.endArray();
-            builder.endObject();
             return builder;
         }
 
 
         /**
-         * Represents a term from the suggest text, that contains the term, start/end offsets and zero or more suggested
-         * terms for this term in the suggested text.
+         * Represents a part from the suggest text with suggested options.
          */
-        public static class Term implements Streamable, ToXContent {
+        public static class Entry implements Iterable<Entry.Option>, Streamable, ToXContent {
 
             static class Fields {
 
-                static final XContentBuilderString TERM = new XContentBuilderString("term");
-                static final XContentBuilderString SUGGESTIONS = new XContentBuilderString("suggestions");
-                static final XContentBuilderString START_OFFSET = new XContentBuilderString("start_offset");
-                static final XContentBuilderString END_OFFSET = new XContentBuilderString("end_offset");
+                static final XContentBuilderString TEXT = new XContentBuilderString("text");
+                static final XContentBuilderString OFFSET = new XContentBuilderString("offset");
+                static final XContentBuilderString LENGTH = new XContentBuilderString("length");
+                static final XContentBuilderString OPTIONS = new XContentBuilderString("options");
 
             }
 
-            private Text term;
-            private int startOffset;
-            private int endOffset;
+            private Text text;
+            private int offset;
+            private int length;
 
-            private List<SuggestedTerm> suggested;
+            private List<Option> options;
 
-            public Term(Text term, int startOffset, int endOffset) {
-                this.term = term;
-                this.startOffset = startOffset;
-                this.endOffset = endOffset;
-                this.suggested = new ArrayList<SuggestedTerm>(5);
+            Entry(Text text, int offset, int length) {
+                this.text = text;
+                this.offset = offset;
+                this.length = length;
+                this.options = new ArrayList<Option>(5);
             }
 
-            Term() {
+            Entry() {
             }
 
-            void addSuggested(SuggestedTerm suggestedTerm) {
-                suggested.add(suggestedTerm);
+            void addOption(Option option) {
+                options.add(option);
             }
 
-            void reduce(Term otherTerm, Sort sort) {
-                assert term.equals(otherTerm.term());
-                assert startOffset == otherTerm.startOffset;
-                assert endOffset == otherTerm.endOffset;
+            void reduce(Entry otherEntry, Sort sort) {
+                assert text.equals(otherEntry.text);
+                assert offset == otherEntry.offset;
+                assert length == otherEntry.length;
 
-                for (SuggestedTerm otherSuggestedTerm : otherTerm.suggested) {
-                    int index = suggested.indexOf(otherSuggestedTerm);
+                for (Option otherOption : otherEntry.options) {
+                    int index = options.indexOf(otherOption);
                     if (index >= 0) {
-                        SuggestedTerm thisSuggestedTerm = suggested.get(index);
-                        thisSuggestedTerm.setFrequency(thisSuggestedTerm.frequency + otherSuggestedTerm.frequency);
+                        Option thisOption = options.get(index);
+                        thisOption.setFreq(thisOption.freq + otherOption.freq);
                     } else {
-                        suggested.add(otherSuggestedTerm);
+                        options.add(otherOption);
                     }
                 }
 
-                Comparator<SuggestedTerm> comparator;
+                Comparator<Option> comparator;
                 switch (sort) {
                     case SCORE:
                         comparator = SuggestPhase.SCORE;
@@ -261,46 +258,48 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                     default:
                         throw new ElasticSearchException("Could not resolve comparator in reduce phase.");
                 }
-                Collections.sort(suggested, comparator);
-            }
-
-            public Text term() {
-                return term;
+                Collections.sort(options, comparator);
             }
 
             /**
-             * @return the term (analyzed by suggest analyzer) originating from the suggest text.
+             * @return the text (analyzed by suggest analyzer) originating from the suggest text. Usually this is a
+             *         single term.
              */
-            public String getTerm() {
-                return term().string();
+            public Text getText() {
+                return text;
             }
 
             /**
-             * @return the start offset of this term in the suggest text.
+             * @return the start offset (not analyzed) for this entry in the suggest text.
              */
-            public int getStartOffset() {
-                return startOffset;
+            public int getOffset() {
+                return offset;
             }
 
             /**
-             * @return the end offset of this term in the suggest text.
+             * @return the length (not analyzed) for this entry in the suggest text.
              */
-            public int getEndOffset() {
-                return endOffset;
+            public int getLength() {
+                return length;
+            }
+
+            @Override
+            public Iterator<Option> iterator() {
+                return options.iterator();
             }
 
             /**
-             * @return The suggested terms for this particular suggest text term. If there are no suggested terms then
+             * @return The suggested options for this particular suggest entry. If there are no suggested terms then
              *         an empty list is returned.
              */
-            public List<SuggestedTerm> getSuggested() {
-                return suggested;
+            public List<Option> getOptions() {
+                return options;
             }
 
             void trim(int size) {
-                int suggestionsToRemove = Math.max(0, suggested.size() - size);
-                for (int i = 0; i < suggestionsToRemove; i++) {
-                    suggested.remove(suggested.size() - 1);
+                int optionsToRemove = Math.max(0, options.size() - size);
+                for (int i = 0; i < optionsToRemove; i++) {
+                    options.remove(options.size() - 1);
                 }
             }
 
@@ -309,61 +308,61 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
 
-                Term term = (Term) o;
+                Entry entry = (Entry) o;
 
-                if (endOffset != term.endOffset) return false;
-                if (startOffset != term.startOffset) return false;
-                if (!this.term.equals(term.term)) return false;
+                if (length != entry.length) return false;
+                if (offset != entry.offset) return false;
+                if (!this.text.equals(entry.text)) return false;
 
                 return true;
             }
 
             @Override
             public int hashCode() {
-                int result = term.hashCode();
-                result = 31 * result + startOffset;
-                result = 31 * result + endOffset;
+                int result = text.hashCode();
+                result = 31 * result + offset;
+                result = 31 * result + length;
                 return result;
             }
 
-            static Term read(StreamInput in) throws IOException {
-                Term term = new Term();
-                term.readFrom(in);
-                return term;
+            static Entry read(StreamInput in) throws IOException {
+                Entry entry = new Entry();
+                entry.readFrom(in);
+                return entry;
             }
 
             @Override
             public void readFrom(StreamInput in) throws IOException {
-                term = in.readText();
-                startOffset = in.readVInt();
-                endOffset = in.readVInt();
+                text = in.readText();
+                offset = in.readVInt();
+                length = in.readVInt();
                 int suggestedWords = in.readVInt();
-                suggested = new ArrayList<SuggestedTerm>(suggestedWords);
+                options = new ArrayList<Option>(suggestedWords);
                 for (int j = 0; j < suggestedWords; j++) {
-                    suggested.add(SuggestedTerm.create(in));
+                    options.add(Option.create(in));
                 }
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeText(term);
-                out.writeVInt(startOffset);
-                out.writeVInt(endOffset);
-                out.writeVInt(suggested.size());
-                for (SuggestedTerm suggestedTerm : suggested) {
-                    suggestedTerm.writeTo(out);
+                out.writeText(text);
+                out.writeVInt(offset);
+                out.writeVInt(length);
+                out.writeVInt(options.size());
+                for (Option option : options) {
+                    option.writeTo(out);
                 }
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(Fields.TERM, term);
-                builder.field(Fields.START_OFFSET, startOffset);
-                builder.field(Fields.END_OFFSET, endOffset);
-                builder.startArray(Fields.SUGGESTIONS);
-                for (SuggestedTerm suggestedTerm : suggested) {
-                    suggestedTerm.toXContent(builder, params);
+                builder.field(Fields.TEXT, text);
+                builder.field(Fields.OFFSET, offset);
+                builder.field(Fields.LENGTH, length);
+                builder.startArray(Fields.OPTIONS);
+                for (Option option : options) {
+                    option.toXContent(builder, params);
                 }
                 builder.endArray();
                 builder.endObject();
@@ -371,47 +370,47 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
             }
 
             /**
-             * Represents the suggested term, containing a term and its document frequency and score.
+             * Contains the suggested text with its document frequency and score.
              */
-            public static class SuggestedTerm implements Streamable, ToXContent {
+            public static class Option implements Streamable, ToXContent {
 
                 static class Fields {
 
-                    static final XContentBuilderString TERM = new XContentBuilderString("term");
-                    static final XContentBuilderString FREQUENCY = new XContentBuilderString("frequency");
+                    static final XContentBuilderString TEXT = new XContentBuilderString("text");
+                    static final XContentBuilderString FREQ = new XContentBuilderString("freq");
                     static final XContentBuilderString SCORE = new XContentBuilderString("score");
 
                 }
 
-                private Text term;
-                private int frequency;
+                private Text text;
+                private int freq;
                 private float score;
 
-                SuggestedTerm(Text term, int frequency, float score) {
-                    this.term = term;
-                    this.frequency = frequency;
+                Option(Text text, int freq, float score) {
+                    this.text = text;
+                    this.freq = freq;
                     this.score = score;
                 }
 
-                SuggestedTerm() {
+                Option() {
                 }
 
-                public void setFrequency(int frequency) {
-                    this.frequency = frequency;
-                }
-
-                /**
-                 * @return The actual term.
-                 */
-                public Text getTerm() {
-                    return term;
+                public void setFreq(int freq) {
+                    this.freq = freq;
                 }
 
                 /**
-                 * @return How often this suggested term appears in the index.
+                 * @return The actual suggested text.
                  */
-                public int getFrequency() {
-                    return frequency;
+                public Text getText() {
+                    return text;
+                }
+
+                /**
+                 * @return How often this suggested text appears in the index.
+                 */
+                public int getFreq() {
+                    return freq;
                 }
 
                 /**
@@ -422,31 +421,31 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                     return score;
                 }
 
-                static SuggestedTerm create(StreamInput in) throws IOException {
-                    SuggestedTerm suggestion = new SuggestedTerm();
+                static Option create(StreamInput in) throws IOException {
+                    Option suggestion = new Option();
                     suggestion.readFrom(in);
                     return suggestion;
                 }
 
                 @Override
                 public void readFrom(StreamInput in) throws IOException {
-                    term = in.readText();
-                    frequency = in.readVInt();
+                    text = in.readText();
+                    freq = in.readVInt();
                     score = in.readFloat();
                 }
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
-                    out.writeText(term);
-                    out.writeVInt(frequency);
+                    out.writeText(text);
+                    out.writeVInt(freq);
                     out.writeFloat(score);
                 }
 
                 @Override
                 public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                     builder.startObject();
-                    builder.field(Fields.TERM, term);
-                    builder.field(Fields.FREQUENCY, frequency);
+                    builder.field(Fields.TEXT, text);
+                    builder.field(Fields.FREQ, freq);
                     builder.field(Fields.SCORE, score);
                     builder.endObject();
                     return builder;
@@ -457,14 +456,14 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                     if (this == o) return true;
                     if (o == null || getClass() != o.getClass()) return false;
 
-                    SuggestedTerm that = (SuggestedTerm) o;
-                    return term.equals(that.term);
+                    Option that = (Option) o;
+                    return text.equals(that.text);
 
                 }
 
                 @Override
                 public int hashCode() {
-                    return term.hashCode();
+                    return text.hashCode();
                 }
             }
 

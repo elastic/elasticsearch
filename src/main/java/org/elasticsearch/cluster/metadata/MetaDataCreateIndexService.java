@@ -134,6 +134,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                boolean indexCreated = false;
+                String failureReason = null;
                 try {
                     try {
                         validate(request, currentState);
@@ -258,6 +260,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
                     indicesService.createIndex(request.index, actualIndexSettings, clusterService.state().nodes().localNode().id());
+                    indexCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index);
                     MapperService mapperService = indexService.mapperService();
@@ -266,7 +269,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         try {
                             mapperService.merge(MapperService.DEFAULT_MAPPING, XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string(), false);
                         } catch (Exception e) {
-                            indicesService.deleteIndex(request.index, "failed on parsing default mapping on index creation");
+                            failureReason = "failed on parsing default mapping on index creation";
                             throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
                         }
                     }
@@ -278,7 +281,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             // apply the default here, its the first time we parse it
                             mapperService.merge(entry.getKey(), XContentFactory.jsonBuilder().map(entry.getValue()).string(), true);
                         } catch (Exception e) {
-                            indicesService.deleteIndex(request.index, "failed on parsing mappings on index creation");
+                            failureReason = "failed on parsing mappings on index creation";
                             throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);
                         }
                     }
@@ -297,7 +300,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                     }
                     indexMetaDataBuilder.state(request.state);
-                    final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
+                    final IndexMetaData indexMetaData;
+                    try {
+                        indexMetaData = indexMetaDataBuilder.build();
+                    } catch (Exception e) {
+                        failureReason = "failed to build index metadata";
+                        throw e;
+                    }
 
                     MetaData newMetaData = newMetaDataBuilder()
                             .metaData(currentState.metaData())
@@ -353,6 +362,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     return updatedState;
                 } catch (Throwable e) {
                     logger.warn("[{}] failed to create", e, request.index);
+                    if (indexCreated) {
+                        // Index was already partially created - need to clean up
+                        indicesService.deleteIndex(request.index, failureReason != null ? failureReason : "failed to create index");
+                    }
                     listener.onFailure(e);
                     return currentState;
                 }

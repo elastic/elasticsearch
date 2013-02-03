@@ -90,7 +90,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         public ShortFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context),
-                    precisionStep, fuzzyFactor, boost, fieldType, nullValue,
+                    precisionStep, boost, fieldType, nullValue,
                     ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -117,11 +117,10 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
 
     private String nullValueAsString;
 
-    protected ShortFieldMapper(Names names, int precisionStep, String fuzzyFactor,
-                               float boost, FieldType fieldType,
+    protected ShortFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
                                Short nullValue, Explicit<Boolean> ignoreMalformed,
                                PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(names, precisionStep, fuzzyFactor, boost, fieldType,
+        super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_short/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
                 new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
@@ -187,16 +186,6 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         } catch (NumberFormatException e) {
             iSim = (short) Float.parseFloat(minSim);
         }
-        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-    }
-
-    @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions, boolean transpositions) {
-        short iValue = Short.parseShort(value);
-        short iSim = (short) (minSim * dFuzzyFactor);
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 iValue - iSim,
                 iValue + iSim,
@@ -353,9 +342,6 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         super.doXContentBody(builder);
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
-        }
-        if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
-            builder.field("fuzzy_factor", fuzzyFactor);
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);

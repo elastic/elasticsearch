@@ -29,18 +29,19 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AbstractIndexFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.SingleArrayOrdinals;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.ArrayList;
-
 /**
  */
-public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesAtomicFieldData> implements IndexOrdinalFieldData<PagedBytesAtomicFieldData> {
+public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesAtomicFieldData> implements IndexFieldData.WithOrdinals<PagedBytesAtomicFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -120,21 +121,14 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
         float acceptableOverheadRatio = PackedInts.FAST;
 
         GrowableWriter termOrdToBytesOffset = new GrowableWriter(startBytesBPV, 1 + startNumUniqueTerms, acceptableOverheadRatio);
-
-        ArrayList<int[]> ordinals = new ArrayList<int[]>();
-        int[] idx = new int[reader.maxDoc()];
-        ordinals.add(new int[reader.maxDoc()]);
-
-        // 0 is reserved for "unset"
-        bytes.copyUsingLengthPrefix(new BytesRef());
-        int termOrd = 1;
-
-        TermsEnum termsEnum = terms.iterator(null);
-        try
-
-        {
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
+        try {
+            // 0 is reserved for "unset"
+            bytes.copyUsingLengthPrefix(new BytesRef());
+            TermsEnum termsEnum = terms.iterator(null);
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                final int termOrd = builder.nextOrdinal();
                 if (termOrd == termOrdToBytesOffset.size()) {
                     // NOTE: this code only runs if the incoming
                     // reader impl doesn't implement
@@ -142,46 +136,19 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
                     termOrdToBytesOffset = termOrdToBytesOffset.resize(ArrayUtil.oversize(1 + termOrd, 1));
                 }
                 termOrdToBytesOffset.set(termOrd, bytes.copyUsingLengthPrefix(term));
-
-                docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                 for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                    int[] ordinal;
-                    if (idx[docId] >= ordinals.size()) {
-                        ordinal = new int[reader.maxDoc()];
-                        ordinals.add(ordinal);
-                    } else {
-                        ordinal = ordinals.get(idx[docId]);
-                    }
-                    ordinal[docId] = termOrd;
-                    idx[docId]++;
+                    builder.addDoc(docId);
                 }
-                termOrd++;
             }
-        } catch (RuntimeException e) {
-            if (e.getClass().getName().endsWith("StopFillCacheException")) {
-                // all is well, in case numeric parsers are used.
-            } else {
-                throw e;
-            }
+            PagedBytes.Reader bytesReader = bytes.freeze(true);
+            PackedInts.Reader termOrdToBytesOffsetReader = termOrdToBytesOffset.getMutable();
+            final Ordinals ordinals = builder.build(fieldDataType.getSettings());
+            
+            return new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffsetReader, ordinals);
+        } finally {
+            builder.close();
         }
-
-        PagedBytes.Reader bytesReader = bytes.freeze(true);
-        PackedInts.Reader termOrdToBytesOffsetReader = termOrdToBytesOffset.getMutable();
-
-        if (ordinals.size() == 1) {
-            return new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffsetReader, new SingleArrayOrdinals(ordinals.get(0), termOrd));
-        } else {
-            int[][] nativeOrdinals = new int[ordinals.size()][];
-            for (int i = 0; i < nativeOrdinals.length; i++) {
-                nativeOrdinals[i] = ordinals.get(i);
-            }
-            return new PagedBytesAtomicFieldData(
-                    bytesReader,
-                    termOrdToBytesOffsetReader,
-                    Ordinals.Factories.createFromFlatOrdinals(nativeOrdinals, termOrd, fieldDataType.getSettings())
-            );
-        }
-
     }
 
     @Override

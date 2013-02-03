@@ -17,21 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.fielddata;
+package org.elasticsearch.indices.recovery;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.ElasticSearchException;
 
 /**
+ * An exception marking that this recovery attempt should be ignored (since probably, we already recovered).
+ *
+ *
  */
-public interface IndexOrdinalFieldData<FD extends AtomicOrdinalFieldData> extends IndexFieldData<FD> {
+public class DelayRecoveryException extends ElasticSearchException {
 
-    /**
-     * Loads the atomic field data for the reader, possibly cached.
-     */
-    FD load(AtomicReaderContext context);
+    public DelayRecoveryException(String msg) {
+        super(msg);
+    }
 
-    /**
-     * Loads directly the atomic field data for the reader, ignoring any caching involved.
-     */
-    FD loadDirect(AtomicReaderContext context) throws Exception;
+    public DelayRecoveryException(String msg, Throwable cause) {
+        super(msg, cause);
+    }
 }

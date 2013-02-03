@@ -69,8 +69,8 @@ public class CodecTests extends AbstractNodesTests {
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                         .field("postings_format", "test1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder()
-                        .put("number_of_shards", 1)
-                        .put("number_of_replicas", 0)
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
                         .put("codec.postings_format.test1.type", "pulsing")
                 ).execute().actionGet();
 
@@ -96,8 +96,8 @@ public class CodecTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test")
                 .setSettings(ImmutableSettings.settingsBuilder()
-                        .put("number_of_shards", 1)
-                        .put("number_of_replicas", 0)
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
                         .put("index.codec", "SimpleText")
                 ).execute().actionGet();
 

@@ -1,6 +1,5 @@
 package org.apache.lucene.index.memory;
 
-import org.apache.lucene.search.IndexSearcher;
 /*
  * Licensed to ElasticSearch and Shay Banon under one
  * or more contributor license agreements.  See the NOTICE file

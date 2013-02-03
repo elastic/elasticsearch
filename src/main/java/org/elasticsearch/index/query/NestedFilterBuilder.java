@@ -29,8 +29,7 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
     private final FilterBuilder filterBuilder;
 
     private final String path;
-
-    private String scope;
+    private Boolean join;
 
     private Boolean cache;
     private String cacheKey;
@@ -48,9 +47,8 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
         this.filterBuilder = filterBuilder;
     }
 
-
-    public NestedFilterBuilder scope(String scope) {
-        this.scope = scope;
+    public NestedFilterBuilder join(boolean join) {
+        this.join = join;
         return this;
     }
 
@@ -85,10 +83,10 @@ public class NestedFilterBuilder extends BaseFilterBuilder {
             builder.field("filter");
             filterBuilder.toXContent(builder, params);
         }
-        builder.field("path", path);
-        if (scope != null) {
-            builder.field("_scope", scope);
+        if (join != null) {
+            builder.field("join", join);
         }
+        builder.field("path", path);
         if (filterName != null) {
             builder.field("_name", filterName);
         }

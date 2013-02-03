@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -359,7 +360,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         logger.info("--> shutting down the nodes");
         client("node1").admin().cluster().prepareNodesShutdown().setDelay("10ms").setExit(false).execute().actionGet();
-        Thread.sleep(2000);
+        assertThat(waitForNodesToShutdown(TimeValue.timeValueSeconds(30), "node1", "node2", "node3", "node4"), equalTo(true));
         logger.info("--> start the nodes back up");
         startNode("node1", settings);
         startNode("node2", settings);
@@ -374,7 +375,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         logger.info("--> shutting down the nodes");
         client("node1").admin().cluster().prepareNodesShutdown().setDelay("10ms").setExit(false).execute().actionGet();
-        Thread.sleep(2000);
+        assertThat(waitForNodesToShutdown(TimeValue.timeValueSeconds(30), "node1", "node2", "node3", "node4"), equalTo(true));
 
         logger.info("--> start the nodes back up");
         startNode("node1", settings);
@@ -428,4 +429,5 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(client("node2").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
         assertThat(client("node2").prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
     }
+
 }

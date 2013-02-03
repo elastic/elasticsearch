@@ -22,6 +22,8 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
  */
@@ -327,6 +329,92 @@ public interface HashedBytesValues {
             @Override
             public void onMissing(int docId) {
                 proc.onMissing(docId);
+            }
+        }
+    }
+
+
+    public interface WithOrdinals extends HashedBytesValues {
+
+        Ordinals.Docs ordinals();
+
+        HashedBytesRef getValueByOrd(int ord);
+
+        HashedBytesRef getSafeValueByOrd(int ord);
+
+        public static class Empty extends HashedBytesValues.Empty implements WithOrdinals {
+
+            private final Ordinals ordinals;
+
+            public Empty(EmptyOrdinals ordinals) {
+                this.ordinals = ordinals;
+            }
+
+            @Override
+            public Ordinals.Docs ordinals() {
+                return ordinals.ordinals();
+            }
+
+            @Override
+            public HashedBytesRef getValueByOrd(int ord) {
+                return null;
+            }
+
+            @Override
+            public HashedBytesRef getSafeValueByOrd(int ord) {
+                return null;
+            }
+        }
+
+        static class BytesBased extends HashedBytesValues.BytesBased implements WithOrdinals {
+
+            private final BytesValues.WithOrdinals values;
+
+            public BytesBased(BytesValues.WithOrdinals values) {
+                super(values);
+                this.values = values;
+            }
+
+            @Override
+            public Ordinals.Docs ordinals() {
+                return values.ordinals();
+            }
+
+            @Override
+            public HashedBytesRef getValueByOrd(int ord) {
+                scratch.bytes = values.getValueByOrd(ord);
+                return scratch.resetHashCode();
+            }
+
+            @Override
+            public HashedBytesRef getSafeValueByOrd(int ord) {
+                return new HashedBytesRef(values.getSafeValueByOrd(ord));
+            }
+        }
+
+        static class StringBased extends HashedBytesValues.StringBased implements WithOrdinals {
+
+            private final StringValues.WithOrdinals values;
+
+            public StringBased(StringValues.WithOrdinals values) {
+                super(values);
+                this.values = values;
+            }
+
+            @Override
+            public Ordinals.Docs ordinals() {
+                return values.ordinals();
+            }
+
+            @Override
+            public HashedBytesRef getValueByOrd(int ord) {
+                scratch.bytes.copyChars(values.getValueByOrd(ord));
+                return scratch.resetHashCode();
+            }
+
+            @Override
+            public HashedBytesRef getSafeValueByOrd(int ord) {
+                return new HashedBytesRef(new BytesRef(values.getValueByOrd(ord)));
             }
         }
     }

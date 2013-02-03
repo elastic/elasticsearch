@@ -57,7 +57,6 @@ public class HasChildQueryParser implements QueryParser {
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
-        String scope = null;
         ScoreType scoreType = null;
         String executionType = "uid";
 
@@ -83,10 +82,10 @@ public class HasChildQueryParser implements QueryParser {
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "child_type".equals(currentFieldName) || "childType".equals(currentFieldName)) {
                     childType = parser.text();
+                } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {// This option is experimental and will most likely be removed.
+                    executionType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
-                    scope = parser.text();
-                } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {
-                    scoreType = ScoreType.fromString(parser.text());
+                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_child] query has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
                     String scoreTypeValue = parser.text();
                     if (!"none".equals(scoreTypeValue)) {
@@ -125,12 +124,12 @@ public class HasChildQueryParser implements QueryParser {
         Query query;
         if (scoreType != null) {
             Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
-            ChildrenQuery childrenQuery = new ChildrenQuery(searchContext, parentType, childType, parentFilter, scope, innerQuery, scoreType);
-            searchContext.addScopePhase(childrenQuery);
+            ChildrenQuery childrenQuery = new ChildrenQuery(searchContext, parentType, childType, parentFilter, innerQuery, scoreType);
+            searchContext.addRewrite(childrenQuery);
             query = childrenQuery;
         } else {
-            HasChildFilter hasChildFilter = HasChildFilter.create(innerQuery, scope, parentType, childType, searchContext, executionType);
-            searchContext.addScopePhase(hasChildFilter);
+            HasChildFilter hasChildFilter = HasChildFilter.create(innerQuery, parentType, childType, searchContext, executionType);
+            searchContext.addRewrite(hasChildFilter);
             query = new ConstantScoreQuery(hasChildFilter);
         }
         query.setBoost(boost);

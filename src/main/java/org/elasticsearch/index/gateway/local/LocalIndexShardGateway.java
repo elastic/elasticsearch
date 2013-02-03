@@ -100,7 +100,14 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
         long version = -1;
         long translogId = -1;
         try {
-            SegmentInfos si = Lucene.readSegmentInfosIfExists(indexShard.store().directory());
+            SegmentInfos si = null;
+            try {
+                si = Lucene.readSegmentInfos(indexShard.store().directory());
+            } catch (IOException e) {
+                if (indexShouldExists && indexShard.store().indexStore().persistent()) {
+                    throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exists, but doesn't", e);
+                }
+            }
             if (si != null) {
                 if (indexShouldExists) {
                     version = si.getVersion();
@@ -117,8 +124,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     IndexWriter writer = new IndexWriter(indexShard.store().directory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER).setOpenMode(IndexWriterConfig.OpenMode.CREATE));
                     writer.close();
                 }
-            } else if (indexShouldExists && indexShard.store().indexStore().persistent()) {
-                throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exists, but doesn't");
             }
         } catch (IOException e) {
             throw new IndexShardGatewayRecoveryException(shardId(), "Failed to fetch index version after copying it over", e);

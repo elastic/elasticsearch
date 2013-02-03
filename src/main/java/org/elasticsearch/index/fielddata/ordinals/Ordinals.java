@@ -19,29 +19,12 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
  */
 public interface Ordinals {
-
-    static class Factories {
-
-        public static Ordinals createFromFlatOrdinals(int[][] ordinals, int numOrds, Settings settings) {
-            String multiOrdinals = settings.get("multi_ordinals", "sparse");
-            if ("flat".equals(multiOrdinals)) {
-                return new MultiFlatArrayOrdinals(ordinals, numOrds);
-            } else if ("sparse".equals(multiOrdinals)) {
-                int multiOrdinalsMaxDocs = settings.getAsInt("multi_ordinals_max_docs", 16777216 /*Equal to 64MB per storage array*/);
-                return new SparseMultiArrayOrdinals(ordinals, numOrds, multiOrdinalsMaxDocs);
-            } else {
-                throw new ElasticSearchIllegalArgumentException("no applicable fielddata multi_ordinals value, got [" + multiOrdinals + "]");
-            }
-        }
-    }
 
     /**
      * Are the ordinals backed by a single ordinals array?
@@ -69,9 +52,15 @@ public interface Ordinals {
     int getNumDocs();
 
     /**
-     * The number of ordinals.
+     * The number of ordinals, excluding the "0" ordinal indicating a missing value.
      */
     int getNumOrds();
+
+    /**
+     * Returns total unique ord count; this includes +1 for
+     * the null ord (always 0).
+     */
+    int getMaxOrd();
 
     /**
      * Returns a lightweight (non thread safe) view iterator of the ordinals.
@@ -97,9 +86,15 @@ public interface Ordinals {
         int getNumDocs();
 
         /**
-         * The number of ordinals.
+         * The number of ordinals, excluding the "0" ordinal (indicating a missing value).
          */
         int getNumOrds();
+
+        /**
+         * Returns total unique ord count; this includes +1 for
+         * the null ord (always 0).
+         */
+        int getMaxOrd();
 
         /**
          * Is one of the docs maps to more than one ordinal?

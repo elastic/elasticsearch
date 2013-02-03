@@ -55,7 +55,6 @@ public class TopChildrenQueryParser implements QueryParser {
         boolean queryFound = false;
         float boost = 1.0f;
         String childType = null;
-        String scope = null;
         ScoreType scoreType = ScoreType.MAX;
         int factor = 5;
         int incrementalFactor = 2;
@@ -83,7 +82,7 @@ public class TopChildrenQueryParser implements QueryParser {
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
-                    scope = parser.text();
+                    throw new QueryParsingException(parseContext.index(), "the [_scope] support in [top_children] query has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("score".equals(currentFieldName)) {
                     scoreType = ScoreType.fromString(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
@@ -122,8 +121,8 @@ public class TopChildrenQueryParser implements QueryParser {
         query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
-        TopChildrenQuery childQuery = new TopChildrenQuery(query, scope, childType, parentType, scoreType, factor, incrementalFactor);
-        searchContext.addScopePhase(childQuery);
+        TopChildrenQuery childQuery = new TopChildrenQuery(searchContext, query, childType, parentType, scoreType, factor, incrementalFactor);
+        searchContext.addRewrite(childQuery);
         return childQuery;
     }
 }

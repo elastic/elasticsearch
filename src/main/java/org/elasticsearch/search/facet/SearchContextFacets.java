@@ -26,13 +26,19 @@ import java.util.List;
  */
 public class SearchContextFacets {
 
-    private final List<FacetCollector> facetCollectors;
+    private final List<FacetCollector> queryCollectors;
+    private final List<FacetCollector> globalCollectors;
 
-    public SearchContextFacets(List<FacetCollector> facetCollectors) {
-        this.facetCollectors = facetCollectors;
+    public SearchContextFacets(List<FacetCollector> queryCollectors, List<FacetCollector> globalCollectors) {
+        this.queryCollectors = queryCollectors;
+        this.globalCollectors = globalCollectors;
     }
 
-    public List<FacetCollector> facetCollectors() {
-        return facetCollectors;
+    public List<FacetCollector> queryCollectors() {
+        return queryCollectors;
+    }
+
+    public List<FacetCollector> globalCollectors() {
+        return globalCollectors;
     }
 }

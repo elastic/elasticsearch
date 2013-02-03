@@ -19,13 +19,8 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import gnu.trove.list.array.TIntArrayList;
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Ordinals implementation that stores the ordinals into sparse fixed arrays.
@@ -33,95 +28,41 @@ import java.util.List;
  * This prevents large ordinal arrays that are created in for example {@link MultiFlatArrayOrdinals} when
  * only a few documents have a lot of terms per field.
  */
-public class SparseMultiArrayOrdinals implements Ordinals {
+public final class SparseMultiArrayOrdinals implements Ordinals {
 
-    // Contains pointer in starageOrdinals or the actual ordinal if document has one ordinal
     private final int[] lookup;
-
-    // Contains the ordinals for documents that have more than one ordinal. Each of this document has a start
-    // point this array and the last ordinal is marked as negative.
-    private final int[][] storageOrdinals;
-
-    // The n-th bit to shift the index of the storage array to inside the lookup pointer
-    final int storageShift;
-    final int numOrds;
-    final int numDocs;
-
+    private final PositiveIntPool pool;
+    private final int numOrds;
+    private final int maxOrd;
+    private final int numDocs;
     private long size;
 
-    /**
-     * @param loadedOrds The ordinals
-     * @param numOrds    The total number of unique ords
-     * @param maxSize    The maximum size in elements for each individual storage array
-     */
-    public SparseMultiArrayOrdinals(int[][] loadedOrds, int numOrds, int maxSize) {
-        int maxDoc = loadedOrds[0].length;
-        if (loadedOrds.length * loadedOrds[0].length < maxSize) {
-            maxSize = loadedOrds.length * loadedOrds[0].length + 1;
-        }
+    public SparseMultiArrayOrdinals(OrdinalsBuilder builder, int maxSize) {
+        int blockShift = Math.min(floorPow2(builder.getTotalNumOrds() << 1), floorPow2(maxSize));
+        this.pool = new PositiveIntPool(Math.max(4, blockShift));
+        this.numDocs = builder.maxDoc();
 
-        int tempMaxSize = maxSize;
-        int storageShift = 0;
-        while (tempMaxSize > 0) {
-            storageShift++;
-            tempMaxSize = tempMaxSize >> 1;
-        }
-        this.storageShift = storageShift;
 
-        this.lookup = new int[maxDoc];
-        this.numDocs = loadedOrds[0].length;
-        this.numOrds = numOrds;
-        List<TIntArrayList> allStorageArrays = new ArrayList<TIntArrayList>();
-
-        TIntArrayList currentStorageArray = new TIntArrayList(maxSize);
-        currentStorageArray.add(Integer.MIN_VALUE);
-
-        TIntArrayList currentDocOrs = new TIntArrayList();
-        for (int doc = 0; doc < maxDoc; doc++) {
-            currentDocOrs.clear();
-            for (int[] currentOrds : loadedOrds) {
-                int currentOrd = currentOrds[doc];
-                if (currentOrd == 0) {
-                    break;
-                }
-                currentDocOrs.add(currentOrd);
-            }
-
-            int currentStorageArrayOffset = currentStorageArray.size();
-            if (currentStorageArrayOffset + currentDocOrs.size() >= maxSize) {
-                if (currentDocOrs.size() >= maxSize) {
-                    throw new ElasticSearchException("Doc[" + doc + "] has " + currentDocOrs.size() + " ordinals, but it surpasses the limit of " + maxSize);
-                }
-
-                allStorageArrays.add(currentStorageArray);
-                currentStorageArray = new TIntArrayList(maxSize);
-                currentStorageArray.add(Integer.MIN_VALUE);
-                currentStorageArrayOffset = 1;
-            }
-
-            int size = currentDocOrs.size();
+        this.lookup = new int[numDocs];
+        this.numOrds = builder.getNumOrds();
+        this.maxOrd = numOrds + 1;
+        IntArrayRef spare;
+        for (int doc = 0; doc < numDocs; doc++) {
+            spare = builder.docOrds(doc);
+            int size = spare.size();
             if (size == 0) {
                 lookup[doc] = 0;
             } else if (size == 1) {
-                lookup[doc] = currentDocOrs.get(0);
+                lookup[doc] = spare.values[spare.start];
             } else {
-                // Mark the last ordinal for this doc.
-                currentDocOrs.set(currentDocOrs.size() - 1, -currentDocOrs.get(currentDocOrs.size() - 1));
-                currentStorageArray.addAll(currentDocOrs);
-                lookup[doc] = allStorageArrays.size() << storageShift; // The left side of storageShift is for index in main array
-                lookup[doc] |= (currentStorageArrayOffset & ((1 << storageShift) - 1)); // The right side of storageShift is for index in ordinal array
-                lookup[doc] = -lookup[doc]; // Mark this value as 'pointer' into ordinals array
+                int offset = pool.put(spare);
+                lookup[doc] = -(offset) - 1;
             }
         }
+    }
 
-        if (!currentStorageArray.isEmpty()) {
-            allStorageArrays.add(currentStorageArray);
-        }
-
-        this.storageOrdinals = new int[allStorageArrays.size()][];
-        for (int i = 0; i < this.storageOrdinals.length; i++) {
-            this.storageOrdinals[i] = allStorageArrays.get(i).toArray();
-        }
+    private static int floorPow2(int number) {
+        return 31 - Integer.numberOfLeadingZeros(number);
     }
 
     @Override
@@ -137,13 +78,7 @@ public class SparseMultiArrayOrdinals implements Ordinals {
     @Override
     public long getMemorySizeInBytes() {
         if (size == -1) {
-            long size = 0;
-            size += RamUsage.NUM_BYTES_ARRAY_HEADER;
-            for (int[] ordinal : storageOrdinals) {
-                size += RamUsage.NUM_BYTES_INT * ordinal.length + RamUsage.NUM_BYTES_ARRAY_HEADER;
-            }
-            size += RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_INT * lookup.length);
-            this.size = size;
+            size = (RamUsage.NUM_BYTES_ARRAY_HEADER + (RamUsage.NUM_BYTES_INT * lookup.length)) + pool.getMemorySizeInBytes();
         }
         return size;
     }
@@ -164,25 +99,29 @@ public class SparseMultiArrayOrdinals implements Ordinals {
     }
 
     @Override
+    public int getMaxOrd() {
+        return maxOrd;
+    }
+
+    @Override
     public Docs ordinals() {
-        return new Docs(this, lookup, storageOrdinals);
+        return new Docs(this, lookup, pool);
     }
 
     static class Docs implements Ordinals.Docs {
 
         private final SparseMultiArrayOrdinals parent;
         private final int[] lookup;
-        private final int[][] ordinals;
 
         private final IterImpl iter;
-        private final IntArrayRef intsScratch;
+        private final PositiveIntPool pool;
+        private final IntArrayRef spare = new IntArrayRef(new int[1]);
 
-        public Docs(SparseMultiArrayOrdinals parent, int[] lookup, int[][] ordinals) {
+        public Docs(SparseMultiArrayOrdinals parent, int[] lookup, PositiveIntPool pool) {
             this.parent = parent;
             this.lookup = lookup;
-            this.ordinals = ordinals;
-            this.iter = new IterImpl(lookup, ordinals);
-            this.intsScratch = new IntArrayRef(new int[parent.numOrds]);
+            this.pool = pool;
+            this.iter = new IterImpl(lookup, pool);
         }
 
         @Override
@@ -201,6 +140,11 @@ public class SparseMultiArrayOrdinals implements Ordinals {
         }
 
         @Override
+        public int getMaxOrd() {
+            return parent.getMaxOrd();
+        }
+
+        @Override
         public boolean isMultiValued() {
             return true;
         }
@@ -208,47 +152,25 @@ public class SparseMultiArrayOrdinals implements Ordinals {
         @Override
         public int getOrd(int docId) {
             int pointer = lookup[docId];
-            if (pointer == 0) {
-                return 0;
-            } else if (pointer > 0) {
-                return pointer;
-            } else {
-                pointer = -pointer;
-                int allOrdsIndex = pointer >> parent.storageShift;
-                int ordsIndex = (pointer & ((1 << parent.storageShift) - 1));
-                return ordinals[allOrdsIndex][ordsIndex];
+            if (pointer < 0) {
+                return pool.getFirstFromOffset(-(pointer + 1));
             }
+            return pointer;
         }
 
         @Override
         public IntArrayRef getOrds(int docId) {
-            intsScratch.end = 0;
+            spare.end = 0;
             int pointer = lookup[docId];
-//            System.out.println("\nPointer: " + pointer);
             if (pointer == 0) {
                 return IntArrayRef.EMPTY;
             } else if (pointer > 0) {
-                intsScratch.end = 1;
-                intsScratch.values[0] = pointer;
-                return intsScratch;
+                spare.end = 1;
+                spare.values[0] = pointer;
+                return spare;
             } else {
-                pointer = -pointer;
-                int allOrdsIndex = pointer >> parent.storageShift;
-                int ordsIndex = (pointer & ((1 << parent.storageShift) - 1));
-//                System.out.println("Storage index: " + allOrdsIndex);
-//                System.out.println("Ordinal index: " + ordsIndex);
-
-                int[] ords = ordinals[allOrdsIndex];
-
-                int i = 0;
-                int ord;
-                while ((ord = ords[ordsIndex++]) > 0) {
-                    intsScratch.values[i++] = ord;
-                }
-                intsScratch.values[i++] = -ord;
-                intsScratch.end = i;
-
-                return intsScratch;
+                pool.fill(spare, -(pointer + 1));
+                return spare;
             }
         }
 
@@ -263,64 +185,43 @@ public class SparseMultiArrayOrdinals implements Ordinals {
             if (pointer >= 0) {
                 proc.onOrdinal(docId, pointer);
             } else {
-                pointer = -pointer;
-                int allOrdsIndex = pointer >> parent.storageShift;
-                int ordsIndex = (pointer & ((1 << parent.storageShift) - 1));
-                int[] ords = ordinals[allOrdsIndex];
-                int i = ordsIndex;
-                for (; ords[i] > 0; i++) {
-                    proc.onOrdinal(docId, ords[i]);
+                pool.fill(spare, -(pointer + 1));
+                for (int i = spare.start; i < spare.end; i++) {
+                    proc.onOrdinal(docId, spare.values[i]);
                 }
-                proc.onOrdinal(docId, -ords[i]);
             }
         }
 
         class IterImpl implements Docs.Iter {
-
             private final int[] lookup;
-            private final int[][] ordinals;
+            private final PositiveIntPool pool;
+            private final IntArrayRef slice = new IntArrayRef(new int[1]);
+            private int valuesOffset;
 
-            private int pointer;
-
-            private int allOrdsIndex;
-            private int ordsIndex;
-
-            private int ord;
-
-            public IterImpl(int[] lookup, int[][] ordinals) {
+            public IterImpl(int[] lookup, PositiveIntPool pool) {
                 this.lookup = lookup;
-                this.ordinals = ordinals;
+                this.pool = pool;
             }
 
             public IterImpl reset(int docId) {
-                pointer = lookup[docId];
+                final int pointer = lookup[docId];
                 if (pointer < 0) {
-                    int pointer = -this.pointer;
-                    allOrdsIndex = pointer >> parent.storageShift;
-                    ordsIndex = (pointer & ((1 << parent.storageShift) - 1));
-                    ord = ordinals[allOrdsIndex][ordsIndex];
+                    pool.fill(slice, -(pointer + 1));
                 } else {
-                    ord = pointer;
+                    slice.values[0] = pointer;
+                    slice.start = 0;
+                    slice.end = 1;
                 }
+                valuesOffset = 0;
                 return this;
             }
 
             @Override
             public int next() {
-                if (ord <= 0) {
+                if (valuesOffset >= slice.end) {
                     return 0;
                 }
-
-                if (pointer > 0) {
-                    ord = 0;
-                    return pointer;
-                } else {
-                    ord = ordinals[allOrdsIndex][ordsIndex++];
-                    if (ord < 0) {
-                        return -ord;
-                    }
-                    return ord;
-                }
+                return slice.values[slice.start + (valuesOffset++)];
             }
         }
     }

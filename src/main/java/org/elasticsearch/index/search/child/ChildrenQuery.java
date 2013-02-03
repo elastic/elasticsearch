@@ -34,36 +34,37 @@ import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
-import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Set;
 
 /**
- * A query implementation that executes the wrapped child query and
- * connects the matching child docs to the related parent documents
- * using the {@link IdReaderTypeCache}.
+ * A query implementation that executes the wrapped child query and connects all the matching child docs to the related
+ * parent documents using the {@link IdReaderTypeCache}.
+ * <p/>
+ * This query is executed in two rounds. The first round resolves all the matching child documents and groups these
+ * documents by parent uid value. Also the child scores are aggregated per parent uid value. During the second round
+ * all parent documents having the same uid value that is collected in the first phase are emitted as hit including
+ * a score based on the aggregated child scores and score type.
  */
-public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
+public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 
     private final SearchContext searchContext;
     private final String parentType;
     private final String childType;
     private final Filter parentFilter;
     private final ScoreType scoreType;
-    private final String scope;
     private final Query childQuery;
 
     private TObjectFloatHashMap<HashedBytesArray> uidToScore;
     private TObjectIntHashMap<HashedBytesArray> uidToCount;
 
-    public ChildrenQuery(SearchContext searchContext, String parentType, String childType, Filter parentFilter, String scope, Query childQuery, ScoreType scoreType) {
+    public ChildrenQuery(SearchContext searchContext, String parentType, String childType, Filter parentFilter, Query childQuery, ScoreType scoreType) {
         this.searchContext = searchContext;
         this.parentType = parentType;
         this.childType = childType;
         this.parentFilter = parentFilter;
-        this.scope = scope;
         this.childQuery = childQuery;
         this.scoreType = scoreType;
     }
@@ -73,7 +74,6 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
         this.parentType = unProcessedQuery.parentType;
         this.childType = unProcessedQuery.childType;
         this.parentFilter = unProcessedQuery.parentFilter;
-        this.scope = unProcessedQuery.scope;
         this.scoreType = unProcessedQuery.scoreType;
         this.childQuery = rewrittenChildQuery;
 
@@ -96,9 +96,9 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
             return this;
         }
 
-        int index = searchContext.scopePhases().indexOf(this);
+        int index = searchContext.rewrites().indexOf(this);
         ChildrenQuery rewrite = new ChildrenQuery(this, rewrittenChildQuery);
-        searchContext.scopePhases().set(index, rewrite);
+        searchContext.rewrites().set(index, rewrite);
         return rewrite;
     }
 
@@ -108,34 +108,24 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
     }
 
     @Override
-    public boolean requiresProcessing() {
-        return uidToScore == null;
-    }
+    public void contextRewrite(SearchContext searchContext) throws Exception {
+        searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
 
-    @Override
-    public Collector collector() {
         uidToScore = CacheRecycler.popObjectFloatMap();
+        Collector collector;
         switch (scoreType) {
             case AVG:
                 uidToCount = CacheRecycler.popObjectIntMap();
-                return new AvgChildUidCollector(scoreType, searchContext, parentType, uidToScore, uidToCount);
+                collector = new AvgChildUidCollector(scoreType, searchContext, parentType, uidToScore, uidToCount);
+                break;
             default:
-                return new ChildUidCollector(scoreType, searchContext, parentType, uidToScore);
+                collector = new ChildUidCollector(scoreType, searchContext, parentType, uidToScore);
         }
+        searchContext.searcher().search(childQuery, collector);
     }
 
     @Override
-    public void processCollector(Collector collector) {
-        // Do nothing, we already have the references to the child scores and optionally the child count.
-    }
-
-    @Override
-    public String scope() {
-        return scope;
-    }
-
-    @Override
-    public void clear() {
+    public void contextClear() {
         if (uidToScore != null) {
             CacheRecycler.pushObjectFloatMap(uidToScore);
         }
@@ -144,11 +134,6 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
             CacheRecycler.pushObjectIntMap(uidToCount);
         }
         uidToCount = null;
-    }
-
-    @Override
-    public Query query() {
-        return childQuery;
     }
 
     @Override

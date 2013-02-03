@@ -32,8 +32,6 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private String childType;
 
-    private String scope;
-
     private String score;
 
     private float boost = 1.0f;
@@ -45,15 +43,6 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
     public TopChildrenQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
         this.queryBuilder = queryBuilder;
-    }
-
-    /**
-     * The scope of the query, which can later be used, for example, to run facets against the child docs that
-     * matches the query.
-     */
-    public TopChildrenQueryBuilder scope(String scope) {
-        this.scope = scope;
-        return this;
     }
 
     /**
@@ -97,9 +86,6 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("type", childType);
-        if (scope != null) {
-            builder.field("_scope", scope);
-        }
         if (score != null) {
             builder.field("score", score);
         }

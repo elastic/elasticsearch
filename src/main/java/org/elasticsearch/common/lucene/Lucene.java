@@ -89,18 +89,6 @@ public class Lucene {
     }
 
     /**
-     * Reads the segments infos, returning null if it doesn't exists
-     */
-    @Nullable
-    public static SegmentInfos readSegmentInfosIfExists(Directory directory) {
-        try {
-            return readSegmentInfos(directory);
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
-    /**
      * Reads the segments infos, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
@@ -108,7 +96,7 @@ public class Lucene {
         sis.read(directory);
         return sis;
     }
-
+    
     public static long count(IndexSearcher searcher, Query query) throws IOException {
         TotalHitCountCollector countCollector = new TotalHitCountCollector();
         // we don't need scores, so wrap it in a constant score query

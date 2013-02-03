@@ -29,12 +29,14 @@ public class SingleArrayOrdinals implements Ordinals {
     // ordinals with value 0 indicates no value
     private final int[] ordinals;
     private final int numOrds;
+    private final int maxOrd;
 
     private long size = -1;
 
     public SingleArrayOrdinals(int[] ordinals, int numOrds) {
         this.ordinals = ordinals;
         this.numOrds = numOrds;
+        this.maxOrd = numOrds + 1;
     }
 
     @Override
@@ -71,6 +73,11 @@ public class SingleArrayOrdinals implements Ordinals {
     }
 
     @Override
+    public int getMaxOrd() {
+        return maxOrd;
+    }
+
+    @Override
     public Docs ordinals() {
         return new Docs(this, ordinals);
     }
@@ -101,6 +108,11 @@ public class SingleArrayOrdinals implements Ordinals {
         @Override
         public int getNumOrds() {
             return parent.getNumOrds();
+        }
+
+        @Override
+        public int getMaxOrd() {
+            return parent.getMaxOrd();
         }
 
         @Override

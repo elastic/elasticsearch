@@ -28,6 +28,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.OrFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +46,7 @@ import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -53,6 +55,7 @@ import java.util.Map;
 public class PercolatorService extends AbstractIndexComponent {
 
     public static final String INDEX_NAME = "_percolator";
+    public static final String GLOBAL_PERCOLATION_TYPE_NAME = "_global";
 
     private final IndicesService indicesService;
 
@@ -115,7 +118,7 @@ public class PercolatorService extends AbstractIndexComponent {
         return percolator.percolate(request);
     }
 
-    private void loadQueries(String indexName) {
+    private void loadQueries(final String indexName) {
         IndexService indexService = percolatorIndexService();
         IndexShard shard = indexService.shard(0);
         shard.refresh(new Engine.Refresh(true));
@@ -134,8 +137,13 @@ public class PercolatorService extends AbstractIndexComponent {
         }
     }
 
-    private Filter indexQueriesFilter(String indexName) {
-        return percolatorIndexService().cache().filter().cache(new TermFilter(new Term(TypeFieldMapper.NAME, indexName)));
+    private Filter indexQueriesFilter(final String indexName) {
+        return percolatorIndexService().cache().filter().cache(
+                new OrFilter(new ArrayList<Filter>() {{
+                    add(new TermFilter(new Term(TypeFieldMapper.NAME, indexName)));
+                    add(new TermFilter(new Term(TypeFieldMapper.NAME, GLOBAL_PERCOLATION_TYPE_NAME)));
+                }})
+        );
     }
 
     private boolean percolatorAllocated() {

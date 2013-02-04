@@ -20,28 +20,22 @@
 package org.elasticsearch.index.search.child;
 
 import gnu.trove.set.hash.THashSet;
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.HashedBytesArray;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * A filter that only return child documents that are linked to the parent documents that matched with the inner query.
@@ -65,14 +59,8 @@ public abstract class HasParentFilter extends Filter implements SearchContext.Re
         return sb.toString();
     }
 
-    public static HasParentFilter create(String executionType, Query query, String parentType, SearchContext context) {
-        // This mechanism is experimental and will most likely be removed.
-        if ("bitset".equals(executionType)) {
-            return new Bitset(query, parentType, context);
-        } else if ("uid".equals(executionType)) {
-            return new Uid(query, parentType, context);
-        }
-        throw new ElasticSearchIllegalStateException("Illegal has_parent execution type: " + executionType);
+    public static HasParentFilter create(Query query, String parentType, SearchContext context) {
+        return new Uid(query, parentType, context);
     }
 
     static class Uid extends HasParentFilter {
@@ -160,102 +148,6 @@ public abstract class HasParentFilter extends Filter implements SearchContext.Re
             }
         }
 
-    }
-
-    static class Bitset extends HasParentFilter {
-
-        Map<Object, FixedBitSet> parentDocs;
-
-        Bitset(Query query, String parentType, SearchContext context) {
-            super(query, parentType, context);
-        }
-
-        public DocIdSet getDocIdSet(AtomicReaderContext readerContext, Bits acceptDocs) throws IOException {
-            if (parentDocs == null) {
-                throw new ElasticSearchIllegalStateException("has_parent filter hasn't executed properly");
-            }
-
-            IdReaderTypeCache currentTypeCache = context.idCache().reader(readerContext.reader()).type(parentType);
-            if (currentTypeCache == null) {
-                return null;
-            } else {
-                return new ChildrenDocSet(readerContext.reader(), currentTypeCache, acceptDocs, parentDocs, context, parentType);
-            }
-        }
-
-        @Override
-        public void contextRewrite(SearchContext searchContext) throws Exception {
-            searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-            ParentDocsCollector collector = new ParentDocsCollector();
-            searchContext.searcher().search(parentQuery, collector);
-            parentDocs = collector.segmentResults;
-        }
-
-        @Override
-        public void contextClear() {
-            parentDocs = null;
-        }
-
-        static class ChildrenDocSet extends MatchDocIdSet {
-
-            final IdReaderTypeCache currentTypeCache;
-            final AtomicReader currentReader;
-            final Tuple<AtomicReader, IdReaderTypeCache>[] readersToTypeCache;
-            final Map<Object, FixedBitSet> parentDocs;
-
-            ChildrenDocSet(AtomicReader currentReader, IdReaderTypeCache currentTypeCache, @Nullable Bits acceptDocs,
-                           Map<Object, FixedBitSet> parentDocs, SearchContext context, String parentType) {
-                super(currentReader.maxDoc(), acceptDocs);
-                this.currentTypeCache = currentTypeCache;
-                this.currentReader = currentReader;
-                this.parentDocs = parentDocs;
-                this.readersToTypeCache = new Tuple[context.searcher().getIndexReader().leaves().size()];
-                for (int i = 0; i < readersToTypeCache.length; i++) {
-                    AtomicReader reader = context.searcher().getIndexReader().leaves().get(i).reader();
-                    readersToTypeCache[i] = new Tuple<AtomicReader, IdReaderTypeCache>(reader, context.idCache().reader(reader).type(parentType));
-                }
-            }
-
-            @Override
-            protected boolean matchDoc(int doc) {
-                if (doc == -1) {
-                    return false;
-                }
-
-                HashedBytesArray parentId = currentTypeCache.parentIdByDoc(doc);
-                if (parentId == null) {
-                    return false;
-                }
-
-                for (Tuple<AtomicReader, IdReaderTypeCache> readerTypeCacheTuple : readersToTypeCache) {
-                    int parentDocId = readerTypeCacheTuple.v2().docById(parentId);
-                    if (parentDocId == -1) {
-                        continue;
-                    }
-
-                    FixedBitSet currentParentDocs = parentDocs.get(readerTypeCacheTuple.v1().getCoreCacheKey());
-                    if (currentParentDocs.get(parentDocId)) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
-
-        static class ParentDocsCollector extends NoopCollector {
-
-            final Map<Object, FixedBitSet> segmentResults = newHashMap();
-            FixedBitSet current;
-
-            public void collect(int doc) throws IOException {
-                current.set(doc);
-            }
-
-            @Override
-            public void setNextReader(AtomicReaderContext context) throws IOException {
-                segmentResults.put(context.reader().getCoreCacheKey(), current = new FixedBitSet(context.reader().maxDoc()));
-            }
-        }
     }
 
 }

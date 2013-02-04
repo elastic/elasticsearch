@@ -26,7 +26,6 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Nullable;
@@ -37,7 +36,6 @@ import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  *
@@ -63,47 +61,8 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
         return sb.toString();
     }
 
-    public static HasChildFilter create(Query childQuery, String parentType, String childType, SearchContext searchContext, String executionType) {
-        // This mechanism is experimental and will most likely be removed.
-        if ("bitset".equals(executionType)) {
-            return new Bitset(childQuery, parentType, childType, searchContext);
-        } else if ("uid".endsWith(executionType)) {
-            return new Uid(childQuery, parentType, childType, searchContext);
-        }
-        throw new ElasticSearchIllegalStateException("Illegal has_child execution type: " + executionType);
-    }
-
-    static class Bitset extends HasChildFilter {
-
-        private Map<Object, FixedBitSet> parentDocs;
-
-        public Bitset(Query childQuery, String parentType, String childType, SearchContext searchContext) {
-            super(childQuery, parentType, childType, searchContext);
-        }
-
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-            if (parentDocs == null) {
-                throw new ElasticSearchIllegalStateException("has_child filter hasn't executed properly");
-            }
-
-            // np need to use acceptDocs, since the parentDocs were collected with a collector, which means those
-            // collected docs are not deleted
-            // ok to return null
-            return parentDocs.get(context.reader().getCoreCacheKey());
-        }
-
-        @Override
-        public void contextRewrite(SearchContext searchContext) throws Exception {
-            searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-            ChildCollector collector = new ChildCollector(parentType, searchContext);
-            searchContext.searcher().search(childQuery, collector);
-            this.parentDocs = collector.parentDocs();
-        }
-
-        @Override
-        public void contextClear() {
-            parentDocs = null;
-        }
+    public static HasChildFilter create(Query childQuery, String parentType, String childType, SearchContext searchContext) {
+        return new Uid(childQuery, parentType, childType, searchContext);
     }
 
     static class Uid extends HasChildFilter {

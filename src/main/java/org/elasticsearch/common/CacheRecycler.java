@@ -44,6 +44,7 @@ public class CacheRecycler {
         shortIntHashMap.clear();
         longIntHashMap.clear();
         objectIntHashMap.clear();
+        intObjectHashMap.clear();
         objectFloatHashMap.clear();
         objectArray.clear();
         intArray.clear();
@@ -391,6 +392,34 @@ public class CacheRecycler {
         if (ref == null) {
             ref = ConcurrentCollections.newQueue();
             objectIntHashMap.set(ref);
+        }
+        map.clear();
+        ref.add(map);
+    }
+
+    // ------ TIntObjectHashMap -----
+
+    private static SoftWrapper<Queue<TIntObjectHashMap>> intObjectHashMap = new SoftWrapper<Queue<TIntObjectHashMap>>();
+
+
+    @SuppressWarnings({"unchecked"})
+    public static <T> TIntObjectHashMap<T> popIntObjectMap() {
+        Queue<TIntObjectHashMap> ref = intObjectHashMap.get();
+        if (ref == null) {
+            return new TIntObjectHashMap<T>();
+        }
+        TIntObjectHashMap<T> map = ref.poll();
+        if (map == null) {
+            return new TIntObjectHashMap<T>();
+        }
+        return map;
+    }
+
+    public static <T> void pushIntObjectMap(TIntObjectHashMap<T> map) {
+        Queue<TIntObjectHashMap> ref = intObjectHashMap.get();
+        if (ref == null) {
+            ref = ConcurrentCollections.newQueue();
+            intObjectHashMap.set(ref);
         }
         map.clear();
         ref.add(map);

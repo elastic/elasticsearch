@@ -32,7 +32,10 @@ import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * A query that evaluates the top matching child documents (based on the score) in order to determine what
@@ -124,7 +127,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
     int resolveParentDocuments(TopDocs topDocs, SearchContext context) {
         int parentHitsResolved = 0;
-        Map<Object, TIntObjectHashMap<ParentDoc>> parentDocsPerReader = new HashMap<Object, TIntObjectHashMap<ParentDoc>>();
+        ExtTHashMap<Object, TIntObjectHashMap<ParentDoc>> parentDocsPerReader = CacheRecycler.popHashMap();
         for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
             int readerIndex = ReaderUtil.subIndex(scoreDoc.doc, context.searcher().getIndexReader().leaves());
             AtomicReaderContext subContext = context.searcher().getIndexReader().leaves().get(readerIndex);
@@ -146,7 +149,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
                     TIntObjectHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
-                        readerParentDocs = new TIntObjectHashMap<ParentDoc>();
+                        readerParentDocs = CacheRecycler.popIntObjectMap();
                         parentDocsPerReader.put(indexReader.getCoreCacheKey(), readerParentDocs);
                     }
 
@@ -174,8 +177,9 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
             ParentDoc[] values = entry.getValue().values(new ParentDoc[entry.getValue().size()]);
             Arrays.sort(values, PARENT_DOC_COMP);
             parentDocs.put(entry.getKey(), values);
+            CacheRecycler.pushIntObjectMap(entry.getValue());
         }
-
+        CacheRecycler.pushHashMap(parentDocsPerReader);
         return parentHitsResolved;
     }
 

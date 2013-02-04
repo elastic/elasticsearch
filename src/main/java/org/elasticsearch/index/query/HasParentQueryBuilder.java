@@ -31,7 +31,6 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
     private final QueryBuilder queryBuilder;
     private final String parentType;
     private String scoreType;
-    private String executionType;
     private float boost = 1.0f;
 
     /**
@@ -56,17 +55,6 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         return this;
     }
 
-    /**
-     * Expert: Sets the low level child to parent filtering implementation. Can be: 'bitset' or 'uid'
-     * <p/>
-     * Only applicable when score_type is set to none.
-     * This option is experimental and will be removed.
-     */
-    public HasParentQueryBuilder executionType(String executionType) {
-        this.executionType = executionType;
-        return this;
-    }
-
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasParentQueryParser.NAME);
         builder.field("query");
@@ -74,9 +62,6 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         builder.field("parent_type", parentType);
         if (scoreType != null) {
             builder.field("score_type", scoreType);
-        }
-        if (executionType != null) {
-            builder.field("execution_type", executionType);
         }
         if (boost != 1.0f) {
             builder.field("boost", boost);

@@ -279,6 +279,27 @@ public class ChildSearchBenchmark {
         }
         System.out.println("--> top_children Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
+        System.out.println("--> Running top_children query, with match_all as child query");
+        // run parent child score query
+        for (int j = 0; j < QUERY_WARMUP; j++) {
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(topChildrenQuery("child", matchAllQuery())).execute().actionGet();
+            // we expect to have mismatch on hits here
+//            if (searchResponse.hits().totalHits() != COUNT) {
+//                System.err.println("mismatch on hits");
+//            }
+        }
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(topChildrenQuery("child", matchAllQuery())).execute().actionGet();
+            // we expect to have mismatch on hits here
+//            if (searchResponse.hits().totalHits() != COUNT) {
+//                System.err.println("mismatch on hits");
+//            }
+            totalQueryTime += searchResponse.tookInMillis();
+        }
+        System.out.println("--> top_children, with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 

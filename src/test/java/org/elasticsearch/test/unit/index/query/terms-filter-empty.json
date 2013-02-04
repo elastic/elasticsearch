@@ -1,0 +1,7 @@
+{
+    "constant_score" : {
+        "filter" : {
+            "terms" : { "name.last" : []}
+        }
+    }
+}

@@ -1296,6 +1296,22 @@ public class SimpleIndexQueryParserTests {
         //assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
 
+
+    @Test
+    public void testEmptyTermsFilterQuery() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/terms-filter-empty.json");
+        ParsedQuery parsedQuery = queryParser.parse(query);
+        assertThat(parsedQuery.query(), instanceOf(XConstantScoreQuery.class));
+        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery.query();
+        assertThat(constantScoreQuery.getFilter(), instanceOf(NotFilter.class));
+        NotFilter notFilter = (NotFilter) constantScoreQuery.getFilter();
+        assertThat(notFilter.filter(), notNullValue());
+        assertThat(notFilter.filter(), instanceOf(TermRangeFilter.class));
+        TermRangeFilter termRangeFilter = (TermRangeFilter) notFilter.filter();
+        assertThat(termRangeFilter.getField(), equalTo("name.last"));
+    }
+
     @Test
     public void testConstantScoreQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();

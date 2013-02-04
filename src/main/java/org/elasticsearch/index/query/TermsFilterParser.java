@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.TermRangeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -113,10 +114,27 @@ public class TermsFilterParser implements FilterParser {
         }
 
         try {
-            Filter filter;
+            Filter filter = null;
             if ("plain".equals(execution)) {
                 if (fieldMapper != null) {
-                    filter = fieldMapper.termsFilter(terms, parseContext);
+                    if (!terms.isEmpty()) {
+                        filter = fieldMapper.termsFilter(terms, parseContext);
+                    } else {
+                         smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
+
+                        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                            filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
+                        }
+                        if (filter == null) {
+                            filter = new TermRangeFilter(fieldName, null, null, true, true);
+                        }
+
+                        // we always cache this one, really does not change... (exists)
+                        filter = parseContext.cacheFilter(filter, null);
+                        filter = new NotFilter(filter);
+                        // cache the not filter as well, so it will be faster
+                        filter = parseContext.cacheFilter(filter, null);
+                    }
                 } else {
                     BytesRef[] filterValues = new BytesRef[terms.size()];
                     for (int i = 0; i < filterValues.length; i++) {

@@ -55,7 +55,7 @@ import java.util.Map;
 public class PercolatorService extends AbstractIndexComponent {
 
     public static final String INDEX_NAME = "_percolator";
-    public static final String GLOBAL_PERCOLATION_TYPE_NAME = "_global";
+    public static final String GLOBAL_PERCOLATION_TYPE_NAME = "percolator_global";
 
     private final IndicesService indicesService;
 

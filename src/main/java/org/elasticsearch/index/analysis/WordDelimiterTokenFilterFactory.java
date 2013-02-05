@@ -61,23 +61,23 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         }
         int flags = 0;
         // If set, causes parts of words to be generated: "PowerShot" => "Power" "Shot"
-        flags |= getFlag(GENERATE_WORD_PARTS ,settings, "generate_word_parts", true);
+        flags |= getFlag(GENERATE_WORD_PARTS, settings, "generate_word_parts", true);
         // If set, causes number subwords to be generated: "500-42" => "500" "42"
-        flags |= getFlag(GENERATE_WORD_PARTS, settings,"generate_number_parts", true);
+        flags |= getFlag(GENERATE_NUMBER_PARTS, settings, "generate_number_parts", true);
         // 1, causes maximum runs of word parts to be catenated: "wi-fi" => "wifi"
-        flags |= getFlag(CATENATE_WORDS, settings,"catenate_words", false);
+        flags |= getFlag(CATENATE_WORDS, settings, "catenate_words", false);
         // If set, causes maximum runs of number parts to be catenated: "500-42" => "50042"
-        flags |= getFlag(CATENATE_NUMBERS, settings,"catenate_numbers", false);
+        flags |= getFlag(CATENATE_NUMBERS, settings, "catenate_numbers", false);
         // If set, causes all subword parts to be catenated: "wi-fi-4000" => "wifi4000"
-        flags |= getFlag(CATENATE_ALL,settings,"catenate_all", false);
+        flags |= getFlag(CATENATE_ALL, settings, "catenate_all", false);
         // 1, causes "PowerShot" to be two tokens; ("Power-Shot" remains two parts regards)
-        flags |= getFlag(SPLIT_ON_CASE_CHANGE, settings,"split_on_case_change", true);
+        flags |= getFlag(SPLIT_ON_CASE_CHANGE, settings, "split_on_case_change", true);
         // If set, includes original words in subwords: "500-42" => "500" "42" "500-42"
-        flags |= getFlag(PRESERVE_ORIGINAL, settings,"preserve_original", false);
+        flags |= getFlag(PRESERVE_ORIGINAL, settings, "preserve_original", false);
         // 1, causes "j2se" to be three tokens; "j" "2" "se"
-        flags |= getFlag(SPLIT_ON_NUMERICS, settings,"split_on_numerics", true);
+        flags |= getFlag(SPLIT_ON_NUMERICS, settings, "split_on_numerics", true);
         // If set, causes trailing "'s" to be removed for each subword: "O'Neil's" => "O", "Neil"
-        flags |= getFlag(STEM_ENGLISH_POSSESSIVE, settings,"stem_english_possessive", true);
+        flags |= getFlag(STEM_ENGLISH_POSSESSIVE, settings, "stem_english_possessive", true);
         // If not null is the set of tokens to protect from being delimited
         Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words", version);
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(Lucene.VERSION, protectedWords);
@@ -91,12 +91,12 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
                 flags,
                 protoWords);
     }
-    
+
     public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
-        if (settings.getAsBoolean(key, true)) {
-            return 0;
+        if (settings.getAsBoolean(key, defaultValue)) {
+            return flag;
         }
-        return flag;
+        return 0;
     }
 
     // source => type

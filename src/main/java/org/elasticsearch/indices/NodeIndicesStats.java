@@ -103,6 +103,10 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
         return this.searchStats;
     }
 
+    public FieldDataStats getFieldData() {
+        return this.fieldDataStats;
+    }
+
     public CacheStats getCache() {
         return this.cacheStats;
     }

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -108,7 +109,7 @@ public class ShardStateAction extends AbstractComponent {
 
     private void innerShardFailed(final ShardRouting shardRouting, final String reason) {
         logger.warn("received shard failed for {}, reason [{}]", shardRouting, reason);
-        clusterService.submitStateUpdateTask("shard-failed (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("shard-failed (" + shardRouting + "), reason [" + reason + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (logger.isDebugEnabled()) {
@@ -136,7 +137,7 @@ public class ShardStateAction extends AbstractComponent {
         // process started events as fast as possible, to make shards available
         startedShardsQueue.add(shardRouting);
 
-        clusterService.submitStateUpdateTask("shard-started (" + shardRouting + "), reason [" + reason + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("shard-started (" + shardRouting + "), reason [" + reason + "]", Priority.HIGH, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
 

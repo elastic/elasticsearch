@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeMappingCreatedAction;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -90,7 +91,7 @@ public class MetaDataMappingService extends AbstractComponent {
             }
             sTypes.addAll(Arrays.asList(types));
         }
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]", Priority.URGENT, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 boolean createdIndex = false;
@@ -155,7 +156,7 @@ public class MetaDataMappingService extends AbstractComponent {
     }
 
     public void updateMapping(final String index, final String type, final CompressedString mappingSource, final Listener listener) {
-        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 boolean createdIndex = false;
@@ -222,7 +223,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void removeMapping(final RemoveRequest request, final Listener listener) {
         final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
-        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-mapping [" + request.mappingType + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (request.indices.length == 0) {
@@ -272,7 +273,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
     public void putMapping(final PutRequest request, final Listener listener) {
         final AtomicBoolean notifyOnPostProcess = new AtomicBoolean();
-        clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("put-mapping [" + request.mappingType + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 List<String> indicesToClose = Lists.newArrayList();

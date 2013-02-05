@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -1183,6 +1184,82 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         assertThat(searchResponse.failedShards(), equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
         assertThat(searchResponse.hits().hits()[0].id(), equalTo("2"));
+    }
+
+    @Test
+    public void testSimpleQueryRewrite() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 0)
+        ).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        int childId = 0;
+        for (int i = 0; i < 10; i++) {
+            String parentId = String.format("p%03d", i);
+            client.prepareIndex("test", "parent", parentId)
+                    .setSource("p_field", parentId)
+                    .execute().actionGet();
+            int j = childId;
+            for (; j < childId + 50; j++) {
+                String childUid = String.format("c%03d", j);
+                client.prepareIndex("test", "child", childUid)
+                        .setSource("c_field", childUid)
+                        .setParent(parentId)
+                        .execute().actionGet();
+            }
+            childId = j;
+        }
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchType[] searchTypes = new SearchType[]{SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH};
+        for (SearchType searchType : searchTypes) {
+            SearchResponse searchResponse = client.prepareSearch("test").setSearchType(searchType)
+                    .setQuery(hasChildQuery("child", prefixQuery("c_field", "c")).scoreType("max"))
+                    .addSort("p_field", SortOrder.ASC)
+                    .setSize(5)
+                    .execute().actionGet();
+            assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+            assertThat(searchResponse.hits().totalHits(), equalTo(10L));
+            assertThat(searchResponse.hits().hits()[0].id(), equalTo("p000"));
+            assertThat(searchResponse.hits().hits()[1].id(), equalTo("p001"));
+            assertThat(searchResponse.hits().hits()[2].id(), equalTo("p002"));
+            assertThat(searchResponse.hits().hits()[3].id(), equalTo("p003"));
+            assertThat(searchResponse.hits().hits()[4].id(), equalTo("p004"));
+
+            searchResponse = client.prepareSearch("test").setSearchType(searchType)
+                    .setQuery(hasParentQuery("parent", prefixQuery("p_field", "p")).scoreType("score"))
+                    .addSort("c_field", SortOrder.ASC)
+                    .setSize(5)
+                    .execute().actionGet();
+            assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+            assertThat(searchResponse.hits().totalHits(), equalTo(500L));
+            assertThat(searchResponse.hits().hits()[0].id(), equalTo("c000"));
+            assertThat(searchResponse.hits().hits()[1].id(), equalTo("c001"));
+            assertThat(searchResponse.hits().hits()[2].id(), equalTo("c002"));
+            assertThat(searchResponse.hits().hits()[3].id(), equalTo("c003"));
+            assertThat(searchResponse.hits().hits()[4].id(), equalTo("c004"));
+
+            searchResponse = client.prepareSearch("test").setSearchType(searchType)
+                    .setQuery(topChildrenQuery("child", prefixQuery("c_field", "c")))
+                    .addSort("p_field", SortOrder.ASC)
+                    .setSize(5)
+                    .execute().actionGet();
+            assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
+            assertThat(searchResponse.hits().totalHits(), equalTo(10L));
+            assertThat(searchResponse.hits().hits()[0].id(), equalTo("p000"));
+            assertThat(searchResponse.hits().hits()[1].id(), equalTo("p001"));
+            assertThat(searchResponse.hits().hits()[2].id(), equalTo("p002"));
+            assertThat(searchResponse.hits().hits()[3].id(), equalTo("p003"));
+            assertThat(searchResponse.hits().hits()[4].id(), equalTo("p004"));
+        }
     }
 
 }

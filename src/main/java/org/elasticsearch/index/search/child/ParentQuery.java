@@ -46,16 +46,17 @@ import java.util.Set;
 public class ParentQuery extends Query implements SearchContext.Rewrite {
 
     private final SearchContext searchContext;
-    private final Query parentQuery;
+    private final Query originalParentQuery;
     private final String parentType;
     private final Filter childrenFilter;
     private final List<String> childTypes;
 
+    private Query rewrittenParentQuery;
     private TObjectFloatHashMap<HashedBytesArray> uidToScore;
 
     public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, List<String> childTypes, Filter childrenFilter) {
         this.searchContext = searchContext;
-        this.parentQuery = parentQuery;
+        this.originalParentQuery = parentQuery;
         this.parentType = parentType;
         this.childTypes = childTypes;
         this.childrenFilter = childrenFilter;
@@ -63,11 +64,12 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
 
     private ParentQuery(ParentQuery unwritten, Query rewrittenParentQuery) {
         this.searchContext = unwritten.searchContext;
-        this.parentQuery = rewrittenParentQuery;
+        this.originalParentQuery = unwritten.originalParentQuery;
         this.parentType = unwritten.parentType;
         this.childrenFilter = unwritten.childrenFilter;
         this.childTypes = unwritten.childTypes;
 
+        this.rewrittenParentQuery = rewrittenParentQuery;
         this.uidToScore = unwritten.uidToScore;
     }
 
@@ -76,6 +78,12 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
         uidToScore = CacheRecycler.popObjectFloatMap();
         ParentUidCollector collector = new ParentUidCollector(uidToScore, searchContext, parentType);
+        Query parentQuery;
+        if (rewrittenParentQuery == null) {
+            parentQuery = rewrittenParentQuery = searchContext.searcher().rewrite(originalParentQuery);
+        } else {
+            parentQuery = rewrittenParentQuery;
+        }
         searchContext.searcher().search(parentQuery, collector);
     }
 
@@ -91,18 +99,25 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("ParentQuery[").append(parentType).append("/").append(childTypes)
-                .append("](").append(parentQuery.toString(field)).append(')')
+                .append("](").append(originalParentQuery.toString(field)).append(')')
                 .append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        Query rewrittenChildQuery = parentQuery.rewrite(reader);
-        if (rewrittenChildQuery == parentQuery) {
+        Query rewritten;
+        if (rewrittenParentQuery == null) {
+            rewritten = originalParentQuery.rewrite(reader);
+        } else {
+            rewritten = rewrittenParentQuery;
+        }
+        if (rewritten == rewrittenParentQuery) {
             return this;
         }
-        ParentQuery rewrite = new ParentQuery(this, rewrittenChildQuery);
+
+        // See TopChildrenQuery#rewrite
+        ParentQuery rewrite = new ParentQuery(this, rewritten);
         int index = searchContext.rewrites().indexOf(this);
         searchContext.rewrites().set(index, rewrite);
         return rewrite;
@@ -110,7 +125,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
 
     @Override
     public void extractTerms(Set<Term> terms) {
-        parentQuery.extractTerms(terms);
+        rewrittenParentQuery.extractTerms(terms);
     }
 
     @Override
@@ -118,7 +133,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         if (uidToScore == null) {
             throw new ElasticSearchIllegalStateException("has_parent query hasn't executed properly");
         }
-        return new ChildWeight(parentQuery.createWeight(searcher));
+        return new ChildWeight(rewrittenParentQuery.createWeight(searcher));
     }
 
     static class ParentUidCollector extends NoopCollector {

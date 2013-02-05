@@ -22,29 +22,45 @@ package org.elasticsearch.index.fielddata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  */
 public class FieldDataStats implements Streamable, ToXContent {
 
-    long memorySize;
+    private long memorySize;
+    private Map<String,Long> fieldDataSizes;
 
     public FieldDataStats() {
-
+        this.fieldDataSizes = new HashMap<String, Long>();
     }
 
-    public FieldDataStats(long memorySize) {
+    public FieldDataStats(long memorySize, ConcurrentMap<String, CounterMetric> fieldDataSizes) {
         this.memorySize = memorySize;
+        this.fieldDataSizes = new HashMap<String, Long>(fieldDataSizes.size());
+        for (Map.Entry<String, CounterMetric> entry : fieldDataSizes.entrySet()) {
+            this.fieldDataSizes.put(entry.getKey(), entry.getValue().count());
+        }
     }
 
-    public void add(FieldDataStats stats) {
+    public void add(final FieldDataStats stats) {
         this.memorySize += stats.memorySize;
+        for (Map.Entry<String, Long> entry : stats.fieldDataSizes.entrySet()) {
+            Long val = fieldDataSizes.get(entry.getKey());
+            if (val == null) {
+                val = (long)0;
+            }
+            fieldDataSizes.put(entry.getKey(), val + entry.getValue());
+        }
     }
 
     public long getMemorySizeInBytes() {
@@ -64,11 +80,28 @@ public class FieldDataStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
+        int fields = in.readVInt();
+        fieldDataSizes = new HashMap<String, Long>(fields);
+        if (fields > 0) {
+            for (int i = 0; i < fields; i++) {
+                fieldDataSizes.put(in.readString(), in.readVLong());
+            }
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
+        if (fieldDataSizes == null) {
+            out.writeVInt(0);
+            return;
+        }
+
+        out.writeVInt(fieldDataSizes.size());
+        for (Map.Entry<String, Long> entry : fieldDataSizes.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeVLong(entry.getValue());
+        }
     }
 
     @Override
@@ -78,6 +111,10 @@ public class FieldDataStats implements Streamable, ToXContent {
         builder.field(Fields.MEMORY_SIZE_IN_BYTES, getMemorySize().toString());
         builder.endObject();
         return builder;
+    }
+
+    public Map<String, Long> getFieldDataSizes() {
+        return fieldDataSizes;
     }
 
     static final class Fields {

@@ -72,6 +72,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
 
     private final ConcurrentMap<String, IndexFieldData> loadedFieldData = ConcurrentCollections.newConcurrentMap();
 
+    private final ConcurrentMap<String, CounterMetric> memoryUsedInBytesPerField = ConcurrentCollections.newConcurrentMap();
     private final CounterMetric memoryUsedInBytes = new CounterMetric();
 
     public IndexFieldDataService(Index index) {
@@ -111,6 +112,19 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
     public void onLoad(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData fieldData) {
         assert index.equals(this.index);
         memoryUsedInBytes.inc(fieldData.getMemorySizeInBytes());
+
+        // Concurrently increment current field counter if any, otherwise put a new one in place
+        CounterMetric val = memoryUsedInBytesPerField.get(fieldNames.fullName());
+        if (val != null) {
+            val.inc(fieldData.getMemorySizeInBytes());
+        } else {
+            val = new CounterMetric();
+            val.inc(fieldData.getMemorySizeInBytes());
+            final CounterMetric prev = memoryUsedInBytesPerField.putIfAbsent(fieldNames.fullName(), val);
+            if (prev != null) {
+                prev.inc(fieldData.getMemorySizeInBytes());
+            }
+        }
     }
 
     @Override
@@ -118,11 +132,18 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
         assert index.equals(this.index);
         if (fieldData != null) {
             memoryUsedInBytes.dec(fieldData.getMemorySizeInBytes());
+
+            final CounterMetric val = memoryUsedInBytesPerField.get(fieldNames.fullName());
+            if (val != null) {
+                val.dec(fieldData.getMemorySizeInBytes());
+            }
+        } else {
+            memoryUsedInBytesPerField.remove(fieldNames.fullName());
         }
     }
 
     public FieldDataStats stats() {
-        return new FieldDataStats(memoryUsedInBytes.count());
+        return new FieldDataStats(memoryUsedInBytes.count(), memoryUsedInBytesPerField);
     }
 
     public <IFD extends IndexFieldData> IFD getForField(FieldMapper mapper) {

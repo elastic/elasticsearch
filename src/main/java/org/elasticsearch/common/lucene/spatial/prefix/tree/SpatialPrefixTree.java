@@ -153,16 +153,19 @@ public abstract class SpatialPrefixTree {
     }
     final Collection<Node> subCells = node.getSubCells(shape);
     if (node.getLevel() == detailLevel - 1) {
-      if (subCells.size() < node.getSubCellsSize()) {
+      if (subCells.size() == node.getSubCellsSize() && !inclParents) {
+        // A bottom level (i.e. detail level) optimization where all boxes intersect, so use parent cell.
+        // Can optimize at only one of index time or query/filter time; the !inclParents
+        // condition above means we do not optimize at index time.
+        node.setLeaf();
+        result.add(node);
+      } else {
         if (inclParents)
           result.add(node);
         for (Node subCell : subCells) {
           subCell.setLeaf();
         }
         result.addAll(subCells);
-      } else {//a bottom level (i.e. detail level) optimization where all boxes intersect, so use parent cell.
-        node.setLeaf();
-        result.add(node);
       }
     } else {
       if (inclParents) {

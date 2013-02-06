@@ -21,6 +21,7 @@ package org.elasticsearch.test.unit.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BoostingQuery;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
@@ -1262,8 +1263,8 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy"))).query();
         assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
         XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
-        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
+        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
+        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
         //assertThat(termsFilter.getTerms().length, equalTo(2));
         //assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
@@ -1276,8 +1277,8 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
         XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
-        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
+        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
+        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
         //assertThat(termsFilter.getTerms().length, equalTo(2));
         //assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
@@ -1290,8 +1291,8 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
         assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
         XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery.query();
-        assertThat(filteredQuery.getFilter(), instanceOf(XTermsFilter.class));
-        XTermsFilter termsFilter = (XTermsFilter) filteredQuery.getFilter();
+        assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
+        TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
         //assertThat(termsFilter.getTerms().length, equalTo(2));
         //assertThat(termsFilter.getTerms()[0].text(), equalTo("banon"));
     }
@@ -1968,7 +1969,7 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
         XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        XTermsFilter filter = (XTermsFilter) constantScoreQuery.getFilter();
+        TermsFilter filter = (TermsFilter) constantScoreQuery.getFilter();
         //Term exampleTerm = filter.getTerms()[0];
         //assertThat(exampleTerm.field(), equalTo("country"));
     }

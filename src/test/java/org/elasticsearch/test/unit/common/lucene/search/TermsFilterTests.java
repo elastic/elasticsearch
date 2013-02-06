@@ -24,12 +24,12 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
-import org.elasticsearch.common.lucene.search.XTermsFilter;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -93,19 +93,19 @@ public class TermsFilterTests {
         AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(w, true));
         w.close();
 
-        XTermsFilter tf = new XTermsFilter(new Term[]{new Term(fieldName, "19")});
+        TermsFilter tf = new TermsFilter(new Term[]{new Term(fieldName, "19")});
         FixedBitSet bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits, nullValue());
 
-        tf = new XTermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20")});
+        tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20")});
         bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits.cardinality(), equalTo(1));
 
-        tf = new XTermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10")});
+        tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10")});
         bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits.cardinality(), equalTo(2));
 
-        tf = new XTermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10"), new Term(fieldName, "00")});
+        tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10"), new Term(fieldName, "00")});
         bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits.cardinality(), equalTo(2));
 

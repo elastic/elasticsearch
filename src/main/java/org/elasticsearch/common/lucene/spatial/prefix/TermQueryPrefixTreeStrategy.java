@@ -5,13 +5,13 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.operation.buffer.BufferOp;
 import com.vividsolutions.jts.operation.buffer.BufferParameters;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoShapeConstants;
 import org.elasticsearch.common.geo.ShapeBuilder;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.elasticsearch.common.lucene.search.XTermsFilter;
 import org.elasticsearch.common.lucene.spatial.SpatialStrategy;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.Node;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
@@ -53,7 +53,7 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
         for (int i = 0; i < nodes.size(); i++) {
             nodeTerms[i] = new BytesRef(nodes.get(i).getTokenString());
         }
-        return new XTermsFilter(getFieldName().indexName(), nodeTerms);
+        return new TermsFilter(getFieldName().indexName(), nodeTerms);
     }
 
     /**

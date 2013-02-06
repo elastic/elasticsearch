@@ -62,7 +62,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         cleanAndCloseNodes();
 
         logger.info("--> starting 1 nodes");
-        startNode("node1", settingsBuilder().put("gateway.type", "local").put("action.wait_on_mapping_change", true));
+        startNode("node1", settingsBuilder().put("gateway.type", "local"));
 
         Client client = client("node1");
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
@@ -108,7 +108,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         cleanAndCloseNodes();
 
         logger.info("--> starting 1 nodes");
-        startNode("node1", settingsBuilder().put("gateway.type", "local").put("action.wait_on_mapping_change", true));
+        startNode("node1", settingsBuilder().put("gateway.type", "local"));
 
         Client client = client("node1");
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();

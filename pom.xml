@@ -332,6 +332,7 @@
                         <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                         <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
                         <es.index.store.compress.stored>${env.ES_TEST_COMPRESS}</es.index.store.compress.stored>
+                        <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}</es.action.wait_on_mapping_change>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

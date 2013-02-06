@@ -19,14 +19,18 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
+import static org.elasticsearch.index.mapper.MapperBuilders.id;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -41,16 +45,8 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.UidFilter;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.index.mapper.MapperBuilders.id;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import com.google.common.collect.Iterables;
 
 /**
  *
@@ -176,7 +172,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (fieldType.indexed() || context == null) {
             return super.termFilter(value, context);
         }
-        return new UidFilter(context.queryTypes(), ImmutableList.of(BytesRefs.toBytesRef(value)));
+        return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), value));
     }
 
     @Override
@@ -184,11 +180,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (fieldType.indexed() || context == null) {
             return super.termsFilter(values, context);
         }
-        List<BytesRef> bytesRefs = new ArrayList<BytesRef>(values.size());
-        for (Object value : values) {
-            bytesRefs.add(BytesRefs.toBytesRef(value));
-        }
-        return new UidFilter(context.queryTypes(), bytesRefs);
+        return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values));
     }
 
     @Override

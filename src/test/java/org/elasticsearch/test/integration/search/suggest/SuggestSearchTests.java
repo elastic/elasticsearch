@@ -304,7 +304,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
                 .addSuggestion(fuzzySuggestion("size3SortScoreFirst")
                         .setSize(3).setMinDocFreq(0).setField("field1").setSuggestMode("always"))
                 .addSuggestion(fuzzySuggestion("size10SortScoreFirst")
-                        .setSize(10).setMinDocFreq(0).setField("field1").setSuggestMode("always"))
+                        .setSize(10).setMinDocFreq(0).setField("field1").setSuggestMode("always").setShardSize(50))
                 .addSuggestion(fuzzySuggestion("size3SortScoreFirstMaxEdits1")
                         .setMaxEdits(1)
                         .setSize(10).setMinDocFreq(0).setField("field1").setSuggestMode("always"))

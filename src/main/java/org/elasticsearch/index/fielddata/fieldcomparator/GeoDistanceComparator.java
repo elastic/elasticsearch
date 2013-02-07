@@ -105,7 +105,13 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
         } else {
             distance1 = fixedSourceDistance.calculate(geoPoint.lat(), geoPoint.lon());
         }
-        return (int) (distance1 - distance2);
+        if (distance1 < distance2) {
+            return -1;
+        } else if (distance1 == distance2) {
+            return 0;
+        } else {
+            return 1;
+        }
     }
 
     @Override

@@ -78,7 +78,7 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     public void finishStage(Stage stage) {
-        assert currentState == stage;
+        assert currentState == stage : "Expected stage " + stage + " but was stage " + currentState;
         this.currentState = Stage.NA;
     }
 

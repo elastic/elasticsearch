@@ -1,9 +1,12 @@
+3-D Man
+A'lars
 Aardwolf
 Abdol, Ahmet
 Abner Little
 Abominable Snowman
 Abomination
 Abominatrix
+Abraham Cornelius
 Abraxas
 Absalom
 Absorbing Man
@@ -33,12 +36,11 @@ Agent Axis
 Agent Cheesecake
 Agent X
 Agent Zero
-Aginar
 Aggamon
+Aginar
 Agon
-Agron
 Agony
-El Aguila
+Agron
 Aguja
 Ahab
 Ahura
@@ -51,7 +53,6 @@ Ajax
 Ajaxis
 Akasha
 Akhenaten
-A'lars
 Alaris
 Albert
 Albino
@@ -78,6 +79,7 @@ Alpha the Ultimate Mutant
 Alraune, Marlene
 Alysande Stuart
 Alyssa Moy
+Amahl Farouk
 Amalgam
 Amanda Sefton
 Amatsu-Mikaboshi
@@ -112,7 +114,6 @@ Android Man
 Andromeda
 Anelle
 Angar the Screamer
-The Angel
 Angel
 Angel Dust
 Angel Face
@@ -122,10 +123,8 @@ Angela Del Toro
 Angler
 Ani-Mator
 Animus
-Animus
 Ankhi
 Annalee
-Anelle
 Anne-Marie Cortez
 Annex
 Annie Ghazikhanian
@@ -144,9 +143,9 @@ Anti-Vision
 Antimatter
 Antiphon the Overseer
 Antonio
-Anything
 Anubis
 Anvil
+Anything
 Apache Kid
 Apalla
 Ape
@@ -187,8 +186,8 @@ Arides
 Ariel
 Aries
 Arishem the Judge
-Arizona Annie
 Arize
+Arizona Annie
 Arkon
 Arkus
 Arliss, Todd
@@ -206,7 +205,6 @@ Arsenic
 Artemis
 Artie
 Arturo Falcones
-Jackson Arvad
 Asbestos Lady
 Asbestos Man
 Ashcan
@@ -216,16 +214,14 @@ Assassin
 Astaroth / Asteroth
 Astra
 Astrid Bloom
-Astrovik, Vance
 Astron
 Astronomer
+Astrovik, Vance
 Asylum
 Atalanta
 Atalon
-Atlas
-Atlas
-Atlas
 Athena
+Atlas
 Atleza
 Atom Bob
 Atom-Smasher
@@ -247,16 +243,15 @@ Baal
 Bailey, Gailyn
 Bailey, Joey
 Bailey, Paul
-Sunset Bain
 Baker, William
 Balder
-Balthakk
 Balor
+Balthakk
 Bandit
-Bantam
 Banner, Betty Ross
 Banner, Robert Bruce
 Banshee
+Bantam
 Baphomet
 Barbarus
 Barnacle
@@ -274,17 +269,16 @@ Base
 Basilisk
 Bast
 Bastion
-Ruth Bat-Seraph
 Batragon
 Batroc the Leaper
 Battering Ram
-Battlestar
 Battleaxe
+Battlestar
 Battletide
 Batwing
+Beast
 Beaubier, Jean-Paul
 Beaubier, Jeanne-Marie
-Beast
 Beautiful Dreamer
 Beckley, Benny
 Bedlam
@@ -295,14 +289,15 @@ Beetle II
 Behemoth
 Bela
 Belasco
-Bella Donna
 Belathauzer
+Bella Donna
 Bench, Morris
 Bengal
 Bereet
 Berzerker
 Bes
 Beta Ray Bill
+Bethany Cabe
 Betty Ross Banner
 Bevatron
 Beyonder
@@ -320,8 +315,6 @@ Bishop
 Bishop, Kate
 Bison
 Bizarnage
-Blackbird
-Black, Carmilla
 Black Bolt
 Black Box
 Black Cat
@@ -330,29 +323,29 @@ Black Death
 Black Dragon
 Black Fox
 Black Goliath
-Blackheart
-Blackheath
 Black Jack Tarr
 Black King
 Black Knight
-Blacklash
 Black Lama
 Black Mamba
 Black Marvel
-Blackout
 Black Panther
 Black Queen
 Black Talon
 Black Tarantula
 Black Tom Cassidy
 Black Widow
+Black, Carmilla
+Blackbird
+Blackheart
+Blackheath
+Blacklash
+Blackout
 Blackwing
 Blackwulf
 Blade
 Blaire, Allison
-The Blank
 Blaquesmith
-Brass
 Blastaar
 Blaze
 Blaze, Johnny
@@ -392,8 +385,8 @@ Bloodwraith
 Bloom, Astrid
 Blowhard
 Blue Bullet
-Blue Marvel
 Blue Diamond
+Blue Marvel
 Blue Shield
 Blue Streak
 Blur
@@ -408,9 +401,9 @@ Boneyard
 Bont, Alexander
 Boobytrap
 Book
-Boomer
 Boom Boom
 Boom Boy
+Boomer
 Boomerang
 Boomslang
 Boost
@@ -426,17 +419,17 @@ Braddock, Jamie
 Braddock, Meggan
 Bradley, Isaiah
 Brain Cell
-Brain-Child
 Brain Drain
+Brain-Child
 Brainchild
 Brand, Abigail
 Brant, Betty
 Brass
 Bres
+Brian Falsworth
 Bridge, George Washington
 Brigade
 Briquette
-Eddie Brock
 Brother Nature
 Brother Tode
 Brother Voodoo
@@ -453,10 +446,9 @@ Buckman, Edward "Ned"
 Bucky
 Bucky III
 Bug
+Bulldozer
 Bullet
 Bullseye
-Bulldozer
-Bulldozer
 Burner
 Burstarr
 Bushman
@@ -466,60 +458,52 @@ Butterball
 Buzz
 Buzzard
 Byrrah
-Bethany Cabe
 Caber
 Cable
 Cadaver
 Cage, Luke
+Cagliostro
 Caiera
 Caiman
-Cagliostro
 Cain
 Caliban
 Callisto
-Godfrey Calthrop
 Calypso
-Heather Cameron
+Cameron Hodge
 Canasta
 Cancer
 Candra
-David Cannon
 Cannonball
 Cannonball I
 Cap 'N Hawk
 Caprice
 Capricorn
-Captain Atlas‎
 Captain America
+Captain Atlas‎
 Captain Barracuda
 Captain Britain
-Cap 'N Hawk
 Captain Fate
 Captain Germany
 Captain Marvel
 Captain Omen
 Captain Savage
-Captain Ultra
 Captain UK
+Captain Ultra
 Captain Universe
 Captain Wings
 Captain Zero
-Caregiver
-Caretaker
 Cardiac
 Cardinal
+Caregiver
+Caretaker
 Carnage
 Carnivore
 Carolyn Parmenter
-Guido Carosella
 Carrion
-Joe Cartelli
-Peggy Carter
-Sharon Carter
+Carter Ghazikhanian
 Cassandra Nova
 Cassidy, Sean
 Cassidy, Theresa
-Tom Cassidy
 Cassiopea
 Castle, Frank
 Cat
@@ -536,6 +520,7 @@ Century, Turner
 Cerberus
 Cerebra
 Cerise
+Cessily Kincaid
 Cethlann
 Ch'od
 Chaka
@@ -547,18 +532,17 @@ Chance
 Changeling
 Chaos
 Charcoal
-Charlie-27
 Charles Xavier
+Charlie-27
 Charon
 Cheetah
 Chemistro
-Lila Cheney
 Chi Demon
 Chief Examiner
 Chimera
-Christians, Isaac
 Choice
 Chondu the Mystic
+Christians, Isaac
 Chrome
 Chronos
 Chthon
@@ -566,26 +550,25 @@ Chtylok
 Citizen V
 Clea
 Clearcut
+Cletus Kasady
 Clive
 Cloak
-Cloud 9
 Cloud
+Cloud 9
 Clown
 Coach
 Coachwhip
 Cobalt Man
 Cobra
 Cody Mushumanski gun Man aka: the hunter
+Cold War
 Coldblood
 Coldfire
-Cold War
-Kasper Cole
-Colonel America
 Collective Man
 Collector
 Colleen Wing
-Rusty Collins
 Colonel
+Colonel America
 Colossus
 Comet
 Comet Man
@@ -604,34 +587,29 @@ Contrary
 Controller
 Cooper, Valerie
 Copperhead
-Copperhead
 Copycat
 Coral
 Corbo, Adrian
 Corbo, Jared
 Cordelia Frost
-Abraham Cornelius
 Corona
 Corruptor
 Corsair
 Corsi, Tom
-Fabian Cortez
 Cottonmouth
-Courier
 Count Abyss
 Count Nefaria
+Courier
 Cowgirl
 Crazy Eight
-Graydon Creed
 Creed, Victor
 Creel, Carl "Crusher"
-Crichton, Lady Jacqueline Falsworth
 Crichton, Kenneth
+Crichton, Lady Jacqueline Falsworth
+Crime Master
 Crime-Buster
 Crimebuster
-Crime Master
 Crimson
-Crimson and the Raven
 Crimson Cavalier
 Crimson Commando
 Crimson Cowl
@@ -639,13 +617,13 @@ Crimson Craig
 Crimson Daffodil
 Crimson Dynamo
 Crimson Dynamo V
+Crimson and the Raven
 Crippler
 Crooked Man
 Crossbones
 Crossfire
 Crown
 Crucible
-Crusader
 Crusader
 Crusher
 Crystal
@@ -657,16 +635,16 @@ Cyborg X
 Cyclone
 Cyclops
 Cypher
-Derrick Slegers speed aka: slegers
 D'Ken
 D'Spayre
-Robert da Costa
+D-Man
+DJ
 Dagger
+Daisy Johnson
 Dakimh the Enchanter
 Damballah
 Damian, Margo
 Damon Dran
-Lorna Dane
 Danger
 Danielle Moonstar
 Dansen Macabre
@@ -674,36 +652,37 @@ Danvers Carol
 Daredevil
 Dark Angel
 Dark Beast
-Dark-Crawler
 Dark Phoenix
-Darkstar
+Dark-Crawler
 Darkdevil
 Darkhawk
 Darkoth
+Darkstar
+David Cannon
 Davis, Leila
 Dawson, Tex
 Day, Wilbur
 Daytripper
 Dazzler
+De La Fontaine, Valentina Allegra
+DeWolff, Jean
 Dead Girl
 Deadhead
 Deadly Ernest
 Deadpool
-Laura Dean
 Death
 Death Adder
 Death's Head I&II
 Death's-Head
+Death-Stalker
 Deathbird
 Deathlok
-Deathwatch
-Death-Stalker
-Deathurge
 Deathstroke
+Deathurge
+Deathwatch
 Decay
 Decay II
 Defensor
-De La Fontaine, Valentina Allegra
 Delilah
 Delphi
 Delphine Courtney
@@ -712,18 +691,16 @@ Demiurge
 Demogoblin
 Demogorge the God-Eater
 Demolition Man
-Destiny I
+Derrick Slegers speed aka: slegers
 Destiny
-Destroyer, The
-Destroyer, The
-Destroyer
+Destiny I
 Destroyer
 Destroyer of Demons
+Destroyer, The
 Devastator
 Devil Dinosaur
 Devil-Slayer
 Devos the Devastator
-DeWolff, Jean
 Diablo
 Diamanda Nero
 Diamond Lil
@@ -735,8 +712,6 @@ Dionysus
 Dirtnap
 Discus
 Dittomaster‎
-DJ
-D-Man
 Dmitri Bukharin
 Doc Samson
 Doctor Arthur Nagan
@@ -760,15 +735,16 @@ Dominic Fortune
 Domino
 Dominus
 Domo
-Donald Pierce
 Donald & Deborah Ritter
-Doorman
+Donald Pierce
 Doop
+Doorman
 Doppelganger
 Doppleganger
 Dorcas, Dr. Lemuel
 Dorma
 Dormammu
+Double Helix
 Doug and Jerry
 Dougboy
 Doughboy
@@ -778,8 +754,8 @@ Dracula
 Dragon Lord
 Dragon Man
 Dragon of the Moon
-Dragonfly
 Dragoness
+Dragonfly
 Dragonwing
 Drake, Frank
 Drake, Robert "Bobby"
@@ -793,14 +769,11 @@ Dredmund Druid
 Drew, Jessica
 Dromedan
 Droom, Doctor Anthony
-Double Helix
-Druid
 Druid
 Druig
 Drumm, Jericho
-du Paris, Bennet
-Dum-Dum Dugan
 DuQuesne, Jacques
+Dum-Dum Dugan
 Dusk
 Dust
 Dvorak, Sybil
@@ -808,11 +781,11 @@ Dweller-in-Darkness
 Dyna-Mite
 Earth Lord
 Earthquake
-Paul Norbert Ebersol
 Ebon Seeker
-Ecstasy
 Echo
+Ecstasy
 Ectokid
+Eddie Brock
 Edwards, Ethan
 Edwin Jarvis
 Eel
@@ -831,7 +804,6 @@ Elektro
 Elf With A Gun
 Elfqueen
 Eliminator
-Eliminator
 Elixir
 Elsie-Dee
 Elven
@@ -846,22 +818,19 @@ Energizer
 Enforcer
 Enigma
 Ent
-The Entity
 Entropic Man
 Eon
 Epoch
 Equilibrius
 Equinox
 Ereshkigal
-Eric the Red
-Eric Slaughter
 Erg
+Eric Slaughter
+Eric the Red
 Ernst
 Eros
 Eshu
 Eson the Searcher
-Miguel Espinosa
-Mister Sinister
 Essex, Nathaniel
 Eternal Brain
 Eternity
@@ -875,23 +844,19 @@ Exodus
 Exploding Man
 Exterminator
 Ezekiel
+Fabian Cortez
 Fafnir
 Fagin
 Falcon
 Fallen One
-Fantastic Four
-Brian Falsworth
-Jacqueline Falsworth
-John Falsworth
 Famine
 Fan Boy
 Fandral
 Fang
 Fantasia
+Fantastic Four
 Fantomex
 Farallah
-Hensley Fargus
-Amahl Farouk
 Fasaud
 Fashima
 Fatale
@@ -900,11 +865,12 @@ Father Time
 Fault Zone
 Fearmaster‎
 Feedback
+Felicia Hardy
 Feline
 Fenris
 Fenris Wolf
-Feral
 Fer-de-Lance
+Feral
 Feron
 Fetter, Philip
 Fever Pitch
@@ -921,9 +887,8 @@ Firepower
 Firestar
 Fisk, Richard
 Fisk, Wilson
-Trevor Fitzroy
-Fixx
 Fixer
+Fixx
 Flag-Smasher
 Flambe
 Flash Thompson
@@ -951,26 +916,24 @@ Foster, Jane
 Foster, Tom
 Foxfire
 Frank Castle
-Drake, Frank
 Frankenstein's Monster
-Frankie and Victoria
 Frankie Raye
+Frankie and Victoria
 Franklin Richards
 Freak
 Freak of Science
 Freakmaster
 Freakshow
-Freeman, Spike
 Free Spirit
 Freedom Ring
+Freeman, Spike
 Frenzy
 Frey
 Frigga
 Frog-Man
-Frog-Man
 Frost, Adrienne
-Frost, Deacon
 Frost, Cordelia
+Frost, Deacon
 Frost, Emma
 Fujikawa, Rumiko
 Fury
@@ -979,8 +942,8 @@ Fury, Nick
 Fusion
 Futurist
 G-Force
-Gabriel, Devil Hunter
 Gabriel the Air-Walker
+Gabriel, Devil Hunter
 Gaea
 Gaia
 Galactus
@@ -997,10 +960,10 @@ Gargouille
 Gargoyle
 Garokk the Petrified Man
 Garrett, Jonathan "John"
+Garrison Kane
 Garrison, Sean
 Gatecrasher
 Gateway
-Gauntlet
 Gauntlet
 Gavel
 Gaza
@@ -1012,52 +975,49 @@ Geiger
 Geirrodur
 Gemini
 Genis-Vell
+Georgianna Castleberry
 Gertrude Yorkes
 Ghaur
-Carter Ghazikhanian
 Ghazikhanian, Carter
-Georgianna Castleberry
 Ghost
 Ghost Dancer
 Ghost Girl
-Ghost Girl
 Ghost Maker
 Ghost Rider
-Ghost Rider
 Ghost Rider 2099
-Ghoul
 Ghoul
 Giant-Man
 Gibbon
 Gibborim
 Gibney, Kyle
 Gideon
-Gideon, Gregory
 Gideon Mace
+Gideon, Gregory
 Giganto
 Gigantus
 Gill, Donald "Donny"
 Gilmore, Ritchie
 Gin Genie
-Gladiator, Shi'ar
 Gladiator
+Gladiator, Shi'ar
 Gladiatrix
 Glamor
 Glitch
 Glob
 Glob Herman
-Gog
 Gloom
 Glorian
 Goblin Queen
 Goblyn
+Godfrey Calthrop
+Gog
 Gold, Martin
 Gold, Melissa
-Golden Archer
 Goldbug
-Goldeneye
+Golden Archer
 Golden Girl
 Golden Oldie
+Goldeneye
 Golem
 Goliath
 Golubev, Mikula
@@ -1077,6 +1037,7 @@ Grappler
 Grasshopper I&II
 Graviton
 Gravity
+Graydon Creed
 Great Gambonnos
 Great Video
 Green Goblin
@@ -1084,19 +1045,18 @@ Green Goblin IV
 Gregory Gideon
 Gremlin
 Grenade
-Grey, Elaine
-Grey-Summers, Jean
+Grey Gargoyle
+Grey King
 Grey, Dr. John
+Grey, Elaine
 Grey, Nate
 Grey, Rachel
-Grey Gargoyle
 Grey, Sara
-Grey King
+Grey-Summers, Jean
 Griffin
 Grim Hunter
 Grim Reaper
 Grimm, Benjamin Jacob
-The Grip
 Grizzly
 Grog the God-Crusher
 Gronk
@@ -1104,6 +1064,7 @@ Grotesk
 Groundhog
 Growing Man
 Guardsman
+Guido Carosella
 Gunthar of Rigel‎
 Guthrie, Jebediah
 Guthrie, Joshua
@@ -1112,6 +1073,7 @@ Guthrie, Paige
 Guthrie, Samuel
 Gypsy Moth
 Gyrich, Henry Peter
+H.E.R.B.I.E.
 Hack
 Hag
 Hairbag
@@ -1119,8 +1081,8 @@ Halflife
 Hall, Franklin
 Halloway, Thomas
 Halloween Jack
-Hamilton, Bart
 Hamilton Slade
+Hamilton, Bart
 Hammer Harrison
 Hammer and Anvil
 Hammer, Justin
@@ -1132,13 +1094,12 @@ Hank McCoy
 Hank Pym
 Hanna Levy
 Hannibal King
-gen Harada
+Harald Jaekelsson
 Hardcase
 Hardcore
 Hardnose
 Hardshell
 Hardwire
-Felicia Hardy
 Hargen the Measurer
 Harker, Quincy
 Harkness, Agatha
@@ -1148,7 +1109,6 @@ Harold H. Harold
 Harpoon
 Harpy
 Harrier
-Jonas Harrow
 Harry Leland
 Harry Osborn
 Hate-Monger
@@ -1158,13 +1118,13 @@ Hawkeye
 Hawkeye II
 Hawkshaw
 Hayden, Alex
-Hazard
-Molly Hayes
 Haywire
+Hazard
 Hazmat
 Headknocker
 Headlok
 Heart Attack
+Heather Cameron
 Hebe
 Hecate
 Hector
@@ -1175,15 +1135,14 @@ Hellcat
 Helleyes
 Hellfire
 Hellion
-Hellion
 Hellrazor
 Hellstrom, Damion
 Hellstrom, Patsy
+Hensley Fargus
 Hephaestus
 Hepzibah
 Her
 Hera
-H.E.R.B.I.E.
 Hercules
 Hermes
 Hermod
@@ -1197,25 +1156,24 @@ Hijacker
 Hildegarde
 Him
 Hindsight Lad
+Hippolyta
+Hisako Ichiki
 Hit-Maker
 Hitman
 Hobgoblin
 Hobgoblin II
-Cameron Hodge
-Hogan, Harold "Happy"
 Hoder
+Hogan, Harold "Happy"
 Hogun
-Holocaust
 Holly
+Holocaust
 Honcho
 Honey Lemon
 Hood
-Horrocks, Ned
 Hornet
-Phineas T. Horton
+Horrocks, Ned
 Horus
 Howard the Duck
-James Howlett
 Hrimhari
 Hub
 Hugh Jones
@@ -1232,8 +1190,6 @@ Human Torch II
 Humbug
 Humus Sapien
 Huntara
-Robert Hunter
-Stevie Hunter
 Hurricane
 Husk
 Hussar
@@ -1248,11 +1204,10 @@ Hyperkind
 Hyperstorm
 Hypnotia
 Hyppokri
-Hippolyta
+ISAAC
 Icarus
 Iceman
 Icemaster
-Hisako Ichiki
 Idunn
 Iguana
 Ikaris
@@ -1265,24 +1220,20 @@ Imperial Hydra
 Impossible Man
 Impulse
 In-Betweener
-Indra
 Indech
+Indra
 Inertia
 Infamnia
 Infant Terrible
 Infectia
 Inferno
-Inferno
-Inferno
 Infinity
-Shola Inkosi
 Interloper
 Invisible Girl
 Invisible Woman
 Inza
 Ion
 Iridia
-Ironclad
 Iron Cross
 Iron Fist
 Iron Lad
@@ -1290,60 +1241,67 @@ Iron Maiden
 Iron Man
 Iron Man 2020
 Iron Monger
-ISAAC
+Ironclad
 Isbisa
 Ishihara, Shirow
 Isis
 It, the Living Colossus
 J2
-Jackal
-Jackdaw
 Jack Flag
 Jack Frost
-Jackhammer
-Jack-in-the-Box
 Jack Kirby
-Jack of Hearts
 Jack O'Lantern
+Jack of Hearts
+Jack-in-the-Box
+Jackal
+Jackdaw
+Jackhammer
 Jackpot
+Jackson Arvad
+Jacqueline Falsworth
 Jade Dragon
 Jaeger
-Harald Jaekelsson
 Jaguar
+James Howlett
+Jameson, Dr. Marla
 Jameson, J. Jonah
 Jameson, John
-Jameson, Dr. Marla
-Jaspers, James
+Jane Kincaid
 Jann
 Janus
 Jarella
 Jaren
 Jarvis, Edwin
 Jason
+Jaspers, James
 Jawynn Dueck The Iron christian of Faith
 Jazz
 Jean Grey
-Jeffries, Madison
 Jeffrey Mace
+Jeffries, Madison
 Jekyll
 Jenkins, Abner
-Jerry Jaxon
-Jessica Jones
+Jennifer Kale
 Jennifer Walters
 Jens Meilleur slap shot
+Jerry Jaxon
+Jessica Jones
 Jester
 Jigsaw
 Jim Hammond
 Jimmy Woo
 Jocasta
+Joe Cartelli
 Joe Fixit
-Daisy Johnson
+John Falsworth
+John Ryker
 John Sublime
+John Walker
 Johnny Ohm
 Jolt
 Jon Spectre
+Jonas Harrow
 Jones, Angelica
-jordan seberius
 Jones, Gabe
 Jones, Hugh
 Jones, Rick
@@ -1362,16 +1320,14 @@ Jumbo Carnation
 Junkpile
 Junta
 Justice
-Justice
 Justin Hammer
+Ka-Zar
 Kaine
 Kala
-Jennifer Kale
 Kaluu
 Kamal
 Kamo Tharnn
 Kamuu
-Garrison Kane
 Kang the Conqueror
 Kangaroo
 Karima Shapandar
@@ -1382,16 +1338,14 @@ Karnak
 Karnilla
 Karolina Dean
 Karthon the Quester
-Cletus Kasady
+Kasper Cole
 Kate Neville
 Katu
 Kaur, Benazir
-Ka-Zar
 Kehl of Tauran
 Keith Kilham
 Kem Horkus
 Ketch, Dan
-Robert Kelly
 Key
 Khaos
 Khonshu
@@ -1400,21 +1354,18 @@ Kiber the Cruel
 Kick-Ass
 Kid Colt
 Kid Nova
+Kiden Nixon
 Kierrok
 Killer Shrike
-Zebediah Killgrave
 Killmonger, Erik
 Killpower
 Killraven
 Kilmer
 Kimura
-Cessily Kincaid
-Jane Kincaid
 Kine, Benedict
-Hannibal King
-Kingpin
 King Bedlam
 Kingo Sunen
+Kingpin
 Kirigi
 Kirtsyn Perrin Short Stop
 Kismet
@@ -1427,7 +1378,6 @@ Klaatu
 Klaw
 Kleinstocks
 Knickknack
-Misty Knight
 Kofi Whitemane
 Kogar
 Kohl Harder Boulder Man
@@ -1444,7 +1394,6 @@ Krakkan
 Krang
 Kraven the Hunter
 Kravinoff, Alyosha
-Sergei Kravinoff
 Kristoff Vernard
 Kristoff von Doom
 Kro
@@ -1455,6 +1404,8 @@ Kurse
 Kwannon
 Kylun
 Kymaera
+La Lunatica
+La Nuit
 Lacuna
 Lady Deathstrike
 Lady Killer
@@ -1463,25 +1414,23 @@ Lady Lotus
 Lady Mandarin
 Lady Mastermind
 Lady Octopus
-La Lunatica
+Lament
 Lancer
 Landslide
 Lang, Cassie
 Lang, Steven
-La Nuit
 Larry Bodine
-Lament
 Lasher
 Laughton, Ebenezer
+Laura Dean
 Layla Miller
 Lazarus
+LeBeau, Remy
 Leader
 Leap-Frog
 Leash
-LeBeau, Remy
-Leech
-Ned Leeds
 Lee Forrester
+Leech
 Leeds, Betty Brant
 Left Hand
 Left-Winger
@@ -1502,8 +1451,8 @@ Lifeforce
 Lifeguard
 Lifter
 Lightbright
-Lightmaster
 Lighting Rod
+Lightmaster
 Lightspeed
 Lila Cheney
 Lilandra Neramani
@@ -1512,7 +1461,6 @@ Lin Sun
 Lincoln, Lonnie Thompson
 Link
 Lionheart
-Luichow, Chan
 Live Wire
 Living Brain
 Living Colossus
@@ -1524,10 +1472,9 @@ Living Lightning
 Living Monolith
 Living Mummy
 Living Pharaoh
-Living Pharaoh
 Living Planet
-Living Tribunal
 Living Totem
+Living Tribunal
 Lizard
 Llan the Sorcerer
 Lloigoroth
@@ -1560,6 +1507,7 @@ Lu, Chen
 Lucas Brand
 Lucifer
 Ludi
+Luichow, Chan
 Lukin, Aleksander
 Lumpkin, Willie
 Luna
@@ -1572,22 +1520,26 @@ Lyja
 Lykos, Karl
 Lynx
 M
+M-Twins
+MN-E (Ultraverse)
+MODAM
+MODOK
+MacKenzie, Al
 MacLain, Myron
+MacPherran, Mary "Skeeter"
+MacTaggert, Moira
 Mace, Gideon
 Mace, Jeffrey
 Mach-IV
 Machine Man
-Machinesmith
 Machine Teen
-MacKenzie, Al
-MacPherran, Mary "Skeeter"
-MacTaggert, Moira
-Mad-Dog
+Machinesmith
 Mad Dog Rassitano
 Mad Jack
 Mad Jim Jaspers
 Mad Thinker
 Mad Thinker’s Awesome Android
+Mad-Dog
 Madam Slay
 Madame Hydra
 Madame MacEvil
@@ -1596,8 +1548,8 @@ Madame Menace
 Madame Web
 Madcap
 Maddicks, Artie
-Madrox, James
 Madelyne Pryor
+Madrox, James
 Maelstrom
 Maestro
 Magdalena
@@ -1612,7 +1564,6 @@ Magnum I
 Magnum, Moses
 Magnus
 Magus
-Magus
 Maha Yogi
 Mahkizmo
 Major Mapleleaf
@@ -1621,6 +1572,7 @@ Malekith the Accursed
 Malice
 Malus, Karl
 Mammomax
+Man Mountain Marko
 Man-Ape
 Man-Beast
 Man-Brute
@@ -1638,20 +1590,20 @@ Mandroid
 Mangle
 Mangog
 Manikin
-Man Mountain Marko
 Manslaughter
 Manta
 Mantis
 Mantra
+Mar-Vell
 Marc Spector
-Mark Gervaisnight shade
 Marduk Kurios
 Margali Szardos
 Maria Hill
 Mariko Yashida
-Marks, James "Jimmy"
+Mark Gervaisnight shade
 Marko, Cain
 Marko, Flint
+Marks, James "Jimmy"
 Marlene Alraune
 Marlow, Keen
 Marrina
@@ -1659,12 +1611,10 @@ Marrow
 Martha Johansson
 Martinex
 Marvel Boy
-Marvel Boy
-Marvel Boy
 Marvel Girl
 Marvel Man
-Mar-Vell
 Marwan, Krista
+Mary Walker
 Mary Zero
 Masaryk, Milos
 Masked Marauder
@@ -1674,16 +1624,15 @@ Mason, Louise
 Masque
 Mass Master
 Master
-Master of Vengeance
 Master Khan
 Master Man
 Master Menace
-Mastermind
-Mastermind of the UK
-Mastermind
 Master Mold
 Master Order
 Master Pandemonium
+Master of Vengeance
+Mastermind
+Mastermind of the UK
 Masters, Alicia
 Matador
 Match
@@ -1698,8 +1647,8 @@ Maxam
 Maximoff, Pietro
 Maximoff, Wanda
 Maximus
-May Parker
 May "Mayday" Parker
+May Parker
 Mayhem
 McCoy, Henry "Hank"
 McKenzie, Namor
@@ -1707,15 +1656,13 @@ Meanstreak
 Meathook
 Mechamage
 Medusa
-Mekano
 Meggan
+Mekano
 Meld
 Melee
-Seamus Mellencamp
 Meltdown
 Melter
 Mentallo
-Mentor
 Mentor
 Mentus
 Mephisto
@@ -1728,7 +1675,6 @@ Metal Master
 Metalhead
 Meteor Man
 Meteorite
-Meteor Man
 Meteorite II
 Micro
 Microchip
@@ -1739,12 +1685,13 @@ Midnight
 Midnight Man
 Midnight Sun
 Miek
+Miguel Espinosa
 Mikado & Mosha
 Mikey
 Mikhail Rasputin
 Milan
+Miles Warren
 Miller, Layla
-Mimic
 Mimic
 Mimir
 Mindmeld
@@ -1755,22 +1702,19 @@ Mirage II
 Misfit
 Miss America
 Missing Link
+Mist Mistress
 Mister Buda
 Mister Doll
 Mister Fear
 Mister Hyde
 Mister Jip
-Mr. M
 Mister Machine
 Mister One and Mister Two
 Mister Sensitive
 Mister Sinister
 Mister X
 Misty Knight
-Mist Mistress
 Mockingbird
-MODAM
-MODOK
 Modred the Mystic
 Mogul of the Mystic Mountain
 Moira Brandon
@@ -1782,12 +1726,13 @@ Molly Hayes
 Molten Man
 Mondo
 Mongoose
+Monica Rappaccini
 Monroe, Trip
 Monsoon
 Monstra
 Monstro the Mighty
-Moon-Boy
 Moon Knight
+Moon-Boy
 Moondark
 Moondragon
 Moonhunter
@@ -1811,10 +1756,11 @@ Motormouth
 Mountjoy
 Mr. Fish
 Mr. Justice
-Ms. Marvel
+Mr. M
+Mr. Wu
 Ms. MODOK
+Ms. Marvel
 Ms. Steed
-M-Twins
 Multiple Man
 Mundi, Rex
 Munroe, Ororo
@@ -1827,9 +1773,10 @@ Myers, Fred
 Mys-Tech
 Mysterio
 Mystique
-N'astirh
 N'Gabthoth
 N'Garai
+N'astirh
+NFL Superpro
 Naga
 Nameless One
 Namor the Sub-Mariner
@@ -1847,6 +1794,7 @@ Nebulon
 Nebulos
 Necrodamus
 Necromantra
+Ned Leeds
 Needle
 Nefaria, Luchino
 Nefarius
@@ -1861,23 +1809,21 @@ Network
 Neuronne
 Neurotap
 Neville, Kate
-Newell, Walter
 New Goblin
+Newell, Walter
 Nezarr the Calculator
-NFL Superpro
 Nicholas Scratch
 Nicholas maunderRed Claw
 Nick Fury
 Nico Minoru
+Night Nurse
+Night Rider
+Night Thrasher
 Nightcrawler
 Nighthawk
-Night Nurse
-The Night Man
 Nightmare
-Night Rider
 Nightshade
 Nightside
-Night Thrasher
 Nightwatch
 Nightwind
 Nikki
@@ -1887,11 +1833,8 @@ Ningal
 Nital, Adri
 Nital, Taj
 Nitro
-Kiden Nixon
-MN-E (Ultraverse)
 Nobilus
 Noble, Peter
-Nocturne
 Nocturne
 Noh-Varr
 Nomad
@@ -1902,19 +1845,20 @@ North, Dakota
 Northstar
 Nosferata
 Nova
-Nova-Prime
 Nova, Cassandra
+Nova-Prime
 Novs
 Nowman, Michael
 Nox
-Nth Man: the Ultimate Ninja
 Nth Man
+Nth Man: the Ultimate Ninja
 Nuke - Frank Simpson
 Nuke - Squadron Supreme member
 Nuklo
 Null, the Living Darkness
 Numinus
 Nut
+O'Hara, Miguel
 O'Meggan, Alfie
 O'Sullivan, Solomon
 Obituary
@@ -1929,11 +1873,10 @@ Odin
 Ogord, Aleta
 Ogre
 Ogress
-O'Hara, Miguel
-Omen
-Omega Red
 Omega I
+Omega Red
 Omega the Unknown
+Omen
 Omerta
 One Above All
 Oneg the Prober
@@ -1960,9 +1903,9 @@ Outrage
 Overkill
 Overmind
 Overrider
-Ozone
 Owl
 Ox
+Ozone
 Ozymandias
 Page, Karen
 Paibo
@@ -1974,8 +1917,8 @@ Paris
 Parker, Ben
 Parker, Mary Jane
 Parker, May
-Parker, Richard
 Parker, Peter
+Parker, Richard
 Parks, Arthur
 Pasco
 Paste-Pot Pete
@@ -1983,12 +1926,15 @@ Patch
 Pathway
 Patriot I
 Patriot II
+Patsy Walker
+Paul Norbert Ebersol
 Paul Patterson
 Payback
 Payge, Reeva
 Payne, Frank
 Peace Monger
 Peepers
+Peggy Carter
 Penance
 Penance II
 Peregrine
@@ -2002,23 +1948,23 @@ Peter Criss
 Petros, Dominic
 Petruski, Peter
 Phade
+Phage
+Phalanx
 Phantazia
 Phantom Blonde
 Phantom Eagle
 Phantom Rider
-Phalanx
-Phage
 Phastos
 Phat
 Phimster, Ellie
+Phineas T. Horton
 Phoenix
 Photon
 Phyla-Vell
 Pierce, Alexander Goodwin
 Piledriver
-Pipeline
-Piper
 Pip the Troll
+Pipeline
 Piper
 Piranha
 Pisces
@@ -2044,18 +1990,18 @@ Postmortem
 Potts, Virginia "Pepper"
 Poundcakes
 Powderkeg
+Power Broker
+Power Man
+Power Princess
+Power Skrull
 Power, Alex
 Power, Jack
 Power, James Dr.
 Power, Julie
 Power, Katie
 Power, Margaret
-Power Broker
-Power Man
-Power Princess
-Power Skrull
-Powerpax
 Powerhouse
+Powerpax
 Presence
 Pressure
 Prester John
@@ -2072,7 +2018,6 @@ Proctor
 Prodigy
 Professor Power
 Professor X
-The Profile
 Projector
 Prometheus
 Protector
@@ -2094,8 +2039,8 @@ Pulse
 Puma
 Punchout
 Punisher
-Punisher I
 Punisher 2099
+Punisher I
 Puppet Master
 Purge
 Purple Girl
@@ -2107,16 +2052,16 @@ Quantum
 Quasar
 Quasar II
 Quasimodo
+Quentin Beck
+Quentin Quire
 Quicksand
 Quicksilver
 Quincy Harker
-Quentin Beck
-Quentin Quire
 Raa of the Caves
 Rachel van Helsing
 Radd, Norrin
-Radioactive Man
 Radian
+Radioactive Man
 Radion the Atomic Man
 Radius
 Rafferty
@@ -2135,7 +2080,6 @@ Random
 Ranger
 Rankin, Calvin
 Ransak the Reject
-Monica Rappaccini
 Rasputin, Illyana
 Rasputin, Mikhail
 Rasputin, Piotr
@@ -2149,13 +2093,12 @@ Raye, Frankie
 Raza
 Razor Fist
 Razorback
-Rebel
 Reaper
+Rebel
 Recorder
 Red Ghost
 Red Guardian
 Red Lotus
-Redneck
 Red Nine
 Red Raven
 Red Ronin
@@ -2164,6 +2107,7 @@ Red Skull
 Red Skull II
 Red Wolf
 Redeemer
+Redneck
 Redwing
 Reignfire
 Reilly, Ben
@@ -2196,17 +2140,19 @@ Riot
 Riot Grrl
 Ripfire
 Rl'nnd
-Robertson, Robbie
+Robert Hunter
 Robert Kelly
-Rocket Raccoon
-Rocket Racer
+Robert da Costa
+Robertson, Robbie
 Rock
 Rock Python
+Rocket Raccoon
+Rocket Racer
 Rodstvow
 Rogers, Steve
 Rogue
-Roma
 Rom the Spaceknight
+Roma
 Ronan the Accuser
 Rose
 Rosenberg, Marsha
@@ -2219,11 +2165,11 @@ Ruckus
 Rune
 Runner
 Rush
-The Russian
 Rusty Collins
+Ruth Bat-Seraph
 Ryder
-John Ryker
 S'byll
+S'ym
 Sabra
 Sabreclaw
 Sabretooth
@@ -2264,13 +2210,13 @@ Scarlotti, Mark
 Schemer
 Schmidt, Johann
 Schultz, Herman
-Silver Scorpion
 Scimitar
 Scintilla
 Scorcher
 Scorpia
 Scorpio
 Scorpion
+Scott Washington
 Scourge of the Underworld
 Scrambler
 Scratch, Nicholas
@@ -2279,23 +2225,25 @@ Screaming Mimi
 Screech
 Scrier
 Sea Urchin
+Seamus Mellencamp
 Sebastian Shaw
 Seeker
 Sefton, Amanda
 Sekhmet
 Selene
+Senator Robert Kelly
 Senor Muerte
 Sentry
-Senator Robert Kelly
 Sepulchre
 Sergeant Fury
+Sergei Kravinoff
 Serpentina
 Sersi
 Set
 Seth
-Shadow-Hunter
 Shadow King
 Shadow Slasher
+Shadow-Hunter
 Shadowcat
 Shadowmage
 Shadrac
@@ -2308,6 +2256,7 @@ Shanna the She-Devil
 Shapanka, Gregor
 Shaper of Worlds
 Shard
+Sharon Carter
 Sharon Friedlander
 Shathra
 Shatter
@@ -2321,7 +2270,6 @@ She-Venom
 Shellshock
 Shen Kuei
 Shinchuko Lotus
-Shriker
 Shingen Harada
 Shiva
 Shiver Man
@@ -2331,6 +2279,7 @@ Shola Inkosi
 Shooting Star
 Shotgun
 Shriek
+Shriker
 Shroud
 Shrunken Bones
 Shuma-Gorath
@@ -2341,14 +2290,15 @@ Sigmar
 Sigyn
 Sikorsky
 Sikorsky, Raymond
+Silhouette
 Silke, Samuel
 Silly Seal
-Silhouette
 Silver
 Silver Dagger
 Silver Fox
 Silver Sable
 Silver Samurai
+Silver Scorpion
 Silver Squire
 Silver Surfer
 Silverclaw
@@ -2357,8 +2307,8 @@ Simpson, Frank
 Sims, Ezekiel
 Sin
 Sin-Eater
-Sinclar, Nekra
 Sinclair, Rahne
+Sinclar, Nekra
 Sinister
 Sir Steel
 Siryn
@@ -2368,8 +2318,8 @@ Skids
 Skin
 Skinhead
 Skull the Slayer
-Skullfire
 Skullcrusher
+Skullfire
 Skunge the Laxidazian Troll
 Skyhawk
 Skywalker
@@ -2381,8 +2331,8 @@ Sleek
 Sleeper
 Sleepwalker
 Slick
-Slipstream
 Sligguth
+Slipstream
 Slither
 Sludge
 Slug
@@ -2406,19 +2356,18 @@ Sofen, Karla
 Solara
 Solarman
 Solarr
-Solo
 Soldier X
 Solitaire
 Solo
-Songbird
 Son of Satan
+Songbird
 Soulfire
 Space Phantom
 Space Turnip
+Specialist
 Spector, Marc
 Spectra
 Spectral
-Specialist
 Speed
 Speed Demon
 Speedball
@@ -2448,31 +2397,31 @@ Sputnik
 Spyder
 Spymaster
 Spyne
-Squirrel Girl
 Squidboy
+Squirrel Girl
 St. Croix, Claudette
 St. Croix, Marius
 St. Croix, Monet
 St. Croix, Nicole
+Stacy X
 Stacy, George
 Stacy, Gwen
-Stacy X
 Stained Glass Scarlet
 Stakar
 Stallior
 Stane, Ezekiel
 Stane, Obadiah
-Star-Dancer
-Star-Lord
 Star Stalker
 Star Thief‎
+Star-Dancer
+Star-Lord
 Starbolt
 Stardust
 Starfox
 Starhawk
-Starlight
 Stark, Arno
 Stark, Tony
+Starlight
 Starr the Slayer
 Starshine
 Starsmore, Jonothon
@@ -2486,11 +2435,9 @@ Stein, Chase
 Stellaris
 Stem Cell
 Stentor
-The Amazing Tanwir Ahmed
-The Stepford Cuckoos
 Stephen Colbert
-Stevie Hunter
 Steven Lang
+Stevie Hunter
 Stewart, Stanley
 Stick
 Stiletto
@@ -2521,8 +2468,8 @@ Stuntmaster
 Stygorr
 Stygyro
 Styx and Stone
-Sublime, John
 Sub-Mariner
+Sublime, John
 Sugar Man
 Suicide
 Sultan
@@ -2531,6 +2478,7 @@ Summers, Christopher
 Summers, Gabriel
 Summers, Rachel
 Summers, Scott
+Sun Girl
 Sunder
 Sundragon
 Sunfire
@@ -2540,16 +2488,14 @@ Sunspot
 Sunstreak
 Sunstroke
 Sunturion
-Sun Girl
-Super Rabbit
-Super-Adaptoid
-Supercharger
-Superia
-Super-Nova
-SuperPro
 Super Rabbit
 Super Sabre
+Super-Adaptoid
+Super-Nova
 Super-Skrull
+SuperPro
+Supercharger
+Superia
 Supernalia
 Suprema
 Supreme Intelligence
@@ -2561,25 +2507,24 @@ Svarog
 Swarm
 Sweetface
 Swordsman
-S'ym
 Sybil Dorn
-The Symbiote
 Synch
 Sytsevich, Aleksei
 Szardos, Jimaine
 Szardos, Margali
+T-Ray
 Tag
 Tagak the Leopard Lord
 Tailhook
-Tantra
 Talbot, Glenn
 Talisman
 Tamara Rahn
 Tana Nile
+Tantra
 Tarantula
 Tarleton, George
-Tarr, Black Jack
 Tarot
+Tarr, Black Jack
 Tartarus
 Taskmaster
 Tatterdemalion
@@ -2589,7 +2534,6 @@ Taurus
 Taylor, General Orwell
 Techno
 Tefral the Surveyor
-Tempest
 Tempest
 Tempo
 Tempus
@@ -2610,11 +2554,22 @@ Texas Twister
 Thakos
 Thane Ector
 Thanos
+The Amazing Tanwir Ahmed
+The Angel
+The Blank
+The Entity
+The Grip
+The Night Man
+The Profile
+The Russian
+The Stepford Cuckoos
+The Symbiote
+The Wink
 Thena
 Thermo
+Thin Man
 Thing
 Thinker
-Thin Man
 Thirty-Three
 Thog
 Thomas, Everett
@@ -2622,7 +2577,6 @@ Thompson, Flash
 Thor
 Thor Girl
 Thornn
-3-D Man
 Threnody
 Thumb, Tom
 Thumbelina
@@ -2648,6 +2602,7 @@ Titanium Man
 Toad
 Toad-In-Waiting
 Todd, Mark
+Tom Cassidy
 Tom Thumb
 Tomazooma
 Tombstone
@@ -2658,8 +2613,8 @@ Toomes, Adrian
 Topaz
 Topolov, Yuri
 Topspin
-Torgo the Vampire
 Torgo of Mekka
+Torgo the Vampire
 Toro
 Torpedo
 Torrent
@@ -2668,11 +2623,10 @@ Tower
 Toxin
 Toynbee, Mortimer
 Trader
-Trapper
-Trapster
 Trainer, Carolyn
 Tran, Chloe
-T-Ray
+Trapper
+Trapster
 Tremolo
 Trevor Fitzroy
 Tri-Man
@@ -2683,8 +2637,8 @@ Triton
 Troll
 Truffaut, Arlette
 Trump
-Tugun
 Tuc
+Tugun
 Tumbler
 Tundra
 Turac
@@ -2706,33 +2660,33 @@ Tyrannosaur
 Tyrannus
 Tyrant
 Tzabaoth
-Uatu
 U-Go Girl
+U-Man
+USAgent
+Uatu
 Ulik
 Ultimo
 Ultimus
 Ultra-Marine
 Ultragirl
 Ultron
-Umbo
-U-Man
+Ulysses
 Umar
+Umbo
 Uncle Ben Parker
-Unicorn
 Uni-Mind
+Unicorn
 Union Jack
 Unseen
 Unthinnk
 Unus the Untouchable
 Unuscione
-Unuscione, Carmella
 Unuscione, Angelo
-Ursa Major
-Urthona
-USAgent
+Unuscione, Carmella
 Urich, Ben
 Urich, Phil
-Ulysses
+Ursa Major
+Urthona
 Utgard-Loki
 Vagabond
 Vague
@@ -2745,9 +2699,6 @@ Valkyrie
 Valtorr
 Vamp
 Vampire by Night
-van Dyne, Janet
-van Horne, Katrina Luisa
-van Lunt, Cornelius
 Vance Astro
 Vanguard
 Vanisher
@@ -2760,10 +2711,8 @@ Vavavoom
 Vector
 Vegas
 Veil
-Veil
 Velsing, Bram
 Vengeance
-Venom
 Venom
 Venomm
 Ventura, Sharon
@@ -2799,26 +2748,20 @@ Vulcan
 Vulture
 Wagner, Kurt
 Wagner, Talia Josephine
-John Walker
-Mary Walker
-Patsy Walker
 Wallflower
-Jennifer Walters
 War
-War V
 War Eagle
 War Machine
+War V
 Warbird
 Warhawk
 Warlock
 Warlock, Adam
 Warpath
-Miles Warren
 Warrior Woman
 Warstar
 Warstrike
 Warwolves
-Scott Washington
 Washout
 Wasp
 Watcher
@@ -2833,24 +2776,24 @@ Whiplash
 Whirlwind
 Whistler
 White Fang
+White Pilgrim
+White Queen
+White Rabbit
+White Tiger
 Whitemane, Aelfyre
 Whitemane, Kofi
 Whiteout
-White Pilgrim
-White Rabbit
-White Queen
-White Tiger
 Whitman, Debra
 Whizzer
 Wiccan
 Wicked
 Widget
 Wild Child
+Wild Thing
 Wildboys
 Wilder, Alex
 Wildpride
 Wildside
-Wild Thing
 Will o' the Wisp
 Williams, Eric
 Williams, Simon
@@ -2862,15 +2805,14 @@ Windeagle
 Windshear
 Wing, Colleen
 Wingfoot, Wyatt
-Winter Soldier
-The Wink
 Winky Man
+Winter Soldier
 Wisdom, Pete
 Wisdom, Romany
 Witchfire
 Wittman, Bentley
-Wizard
 Wiz Kid
+Wizard
 Wolf
 Wolfsbane
 Wolverine
@@ -2882,25 +2824,23 @@ Worm
 Worthington, Warren III
 Wraith
 Wrath
-Wrecker
 Wreckage
-Mr. Wu
+Wrecker
 Wundarr the Aquarian
 Wyndham, Herbert Edgar
 Wysper
 X-23
 X-Cutioner
 X-Man
+X-Ray
 X-Treme
 Xandu
-Charles Xavier
 Xavin
 Xemnu the Titan
 Xemu
 Xi'an Chi Xan
 Xorn
 Xorr the God-Jewel
-X-Ray
 Y'Garon
 Yandroth
 Yashida, Mariko
@@ -2912,8 +2852,8 @@ Ymir
 Yondu
 Yrial
 Yukio
-Yuriko Oyama
 Yukon Jack
+Yuriko Oyama
 Zabu
 Zach
 Zaladane
@@ -2931,8 +2871,13 @@ Zeus
 Ziggy Pig
 Zip-Zap
 Zodiak
-Arnim Zola
 Zom
 Zombie
 Zuras
 Zzzax
+du Paris, Bennet
+gen Harada
+jordan seberius
+van Dyne, Janet
+van Horne, Katrina Luisa
+van Lunt, Cornelius

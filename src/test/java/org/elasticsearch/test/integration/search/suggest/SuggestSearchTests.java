@@ -31,6 +31,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.suggest.SuggestBuilder.fuzzySuggestion;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -63,7 +66,12 @@ public class SuggestSearchTests extends AbstractNodesTests {
     @Test
     public void testSimple() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put(SETTING_NUMBER_OF_SHARDS, 5)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
@@ -135,8 +143,12 @@ public class SuggestSearchTests extends AbstractNodesTests {
     @Test
     public void testEmpty() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put(SETTING_NUMBER_OF_SHARDS, 5)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         SearchResponse search = client.prepareSearch()
                 .setQuery(matchQuery("text", "spellcecker"))
@@ -172,7 +184,12 @@ public class SuggestSearchTests extends AbstractNodesTests {
     @Test
     public void testWithMultipleCommands() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put(SETTING_NUMBER_OF_SHARDS, 5)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
@@ -247,7 +264,12 @@ public class SuggestSearchTests extends AbstractNodesTests {
     @Test
     public void testSizeAndSort() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put(SETTING_NUMBER_OF_SHARDS, 5)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         Map<String, Integer> termsAndDocCount = new HashMap<String, Integer>();
         termsAndDocCount.put("prefix_aaad", 20);

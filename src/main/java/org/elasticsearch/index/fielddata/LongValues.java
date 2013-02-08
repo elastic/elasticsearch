@@ -138,5 +138,42 @@ public interface LongValues {
             proc.onMissing(docId);
         }
     }
+    
+    public static class FilteredLongValues implements LongValues {
+
+        protected final LongValues delegate;
+
+        public FilteredLongValues(LongValues delegate) {
+            this.delegate = delegate;
+        }
+
+        public boolean isMultiValued() {
+            return delegate.isMultiValued();
+        }
+
+        public boolean hasValue(int docId) {
+            return delegate.hasValue(docId);
+        }
+
+        public long getValue(int docId) {
+            return delegate.getValue(docId);
+        }
+
+        public long getValueMissing(int docId, long missingValue) {
+            return delegate.getValueMissing(docId, missingValue);
+        }
+
+        public LongArrayRef getValues(int docId) {
+            return delegate.getValues(docId);
+        }
+
+        public Iter getIter(int docId) {
+            return delegate.getIter(docId);
+        }
+
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            delegate.forEachValueInDoc(docId, proc);
+        }
+    }
 
 }

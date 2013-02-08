@@ -19,44 +19,27 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.FieldComparator;
-import org.elasticsearch.index.fielddata.ByteValues;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.util.ByteArrayRef;
-
 import java.io.IOException;
+
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 
 /**
  */
-public class ByteValuesComparator extends FieldComparator<Byte> {
-
-    private final IndexNumericFieldData indexFieldData;
-    private final byte missingValue;
-    private final boolean reversed;
+public final class ByteValuesComparator extends LongValuesComparatorBase<Byte> {
 
     private final byte[] values;
-    private byte bottom;
-    private ByteValues readerValues;
 
-    public ByteValuesComparator(IndexNumericFieldData indexFieldData, byte missingValue, int numHits, boolean reversed) {
-        this.indexFieldData = indexFieldData;
-        this.missingValue = missingValue;
-        this.reversed = reversed;
+    public ByteValuesComparator(IndexNumericFieldData<?> indexFieldData, byte missingValue, int numHits, boolean reversed) {
+        super(indexFieldData, missingValue, reversed);
         this.values = new byte[numHits];
+        assert indexFieldData.getNumericType().requiredBits() <= 8;
     }
 
     @Override
     public int compare(int slot1, int slot2) {
-        final byte v1 = values[slot1];
-        final byte v2 = values[slot2];
-        if (v1 > v2) {
-            return 1;
-        } else if (v1 < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
+        final int v1 = values[slot1];
+        final int v2 = values[slot2];
+        return v1 - v2; // we cast to int so it can't overflow
     }
 
     @Override
@@ -65,123 +48,12 @@ public class ByteValuesComparator extends FieldComparator<Byte> {
     }
 
     @Override
-    public int compareBottom(int doc) throws IOException {
-        byte v2 = readerValues.getValueMissing(doc, missingValue);
-
-        if (bottom > v2) {
-            return 1;
-        } else if (bottom < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
-
-    @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = readerValues.getValueMissing(doc, missingValue);
-    }
-
-    @Override
-    public FieldComparator<Byte> setNextReader(AtomicReaderContext context) throws IOException {
-        readerValues = indexFieldData.load(context).getByteValues();
-        if (readerValues.isMultiValued()) {
-            readerValues = new MultiValuedBytesWrapper(readerValues, reversed);
-        }
-        return this;
+        values[slot] = (byte) readerValues.getValueMissing(doc, missingValue);
     }
 
     @Override
     public Byte value(int slot) {
         return Byte.valueOf(values[slot]);
     }
-
-    @Override
-    public int compareDocToValue(int doc, Byte valueObj) throws IOException {
-        final byte value = valueObj.byteValue();
-        byte docValue = readerValues.getValueMissing(doc, missingValue);
-        if (docValue < value) {
-            return -1;
-        } else if (docValue > value) {
-            return 1;
-        } else {
-            return 0;
-        }
-    }
-
-    public static class FilteredByteValues implements ByteValues {
-
-        protected final ByteValues delegate;
-
-        public FilteredByteValues(ByteValues delegate) {
-            this.delegate = delegate;
-        }
-
-        public boolean isMultiValued() {
-            return delegate.isMultiValued();
-        }
-
-        public boolean hasValue(int docId) {
-            return delegate.hasValue(docId);
-        }
-
-        public byte getValue(int docId) {
-            return delegate.getValue(docId);
-        }
-
-        public byte getValueMissing(int docId, byte missingValue) {
-            return delegate.getValueMissing(docId, missingValue);
-        }
-
-        public ByteArrayRef getValues(int docId) {
-            return delegate.getValues(docId);
-        }
-
-        public Iter getIter(int docId) {
-            return delegate.getIter(docId);
-        }
-
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            delegate.forEachValueInDoc(docId, proc);
-        }
-    }
-
-    private static final class MultiValuedBytesWrapper extends FilteredByteValues {
-
-        private final boolean reversed;
-
-        public MultiValuedBytesWrapper(ByteValues delegate, boolean reversed) {
-            super(delegate);
-            this.reversed = reversed;
-        }
-
-        @Override
-        public byte getValueMissing(int docId, byte missing) {
-            ByteValues.Iter iter = delegate.getIter(docId);
-            if (!iter.hasNext()) {
-                return missing;
-            }
-
-            byte currentVal = iter.next();
-            byte relevantVal = currentVal;
-            while (true) {
-                if (reversed) {
-                    if (currentVal > relevantVal) {
-                        relevantVal = currentVal;
-                    }
-                } else {
-                    if (currentVal < relevantVal) {
-                        relevantVal = currentVal;
-                    }
-                }
-                if (!iter.hasNext()) {
-                    break;
-                }
-                currentVal = iter.next();
-            }
-            return relevantVal;
-        }
-
-    }
-
 }

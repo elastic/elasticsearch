@@ -47,7 +47,7 @@ public class DoubleScriptDataComparator extends FieldComparator<Double> {
         }
 
         @Override
-        public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+        public FieldComparator<? extends Number> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
             return new DoubleScriptDataComparator(numHits, script);
         }
 

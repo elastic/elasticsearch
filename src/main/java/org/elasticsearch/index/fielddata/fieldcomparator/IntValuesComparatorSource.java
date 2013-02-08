@@ -31,10 +31,10 @@ import java.io.IOException;
  */
 public class IntValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
+    private final IndexNumericFieldData<?> indexFieldData;
     private final Object missingValue;
 
-    public IntValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue) {
+    public IntValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
     }

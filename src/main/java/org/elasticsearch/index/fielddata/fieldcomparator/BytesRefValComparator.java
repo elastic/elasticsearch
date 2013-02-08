@@ -36,14 +36,14 @@ import java.io.IOException;
  */
 public final class BytesRefValComparator extends FieldComparator<BytesRef> {
 
-    private final IndexFieldData indexFieldData;
+    private final IndexFieldData<?> indexFieldData;
     private final boolean reversed;
 
     private final BytesRef[] values;
     private BytesRef bottom;
     private BytesValues docTerms;
 
-    BytesRefValComparator(IndexFieldData indexFieldData, int numHits, boolean reversed) {
+    BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, boolean reversed) {
         this.reversed = reversed;
         values = new BytesRef[numHits];
         this.indexFieldData = indexFieldData;
@@ -53,30 +53,13 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
     public int compare(int slot1, int slot2) {
         final BytesRef val1 = values[slot1];
         final BytesRef val2 = values[slot2];
-        if (val1 == null) {
-            if (val2 == null) {
-                return 0;
-            }
-            return -1;
-        } else if (val2 == null) {
-            return 1;
-        }
-
-        return val1.compareTo(val2);
+        return compareValues(val1, val2);
     }
 
     @Override
     public int compareBottom(int doc) throws IOException {
-        BytesRef val2 = docTerms.getValue(doc);
-        if (bottom == null) {
-            if (val2 == null) {
-                return 0;
-            }
-            return -1;
-        } else if (val2 == null) {
-            return 1;
-        }
-        return bottom.compareTo(val2);
+        final BytesRef val2 = docTerms.getValue(doc);
+        return compareValues(bottom, val2);
     }
 
     @Override

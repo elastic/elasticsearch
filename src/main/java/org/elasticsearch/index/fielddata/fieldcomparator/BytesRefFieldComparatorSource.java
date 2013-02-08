@@ -29,9 +29,9 @@ import java.io.IOException;
  */
 public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexFieldData indexFieldData;
+    private final IndexFieldData<?> indexFieldData;
 
-    public BytesRefFieldComparatorSource(IndexFieldData indexFieldData) {
+    public BytesRefFieldComparatorSource(IndexFieldData<?> indexFieldData) {
         this.indexFieldData = indexFieldData;
     }
 
@@ -44,7 +44,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
         assert fieldname.equals(indexFieldData.getFieldNames().indexName());
         if (indexFieldData.valuesOrdered() && indexFieldData instanceof IndexFieldData.WithOrdinals) {
-            return new BytesRefOrdValComparator((IndexFieldData.WithOrdinals) indexFieldData, numHits, reversed);
+            return new BytesRefOrdValComparator((IndexFieldData.WithOrdinals<?>) indexFieldData, numHits, reversed);
         }
         return new BytesRefValComparator(indexFieldData, numHits, reversed);
     }

@@ -21,7 +21,13 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.HashedBytesValues;
+import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.StringValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.util.DoubleArrayRef;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
@@ -56,28 +62,8 @@ public abstract class LongArrayAtomicFieldData implements AtomicNumericFieldData
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return ByteValues.EMPTY;
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return ShortValues.EMPTY;
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return IntValues.EMPTY;
-        }
-
-        @Override
         public LongValues getLongValues() {
             return LongValues.EMPTY;
-        }
-
-        @Override
-        public FloatValues getFloatValues() {
-            return FloatValues.EMPTY;
         }
 
         @Override
@@ -169,30 +155,9 @@ public abstract class LongArrayAtomicFieldData implements AtomicNumericFieldData
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return new ByteValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return new IntValues.LongBased(getLongValues());
-        }
-
-        @Override
         public LongValues getLongValues() {
             return new LongValues(values, ordinals.ordinals());
         }
-
-        @Override
-        public FloatValues getFloatValues() {
-            return new FloatValues.DoubleBased(getDoubleValues());
-        }
-
         @Override
         public DoubleValues getDoubleValues() {
             return new DoubleValues(values, ordinals.ordinals());
@@ -545,28 +510,8 @@ public abstract class LongArrayAtomicFieldData implements AtomicNumericFieldData
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return new ByteValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return new IntValues.LongBased(getLongValues());
-        }
-
-        @Override
         public LongValues getLongValues() {
             return new LongValues(values, set);
-        }
-
-        @Override
-        public FloatValues getFloatValues() {
-            return new FloatValues.DoubleBased(getDoubleValues());
         }
 
         @Override
@@ -816,28 +761,8 @@ public abstract class LongArrayAtomicFieldData implements AtomicNumericFieldData
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return new ByteValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return new IntValues.LongBased(getLongValues());
-        }
-
-        @Override
         public LongValues getLongValues() {
             return new LongValues(values);
-        }
-
-        @Override
-        public FloatValues getFloatValues() {
-            return new FloatValues.DoubleBased(getDoubleValues());
         }
 
         @Override

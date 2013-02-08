@@ -56,28 +56,8 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return ByteValues.EMPTY;
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return ShortValues.EMPTY;
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return IntValues.EMPTY;
-        }
-
-        @Override
         public LongValues getLongValues() {
             return LongValues.EMPTY;
-        }
-
-        @Override
-        public FloatValues getFloatValues() {
-            return FloatValues.EMPTY;
         }
 
         @Override
@@ -169,28 +149,8 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return new ByteValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return new IntValues.LongBased(getLongValues());
-        }
-
-        @Override
         public LongValues getLongValues() {
             return new LongValues(values, ordinals.ordinals());
-        }
-
-        @Override
-        public FloatValues getFloatValues() {
-            return new FloatValues.DoubleBased(getDoubleValues());
         }
 
         @Override
@@ -541,98 +501,16 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
 
         @Override
         public StringValues getStringValues() {
-            return new StringValues(values, set);
-        }
-
-        @Override
-        public ByteValues getByteValues() {
-            return new ByteValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return new IntValues.LongBased(getLongValues());
+            return new StringValues.DoubleBased(getDoubleValues());
         }
 
         @Override
         public LongValues getLongValues() {
             return new LongValues(values, set);
         }
-
-        @Override
-        public FloatValues getFloatValues() {
-            return new FloatValues.DoubleBased(getDoubleValues());
-        }
-
         @Override
         public DoubleValues getDoubleValues() {
             return new DoubleValues(values, set);
-        }
-
-        static class StringValues implements org.elasticsearch.index.fielddata.StringValues {
-
-            private final double[] values;
-            private final FixedBitSet set;
-
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
-            private final Iter.Single iter = new Iter.Single();
-
-            StringValues(double[] values, FixedBitSet set) {
-                this.values = values;
-                this.set = set;
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return set.get(docId);
-            }
-
-            @Override
-            public String getValue(int docId) {
-                if (set.get(docId)) {
-                    return Double.toString(values[docId]);
-                } else {
-                    return null;
-                }
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0] = Double.toString(values[docId]);
-                    return arrayScratch;
-                } else {
-                    return StringArrayRef.EMPTY;
-                }
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                if (set.get(docId)) {
-                    return iter.reset(Double.toString(values[docId]));
-                } else {
-                    return Iter.Empty.INSTANCE;
-                }
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, Double.toString(values[docId]));
-                } else {
-                    proc.onMissing(docId);
-                }
-            }
         }
 
         static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
@@ -816,28 +694,8 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return new ByteValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return new IntValues.LongBased(getLongValues());
-        }
-
-        @Override
         public LongValues getLongValues() {
             return new LongValues(values);
-        }
-
-        @Override
-        public FloatValues getFloatValues() {
-            return new FloatValues.DoubleBased(getDoubleValues());
         }
 
         @Override

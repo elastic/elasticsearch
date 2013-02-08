@@ -41,7 +41,7 @@ import java.io.IOException;
  */
 public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
-    final IndexFieldData.WithOrdinals indexFieldData;
+    final IndexFieldData.WithOrdinals<?> indexFieldData;
 
     /* Ords for each slot.
        @lucene.internal */
@@ -89,7 +89,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
     final BytesRef tempBR = new BytesRef();
 
-    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals indexFieldData, int numHits, boolean reversed) {
+    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, boolean reversed) {
         this.indexFieldData = indexFieldData;
         this.reversed = reversed;
         ords = new int[numHits];

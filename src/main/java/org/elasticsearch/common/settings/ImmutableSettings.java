@@ -241,7 +241,7 @@ public class ImmutableSettings implements Settings {
                 try {
                     return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
                 } catch (ClassNotFoundException e2) {
-                    throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + get(setting) + "]", e);
+                    throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + get(setting) + "]", e2);
                 }
             }
         }

@@ -57,7 +57,7 @@ public class PrioritizedExecutorsTests {
     }
 
     @Test
-    public void testPrioritizedExecutorWithRunnables() throws Exception {
+    public void testSubmitPrioritizedExecutorWithRunnables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
@@ -84,7 +84,34 @@ public class PrioritizedExecutorsTests {
     }
 
     @Test
-    public void testPrioritizedExecutorWithCallables() throws Exception {
+    public void testExecutePrioritizedExecutorWithRunnables() throws Exception {
+        ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
+        List<Integer> results = new ArrayList<Integer>(7);
+        CountDownLatch awaitingLatch = new CountDownLatch(1);
+        CountDownLatch finishedLatch = new  CountDownLatch(7);
+        executor.execute(new AwaitingJob(awaitingLatch));
+        executor.execute(new Job(6, Priority.LANGUID, results, finishedLatch));
+        executor.execute(new Job(4, Priority.LOW, results, finishedLatch));
+        executor.execute(new Job(1, Priority.HIGH, results, finishedLatch));
+        executor.execute(new Job(5, Priority.LOW, results, finishedLatch)); // will execute after the first LOW (fifo)
+        executor.execute(new Job(0, Priority.URGENT, results, finishedLatch));
+        executor.execute(new Job(3, Priority.NORMAL, results, finishedLatch));
+        executor.execute(new Job(2, Priority.HIGH, results, finishedLatch)); // will execute after the first HIGH (fifo)
+        awaitingLatch.countDown();
+        finishedLatch.await();
+
+        assertThat(results.size(), equalTo(7));
+        assertThat(results.get(0), equalTo(0));
+        assertThat(results.get(1), equalTo(1));
+        assertThat(results.get(2), equalTo(2));
+        assertThat(results.get(3), equalTo(3));
+        assertThat(results.get(4), equalTo(4));
+        assertThat(results.get(5), equalTo(5));
+        assertThat(results.get(6), equalTo(6));
+    }
+
+    @Test
+    public void testSubmitPrioritizedExecutorWithCallables() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);
@@ -111,7 +138,7 @@ public class PrioritizedExecutorsTests {
     }
 
     @Test
-    public void testPrioritizedExecutorWithMixed() throws Exception {
+    public void testSubmitPrioritizedExecutorWithMixed() throws Exception {
         ExecutorService executor = EsExecutors.newSinglePrioritizingThreadExecutor(Executors.defaultThreadFactory());
         List<Integer> results = new ArrayList<Integer>(7);
         CountDownLatch awaitingLatch = new CountDownLatch(1);

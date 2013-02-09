@@ -49,7 +49,7 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
-        if (!(command instanceof PrioritizedRunnable)) {
+        if (!(command instanceof Comparable)) {
             command = PrioritizedRunnable.wrap(command, Priority.NORMAL);
         }
         super.execute(command);

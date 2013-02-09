@@ -49,8 +49,12 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     @Override
     public void execute(Runnable command) {
+        if (command instanceof PrioritizedRunnable) {
+            super.execute(new TieBreakingPrioritizedRunnable((PrioritizedRunnable) command, tieBreaker.incrementAndGet()));
+            return;
+        }
         if (!(command instanceof Comparable)) {
-            command = PrioritizedRunnable.wrap(command, Priority.NORMAL);
+            command = new TieBreakingPrioritizedRunnable(command, Priority.NORMAL, tieBreaker.incrementAndGet());
         }
         super.execute(command);
     }
@@ -69,6 +73,36 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
             callable = PrioritizedCallable.wrap(callable, Priority.NORMAL);
         }
         return new PrioritizedFutureTask<T>((PrioritizedCallable<T>) callable, tieBreaker.incrementAndGet());
+    }
+
+    static class TieBreakingPrioritizedRunnable extends PrioritizedRunnable {
+
+        private final Runnable runnable;
+        private final long tieBreaker;
+
+        TieBreakingPrioritizedRunnable(PrioritizedRunnable runnable, long tieBreaker) {
+            this(runnable, runnable.priority(), tieBreaker);
+        }
+
+        TieBreakingPrioritizedRunnable(Runnable runnable, Priority priority, long tieBreaker) {
+            super(priority);
+            this.runnable = runnable;
+            this.tieBreaker = tieBreaker;
+        }
+
+        @Override
+        public void run() {
+            runnable.run();
+        }
+
+        @Override
+        public int compareTo(PrioritizedRunnable pr) {
+            int res = super.compareTo(pr);
+            if (res != 0 || !(pr instanceof TieBreakingPrioritizedRunnable)) {
+                return res;
+            }
+            return tieBreaker < ((TieBreakingPrioritizedRunnable)pr).tieBreaker ? -1 : 1;
+        }
     }
 
     /**

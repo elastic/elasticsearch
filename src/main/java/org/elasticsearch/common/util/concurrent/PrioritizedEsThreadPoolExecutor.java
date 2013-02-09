@@ -48,6 +48,14 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
     }
 
     @Override
+    public void execute(Runnable command) {
+        if (!(command instanceof PrioritizedRunnable)) {
+            command = PrioritizedRunnable.wrap(command, Priority.NORMAL);
+        }
+        super.execute(command);
+    }
+
+    @Override
     protected <T> RunnableFuture<T> newTaskFor(Runnable runnable, T value) {
         if (!(runnable instanceof PrioritizedRunnable)) {
             runnable = PrioritizedRunnable.wrap(runnable, Priority.NORMAL);

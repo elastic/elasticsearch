@@ -36,7 +36,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean outputUnigrams;
 
-    private Boolean outputUnigramsIfNoShingles;
+    private final boolean outputUnigramsIfNoShingles;
 
     private String tokenSeparator;
 
@@ -59,5 +59,21 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         filter.setOutputUnigramsIfNoShingles(outputUnigramsIfNoShingles);
         filter.setTokenSeparator(tokenSeparator);
         return filter;
+    }
+    
+    public int getMaxShingleSize() {
+        return maxShingleSize;
+    }
+    
+    public int getMinShingleSize() {
+        return minShingleSize;
+    }
+    
+    public boolean getOutputUnigrams() {
+        return outputUnigrams;
+    }
+    
+    public boolean getOutputUnigramsIfNoShingles() {
+        return outputUnigramsIfNoShingles;
     }
 }

@@ -279,6 +279,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private void asyncJoinCluster() {
         if (currentJoinThread != null) {
             // we are already joining, ignore...
+            logger.trace("a join thread already running");
             return;
         }
         threadPool.generic().execute(new Runnable() {
@@ -303,6 +304,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             retry = false;
             DiscoveryNode masterNode = findMaster();
             if (masterNode == null) {
+                logger.trace("no masterNode returned");
                 retry = true;
                 continue;
             }
@@ -628,6 +630,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private DiscoveryNode findMaster() {
         ZenPing.PingResponse[] fullPingResponses = pingService.pingAndWait(pingTimeout);
         if (fullPingResponses == null) {
+            logger.trace("No full ping responses");
             return null;
         }
         if (logger.isTraceEnabled()) {

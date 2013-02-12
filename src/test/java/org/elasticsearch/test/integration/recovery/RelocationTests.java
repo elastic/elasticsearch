@@ -121,20 +121,20 @@ public class RelocationTests extends AbstractNodesTests {
         testPrimaryRelocationWhileIndexing(10, 5, false);
     }
 
-//    @Test
-//    public void testPrimaryRelocationWhileBulkIndexingWith1RelocationAnd1Writer() throws Exception {
-//        testPrimaryRelocationWhileIndexing(1, 1, true);
-//    }
-//
-//    @Test
-//    public void testPrimaryRelocationWhileBulkIndexingWith10RelocationAnd1Writer() throws Exception {
-//        testPrimaryRelocationWhileIndexing(10, 1, true);
-//    }
-//
-//    @Test
-//    public void testPrimaryRelocationWhileBulkIndexingWith10RelocationAnd5Writers() throws Exception {
-//        testPrimaryRelocationWhileIndexing(10, 5, true);
-//    }
+    @Test
+    public void testPrimaryRelocationWhileBulkIndexingWith1RelocationAnd1Writer() throws Exception {
+        testPrimaryRelocationWhileIndexing(1, 1, true);
+    }
+
+    @Test
+    public void testPrimaryRelocationWhileBulkIndexingWith10RelocationAnd1Writer() throws Exception {
+        testPrimaryRelocationWhileIndexing(10, 1, true);
+    }
+
+    @Test
+    public void testPrimaryRelocationWhileBulkIndexingWith10RelocationAnd5Writers() throws Exception {
+        testPrimaryRelocationWhileIndexing(10, 5, true);
+    }
 
     private void testPrimaryRelocationWhileIndexing(final int numberOfRelocations, final int numberOfWriters, final boolean batch) throws Exception {
         logger.info("--> starting [node1] ...");
@@ -286,6 +286,21 @@ public class RelocationTests extends AbstractNodesTests {
     @Test
     public void testReplicaRelocationWhileIndexingWith10RelocationAnd5Writers() throws Exception {
         testReplicaRelocationWhileIndexing(10, 5, false);
+    }
+
+    @Test
+    public void testReplicaRelocationWhileBulkIndexingWith1RelocationAnd1Writer() throws Exception {
+        testReplicaRelocationWhileIndexing(1, 1, true);
+    }
+
+    @Test
+    public void testReplicaRelocationWhileBulkIndexingWith10RelocationAnd1Writer() throws Exception {
+        testReplicaRelocationWhileIndexing(10, 1, true);
+    }
+
+    @Test
+    public void testReplicaRelocationWhileBulkIndexingWith10RelocationAnd5Writers() throws Exception {
+        testReplicaRelocationWhileIndexing(10, 5, true);
     }
 
     private void testReplicaRelocationWhileIndexing(final int numberOfRelocations, final int numberOfWriters, final boolean batch) throws Exception {

@@ -11,8 +11,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
-import sun.swing.plaf.synth.Paint9Painter.PaintType;
-
 public class SpanMultiTermQueryParser implements QueryParser {
 
 	public static final String NAME = "span_multi_term";

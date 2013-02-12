@@ -88,7 +88,7 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             writer.mergeInit(merge);
 
             int totalNumDocs = merge.totalNumDocs();
-            long totalSizeInBytes = merge.totalBytesSize();
+            long totalSizeInBytes = merge.estimatedMergeBytes;
             long time = System.currentTimeMillis();
             currentMerges.inc();
             currentMergesNumDocs.inc(totalNumDocs);

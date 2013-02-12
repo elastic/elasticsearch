@@ -696,6 +696,24 @@ public class SimpleSortTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
+                .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode("sum"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(3l));
+        assertThat(searchResponse.hits().hits().length, equalTo(3));
+
+        assertThat(searchResponse.hits().getAt(0).id(), equalTo(Integer.toString(2)));
+        assertThat(((Number) searchResponse.hits().getAt(0).sortValues()[0]).longValue(), equalTo(53l));
+
+        assertThat(searchResponse.hits().getAt(1).id(), equalTo(Integer.toString(1)));
+        assertThat(((Number) searchResponse.hits().getAt(1).sortValues()[0]).longValue(), equalTo(24l));
+
+        assertThat(searchResponse.hits().getAt(2).id(), equalTo(Integer.toString(3)));
+        assertThat(((Number) searchResponse.hits().getAt(2).sortValues()[0]).longValue(), equalTo(2l));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(10)
                 .addSort("int_values", SortOrder.ASC)
                 .execute().actionGet();
 

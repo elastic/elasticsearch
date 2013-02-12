@@ -33,10 +33,12 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     private final IndexNumericFieldData<?> indexFieldData;
     private final Object missingValue;
+    private final SortMode sortMode;
 
-    public LongValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue) {
+    public LongValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.sortMode = sortMode;
     }
 
     @Override
@@ -57,6 +59,6 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).longValue() : Long.parseLong(missingValue.toString());
         }
 
-        return new LongValuesComparator(indexFieldData, dMissingValue, numHits, reversed);
+        return new LongValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
     }
 }

@@ -33,10 +33,12 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
 
     private final IndexNumericFieldData<?> indexFieldData;
     private final Object missingValue;
+    private final SortMode sortMode;
 
-    public FloatValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue) {
+    public FloatValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.sortMode = sortMode;
     }
 
     @Override
@@ -57,6 +59,6 @@ public class FloatValuesComparatorSource extends IndexFieldData.XFieldComparator
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).floatValue() : Float.parseFloat(missingValue.toString());
         }
 
-        return new FloatValuesComparator(indexFieldData, dMissingValue, numHits, reversed);
+        return new FloatValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
     }
 }

@@ -17,26 +17,27 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
  * specific language governing permissions and limitations
  * under the License.
  */
-import java.io.IOException;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 
+import java.io.IOException;
+
 abstract class LongValuesComparatorBase<T extends Number> extends FieldComparator<T> {
 
     protected final IndexNumericFieldData<?> indexFieldData;
-    private final boolean reversed;
     protected final long missingValue;
     protected long bottom;
     protected LongValues readerValues;
-    
+    private final SortMode sortMode;
 
-    public LongValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, long missingValue, boolean reversed) {
+
+    public LongValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, long missingValue, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
-        this.reversed = reversed;
+        this.sortMode = sortMode;
     }
 
     @Override
@@ -44,14 +45,14 @@ abstract class LongValuesComparatorBase<T extends Number> extends FieldComparato
         long v2 = readerValues.getValueMissing(doc, missingValue);
         return compare(bottom, v2);
     }
-  
+
     @Override
     public final int compareDocToValue(int doc, T valueObj) throws IOException {
         final long value = valueObj.longValue();
         long docValue = readerValues.getValueMissing(doc, missingValue);
         return compare(docValue, value);
     }
-    
+
     static final int compare(long left, long right) {
         if (left > right) {
             return 1;
@@ -61,23 +62,23 @@ abstract class LongValuesComparatorBase<T extends Number> extends FieldComparato
             return 0;
         }
     }
-    
+
     @Override
     public final FieldComparator<T> setNextReader(AtomicReaderContext context) throws IOException {
         readerValues = indexFieldData.load(context).getLongValues();
         if (readerValues.isMultiValued()) {
-            readerValues = new MultiValuedBytesWrapper(readerValues, reversed);
+            readerValues = new MultiValuedBytesWrapper(readerValues, sortMode);
         }
         return this;
     }
 
     private static final class MultiValuedBytesWrapper extends LongValues.FilteredLongValues {
 
-        private final boolean reversed;
+        private final SortMode sortMode;
 
-        public MultiValuedBytesWrapper(LongValues delegate, boolean reversed) {
+        public MultiValuedBytesWrapper(LongValues delegate, SortMode sortMode) {
             super(delegate);
-            this.reversed = reversed;
+            this.sortMode = sortMode;
         }
 
         @Override
@@ -89,22 +90,33 @@ abstract class LongValuesComparatorBase<T extends Number> extends FieldComparato
 
             long currentVal = iter.next();
             long relevantVal = currentVal;
-            while (true) {
-                if (reversed) {
-                    if (currentVal > relevantVal) {
-                        relevantVal = currentVal;
-                    }
-                } else {
-                    if (currentVal < relevantVal) {
-                        relevantVal = currentVal;
-                    }
-                }
-                if (!iter.hasNext()) {
-                    break;
-                }
+            int counter = 1;
+            while (iter.hasNext()) {
                 currentVal = iter.next();
+                switch (sortMode) {
+                    case SUM:
+                        relevantVal += currentVal;
+                        break;
+                    case AVG:
+                        relevantVal += currentVal;
+                        counter++;
+                        break;
+                    case MAX:
+                        if (currentVal > relevantVal) {
+                            relevantVal = currentVal;
+                        }
+                        break;
+                    case MIN:
+                        if (currentVal < relevantVal) {
+                            relevantVal = currentVal;
+                        }
+                }
             }
-            return relevantVal;
+            if (sortMode == SortMode.AVG) {
+                return relevantVal / counter;
+            } else {
+                return relevantVal;
+            }
             // If we have a method on readerValues that tells if the values emitted by Iter or ArrayRef are sorted per
             // document that we can do this or something similar:
             // (This is already possible, if values are loaded from index, but we just need a method that tells us this

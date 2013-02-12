@@ -36,6 +36,8 @@ public class FieldSortBuilder extends SortBuilder {
 
     private Boolean ignoreUnampped;
 
+    private String sortMode;
+
     /**
      * Constructs a new sort based on a document field.
      *
@@ -73,6 +75,17 @@ public class FieldSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * Defines what values to pick in the case a document contains multiple values for the targeted sort field.
+     * Possible values: min, max, sum and avg
+     * <p/>
+     * The last two values are only applicable for number based fields.
+     */
+    public FieldSortBuilder sortMode(String sortMode) {
+        this.sortMode = sortMode;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
@@ -84,6 +97,9 @@ public class FieldSortBuilder extends SortBuilder {
         }
         if (ignoreUnampped != null) {
             builder.field("ignore_unmapped", ignoreUnampped);
+        }
+        if (sortMode != null) {
+            builder.field("sort_mode", sortMode);
         }
         builder.endObject();
         return builder;

@@ -37,14 +37,14 @@ import java.io.IOException;
 public final class BytesRefValComparator extends FieldComparator<BytesRef> {
 
     private final IndexFieldData<?> indexFieldData;
-    private final boolean reversed;
+    private final SortMode sortMode;
 
     private final BytesRef[] values;
     private BytesRef bottom;
     private BytesValues docTerms;
 
-    BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, boolean reversed) {
-        this.reversed = reversed;
+    BytesRefValComparator(IndexFieldData<?> indexFieldData, int numHits, SortMode sortMode) {
+        this.sortMode = sortMode;
         values = new BytesRef[numHits];
         this.indexFieldData = indexFieldData;
     }
@@ -74,7 +74,7 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
         docTerms = indexFieldData.load(context).getBytesValues();
         if (docTerms.isMultiValued()) {
-            docTerms = new MultiValuedBytesWrapper(docTerms, reversed);
+            docTerms = new MultiValuedBytesWrapper(docTerms, sortMode);
         }
         return this;
     }
@@ -150,11 +150,11 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
 
     private static final class MultiValuedBytesWrapper extends FilteredByteValues {
 
-        private final boolean reversed;
+        private final SortMode sortMode;
 
-        public MultiValuedBytesWrapper(BytesValues delegate, boolean reversed) {
+        public MultiValuedBytesWrapper(BytesValues delegate, SortMode sortMode) {
             super(delegate);
-            this.reversed = reversed;
+            this.sortMode = sortMode;
         }
 
         @Override
@@ -168,7 +168,7 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
             BytesRef relevantVal = currentVal;
             while (true) {
                 int cmp = currentVal.compareTo(relevantVal);
-                if (reversed) {
+                if (sortMode == SortMode.MAX) {
                     if (cmp > 0) {
                         relevantVal = currentVal;
                     }

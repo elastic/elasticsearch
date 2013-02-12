@@ -1,0 +1,78 @@
+h1. Example of Native Script Plugin for Elasticsearch
+
+h2. Introduction
+
+p. This plugin contains several examples of "native script":http://www.elasticsearch.org/guide/reference/modules/scripting.html for Elasticsearch.
+
+h2. Creating Elasticsearch Plugin
+
+p. The simplest way to deploy native script is by wrapping it into standard Elasticsearch plugin infrastructure. An Elasticsearch plugin can be written in java and built using maven. A typical plugin source directory looks like this:
+
+bc.. .
+|- pom.xml
+|- src
+   |- main
+      |- assemblies
+      |  |- plugin.xml
+      |- java
+      |  |- ... source code ...
+      |- resources
+         |- es-plugin.properties
+
+p. An Elasticsearch plugin can be created by following these six steps.
+
+* Create pom.xml file in the root directory of your plugin. The "pom.xml":https://github.com/imotov/elasticsearch-native-script-example/blob/master/pom.xml file in this project can be used as a starting point.
+* Create source code directories:
+** @mkdir -p src/main/assemblies@
+** @mkdir -p src/main/java@
+** @mkdir -p src/main/resources@
+* Download "plugin.xml":https://github.com/imotov/elasticsearch-native-script-example/blob/master/src/main/assemblies/plugin.xml to the @src/main/assemblies@ directory. This file specifies how plugin .zip package should be built. By default, the project artifact with all its dependencies is going to be included in the plugin package. For more information on how to configure the content of the package, see "Maven Assembly Plugin Documentation":http://maven.apache.org/plugins/maven-assembly-plugin/.
+* Create main Plugin class in the @src/main/java@ directory. This project is using @org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin@ class as an example, so the it has to be saved as @src/main/java/org/elasticsearch/examples/nativescript/plugin/NativeScriptExamplesPlugin.java@
+
+bc.. package org.elasticsearch.examples.nativescript.plugin;
+
+import org.elasticsearch.examples.nativescript.script.DividedBoostScoreSearchScript;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.script.ScriptModule;
+
+public class NativeScriptExamplesPlugin extends AbstractPlugin {
+    @Override
+    public String name() {
+        return "native-script-examples";
+    }
+
+    @Override
+    public String description() {
+        return "Examples of native script";
+    }
+}
+
+p. 
+
+* Create @es-plugin.properties@ file in the @src/main/resources@ directory to point to the Plugin class that was created in the previous step:
+
+bc. plugin=org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin
+
+* The plugin can be built using @mvn package@ command. The assembled .zip package can be found in the @target/releases/@ directory and deployed to elasticsearch installation using @plugin -install plugin-name -url path/to/plugin/zip/file@.
+
+h2. Adding Native Scripts
+
+p. Now that the plugin infrastructure is complete, it's possible to add a native script.
+
+h3. Is Prime Native Script
+
+p. One of the example scripts in this project is the "is_prime" script that can be used to check if a field contains a possible prime number. The script accepts two parameters @field@ and @certainty@. The @field@ parameter contains the name of the field that needs to be checked and the @certainty@ parameter specifies a measure of the uncertainty that the caller is willing to tolerate. The script returns @true@ if the field contains a probable prime number and @false@ otherwise. The probability that the number for which the script returned @true@ is prime exceeds (1 - 0.5^certainty). The script can be used in "Script Filter":http://www.elasticsearch.org/guide/reference/query-dsl/script-filter.html as well as a "Script Field":http://www.elasticsearch.org/guide/reference/api/search/script-fields.html. The implementation of the "is_prime" native script and it's factory can be found in the "IsPrimeSearchScript":https://github.com/imotov/elasticsearch-native-script-example/blob/master/src/main/java/org/elasticsearch/examples/nativescript/script/IsPrimeSearchScript.java class.
+
+p. In order to enable native script creation the plugin has to contain and register a class that implements "NativeScriptFactory":https://github.com/elasticsearch/elasticsearch/blob/master/src/main/java/org/elasticsearch/script/NativeScriptFactory.java. The NativeScriptFactory interface has only one method @newScript(Map<String, Object> params)@. This method accepts a list of parameters that are passed during script creation and returns an ExecutableScript object with an instance of the script. The factory has to be registered in the @onModule(ScriptModule module)@ method of the Plugin.
+
+bc.. public class NativeScriptExamplesPlugin extends AbstractPlugin {
+    /* ..... */
+    public void onModule(ScriptModule module) {
+        // Register each script that we defined in this plugin
+        module.registerScript("is_prime", IsPrimeSearchScript.Factory.class);
+    }
+}
+
+p. In general native scripts have to implement the interface "ExecutableScript":https://github.com/elasticsearch/elasticsearch/blob/master/src/main/java/org/elasticsearch/script/SearchScript.java, but if they are used in search, they have to also implement the "SearchScript":https://github.com/elasticsearch/elasticsearch/blob/master/src/main/java/org/elasticsearch/script/SearchScript.java interface. The SearchScript interface is quite complex, so in order to simplify implementation, the native script can simply extend the "AbstractSearchScript":https://github.com/elasticsearch/elasticsearch/blob/master/src/main/java/org/elasticsearch/script/AbstractSearchScript.java class instead. The AbstractSearchScript has only one abstract method @run()@. During search Elasticsearch calls this method for every single record in the search result. As in case of non-native script, the content of the current record can be accessed using DocLookup (@doc()@ method), FieldsLookup (@fields()@ method), SourceLookup (@source()@ method).
+
+

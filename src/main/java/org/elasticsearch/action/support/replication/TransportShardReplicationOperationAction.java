@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.TransportAction;
@@ -551,22 +552,55 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         }
 
         void performReplicas(final PrimaryResponse<Response, ReplicaRequest> response) {
-            if (ignoreReplicas() || shardIt.size() == 1 /* no replicas */) {
+            if (ignoreReplicas()) {
                 postPrimaryOperation(request, response);
                 listener.onResponse(response.response());
                 return;
             }
 
+            ShardRouting shard;
+
             // we double check on the state, if it got changed we need to make sure we take the latest one cause
             // maybe a replica shard started its recovery process and we need to apply it there...
+
+            // we also need to make sure if the new state has a new primary shard (that we indexed to before) started
+            // and assigned to another node (while the indexing happened). In that case, we want to apply it on the
+            // new primary shard as well...
             ClusterState newState = clusterService.state();
+            ShardRouting newPrimaryShard = null;
             if (clusterState != newState) {
+                shardIt.reset();
+                ShardRouting originalPrimaryShard = null;
+                while ((shard = shardIt.nextOrNull()) != null) {
+                    if (shard.primary()) {
+                        originalPrimaryShard = shard;
+                        break;
+                    }
+                }
+                if (originalPrimaryShard == null || !originalPrimaryShard.active()) {
+                    throw new ElasticSearchIllegalStateException("unexpected state, failed to find primary shard on an index operation that succeeded");
+                }
+
                 clusterState = newState;
                 shardIt = shards(newState, request);
+                while ((shard = shardIt.nextOrNull()) != null) {
+                    if (shard.primary()) {
+                        if (originalPrimaryShard.currentNodeId().equals(shard.currentNodeId())) {
+                            newPrimaryShard = null;
+                        } else {
+                            newPrimaryShard = shard;
+                        }
+                        break;
+                    }
+                }
             }
 
             // initialize the counter
             int replicaCounter = shardIt.assignedReplicasIncludingRelocating();
+
+            if (newPrimaryShard != null) {
+                replicaCounter++;
+            }
 
             if (replicaCounter == 0) {
                 postPrimaryOperation(request, response);
@@ -584,10 +618,13 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
             // we add one to the replica count to do the postPrimaryOperation
             replicaCounter++;
-
             AtomicInteger counter = new AtomicInteger(replicaCounter);
+
+            if (newPrimaryShard != null) {
+                performOnReplica(response, counter, newPrimaryShard, newPrimaryShard.currentNodeId());
+            }
+
             shardIt.reset(); // reset the iterator
-            ShardRouting shard;
             while ((shard = shardIt.nextOrNull()) != null) {
                 // if its unassigned, nothing to do here...
                 if (shard.unassigned()) {

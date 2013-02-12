@@ -111,7 +111,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new LatvianStemFilter(tokenStream);
         } else if ("norwegian".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new NorwegianStemmer());
-        } else if ("minimal_norwegian".equalsIgnoreCase(language)) {
+        } else if ("minimal_norwegian".equalsIgnoreCase(language) || "minimalNorwegian".equals(language)) {
             return new NorwegianMinimalStemFilter(tokenStream);
         } else if ("porter".equalsIgnoreCase(language)) {
             return new PorterStemFilter(tokenStream);

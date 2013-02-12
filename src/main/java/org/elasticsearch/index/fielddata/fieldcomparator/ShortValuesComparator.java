@@ -19,27 +19,29 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import java.io.IOException;
-
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+
+import java.io.IOException;
 
 /**
  */
 public final class ShortValuesComparator extends LongValuesComparatorBase<Short> {
 
     private final short[] values;
+    private final SortMode sortMode;
 
-    public ShortValuesComparator(IndexNumericFieldData<?> indexFieldData, short missingValue, int numHits, boolean reversed) {
-        super(indexFieldData, missingValue, reversed);
+    public ShortValuesComparator(IndexNumericFieldData<?> indexFieldData, short missingValue, int numHits, SortMode sortMode) {
+        super(indexFieldData, missingValue, sortMode);
         assert indexFieldData.getNumericType().requiredBits() <= 16;
         this.values = new short[numHits];
+        this.sortMode = sortMode;
     }
 
     @Override
     public int compare(int slot1, int slot2) {
         final int v1 = values[slot1];
         final int v2 = values[slot2];
-        return v1-v2; // we cast to int so it can't overflow
+        return v1 - v2; // we cast to int so it can't overflow
     }
 
     @Override

@@ -33,10 +33,12 @@ public class ByteValuesComparatorSource extends IndexFieldData.XFieldComparatorS
 
     private final IndexNumericFieldData<?> indexFieldData;
     private final Object missingValue;
+    private final SortMode sortMode;
 
-    public ByteValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue) {
+    public ByteValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.sortMode = sortMode;
     }
 
     @Override
@@ -57,6 +59,6 @@ public class ByteValuesComparatorSource extends IndexFieldData.XFieldComparatorS
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).byteValue() : Byte.parseByte(missingValue.toString());
         }
 
-        return new ByteValuesComparator(indexFieldData, dMissingValue, numHits, reversed);
+        return new ByteValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
     }
 }

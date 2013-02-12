@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import java.io.IOException;
-
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+
+import java.io.IOException;
 
 /**
  */
@@ -29,8 +29,8 @@ public final class DoubleValuesComparator extends DoubleValuesComparatorBase<Dou
 
     private final double[] values;
 
-    public DoubleValuesComparator(IndexNumericFieldData<?> indexFieldData, double missingValue, int numHits, boolean reversed) {
-        super(indexFieldData, missingValue, reversed);
+    public DoubleValuesComparator(IndexNumericFieldData<?> indexFieldData, double missingValue, int numHits, SortMode sortMode) {
+        super(indexFieldData, missingValue, sortMode);
         assert indexFieldData.getNumericType().requiredBits() <= 64;
         this.values = new double[numHits];
     }

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import java.io.IOException;
-
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+
+import java.io.IOException;
 
 /**
  */
@@ -29,8 +29,8 @@ public final class ByteValuesComparator extends LongValuesComparatorBase<Byte> {
 
     private final byte[] values;
 
-    public ByteValuesComparator(IndexNumericFieldData<?> indexFieldData, byte missingValue, int numHits, boolean reversed) {
-        super(indexFieldData, missingValue, reversed);
+    public ByteValuesComparator(IndexNumericFieldData<?> indexFieldData, byte missingValue, int numHits, SortMode sortMode) {
+        super(indexFieldData, missingValue, sortMode);
         this.values = new byte[numHits];
         assert indexFieldData.getNumericType().requiredBits() <= 8;
     }

@@ -20,23 +20,20 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import gnu.trove.list.array.TDoubleArrayList;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.FieldCache;
-import org.apache.lucene.search.FieldCache.StopFillCacheException;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.CharsRef;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -94,20 +91,20 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
         try {
             BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null), reader.getLiveDocs());
             BytesRef term;
-            while((term = iter.next()) != null) { 
+            while ((term = iter.next()) != null) {
                 UnicodeUtil.UTF8toUTF16(term, spare);
                 boolean parsed = false;
                 for (int i = spare.offset; i < spare.length; i++) {
                     if (spare.chars[i] == ',') { // safes a string creation 
                         lat.add(Double.parseDouble(new String(spare.chars, spare.offset, (i - spare.offset))));
-                        lon.add(Double.parseDouble(new String(spare.chars, (spare.offset + (i+1)), spare.length - ((i + 1) - spare.offset))));
+                        lon.add(Double.parseDouble(new String(spare.chars, (spare.offset + (i + 1)), spare.length - ((i + 1) - spare.offset))));
                         parsed = true;
                         break;
                     }
                 }
                 assert parsed;
             }
-        
+
             Ordinals build = builder.build(fieldDataType.getSettings());
             if (!build.isMultiValued()) {
                 Docs ordinals = build.ordinals();
@@ -137,7 +134,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue) {
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
         throw new ElasticSearchIllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 }

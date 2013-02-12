@@ -17,25 +17,26 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
  * specific language governing permissions and limitations
  * under the License.
  */
-import java.io.IOException;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 
+import java.io.IOException;
+
 abstract class DoubleValuesComparatorBase<T extends Number> extends FieldComparator<T> {
 
-    protected final IndexNumericFieldData<?>indexFieldData;
+    protected final IndexNumericFieldData<?> indexFieldData;
     protected final double missingValue;
     protected double bottom;
     protected DoubleValues readerValues;
-    private final boolean reversed;
+    private final SortMode sortMode;
 
-    public DoubleValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, double missingValue, boolean reversed) {
+    public DoubleValuesComparatorBase(IndexNumericFieldData<?> indexFieldData, double missingValue, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
-        this.reversed = reversed;
+        this.sortMode = sortMode;
     }
 
     @Override
@@ -43,23 +44,23 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends FieldCompara
         final double v2 = readerValues.getValueMissing(doc, missingValue);
         return compare(bottom, v2);
     }
-  
+
     @Override
     public final int compareDocToValue(int doc, T valueObj) throws IOException {
         final double value = valueObj.doubleValue();
         final double docValue = readerValues.getValueMissing(doc, missingValue);
         return compare(docValue, value);
     }
-    
+
     @Override
     public final FieldComparator<T> setNextReader(AtomicReaderContext context) throws IOException {
         readerValues = indexFieldData.load(context).getDoubleValues();
         if (readerValues.isMultiValued()) {
-            readerValues = new MultiValuedBytesWrapper(readerValues, reversed);
+            readerValues = new MultiValuedBytesWrapper(readerValues, sortMode);
         }
         return this;
     }
-    
+
     static final int compare(double left, double right) {
         if (left > right) {
             return 1;
@@ -69,14 +70,14 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends FieldCompara
             return 0;
         }
     }
-    
+
     static final class MultiValuedBytesWrapper extends DoubleValues.FilteredDoubleValues {
 
-        private final boolean reversed;
-        
-        public MultiValuedBytesWrapper(DoubleValues delegate, boolean reversed) {
+        private final SortMode sortMode;
+
+        public MultiValuedBytesWrapper(DoubleValues delegate, SortMode sortMode) {
             super(delegate);
-            this.reversed = reversed;
+            this.sortMode = sortMode;
         }
 
         @Override
@@ -88,23 +89,35 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends FieldCompara
 
             double currentVal = iter.next();
             double relevantVal = currentVal;
-            while (true) {
-                int cmp = Double.compare(currentVal, relevantVal);
-                if (reversed) {
-                    if (cmp > 0) {
-                        relevantVal = currentVal;
-                    }
-                } else {
-                    if (cmp < 0) {
-                        relevantVal = currentVal;
-                    }
-                }
-                if (!iter.hasNext()) {
-                    break;
-                }
+            int counter = 1;
+            while (iter.hasNext()) {
                 currentVal = iter.next();
+                int cmp = Double.compare(currentVal, relevantVal);
+                switch (sortMode) {
+                    case SUM:
+                        relevantVal += currentVal;
+                        break;
+                    case AVG:
+                        relevantVal += currentVal;
+                        counter++;
+                        break;
+                    case MIN:
+                        if (cmp < 0) {
+                            relevantVal = currentVal;
+                        }
+                        break;
+                    case MAX:
+                        if (cmp > 0) {
+                            relevantVal = currentVal;
+                        }
+                        break;
+                }
             }
-            return relevantVal;
+            if (sortMode == SortMode.AVG) {
+                return relevantVal / counter;
+            } else {
+                return relevantVal;
+            }
         }
 
     }

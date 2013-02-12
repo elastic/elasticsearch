@@ -20,9 +20,9 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import gnu.trove.list.array.TLongArrayList;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.FieldCache;
-import org.apache.lucene.search.FieldCache.StopFillCacheException;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
@@ -33,9 +33,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -93,8 +94,9 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
         values.add(0); // first "t" indicates null value
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
         try {
-            BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric64Bit(terms.iterator(null)), reader.getLiveDocs());        BytesRef term;
-            while((term = iter.next()) != null) {
+            BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric64Bit(terms.iterator(null)), reader.getLiveDocs());
+            BytesRef term;
+            while ((term = iter.next()) != null) {
                 values.add(NumericUtils.prefixCodedToLong(term));
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
@@ -103,7 +105,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
                 long[] sValues = new long[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();
                 for (int i = 0; i < maxDoc; i++) {
-                  sValues[i] = values.get(ordinals.getOrd(i));
+                    sValues[i] = values.get(ordinals.getOrd(i));
                 }
                 final FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
@@ -124,7 +126,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue) {
-        return new LongValuesComparatorSource(this, missingValue);
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
+        return new LongValuesComparatorSource(this, missingValue, sortMode);
     }
 }

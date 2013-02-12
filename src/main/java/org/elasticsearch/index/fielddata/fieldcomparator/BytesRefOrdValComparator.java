@@ -47,7 +47,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
        @lucene.internal */
     final int[] ords;
 
-    final boolean reversed;
+    final SortMode sortMode;
 
     /* Values for each slot.
        @lucene.internal */
@@ -89,9 +89,9 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
     final BytesRef tempBR = new BytesRef();
 
-    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, boolean reversed) {
+    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
-        this.reversed = reversed;
+        this.sortMode = sortMode;
         ords = new int[numHits];
         values = new BytesRef[numHits];
         readerGen = new int[numHits];
@@ -487,7 +487,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
         @Override
         public int compareBottom(int doc) throws IOException {
-            final int docOrd = getRelevantOrd(readerOrds, doc, reversed);
+            final int docOrd = getRelevantOrd(readerOrds, doc, sortMode);
             if (bottomSameReader) {
                 // ord is precisely comparable, even in the equal case
                 return bottomOrd - docOrd;
@@ -503,7 +503,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
         @Override
         public void copy(int slot, int doc) throws IOException {
-            final int ord = getRelevantOrd(readerOrds, doc, reversed);
+            final int ord = getRelevantOrd(readerOrds, doc, sortMode);
             ords[slot] = ord;
             if (ord == 0) {
                 values[slot] = null;
@@ -519,7 +519,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
         @Override
         public int compareDocToValue(int doc, BytesRef value) {
-            BytesRef docValue = getRelevantValue(termsIndex, doc, reversed);
+            BytesRef docValue = getRelevantValue(termsIndex, doc, sortMode);
             if (docValue == null) {
                 if (value == null) {
                     return 0;
@@ -533,7 +533,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
     }
 
-    static BytesRef getRelevantValue(BytesValues.WithOrdinals readerValues, int docId, boolean reversed) {
+    static BytesRef getRelevantValue(BytesValues.WithOrdinals readerValues, int docId, SortMode sortMode) {
         BytesValues.Iter iter = readerValues.getIter(docId);
         if (!iter.hasNext()) {
             return null;
@@ -543,7 +543,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         BytesRef relevantVal = currentVal;
         while (true) {
             int cmp = currentVal.compareTo(relevantVal);
-            if (reversed) {
+            if (sortMode == SortMode.MAX) {
                 if (cmp > 0) {
                     relevantVal = currentVal;
                 }
@@ -560,7 +560,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         return relevantVal;
     }
 
-    static int getRelevantOrd(Ordinals.Docs readerOrds, int docId, boolean reversed) {
+    static int getRelevantOrd(Ordinals.Docs readerOrds, int docId, SortMode sortMode) {
         Ordinals.Docs.Iter iter = readerOrds.getIter(docId);
         int currentVal = iter.next();
         if (currentVal == 0) {
@@ -569,7 +569,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
         int relevantVal = currentVal;
         while (true) {
-            if (reversed) {
+            if (sortMode == SortMode.MAX) {
                 if (currentVal > relevantVal) {
                     relevantVal = currentVal;
                 }

@@ -63,7 +63,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] types = RestActions.splitTypes(request.param("type"));
         IgnoreIndices ignoreIndices = null;
         if (request.hasParam("ignore_indices")) {
-            IgnoreIndices.fromString(request.param("ignore_indices"));
+            ignoreIndices = IgnoreIndices.fromString(request.param("ignore_indices"));
         }
 
         try {

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeAliasesUpdatedAction;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -69,7 +70,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
     }
 
     public void indicesAliases(final Request request, final Listener listener) {
-        clusterService.submitStateUpdateTask("index-aliases", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("index-aliases", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
 
@@ -159,10 +160,16 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
                     if (changed) {
                         ClusterState updatedState = newClusterStateBuilder().state(currentState).metaData(builder).build();
+                        // even though changes happened, they resulted in 0 actual changes to metadata
+                        // i.e. remove and add the same alias to the same index
+                        if (updatedState.metaData().aliases().equals(currentState.metaData().aliases())) {
+                            listener.onResponse(new Response(true));
+                            return currentState;
+                        }
                         // wait for responses from other nodes if needed
-                        int responseCount = updatedState.getNodes().size();
+                        int responseCount = updatedState.nodes().size();
                         long version = updatedState.version() + 1;
-                        logger.trace("Waiting for [{}] notifications with version [{}]", responseCount, version);
+                        logger.trace("waiting for [{}] notifications with version [{}]", responseCount, version);
                         aliasOperationPerformedAction.add(new CountDownListener(responseCount, listener, version), request.timeout);
 
                         return updatedState;

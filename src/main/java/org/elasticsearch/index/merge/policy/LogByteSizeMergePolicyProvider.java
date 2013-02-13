@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
-import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -35,7 +33,6 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -177,62 +174,19 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         }
     }
 
-    public static class EnableMergeLogByteSizeMergePolicy extends CustomLogByteSizeMergePolicy implements EnableMergePolicy {
-
-        private final ThreadLocal<Boolean> enableMerge = new ThreadLocal<Boolean>() {
-            @Override
-            protected Boolean initialValue() {
-                return Boolean.FALSE;
-            }
-        };
+    public static class EnableMergeLogByteSizeMergePolicy extends CustomLogByteSizeMergePolicy {
 
         public EnableMergeLogByteSizeMergePolicy(LogByteSizeMergePolicyProvider provider) {
             super(provider);
         }
 
         @Override
-        public void enableMerge() {
-            enableMerge.set(Boolean.TRUE);
-        }
-
-        @Override
-        public void disableMerge() {
-            enableMerge.set(Boolean.FALSE);
-        }
-
-        @Override
-        public boolean isMergeEnabled() {
-            return enableMerge.get() == Boolean.TRUE;
-        }
-
-        @Override
-        public void close() {
-            enableMerge.remove();
-            super.close();
-        }
-
-        @Override
-        public MergeSpecification findMerges(SegmentInfos infos) throws IOException {
-            if (enableMerge.get() == Boolean.FALSE) {
+        public MergeSpecification findMerges(MergeTrigger trigger, SegmentInfos infos) throws IOException {
+            // we don't enable merges while indexing documents, we do them in the background
+            if (trigger == MergeTrigger.SEGMENT_FLUSH) {
                 return null;
             }
-            return super.findMerges(infos);
-        }
-
-        @Override
-        public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
-            if (enableMerge.get() == Boolean.FALSE) {
-                return null;
-            }
-            return super.findForcedMerges(infos, maxSegmentCount, segmentsToMerge);
-        }
-
-        @Override
-        public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
-            if (enableMerge.get() == Boolean.FALSE) {
-                return null;
-            }
-            return super.findForcedDeletesMerges(infos);
+            return super.findMerges(trigger, infos);
         }
     }
 }

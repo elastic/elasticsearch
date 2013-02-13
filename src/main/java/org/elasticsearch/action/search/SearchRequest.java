@@ -65,8 +65,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     private String[] indices;
 
     @Nullable
-    private String queryHint;
-    @Nullable
     private String routing;
     @Nullable
     private String preference;
@@ -410,21 +408,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     }
 
     /**
-     * A query hint to optionally later be used when routing the request.
-     */
-    public SearchRequest queryHint(String queryHint) {
-        this.queryHint = queryHint;
-        return this;
-    }
-
-    /**
-     * A query hint to optionally later be used when routing the request.
-     */
-    public String queryHint() {
-        return queryHint;
-    }
-
-    /**
      * If set, will enable scrolling of the search request.
      */
     public Scroll scroll() {
@@ -464,7 +447,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             indices[i] = in.readString();
         }
 
-        queryHint = in.readOptionalString();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
 
@@ -493,7 +475,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
             out.writeString(index);
         }
 
-        out.writeOptionalString(queryHint);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
 

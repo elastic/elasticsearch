@@ -99,7 +99,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         public IndexWarmersMetaData readFrom(StreamInput in) throws IOException {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
-                entries[i] = new Entry(in.readUTF(), in.readStringArray(), in.readBoolean() ? in.readBytesReference() : null);
+                entries[i] = new Entry(in.readString(), in.readStringArray(), in.readBoolean() ? in.readBytesReference() : null);
             }
             return new IndexWarmersMetaData(entries);
         }
@@ -108,7 +108,7 @@ public class IndexWarmersMetaData implements IndexMetaData.Custom {
         public void writeTo(IndexWarmersMetaData warmers, StreamOutput out) throws IOException {
             out.writeVInt(warmers.entries().size());
             for (Entry entry : warmers.entries()) {
-                out.writeUTF(entry.name());
+                out.writeString(entry.name());
                 out.writeStringArray(entry.types());
                 if (entry.source() == null) {
                     out.writeBoolean(false);

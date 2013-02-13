@@ -21,13 +21,11 @@ package org.elasticsearch.test.unit.common.lucene.uid;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
@@ -44,43 +42,49 @@ public class UidFieldTests {
     public void testUidField() throws Exception {
         IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
 
-        IndexReader reader = IndexReader.open(writer, true);
-        MatcherAssert.assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(-1l));
+        DirectoryReader directoryReader = DirectoryReader.open(writer, true);
+        AtomicReader atomicReader = SlowCompositeReaderWrapper.wrap(directoryReader);
+        MatcherAssert.assertThat(UidField.loadVersion(atomicReader.getContext(), new Term("_uid", "1")), equalTo(-1l));
 
         Document doc = new Document();
-        doc.add(new Field("_uid", "1", Field.Store.YES, Field.Index.NOT_ANALYZED));
+        doc.add(new Field("_uid", "1", UidFieldMapper.Defaults.FIELD_TYPE));
         writer.addDocument(doc);
-        reader = reader.reopen();
-        assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(-2l));
-        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")).version, equalTo(-2l));
+        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        atomicReader = SlowCompositeReaderWrapper.wrap(directoryReader);
+        assertThat(UidField.loadVersion(atomicReader.getContext(), new Term("_uid", "1")), equalTo(-2l));
+        assertThat(UidField.loadDocIdAndVersion(atomicReader.getContext(), new Term("_uid", "1")).version, equalTo(-2l));
 
         doc = new Document();
         doc.add(new UidField("_uid", "1", 1));
         writer.updateDocument(new Term("_uid", "1"), doc);
-        reader = reader.reopen();
-        assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(1l));
-        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")).version, equalTo(1l));
+        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        atomicReader = SlowCompositeReaderWrapper.wrap(directoryReader);
+        assertThat(UidField.loadVersion(atomicReader.getContext(), new Term("_uid", "1")), equalTo(1l));
+        assertThat(UidField.loadDocIdAndVersion(atomicReader.getContext(), new Term("_uid", "1")).version, equalTo(1l));
 
         doc = new Document();
         UidField uid = new UidField("_uid", "1", 2);
         doc.add(uid);
         writer.updateDocument(new Term("_uid", "1"), doc);
-        reader = reader.reopen();
-        assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(2l));
-        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")).version, equalTo(2l));
+        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        atomicReader = SlowCompositeReaderWrapper.wrap(directoryReader);
+        assertThat(UidField.loadVersion(atomicReader.getContext(), new Term("_uid", "1")), equalTo(2l));
+        assertThat(UidField.loadDocIdAndVersion(atomicReader.getContext(), new Term("_uid", "1")).version, equalTo(2l));
 
         // test reuse of uid field
         doc = new Document();
         uid.version(3);
         doc.add(uid);
         writer.updateDocument(new Term("_uid", "1"), doc);
-        reader = reader.reopen();
-        assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(3l));
-        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")).version, equalTo(3l));
+        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        atomicReader = SlowCompositeReaderWrapper.wrap(directoryReader);
+        assertThat(UidField.loadVersion(atomicReader.getContext(), new Term("_uid", "1")), equalTo(3l));
+        assertThat(UidField.loadDocIdAndVersion(atomicReader.getContext(), new Term("_uid", "1")).version, equalTo(3l));
 
         writer.deleteDocuments(new Term("_uid", "1"));
-        reader = reader.reopen();
-        assertThat(UidField.loadVersion(reader, new Term("_uid", "1")), equalTo(-1l));
-        assertThat(UidField.loadDocIdAndVersion(reader, 0, new Term("_uid", "1")), nullValue());
+        directoryReader = DirectoryReader.openIfChanged(directoryReader);
+        atomicReader = SlowCompositeReaderWrapper.wrap(directoryReader);
+        assertThat(UidField.loadVersion(atomicReader.getContext(), new Term("_uid", "1")), equalTo(-1l));
+        assertThat(UidField.loadDocIdAndVersion(atomicReader.getContext(), new Term("_uid", "1")), nullValue());
     }
 }

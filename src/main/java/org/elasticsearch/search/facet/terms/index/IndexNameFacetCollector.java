@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.terms.index;
 
 import com.google.common.collect.Sets;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -49,7 +49,7 @@ public class IndexNameFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
     }
 
     @Override
@@ -59,6 +59,6 @@ public class IndexNameFacetCollector extends AbstractFacetCollector {
 
     @Override
     public Facet facet() {
-        return new InternalStringTermsFacet(facetName, comparatorType, size, Sets.newHashSet(new InternalStringTermsFacet.StringEntry(indexName, count)), 0, count);
+        return new InternalStringTermsFacet(facetName, comparatorType, size, Sets.newHashSet(new InternalStringTermsFacet.TermEntry(indexName, count)), 0, count);
     }
 }

@@ -19,12 +19,13 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -73,13 +74,11 @@ public class FiltersFunctionScoreQuery extends Query {
     final FilterFunction[] filterFunctions;
     final ScoreMode scoreMode;
     final float maxBoost;
-    DocSet[] docSets;
 
     public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost) {
         this.subQuery = subQuery;
         this.scoreMode = scoreMode;
         this.filterFunctions = filterFunctions;
-        this.docSets = new DocSet[filterFunctions.length];
         this.maxBoost = maxBoost;
     }
 
@@ -106,72 +105,73 @@ public class FiltersFunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(Searcher searcher) throws IOException {
-        return new CustomBoostFactorWeight(searcher);
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
+        Weight subQueryWeight = subQuery.createWeight(searcher);
+        return new CustomBoostFactorWeight(subQueryWeight, filterFunctions.length);
     }
 
     class CustomBoostFactorWeight extends Weight {
-        Searcher searcher;
-        Weight subQueryWeight;
 
-        public CustomBoostFactorWeight(Searcher searcher) throws IOException {
-            this.searcher = searcher;
-            this.subQueryWeight = subQuery.weight(searcher);
+        final Weight subQueryWeight;
+        final Bits[] docSets;
+
+        public CustomBoostFactorWeight(Weight subQueryWeight, int filterFunctionLength) throws IOException {
+            this.subQueryWeight = subQueryWeight;
+            this.docSets = new Bits[filterFunctionLength];
         }
 
         public Query getQuery() {
             return FiltersFunctionScoreQuery.this;
         }
 
-        public float getValue() {
-            return getBoost();
-        }
-
         @Override
-        public float sumOfSquaredWeights() throws IOException {
-            float sum = subQueryWeight.sumOfSquaredWeights();
+        public float getValueForNormalization() throws IOException {
+            float sum = subQueryWeight.getValueForNormalization();
             sum *= getBoost() * getBoost();
             return sum;
         }
 
         @Override
-        public void normalize(float norm) {
-            norm *= getBoost();
-            subQueryWeight.normalize(norm);
+        public void normalize(float norm, float topLevelBoost) {
+            subQueryWeight.normalize(norm, topLevelBoost * getBoost());
         }
 
         @Override
-        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            Scorer subQueryScorer = subQueryWeight.scorer(reader, scoreDocsInOrder, false);
+        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+            Scorer subQueryScorer = subQueryWeight.scorer(context, scoreDocsInOrder, false, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
             }
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
-                filterFunction.function.setNextReader(reader);
-                docSets[i] = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
+                filterFunction.function.setNextReader(context);
+                docSets[i] = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
             }
-            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets);
+            return new CustomBoostFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets);
         }
 
         @Override
-        public Explanation explain(IndexReader reader, int doc) throws IOException {
-            Explanation subQueryExpl = subQueryWeight.explain(reader, doc);
+        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+            Explanation subQueryExpl = subQueryWeight.explain(context, doc);
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
 
             if (scoreMode == ScoreMode.First) {
                 for (FilterFunction filterFunction : filterFunctions) {
-                    DocSet docSet = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
+                    Bits docSet = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                     if (docSet.get(doc)) {
-                        filterFunction.function.setNextReader(reader);
+                        filterFunction.function.setNextReader(context);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
-                        float sc = getValue() * subQueryExpl.getValue() * functionExplanation.getValue();
+                        float factor = functionExplanation.getValue();
+                        if (factor > maxBoost) {
+                            factor = maxBoost;
+                        }
+                        float sc = getBoost() * factor;
                         Explanation filterExplanation = new ComplexExplanation(true, sc, "custom score, product of:");
                         filterExplanation.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
                         filterExplanation.addDetail(functionExplanation);
-                        filterExplanation.addDetail(new Explanation(getValue(), "queryBoost"));
+                        filterExplanation.addDetail(new Explanation(getBoost(), "queryBoost"));
 
                         // top level score = subquery.score * filter.score (this already has the query boost)
                         float topLevelScore = subQueryExpl.getValue() * sc;
@@ -189,9 +189,9 @@ public class FiltersFunctionScoreQuery extends Query {
                 float min = Float.POSITIVE_INFINITY;
                 ArrayList<Explanation> filtersExplanations = new ArrayList<Explanation>();
                 for (FilterFunction filterFunction : filterFunctions) {
-                    DocSet docSet = DocSets.convert(reader, filterFunction.filter.getDocIdSet(reader));
+                    Bits docSet = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                     if (docSet.get(doc)) {
-                        filterFunction.function.setNextReader(reader);
+                        filterFunction.function.setNextReader(context);
                         Explanation functionExplanation = filterFunction.function.explainFactor(doc);
                         float factor = functionExplanation.getValue();
                         count++;
@@ -202,7 +202,7 @@ public class FiltersFunctionScoreQuery extends Query {
                         Explanation res = new ComplexExplanation(true, factor, "custom score, product of:");
                         res.addDetail(new Explanation(1.0f, "match filter: " + filterFunction.filter.toString()));
                         res.addDetail(functionExplanation);
-                        res.addDetail(new Explanation(getValue(), "queryBoost"));
+                        res.addDetail(new Explanation(getBoost(), "queryBoost"));
                         filtersExplanations.add(res);
                     }
                 }
@@ -229,7 +229,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     if (factor > maxBoost) {
                         factor = maxBoost;
                     }
-                    float sc = factor * subQueryExpl.getValue() * getValue();
+                    float sc = factor * subQueryExpl.getValue() * getBoost();
                     Explanation res = new ComplexExplanation(true, sc, "custom score, score mode [" + scoreMode.toString().toLowerCase() + "]");
                     res.addDetail(subQueryExpl);
                     for (Explanation explanation : filtersExplanations) {
@@ -239,27 +239,28 @@ public class FiltersFunctionScoreQuery extends Query {
                 }
             }
 
-            float sc = getValue() * subQueryExpl.getValue();
+            float sc = getBoost() * subQueryExpl.getValue();
             Explanation res = new ComplexExplanation(true, sc, "custom score, no filter match, product of:");
             res.addDetail(subQueryExpl);
-            res.addDetail(new Explanation(getValue(), "queryBoost"));
+            res.addDetail(new Explanation(getBoost(), "queryBoost"));
             return res;
         }
     }
 
 
     static class CustomBoostFactorScorer extends Scorer {
-        private final float subQueryWeight;
+
+        private final float subQueryBoost;
         private final Scorer scorer;
         private final FilterFunction[] filterFunctions;
         private final ScoreMode scoreMode;
         private final float maxBoost;
-        private final DocSet[] docSets;
+        private final Bits[] docSets;
 
-        private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer,
-                                        ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, DocSet[] docSets) throws IOException {
-            super(similarity);
-            this.subQueryWeight = w.getValue();
+        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode,
+                                        FilterFunction[] filterFunctions, float maxBoost, Bits[] docSets) throws IOException {
+            super(w);
+            this.subQueryBoost = w.getQuery().getBoost();
             this.scorer = scorer;
             this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;
@@ -339,7 +340,12 @@ public class FiltersFunctionScoreQuery extends Query {
                 factor = maxBoost;
             }
             float score = scorer.score();
-            return subQueryWeight * score * factor;
+            return subQueryBoost * score * factor;
+        }
+
+        @Override
+        public int freq() throws IOException {
+            return scorer.freq();
         }
     }
 

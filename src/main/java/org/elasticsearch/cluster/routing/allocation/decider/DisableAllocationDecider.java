@@ -28,6 +28,29 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 /**
+ * This {@link AllocationDecider} prevents cluster-wide shard allocations. The
+ * behavior of this {@link AllocationDecider} can be changed in real-time via
+ * the cluster settings API. It respects the following settings:
+ * <ul>
+ * <li><tt>cluster.routing.allocation.disable_new_allocation</tt> - if set to
+ * <code>true</code> no new shard-allocation are allowed. Note: this setting is
+ * only applied if the allocated shard is a primary and it has not been
+ * allocated before the this setting was applied.</li>
+ * 
+ * <li><tt>cluster.routing.allocation.disable_allocation</tt> - if set to
+ * <code>true</code> cluster wide allocations are disabled</li>
+ * 
+ * <li><tt>cluster.routing.allocation.disable_replica_allocation</tt> - if set
+ * to <code>true</code> cluster wide replica allocations are disabled while
+ * primary shards can still be allocated</li>
+ * </ul>
+ * 
+ * <p>
+ * Note: all of the above settings might be ignored if the allocation happens on
+ * a shard that explicitly ignores disabled allocations via
+ * {@link RoutingAllocation#ignoreDisable()}. Which is set if allocation are
+ * explicit.
+ * </p>
  */
 public class DisableAllocationDecider extends AllocationDecider {
 

@@ -32,24 +32,13 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private String childType;
 
-    private String scope;
-
     private float boost = 1.0f;
 
-    private String executionType;
+    private String scoreType;
 
     public HasChildQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
         this.queryBuilder = queryBuilder;
-    }
-
-    /**
-     * The scope of the query, which can later be used, for example, to run facets against the child docs that
-     * matches the query.
-     */
-    public HasChildQueryBuilder scope(String scope) {
-        this.scope = scope;
-        return this;
     }
 
     /**
@@ -62,12 +51,10 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
     }
 
     /**
-     * Expert: Sets the low level child to parent filtering implementation. Can be: 'bitset' or 'uid'
-     *
-     * This option is experimental and will be removed.
+     * Defines how the scores from the matching child documents are mapped into the parent document.
      */
-    public HasChildQueryBuilder executionType(String executionType) {
-        this.executionType = executionType;
+    public HasChildQueryBuilder scoreType(String scoreType) {
+        this.scoreType = scoreType;
         return this;
     }
 
@@ -77,14 +64,11 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("child_type", childType);
-        if (scope != null) {
-            builder.field("_scope", scope);
-        }
         if (boost != 1.0f) {
             builder.field("boost", boost);
         }
-        if (executionType != null) {
-            builder.field("execution_type", executionType);
+        if (scoreType != null) {
+            builder.field("score_type", scoreType);
         }
         builder.endObject();
     }

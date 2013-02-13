@@ -21,8 +21,13 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
-import org.apache.lucene.search.similar.MoreLikeThis;
+import org.apache.lucene.queries.mlt.MoreLikeThis;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.similarities.DefaultSimilarity;
+import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
@@ -35,7 +40,7 @@ public class MoreLikeThisQuery extends Query {
 
     public static final float DEFAULT_PERCENT_TERMS_TO_MATCH = 0.3f;
 
-    private Similarity similarity;
+    private TFIDFSimilarity similarity;
 
     private String likeText;
     private String[] moreLikeFields;
@@ -77,7 +82,8 @@ public class MoreLikeThisQuery extends Query {
         mlt.setStopWords(stopWords);
         mlt.setBoost(boostTerms);
         mlt.setBoostFactor(boostTermsFactor);
-        BooleanQuery bq = (BooleanQuery) mlt.like(new FastStringReader(likeText));
+        //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
+        BooleanQuery bq = (BooleanQuery) mlt.like(new FastStringReader(likeText), moreLikeFields[0]);
         BooleanClause[] clauses = bq.getClauses();
 
         bq.setMinimumNumberShouldMatch((int) (clauses.length * percentTermsToMatch));
@@ -112,7 +118,10 @@ public class MoreLikeThisQuery extends Query {
     }
 
     public void setSimilarity(Similarity similarity) {
-        this.similarity = similarity;
+        if (similarity == null || similarity instanceof TFIDFSimilarity) {
+            //LUCENE 4 UPGRADE we need TFIDF similarity here so I only set it if it is an instance of it
+            this.similarity = (TFIDFSimilarity) similarity;
+        }
     }
 
     public Analyzer getAnalyzer() {

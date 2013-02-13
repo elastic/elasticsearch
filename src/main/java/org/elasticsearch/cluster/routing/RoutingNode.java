@@ -29,6 +29,8 @@ import java.util.List;
 import static com.google.common.collect.Lists.newArrayList;
 
 /**
+ * A {@link RoutingNode} represents a cluster node associated with a single {@link DiscoveryNode} including all shards
+ * that are hosted on that nodes. Each {@link RoutingNode} has a unique node id that can be used to identify the node.
  */
 public class RoutingNode implements Iterable<MutableShardRouting> {
 
@@ -53,18 +55,35 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return shards.iterator();
     }
 
+    /**
+     * Returns the nodes {@link DiscoveryNode}.
+     * 
+     * @return discoveryNode of this node
+     */
     public DiscoveryNode node() {
         return this.node;
     }
 
+    /**
+     * Get the id of this node 
+     * @return id of the node
+     */
     public String nodeId() {
         return this.nodeId;
     }
 
+    /**
+     * Get a list of shards hosted on this node  
+     * @return list of shards
+     */
     public List<MutableShardRouting> shards() {
         return this.shards;
     }
 
+    /**
+     * Add a new shard to this node
+     * @param shard Shard to crate on this Node
+     */
     public void add(MutableShardRouting shard) {
         for (MutableShardRouting shardRouting : shards) {
             if (shardRouting.shardId().equals(shard.shardId())) {
@@ -75,6 +94,10 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         shard.assignToNode(node.id());
     }
 
+    /**
+     * Remove a shard from this node
+     * @param shardId id of the shard to remove
+     */
     public void removeByShardId(int shardId) {
         for (Iterator<MutableShardRouting> it = shards.iterator(); it.hasNext(); ) {
             MutableShardRouting shard = it.next();
@@ -84,6 +107,11 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         }
     }
 
+    /**
+     * Determine the number of shards with a specific state
+     * @param states set of states which should be counted
+     * @return number of shards 
+     */
     public int numberOfShardsWithState(ShardRoutingState... states) {
         int count = 0;
         for (MutableShardRouting shardEntry : this) {
@@ -96,6 +124,11 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return count;
     }
 
+    /**
+     * Determine the shards with a specific state
+     * @param states set of states which should be listed
+     * @return List of shards 
+     */
     public List<MutableShardRouting> shardsWithState(ShardRoutingState... states) {
         List<MutableShardRouting> shards = newArrayList();
         for (MutableShardRouting shardEntry : this) {
@@ -108,8 +141,15 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return shards;
     }
 
+    /**
+     * Determine the shards of an index with a specific state 
+     * @param index id of the index
+     * @param states set of states which should be listed
+     * @return a list of shards
+     */
     public List<MutableShardRouting> shardsWithState(String index, ShardRoutingState... states) {
         List<MutableShardRouting> shards = newArrayList();
+
         for (MutableShardRouting shardEntry : this) {
             if (!shardEntry.index().equals(index)) {
                 continue;
@@ -123,6 +163,11 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
         return shards;
     }
 
+    /**
+     * Get the number of shard that not match the given states
+     * @param state set states to exclude
+     * @return number of shards which state is listed
+     */
     public int numberOfShardsNotWithState(ShardRoutingState state) {
         int count = 0;
         for (MutableShardRouting shardEntry : this) {
@@ -134,7 +179,7 @@ public class RoutingNode implements Iterable<MutableShardRouting> {
     }
 
     /**
-     * The number fo shards on this node that will not be eventually relocated.
+     * The number of shards on this node that will not be eventually relocated.
      */
     public int numberOfOwningShards() {
         int count = 0;

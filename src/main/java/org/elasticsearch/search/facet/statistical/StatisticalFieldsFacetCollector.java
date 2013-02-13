@@ -19,14 +19,11 @@
 
 package org.elasticsearch.search.facet.statistical;
 
-import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,46 +33,29 @@ import java.io.IOException;
  */
 public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
 
-    private final String[] indexFieldsNames;
+    private final IndexNumericFieldData[] indexFieldDatas;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType[] fieldsDataType;
-
-    private NumericFieldData[] fieldsData;
+    private DoubleValues[] values;
 
     private final StatsProc statsProc = new StatsProc();
 
-    public StatisticalFieldsFacetCollector(String facetName, String[] fieldsNames, SearchContext context) {
+    public StatisticalFieldsFacetCollector(String facetName, IndexNumericFieldData[] indexFieldDatas, SearchContext context) {
         super(facetName);
-        this.fieldDataCache = context.fieldDataCache();
-
-        fieldsDataType = new FieldDataType[fieldsNames.length];
-        fieldsData = new NumericFieldData[fieldsNames.length];
-        indexFieldsNames = new String[fieldsNames.length];
-
-
-        for (int i = 0; i < fieldsNames.length; i++) {
-            FieldMapper mapper = context.smartNameFieldMapper(fieldsNames[i]);
-            if (mapper == null) {
-                throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldsNames[i] + "]");
-            }
-            indexFieldsNames[i] = mapper.names().indexName();
-            fieldsDataType[i] = mapper.fieldDataType();
-        }
+        this.indexFieldDatas = indexFieldDatas;
+        this.values = new DoubleValues[indexFieldDatas.length];
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        for (NumericFieldData fieldData : fieldsData) {
-            fieldData.forEachValueInDoc(doc, statsProc);
+        for (DoubleValues value : values) {
+            value.forEachValueInDoc(doc, statsProc);
         }
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        for (int i = 0; i < indexFieldsNames.length; i++) {
-            fieldsData[i] = (NumericFieldData) fieldDataCache.cache(fieldsDataType[i], reader, indexFieldsNames[i]);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        for (int i = 0; i < indexFieldDatas.length; i++) {
+            values[i] = indexFieldDatas[i].load(context).getDoubleValues();
         }
     }
 
@@ -84,18 +64,13 @@ public class StatisticalFieldsFacetCollector extends AbstractFacetCollector {
         return new InternalStatisticalFacet(facetName, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
     }
 
-    public static class StatsProc implements NumericFieldData.MissingDoubleValueInDocProc {
+    public static class StatsProc implements DoubleValues.ValueInDocProc {
 
         double min = Double.POSITIVE_INFINITY;
-
         double max = Double.NEGATIVE_INFINITY;
-
         double total = 0;
-
         double sumOfSquares = 0.0;
-
         long count;
-
         int missing;
 
         @Override

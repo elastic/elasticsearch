@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
@@ -53,8 +54,8 @@ public class RangeFilterParser implements FilterParser {
         boolean cache = true;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        String from = null;
-        String to = null;
+        Object from = null;
+        Object to = null;
         boolean includeLower = true;
         boolean includeUpper = true;
 
@@ -71,24 +72,24 @@ public class RangeFilterParser implements FilterParser {
                         currentFieldName = parser.currentName();
                     } else {
                         if ("from".equals(currentFieldName)) {
-                            from = parser.textOrNull();
+                            from = parser.objectBytes();
                         } else if ("to".equals(currentFieldName)) {
-                            to = parser.textOrNull();
+                            to = parser.objectBytes();
                         } else if ("include_lower".equals(currentFieldName) || "includeLower".equals(currentFieldName)) {
                             includeLower = parser.booleanValue();
                         } else if ("include_upper".equals(currentFieldName) || "includeUpper".equals(currentFieldName)) {
                             includeUpper = parser.booleanValue();
                         } else if ("gt".equals(currentFieldName)) {
-                            from = parser.textOrNull();
+                            from = parser.objectBytes();
                             includeLower = false;
                         } else if ("gte".equals(currentFieldName) || "ge".equals(currentFieldName)) {
-                            from = parser.textOrNull();
+                            from = parser.objectBytes();
                             includeLower = true;
                         } else if ("lt".equals(currentFieldName)) {
-                            to = parser.textOrNull();
+                            to = parser.objectBytes();
                             includeUpper = false;
                         } else if ("lte".equals(currentFieldName) || "le".equals(currentFieldName)) {
-                            to = parser.textOrNull();
+                            to = parser.objectBytes();
                             includeUpper = true;
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[range] filter does not support [" + currentFieldName + "]");
@@ -119,8 +120,9 @@ public class RangeFilterParser implements FilterParser {
                 filter = smartNameFieldMappers.mapper().rangeFilter(from, to, includeLower, includeUpper, parseContext);
             }
         }
+
         if (filter == null) {
-            filter = new TermRangeFilter(fieldName, from, to, includeLower, includeUpper);
+            filter = new TermRangeFilter(fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
 
         if (cache) {

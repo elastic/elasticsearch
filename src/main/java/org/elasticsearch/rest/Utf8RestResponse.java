@@ -19,10 +19,10 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRef;
 
 /**
- * An http response that is built on top of {@link org.apache.lucene.util.UnicodeUtil.UTF8Result}.
+ * An http response that is built on top of {@link org.apache.lucene.util.BytesRef}.
  * <p/>
  * <p>Note, this class assumes that the utf8 result is not thread safe.
  *
@@ -30,33 +30,26 @@ import org.apache.lucene.util.UnicodeUtil;
  */
 public class Utf8RestResponse extends AbstractRestResponse implements RestResponse {
 
-    public static final UnicodeUtil.UTF8Result EMPTY;
-
-    static {
-        UnicodeUtil.UTF8Result temp = new UnicodeUtil.UTF8Result();
-        temp.result = new byte[0];
-        temp.length = 0;
-        EMPTY = temp;
-    }
+    public static final BytesRef EMPTY = new BytesRef();
 
     private final RestStatus status;
 
-    private final UnicodeUtil.UTF8Result utf8Result;
+    private final BytesRef utf8Result;
 
-    private final UnicodeUtil.UTF8Result prefixUtf8Result;
+    private final BytesRef prefixUtf8Result;
 
-    private final UnicodeUtil.UTF8Result suffixUtf8Result;
+    private final BytesRef suffixUtf8Result;
 
     public Utf8RestResponse(RestStatus status) {
         this(status, EMPTY);
     }
 
-    public Utf8RestResponse(RestStatus status, UnicodeUtil.UTF8Result utf8Result) {
+    public Utf8RestResponse(RestStatus status, BytesRef utf8Result) {
         this(status, utf8Result, null, null);
     }
 
-    public Utf8RestResponse(RestStatus status, UnicodeUtil.UTF8Result utf8Result,
-                            UnicodeUtil.UTF8Result prefixUtf8Result, UnicodeUtil.UTF8Result suffixUtf8Result) {
+    public Utf8RestResponse(RestStatus status, BytesRef utf8Result,
+                            BytesRef prefixUtf8Result, BytesRef suffixUtf8Result) {
         this.status = status;
         this.utf8Result = utf8Result;
         this.prefixUtf8Result = prefixUtf8Result;
@@ -75,12 +68,17 @@ public class Utf8RestResponse extends AbstractRestResponse implements RestRespon
 
     @Override
     public byte[] content() {
-        return utf8Result.result;
+        return utf8Result.bytes;
     }
 
     @Override
     public int contentLength() {
         return utf8Result.length;
+    }
+
+    @Override
+    public int contentOffset() {
+        return utf8Result.offset;
     }
 
     @Override
@@ -90,7 +88,7 @@ public class Utf8RestResponse extends AbstractRestResponse implements RestRespon
 
     @Override
     public byte[] prefixContent() {
-        return prefixUtf8Result != null ? prefixUtf8Result.result : null;
+        return prefixUtf8Result != null ? prefixUtf8Result.bytes : null;
     }
 
     @Override
@@ -99,12 +97,22 @@ public class Utf8RestResponse extends AbstractRestResponse implements RestRespon
     }
 
     @Override
+    public int prefixContentOffset() {
+        return prefixUtf8Result != null ? prefixUtf8Result.offset : 0;
+    }
+
+    @Override
     public byte[] suffixContent() {
-        return suffixUtf8Result != null ? suffixUtf8Result.result : null;
+        return suffixUtf8Result != null ? suffixUtf8Result.bytes : null;
     }
 
     @Override
     public int suffixContentLength() {
         return suffixUtf8Result != null ? suffixUtf8Result.length : 0;
+    }
+
+    @Override
+    public int suffixContentOffset() {
+        return suffixUtf8Result != null ? suffixUtf8Result.offset : 0;
     }
 }

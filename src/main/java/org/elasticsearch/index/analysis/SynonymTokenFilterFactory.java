@@ -20,6 +20,8 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.*;
+import org.apache.lucene.analysis.core.LowerCaseFilter;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
@@ -78,7 +80,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, settings);
 
-        Analyzer analyzer = new ReusableAnalyzerBase() {
+        Analyzer analyzer = new Analyzer() {
             @Override
             protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
                 Tokenizer tokenizer = tokenizerFactory == null ? new WhitespaceTokenizer(Lucene.ANALYZER_VERSION, reader) : tokenizerFactory.create(reader);

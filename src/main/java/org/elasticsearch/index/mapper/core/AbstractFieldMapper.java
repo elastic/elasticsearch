@@ -19,24 +19,34 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import com.google.common.base.Objects;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.codec.postingsformat.PostingFormats;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -44,33 +54,60 @@ import java.io.IOException;
 public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     public static class Defaults {
-        public static final Field.Index INDEX = Field.Index.ANALYZED;
-        public static final Field.Store STORE = Field.Store.NO;
-        public static final Field.TermVector TERM_VECTOR = Field.TermVector.NO;
+        public static final FieldType FIELD_TYPE = new FieldType();
+
+        static {
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStoreTermVectors(false);
+            FIELD_TYPE.setOmitNorms(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+            FIELD_TYPE.freeze();
+        }
+
         public static final float BOOST = 1.0f;
-        public static final boolean OMIT_NORMS = false;
-        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
     }
 
     public abstract static class OpenBuilder<T extends Builder, Y extends AbstractFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
 
-        protected OpenBuilder(String name) {
-            super(name);
+        protected OpenBuilder(String name, FieldType fieldType) {
+            super(name, fieldType);
         }
 
         @Override
-        public T index(Field.Index index) {
+        public T index(boolean index) {
             return super.index(index);
         }
 
         @Override
-        public T store(Field.Store store) {
+        public T store(boolean store) {
             return super.store(store);
         }
 
         @Override
-        public T termVector(Field.TermVector termVector) {
-            return super.termVector(termVector);
+        public T storeTermVectors(boolean termVectors) {
+            return super.storeTermVectors(termVectors);
+        }
+
+        @Override
+        public T storeTermVectorOffsets(boolean termVectorOffsets) {
+            return super.storeTermVectorOffsets(termVectorOffsets);
+        }
+
+        @Override
+        public T storeTermVectorPositions(boolean termVectorPositions) {
+            return super.storeTermVectorPositions(termVectorPositions);
+        }
+
+        @Override
+        public T storeTermVectorPayloads(boolean termVectorPayloads) {
+            return super.storeTermVectorPayloads(termVectorPayloads);
+        }
+
+        @Override
+        public T tokenized(boolean tokenized) {
+            return super.tokenized(tokenized);
         }
 
         @Override
@@ -102,46 +139,72 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             return super.searchAnalyzer(searchAnalyzer);
         }
+
+        @Override
+        public T similarity(SimilarityProvider similarity) {
+            return super.similarity(similarity);
+        }
+
+        public T fieldDataSettings(String settings) {
+            return super.fieldDataSettings(settings);
+        }
     }
 
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
 
-        protected Field.Index index = Defaults.INDEX;
-
-        protected Field.Store store = Defaults.STORE;
-
-        protected Field.TermVector termVector = Defaults.TERM_VECTOR;
-
+        protected final FieldType fieldType;
         protected float boost = Defaults.BOOST;
-
-        protected boolean omitNorms = Defaults.OMIT_NORMS;
-        
+        protected boolean omitNormsSet = false;
         protected String indexName;
-
         protected NamedAnalyzer indexAnalyzer;
-
         protected NamedAnalyzer searchAnalyzer;
-
         protected Boolean includeInAll;
+        protected boolean indexOptionsSet = false;
+        protected PostingsFormatProvider provider;
+        protected SimilarityProvider similarity;
+        @Nullable
+        protected Settings fieldDataSettings;
 
-        protected IndexOptions indexOptions = Defaults.INDEX_OPTIONS;
-
-        protected Builder(String name) {
+        protected Builder(String name, FieldType fieldType) {
             super(name);
+            this.fieldType = fieldType;
         }
 
-        protected T index(Field.Index index) {
-            this.index = index;
+        protected T index(boolean index) {
+            this.fieldType.setIndexed(index);
             return builder;
         }
 
-        protected T store(Field.Store store) {
-            this.store = store;
+        protected T store(boolean store) {
+            this.fieldType.setStored(store);
             return builder;
         }
 
-        protected T termVector(Field.TermVector termVector) {
-            this.termVector = termVector;
+        protected T storeTermVectors(boolean termVectors) {
+            this.fieldType.setStoreTermVectors(termVectors);
+            return builder;
+        }
+
+        protected T storeTermVectorOffsets(boolean termVectorOffsets) {
+            this.fieldType.setStoreTermVectors(termVectorOffsets);
+            this.fieldType.setStoreTermVectorOffsets(termVectorOffsets);
+            return builder;
+        }
+
+        protected T storeTermVectorPositions(boolean termVectorPositions) {
+            this.fieldType.setStoreTermVectors(termVectorPositions);
+            this.fieldType.setStoreTermVectorPositions(termVectorPositions);
+            return builder;
+        }
+
+        protected T storeTermVectorPayloads(boolean termVectorPayloads) {
+            this.fieldType.setStoreTermVectors(termVectorPayloads);
+            this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
+            return builder;
+        }
+
+        protected T tokenized(boolean tokenized) {
+            this.fieldType.setTokenized(tokenized);
             return builder;
         }
 
@@ -151,15 +214,17 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
 
         protected T omitNorms(boolean omitNorms) {
-            this.omitNorms = omitNorms;
+            this.fieldType.setOmitNorms(omitNorms);
+            this.omitNormsSet = true;
             return builder;
         }
-        
+
         protected T indexOptions(IndexOptions indexOptions) {
-            this.indexOptions = indexOptions;
+            this.fieldType.setIndexOptions(indexOptions);
+            this.indexOptionsSet = true;
             return builder;
         }
-        
+
         protected T indexName(String indexName) {
             this.indexName = indexName;
             return builder;
@@ -167,9 +232,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
         protected T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
-            if (this.searchAnalyzer == null) {
-                this.searchAnalyzer = indexAnalyzer;
-            }
             return builder;
         }
 
@@ -180,6 +242,21 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
         protected T includeInAll(Boolean includeInAll) {
             this.includeInAll = includeInAll;
+            return builder;
+        }
+
+        protected T postingsFormat(PostingsFormatProvider postingsFormat) {
+            this.provider = postingsFormat;
+            return builder;
+        }
+
+        protected T similarity(SimilarityProvider similarity) {
+            this.similarity = similarity;
+            return builder;
+        }
+
+        protected T fieldDataSettings(String settings) {
+            this.fieldDataSettings = ImmutableSettings.builder().loadFromDelimitedString(settings, ';').build();
             return builder;
         }
 
@@ -198,45 +275,58 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     protected final Names names;
-
-    protected final Field.Index index;
-
-    protected final Field.Store store;
-
-    protected final Field.TermVector termVector;
-
     protected float boost;
-
-    protected final boolean omitNorms;
-    
-    protected final FieldInfo.IndexOptions indexOptions;
-
+    protected final FieldType fieldType;
     protected final NamedAnalyzer indexAnalyzer;
+    protected NamedAnalyzer searchAnalyzer;
+    protected PostingsFormatProvider postingsFormat;
+    protected final SimilarityProvider similarity;
 
-    protected final NamedAnalyzer searchAnalyzer;
+    protected Settings customFieldDataSettings;
+    protected FieldDataType fieldDataType;
 
-    protected AbstractFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                  float boost, boolean omitNorms, IndexOptions indexOptions, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
+    protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, NamedAnalyzer indexAnalyzer,
+                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat, SimilarityProvider similarity,
+                                  @Nullable Settings fieldDataSettings) {
         this.names = names;
-        this.index = index;
-        this.store = store;
-        this.termVector = termVector;
         this.boost = boost;
-        this.omitNorms = omitNorms;
-        this.indexOptions = indexOptions;
-        
+        this.fieldType = fieldType;
+        this.fieldType.freeze();
+
         // automatically set to keyword analyzer if its indexed and not analyzed
-        if (indexAnalyzer == null && !index.isAnalyzed() && index.isIndexed()) {
+        if (indexAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexed()) {
             this.indexAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.indexAnalyzer = indexAnalyzer;
         }
         // automatically set to keyword analyzer if its indexed and not analyzed
-        if (searchAnalyzer == null && !index.isAnalyzed() && index.isIndexed()) {
+        if (searchAnalyzer == null && !this.fieldType.tokenized() && this.fieldType.indexed()) {
             this.searchAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.searchAnalyzer = searchAnalyzer;
         }
+        if (postingsFormat == null) {
+            if (defaultPostingFormat() != null) {
+                postingsFormat = PostingFormats.getAsProvider(defaultPostingFormat());
+            }
+        }
+        this.postingsFormat = postingsFormat;
+        this.similarity = similarity;
+
+        this.customFieldDataSettings = fieldDataSettings;
+        if (fieldDataSettings == null) {
+            this.fieldDataType = defaultFieldDataType();
+        } else {
+            // create a new field data type, with the default settings as well as the "new ones"
+            this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
+                    ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(fieldDataSettings)
+            );
+        }
+    }
+
+    @Nullable
+    protected String defaultPostingFormat() {
+        return null;
     }
 
     @Override
@@ -249,49 +339,23 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         return this.names;
     }
 
+    public abstract FieldType defaultFieldType();
+
+    public abstract FieldDataType defaultFieldDataType();
+
     @Override
-    public Field.Index index() {
-        return this.index;
+    public final FieldDataType fieldDataType() {
+        return fieldDataType;
     }
 
     @Override
-    public Field.Store store() {
-        return this.store;
-    }
-
-    @Override
-    public boolean stored() {
-        return store == Field.Store.YES;
-    }
-
-    @Override
-    public boolean indexed() {
-        return index != Field.Index.NO;
-    }
-
-    @Override
-    public boolean analyzed() {
-        return index == Field.Index.ANALYZED;
-    }
-
-    @Override
-    public Field.TermVector termVector() {
-        return this.termVector;
+    public FieldType fieldType() {
+        return fieldType;
     }
 
     @Override
     public float boost() {
         return this.boost;
-    }
-
-    @Override
-    public boolean omitNorms() {
-        return this.omitNorms;
-    }
-    
-    @Override
-    public IndexOptions indexOptions() {
-        return this.indexOptions;
     }
 
     @Override
@@ -310,14 +374,17 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
+    public SimilarityProvider similarity() {
+        return similarity;
+    }
+
+    @Override
     public void parse(ParseContext context) throws IOException {
         try {
-            Fieldable field = parseCreateField(context);
+            Field field = parseCreateField(context);
             if (field == null) {
                 return;
             }
-            field.setOmitNorms(omitNorms);
-            field.setIndexOptions(indexOptions);
             if (!customBoost()) {
                 field.setBoost(boost);
             }
@@ -325,11 +392,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                 context.doc().add(field);
             }
         } catch (Exception e) {
-            throw new MapperParsingException("Failed to parse [" + names.fullName() + "]", e);
+            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
         }
     }
 
-    protected abstract Fieldable parseCreateField(ParseContext context) throws IOException;
+    protected abstract Field parseCreateField(ParseContext context) throws IOException;
 
     /**
      * Derived classes can override it to specify that boost value is set by derived classes.
@@ -349,13 +416,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Object valueForSearch(Fieldable field) {
-        return valueAsString(field);
+    public Object valueForSearch(Object value) {
+        return value;
     }
 
     @Override
-    public String indexedValue(String value) {
-        return value;
+    public BytesRef indexedValueForSearch(Object value) {
+        return BytesRefs.toBytesRef(value);
     }
 
     @Override
@@ -364,33 +431,54 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public boolean useFieldQueryWithQueryString() {
+    public boolean useTermQueryWithQueryString() {
         return false;
     }
 
     @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
-        return new TermQuery(names().createIndexNameTerm(indexedValue(value)));
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        return new TermQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
     }
 
     @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
-        return new TermFilter(names().createIndexNameTerm(indexedValue(value)));
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        return new TermFilter(names().createIndexNameTerm(indexedValueForSearch(value)));
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
-        return new FuzzyQuery(names().createIndexNameTerm(indexedValue(value)), Float.parseFloat(minSim), prefixLength, maxExpansions);
+    public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
+        BytesRef[] bytesRefs = new BytesRef[values.size()];
+        for (int i = 0; i < bytesRefs.length; i++) {
+            bytesRefs[i] = indexedValueForSearch(values.get(i));
+        }
+        return new TermsFilter(names.indexName(), bytesRefs);
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return new TermRangeQuery(names.indexName(),
+                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                includeLower, includeUpper);
     }
 
     @Override
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValue(value)));
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return new TermRangeFilter(names.indexName(),
+                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                includeLower, includeUpper);
+    }
+
+    @Override
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
+        int edits = FuzzyQuery.floatToEdits(Float.parseFloat(minSim), value.codePointCount(0, value.length()));
+        return new FuzzyQuery(names.createIndexNameTerm(indexedValueForSearch(value)), edits, prefixLength, maxExpansions, transpositions);
+    }
+
+    @Override
+    public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        PrefixQuery query = new PrefixQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -398,24 +486,22 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Filter prefixFilter(String value, @Nullable QueryParseContext context) {
-        return new PrefixFilter(names().createIndexNameTerm(indexedValue(value)));
+    public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
+        return new PrefixFilter(names().createIndexNameTerm(indexedValueForSearch(value)));
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new TermRangeQuery(names.indexName(),
-                lowerTerm == null ? null : indexedValue(lowerTerm),
-                upperTerm == null ? null : indexedValue(upperTerm),
-                includeLower, includeUpper);
+    public Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        RegexpQuery query = new RegexpQuery(names().createIndexNameTerm(indexedValueForSearch(value)), flags);
+        if (method != null) {
+            query.setRewriteMethod(method);
+        }
+        return query;
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return new TermRangeFilter(names.indexName(),
-                lowerTerm == null ? null : indexedValue(lowerTerm),
-                upperTerm == null ? null : indexedValue(upperTerm),
-                includeLower, includeUpper);
+    public Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext parseContext) {
+        return new RegexpFilter(names().createIndexNameTerm(indexedValueForSearch(value)), flags);
     }
 
     @Override
@@ -435,14 +521,26 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return;
         }
         AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
-        if (!this.index.equals(fieldMergeWith.index)) {
+        if (this.fieldType().indexed() != fieldMergeWith.fieldType().indexed() || this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index values");
         }
-        if (!this.store.equals(fieldMergeWith.store)) {
+        if (this.fieldType().stored() != fieldMergeWith.fieldType().stored()) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different store values");
         }
-        if (!this.termVector.equals(fieldMergeWith.termVector)) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different term_vector values");
+        if (this.fieldType().tokenized() != fieldMergeWith.fieldType().tokenized()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different tokenize values");
+        }
+        if (this.fieldType().storeTermVectors() != fieldMergeWith.fieldType().storeTermVectors()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector values");
+        }
+        if (this.fieldType().storeTermVectorOffsets() != fieldMergeWith.fieldType().storeTermVectorOffsets()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_offsets values");
+        }
+        if (this.fieldType().storeTermVectorPositions() != fieldMergeWith.fieldType().storeTermVectorPositions()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_positions values");
+        }
+        if (this.fieldType().storeTermVectorPayloads() != fieldMergeWith.fieldType().storeTermVectorPayloads()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different store_term_vector_payloads values");
         }
         if (this.indexAnalyzer == null) {
             if (fieldMergeWith.indexAnalyzer != null) {
@@ -453,24 +551,41 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         } else if (!this.indexAnalyzer.name().equals(fieldMergeWith.indexAnalyzer.name())) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different index_analyzer");
         }
-        if (this.searchAnalyzer == null) {
-            if (fieldMergeWith.searchAnalyzer != null) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
+
+        if (this.similarity == null) {
+            if (fieldMergeWith.similarity() != null) {
+                mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
             }
-        } else if (fieldMergeWith.searchAnalyzer == null) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
-        } else if (!this.searchAnalyzer.name().equals(fieldMergeWith.searchAnalyzer.name())) {
-            mergeContext.addConflict("mapper [" + names.fullName() + "] has different search_analyzer");
+        } else if (fieldMergeWith.similarity() == null) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
+        } else if (!this.similarity().equals(fieldMergeWith.similarity())) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different similarity");
         }
+
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values
             this.boost = fieldMergeWith.boost;
+            if (fieldMergeWith.postingsFormat != null) {
+                this.postingsFormat = fieldMergeWith.postingsFormat;
+            }
+            if (fieldMergeWith.searchAnalyzer != null) {
+                this.searchAnalyzer = fieldMergeWith.searchAnalyzer;
+            }
+            if (fieldMergeWith.customFieldDataSettings != null) {
+                if (!Objects.equal(fieldMergeWith.customFieldDataSettings, this.customFieldDataSettings)) {
+                    this.customFieldDataSettings = fieldMergeWith.customFieldDataSettings;
+                    this.fieldDataType = new FieldDataType(defaultFieldDataType().getType(),
+                            ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(this.customFieldDataSettings)
+                    );
+                    mergeContext.addFieldDataChange(this);
+                }
+            }
         }
     }
 
     @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.STRING;
+    public PostingsFormatProvider postingsFormatProvider() {
+        return postingsFormat;
     }
 
     @Override
@@ -480,28 +595,44 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         builder.endObject();
         return builder;
     }
-    
-    protected static String indexOptionToString(IndexOptions indexOption) {
-        switch (indexOption) {
-        case DOCS_AND_FREQS:
-            return TypeParsers.INDEX_OPTIONS_FREQS;
-        case DOCS_AND_FREQS_AND_POSITIONS:
-            return TypeParsers.INDEX_OPTIONS_POSITIONS;
-        case DOCS_ONLY:
-            return TypeParsers.INDEX_OPTIONS_DOCS;
-        default:
-            throw new ElasticSearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
-        }
-    }
 
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         builder.field("type", contentType());
         if (!names.name().equals(names.indexNameClean())) {
             builder.field("index_name", names.indexNameClean());
         }
+
         if (boost != 1.0f) {
             builder.field("boost", boost);
         }
+
+        FieldType defaultFieldType = defaultFieldType();
+        if (fieldType.indexed() != defaultFieldType.indexed() ||
+                fieldType.tokenized() != defaultFieldType.tokenized()) {
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
+        }
+        if (fieldType.stored() != defaultFieldType.stored()) {
+            builder.field("store", fieldType.stored());
+        }
+        if (fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
+            builder.field("store_term_vector", fieldType.storeTermVectors());
+        }
+        if (fieldType.storeTermVectorOffsets() != defaultFieldType.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
+        }
+        if (fieldType.storeTermVectorPositions() != defaultFieldType.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
+        }
+        if (fieldType.storeTermVectorPayloads() != defaultFieldType.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
+        }
+        if (fieldType.omitNorms() != defaultFieldType.omitNorms()) {
+            builder.field("omit_norms", fieldType.omitNorms());
+        }
+        if (fieldType.indexOptions() != defaultFieldType.indexOptions()) {
+            builder.field("index_options", indexOptionToString(fieldType.indexOptions()));
+        }
+
         if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_") && !indexAnalyzer.name().equals("default")) {
             // same analyzers, output it once
             builder.field("analyzer", indexAnalyzer.name());
@@ -513,7 +644,46 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                 builder.field("search_analyzer", searchAnalyzer.name());
             }
         }
+        if (postingsFormat != null) {
+            if (!postingsFormat.name().equals(defaultPostingFormat())) {
+                builder.field("postings_format", postingsFormat.name());
+            }
+        }
+
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
+        }
+
+        if (customFieldDataSettings != null) {
+            builder.field("fielddata", customFieldDataSettings.toDelimitedString(';'));
+        }
     }
+
+    protected static String indexOptionToString(IndexOptions indexOption) {
+        switch (indexOption) {
+            case DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS:
+                return TypeParsers.INDEX_OPTIONS_OFFSETS;
+            case DOCS_AND_FREQS:
+                return TypeParsers.INDEX_OPTIONS_FREQS;
+            case DOCS_AND_FREQS_AND_POSITIONS:
+                return TypeParsers.INDEX_OPTIONS_POSITIONS;
+            case DOCS_ONLY:
+                return TypeParsers.INDEX_OPTIONS_DOCS;
+            default:
+                throw new ElasticSearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
+        }
+    }
+
+    protected static String indexTokenizeOptionToString(boolean indexed, boolean tokenized) {
+        if (!indexed) {
+            return "no";
+        } else if (tokenized) {
+            return "analyzed";
+        } else {
+            return "not_analyzed";
+        }
+    }
+
 
     protected abstract String contentType();
 

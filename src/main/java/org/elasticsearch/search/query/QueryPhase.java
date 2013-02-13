@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.query;
 
+import java.util.List;
 import java.util.Map;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
@@ -36,10 +36,11 @@ import org.elasticsearch.search.group.GroupCollector;
 import org.elasticsearch.search.group.GroupParseElement;
 import org.elasticsearch.search.group.terms.InternalTermsGroup;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.sort.SortParseElement;
 import org.elasticsearch.search.sort.TrackScoresParseElement;
+import org.elasticsearch.search.suggest.SuggestPhase;
 
 /**
  *
@@ -48,11 +49,15 @@ public class QueryPhase implements SearchPhase {
 
     private final FacetPhase facetPhase;
     private final GroupParseElement groupElement;
+private RescorePhase rescorePhase;
+private final SuggestPhase suggestPhase;
 
     @Inject
-    public QueryPhase(FacetPhase facetPhase, GroupParseElement groupElement) {
+    public QueryPhase(FacetPhase facetPhase, GroupParseElement groupElement, SuggestPhase suggestPhase, RescorePhase rescorePhase) {
         this.facetPhase = facetPhase;
         this.groupElement = groupElement;
+        this.suggestPhase = suggestPhase;
+        this.rescorePhase = rescorePhase;
     }
 
     @Override
@@ -74,7 +79,9 @@ public class QueryPhase implements SearchPhase {
                 .put("min_score", new MinScoreParseElement())
                 .put("minScore", new MinScoreParseElement())
                 .put("timeout", new TimeoutParseElement())
-                .putAll(facetPhase.parseElements());
+                .putAll(facetPhase.parseElements())
+                .putAll(suggestPhase.parseElements())
+                .putAll(rescorePhase.parseElements());
         return parseElements.build();
     }
 
@@ -86,79 +93,23 @@ public class QueryPhase implements SearchPhase {
 
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         searchContext.queryResult().searchTimedOut(false);
-        // set the filter on the searcher
-        if (searchContext.scopePhases() != null) {
-            // we have scoped queries, refresh the id cache
+
+        List<SearchContext.Rewrite> rewrites = searchContext.rewrites();
+        if (rewrites != null) {
             try {
-                searchContext.idCache().refresh(searchContext.searcher().subReaders());
-            } catch (Exception e) {
-                throw new QueryPhaseExecutionException(searchContext, "Failed to refresh id cache for child queries", e);
-            }
-
-            // the first scope level is the most nested child
-            for (ScopePhase scopePhase : searchContext.scopePhases()) {
-                if (scopePhase instanceof ScopePhase.TopDocsPhase) {
-                    ScopePhase.TopDocsPhase topDocsPhase = (ScopePhase.TopDocsPhase) scopePhase;
-                    int numDocs = (searchContext.from() + searchContext.size());
-                    if (numDocs == 0) {
-                        numDocs = 1;
-                    }
-                    try {
-                        numDocs *= topDocsPhase.factor();
-                        while (true) {
-                            topDocsPhase.clear();
-                            if (topDocsPhase.scope() != null) {
-                                searchContext.searcher().processingScope(topDocsPhase.scope());
-                            }
-                            TopDocs topDocs = searchContext.searcher().search(topDocsPhase.query(), numDocs);
-                            if (topDocsPhase.scope() != null) {
-                                // we mark the scope as processed, so we don't process it again, even if we need to rerun the query...
-                                searchContext.searcher().processedScope();
-                            }
-                            topDocsPhase.processResults(topDocs, searchContext);
-
-                            // check if we found enough docs, if so, break
-                            if (topDocsPhase.numHits() >= (searchContext.from() + searchContext.size())) {
-                                break;
-                            }
-                            // if we did not find enough docs, check if it make sense to search further
-                            if (topDocs.totalHits <= numDocs) {
-                                break;
-                            }
-                            // if not, update numDocs, and search again
-                            numDocs *= topDocsPhase.incrementalFactor();
-                            if (numDocs > topDocs.totalHits) {
-                                numDocs = topDocs.totalHits;
-                            }
-                        }
-                    } catch (Exception e) {
-                        throw new QueryPhaseExecutionException(searchContext, "Failed to execute child query [" + scopePhase.query() + "]", e);
-                    }
-                } else if (scopePhase instanceof ScopePhase.CollectorPhase) {
-                    try {
-                        ScopePhase.CollectorPhase collectorPhase = (ScopePhase.CollectorPhase) scopePhase;
-                        // collector phase might not require extra processing, for example, when scrolling
-                        if (!collectorPhase.requiresProcessing()) {
-                            continue;
-                        }
-                        if (scopePhase.scope() != null) {
-                            searchContext.searcher().processingScope(scopePhase.scope());
-                        }
-                        Collector collector = collectorPhase.collector();
-                        searchContext.searcher().search(collectorPhase.query(), collector);
-                        collectorPhase.processCollector(collector);
-                        if (collectorPhase.scope() != null) {
-                            // we mark the scope as processed, so we don't process it again, even if we need to rerun the query...
-                            searchContext.searcher().processedScope();
-                        }
-                    } catch (Exception e) {
-                        throw new QueryPhaseExecutionException(searchContext, "Failed to execute child query [" + scopePhase.query() + "]", e);
-                    }
+                searchContext.searcher().inStage(ContextIndexSearcher.Stage.REWRITE);
+                for (SearchContext.Rewrite rewrite : rewrites) {
+                    rewrite.contextRewrite(searchContext);
                 }
+            } catch (Exception e) {
+                throw new QueryPhaseExecutionException(searchContext, "failed to execute context rewrite", e);
+            } finally {
+                searchContext.searcher().finishStage(ContextIndexSearcher.Stage.REWRITE);
             }
         }
 
-        searchContext.searcher().processingScope(ContextIndexSearcher.Scopes.MAIN);
+        searchContext.searcher().inStage(ContextIndexSearcher.Stage.MAIN_QUERY);
+        boolean rescore = false;
         try {
             searchContext.queryResult().from(searchContext.from());
             searchContext.queryResult().size(searchContext.size());
@@ -166,7 +117,7 @@ public class QueryPhase implements SearchPhase {
             Query query = searchContext.query();
 
             TopDocs topDocs;
-            int numDocs = searchContext.from() + searchContext.size();
+            int numDocs = searchContext.from() + searchContext.size() ;
             if (numDocs == 0) {
                 // if 0 was asked, change it to 1 since 0 is not allowed
                 numDocs = 1;
@@ -178,8 +129,9 @@ public class QueryPhase implements SearchPhase {
                 topDocs = new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
             } else if (searchContext.searchType() == SearchType.SCAN) {
                 topDocs = searchContext.scanContext().execute(searchContext);
-            } else if (searchContext.sort() != null && searchContext.group() == null) {
-                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort());
+            } else if (searchContext.sort() != null) {
+                topDocs = searchContext.searcher().search(query, null, numDocs, searchContext.sort(),
+                        searchContext.trackScores(), searchContext.trackScores());
             } else if (searchContext.sort() != null && searchContext.group() != null) {
                 GroupCollector collector = searchContext.group().groupCollector();
                 searchContext.searcher().search(query, collector);
@@ -193,15 +145,22 @@ public class QueryPhase implements SearchPhase {
                 // TODO: hits
                 topDocs = new TopDocs(0, Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
+                if (searchContext.rescore() != null) {
+                    rescore = true;
+                    numDocs = Math.max(searchContext.rescore().window(), numDocs);
+                }
                 topDocs = searchContext.searcher().search(query, numDocs);
             }
             searchContext.queryResult().topDocs(topDocs);
         } catch (Exception e) {
             throw new QueryPhaseExecutionException(searchContext, "Failed to execute main query", e);
         } finally {
-            searchContext.searcher().processedScope();
+            searchContext.searcher().finishStage(ContextIndexSearcher.Stage.MAIN_QUERY);
         }
-
+        if (rescore) { // only if we do a regular search
+            rescorePhase.execute(searchContext);
+        }
+        suggestPhase.execute(searchContext);
         facetPhase.execute(searchContext);
     }
 }

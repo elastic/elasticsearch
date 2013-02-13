@@ -20,10 +20,11 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -35,13 +36,13 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
@@ -67,10 +68,17 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         public static final boolean ENABLED = true;
         public static final long COMPRESS_THRESHOLD = -1;
         public static final String FORMAT = null; // default format is to use the one provided
-        public static final Field.Index INDEX = Field.Index.NO;
-        public static final Field.Store STORE = Field.Store.YES;
-        public static final boolean OMIT_NORMS = true;
-        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
+
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setStored(true);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
+        }
+
         public static final String[] INCLUDES = Strings.EMPTY_ARRAY;
         public static final String[] EXCLUDES = Strings.EMPTY_ARRAY;
     }
@@ -189,9 +197,10 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, Defaults.INCLUDES, Defaults.EXCLUDES);
     }
 
-    protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold, String[] includes, String[] excludes) {
-        super(new Names(name, name, name, name), Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+    protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
+                                String[] includes, String[] excludes) {
+        super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
@@ -205,8 +214,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return this.enabled;
     }
 
-    public ResetFieldSelector fieldSelector() {
-        return SourceFieldSelector.INSTANCE;
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return null;
     }
 
     @Override
@@ -237,7 +252,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         if (!enabled) {
             return null;
         }
-        if (store == Field.Store.NO) {
+        if (!fieldType.stored()) {
             return null;
         }
         if (context.flyweight()) {
@@ -335,44 +350,25 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             }
         }
         assert source.hasArray();
-        return new Field(names().indexName(), source.array(), source.arrayOffset(), source.length());
-    }
-
-    public byte[] value(Document document) {
-        Fieldable field = document.getFieldable(names.indexName());
-        return field == null ? null : value(field);
-    }
-
-    public byte[] nativeValue(Fieldable field) {
-        return field.getBinaryValue();
+        return new StoredField(names().indexName(), source.array(), source.arrayOffset(), source.length());
     }
 
     @Override
-    public byte[] value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public byte[] value(Object value) {
         if (value == null) {
-            return value;
+            return null;
+        }
+        BytesReference bValue;
+        if (value instanceof BytesRef) {
+            bValue = new BytesArray((BytesRef) value);
+        } else {
+            bValue = (BytesReference) value;
         }
         try {
-            return CompressorFactory.uncompressIfNeeded(new BytesArray(value)).toBytes();
+            return CompressorFactory.uncompressIfNeeded(bValue).toBytes();
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to decompress source", e);
         }
-    }
-
-    @Override
-    public byte[] valueFromString(String value) {
-        return null;
-    }
-
-    @Override
-    public String valueAsString(Fieldable field) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public String indexedValue(String value) {
-        return value;
     }
 
     @Override

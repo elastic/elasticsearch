@@ -19,16 +19,13 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -39,61 +36,32 @@ import java.io.IOException;
  */
 public class ValueHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String keyIndexFieldName;
-
-    private final String valueIndexFieldName;
-
-    private final long interval;
+    private final IndexNumericFieldData keyIndexFieldData;
+    private final IndexNumericFieldData valueIndexFieldData;
 
     private final HistogramFacet.ComparatorType comparatorType;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType keyFieldDataType;
-    private NumericFieldData keyFieldData;
-
-    private final FieldDataType valueFieldDataType;
+    private DoubleValues keyValues;
 
     private final HistogramProc histoProc;
 
-    public ValueHistogramFacetCollector(String facetName, String keyFieldName, String valueFieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueHistogramFacetCollector(String facetName, IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
-        this.interval = interval;
         this.comparatorType = comparatorType;
-        this.fieldDataCache = context.fieldDataCache();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(keyFieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + keyFieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        keyIndexFieldName = smartMappers.mapper().names().indexName();
-        keyFieldDataType = smartMappers.mapper().fieldDataType();
-
-        smartMappers = context.smartFieldMappers(valueFieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + valueFieldName + "]");
-        }
-        valueIndexFieldName = smartMappers.mapper().names().indexName();
-        valueFieldDataType = smartMappers.mapper().fieldDataType();
-
+        this.keyIndexFieldData = keyIndexFieldData;
+        this.valueIndexFieldData = valueIndexFieldData;
         histoProc = new HistogramProc(interval);
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        keyFieldData.forEachValueInDoc(doc, histoProc);
+        keyValues.forEachValueInDoc(doc, histoProc);
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        keyFieldData = (NumericFieldData) fieldDataCache.cache(keyFieldDataType, reader, keyIndexFieldName);
-        histoProc.valueFieldData = (NumericFieldData) fieldDataCache.cache(valueFieldDataType, reader, valueIndexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        keyValues = keyIndexFieldData.load(context).getDoubleValues();
+        histoProc.valueValues = valueIndexFieldData.load(context).getDoubleValues();
     }
 
     @Override
@@ -101,18 +69,22 @@ public class ValueHistogramFacetCollector extends AbstractFacetCollector {
         return new InternalFullHistogramFacet(facetName, comparatorType, histoProc.entries, true);
     }
 
-    public static class HistogramProc implements NumericFieldData.DoubleValueInDocProc {
+    public static class HistogramProc implements DoubleValues.ValueInDocProc {
 
         final long interval;
 
         final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries = CacheRecycler.popLongObjectMap();
 
-        NumericFieldData valueFieldData;
+        DoubleValues valueValues;
 
         final ValueAggregator valueAggregator = new ValueAggregator();
 
         public HistogramProc(long interval) {
             this.interval = interval;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override
@@ -125,12 +97,16 @@ public class ValueHistogramFacetCollector extends AbstractFacetCollector {
             }
             entry.count++;
             valueAggregator.entry = entry;
-            valueFieldData.forEachValueInDoc(docId, valueAggregator);
+            valueValues.forEachValueInDoc(docId, valueAggregator);
         }
 
-        public static class ValueAggregator implements NumericFieldData.DoubleValueInDocProc {
+        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
 
             InternalFullHistogramFacet.FullEntry entry;
+
+            @Override
+            public void onMissing(int docId) {
+            }
 
             @Override
             public void onValue(int docId, double value) {

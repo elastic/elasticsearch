@@ -21,7 +21,8 @@ package org.elasticsearch.index.cache.query.parser.resident;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import org.apache.lucene.queryParser.QueryParserSettings;
+
+import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;

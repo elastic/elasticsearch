@@ -25,7 +25,9 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -37,10 +39,10 @@ import java.util.List;
  */
 public class SortParseElement implements SearchParseElement {
 
-    private static final SortField SORT_SCORE = new SortField(null, SortField.SCORE);
-    private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.SCORE, true);
-    private static final SortField SORT_DOC = new SortField(null, SortField.DOC);
-    private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.DOC, true);
+    private static final SortField SORT_SCORE = new SortField(null, SortField.Type.SCORE);
+    private static final SortField SORT_SCORE_REVERSE = new SortField(null, SortField.Type.SCORE, true);
+    private static final SortField SORT_DOC = new SortField(null, SortField.Type.DOC);
+    private static final SortField SORT_DOC_REVERSE = new SortField(null, SortField.Type.DOC, true);
 
     public static final String SCORE_FIELD_NAME = "_score";
     public static final String DOC_FIELD_NAME = "_doc";
@@ -69,7 +71,7 @@ public class SortParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.START_OBJECT) {
                     addCompoundSortField(parser, context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    addSortField(context, sortFields, parser.text(), false, false, null);
+                    addSortField(context, sortFields, parser.text(), false, false, null, null);
                 }
             }
         } else {
@@ -82,7 +84,7 @@ public class SortParseElement implements SearchParseElement {
                 sort = true;
             } else {
                 SortField sortField = sortFields.get(0);
-                if (sortField.getType() == SortField.SCORE && !sortField.getReverse()) {
+                if (sortField.getType() == SortField.Type.SCORE && !sortField.getReverse()) {
                     sort = false;
                 } else {
                     sort = true;
@@ -103,6 +105,7 @@ public class SortParseElement implements SearchParseElement {
                 String missing = null;
                 String innerJsonName = null;
                 boolean ignoreUnmapped = false;
+                SortMode sortMode = null;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_STRING) {
                     String direction = parser.text();
@@ -111,7 +114,7 @@ public class SortParseElement implements SearchParseElement {
                     } else if (direction.equals("desc")) {
                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                     }
-                    addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing);
+                    addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode);
                 } else {
                     if (parsers.containsKey(fieldName)) {
                         sortFields.add(parsers.get(fieldName).parse(parser, context));
@@ -132,17 +135,19 @@ public class SortParseElement implements SearchParseElement {
                                     missing = parser.textOrNull();
                                 } else if ("ignore_unmapped".equals(innerJsonName) || "ignoreUnmapped".equals(innerJsonName)) {
                                     ignoreUnmapped = parser.booleanValue();
+                                } else if ("sort_mode".equals(innerJsonName) || "sortMode".equals(innerJsonName)) {
+                                    sortMode = SortMode.fromString(parser.text());
                                 }
                             }
                         }
-                        addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing);
+                        addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode);
                     }
                 }
             }
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, SortMode sortMode) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -163,7 +168,24 @@ public class SortParseElement implements SearchParseElement {
                 }
                 throw new SearchParseException(context, "No mapping found for [" + fieldName + "] in order to sort on");
             }
-            sortFields.add(new SortField(fieldMapper.names().indexName(), fieldMapper.fieldDataType().newFieldComparatorSource(context.fieldDataCache(), missing), reverse));
+
+            // Enable when we also know how to detect fields that do tokenize, but only emit one token
+            /*if (fieldMapper instanceof StringFieldMapper) {
+                StringFieldMapper stringFieldMapper = (StringFieldMapper) fieldMapper;
+                if (stringFieldMapper.fieldType().tokenized()) {
+                    // Fail early
+                    throw new SearchParseException(context, "Can't sort on tokenized string field[" + fieldName + "]");
+                }
+            }*/
+
+            // We only support AVG and SUM on number based fields
+            if (!(fieldMapper instanceof NumberFieldMapper) && (sortMode == SortMode.SUM || sortMode == SortMode.AVG)) {
+                sortMode = null;
+            }
+            if (sortMode == null) {
+                sortMode = reverse ? SortMode.MAX : SortMode.MIN;
+            }
+            sortFields.add(new SortField(fieldMapper.names().indexName(), context.fieldData().getForField(fieldMapper).comparatorSource(missing, sortMode), reverse));
         }
     }
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +40,7 @@ public class RomanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Roma
         super(index, indexSettings, name, settings);
         analyzer = new RomanianAnalyzer(version,
                 Analysis.parseStopWords(env, settings, RomanianAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
     }
 
     @Override

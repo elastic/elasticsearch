@@ -19,18 +19,14 @@
 
 package org.elasticsearch.search.facet.histogram.bounded;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -42,41 +38,22 @@ import java.util.Map;
  */
 public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String indexFieldName;
+    private final IndexNumericFieldData indexFieldData;
 
     private final HistogramFacet.ComparatorType comparatorType;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType fieldDataType;
-
-    private NumericFieldData fieldData;
+    private LongValues keyValues;
 
     private final SearchScript valueScript;
 
     private final HistogramProc histoProc;
 
-    public BoundedValueScriptHistogramFacetCollector(String facetName, String fieldName, String scriptLang, String valueScript, Map<String, Object> params, long interval, long from, long to, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public BoundedValueScriptHistogramFacetCollector(String facetName, IndexNumericFieldData indexFieldData, String scriptLang, String valueScript, Map<String, Object> params, long interval, long from, long to, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
-        this.fieldDataCache = context.fieldDataCache();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
+        this.indexFieldData = indexFieldData;
 
         this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
-
-        FieldMapper mapper = smartMappers.mapper();
-
-        indexFieldName = mapper.names().indexName();
-        fieldDataType = mapper.fieldDataType();
 
         long normalizedFrom = (((long) ((double) from / interval)) * interval);
         long normalizedTo = (((long) ((double) to / interval)) * interval);
@@ -91,7 +68,7 @@ public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetColl
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, histoProc);
+        keyValues.forEachValueInDoc(doc, histoProc);
     }
 
     @Override
@@ -100,9 +77,9 @@ public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetColl
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
-        valueScript.setNextReader(reader);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        keyValues = indexFieldData.load(context).getLongValues();
+        valueScript.setNextReader(context);
     }
 
     @Override
@@ -114,7 +91,7 @@ public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetColl
         return (((long) (value / interval)) * interval);
     }
 
-    public static class HistogramProc implements NumericFieldData.LongValueInDocProc {
+    public static class HistogramProc implements LongValues.ValueInDocProc {
 
         final long from;
         final long to;
@@ -137,6 +114,10 @@ public class BoundedValueScriptHistogramFacetCollector extends AbstractFacetColl
             this.size = size;
             this.entries = CacheRecycler.popObjectArray(size);
             this.valueScript = valueScript;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override

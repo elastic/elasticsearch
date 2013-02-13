@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -56,7 +57,7 @@ public class TermQueryParser implements QueryParser {
         }
         String fieldName = parser.currentName();
 
-        String value = null;
+        Object value = null;
         float boost = 1.0f;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -66,9 +67,9 @@ public class TermQueryParser implements QueryParser {
                     currentFieldName = parser.currentName();
                 } else {
                     if ("term".equals(currentFieldName)) {
-                        value = parser.text();
+                        value = parser.objectBytes();
                     } else if ("value".equals(currentFieldName)) {
-                        value = parser.text();
+                        value = parser.objectBytes();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else {
@@ -93,16 +94,16 @@ public class TermQueryParser implements QueryParser {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
-                    query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
+                    query = smartNameFieldMappers.mapper().termQuery(value, parseContext);
                 } finally {
                     QueryParseContext.setTypes(previousTypes);
                 }
             } else {
-                query = smartNameFieldMappers.mapper().fieldQuery(value, parseContext);
+                query = smartNameFieldMappers.mapper().termQuery(value, parseContext);
             }
         }
         if (query == null) {
-            query = new TermQuery(new Term(fieldName, value));
+            query = new TermQuery(new Term(fieldName, BytesRefs.toBytesRef(value)));
         }
         query.setBoost(boost);
         return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);

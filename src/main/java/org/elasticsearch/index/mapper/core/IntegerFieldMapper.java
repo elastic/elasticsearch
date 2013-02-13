@@ -19,28 +19,34 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -57,6 +63,12 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     public static final String CONTENT_TYPE = "integer";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
+        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.freeze();
+        }
+
         public static final Integer NULL_VALUE = null;
     }
 
@@ -65,7 +77,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         protected Integer nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -76,9 +88,9 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
         @Override
         public IntegerFieldMapper build(BuilderContext context) {
-            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context),
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
-                    nullValue, ignoreMalformed(context));
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
+            IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context), precisionStep, boost, fieldType,
+                    nullValue, ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -104,14 +116,24 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
     private String nullValueAsString;
 
-    protected IntegerFieldMapper(Names names, int precisionStep, String fuzzyFactor, Field.Index index, Field.Store store,
-                                 float boost, boolean omitNorms, IndexOptions indexOptions,
-                                 Integer nullValue, Explicit<Boolean> ignoreMalformed) {
-        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
+    protected IntegerFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+                                 Integer nullValue, Explicit<Boolean> ignoreMalformed,
+                                 PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+        super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_int/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
-                new NamedAnalyzer("_int/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
+                new NamedAnalyzer("_int/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("int");
     }
 
     @Override
@@ -120,26 +142,38 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public Integer value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public Integer value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToInt(value);
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        if (value instanceof BytesRef) {
+            return Numbers.bytesToInt((BytesRef) value);
+        }
+        return Integer.parseInt(value.toString());
     }
 
     @Override
-    public Integer valueFromString(String value) {
-        return Integer.parseInt(value);
+    public BytesRef indexedValueForSearch(Object value) {
+        BytesRef bytesRef = new BytesRef();
+        NumericUtils.intToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
+        return bytesRef;
+    }
+
+    private int parseValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        if (value instanceof BytesRef) {
+            return Integer.parseInt(((BytesRef) value).utf8ToString());
+        }
+        return Integer.parseInt(value.toString());
     }
 
     @Override
-    public String indexedValue(String value) {
-        return NumericUtils.intToPrefixCoded(Integer.parseInt(value));
-    }
-
-    @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         int iValue = Integer.parseInt(value);
         int iSim;
         try {
@@ -154,50 +188,40 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        int iValue = Integer.parseInt(value);
-        int iSim = (int) (minSim * dFuzzyFactor);
-        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-    }
-
-    @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValue(value);
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
-                includeLower, includeUpper);
-    }
-
-    @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValue(value);
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newIntRange(fieldDataCache, names.indexName(),
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
+                includeLower, includeUpper);
+    }
+
+    @Override
+    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newIntRange((IndexNumericFieldData) fieldData.getForField(this),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
@@ -218,7 +242,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         int value;
         float boost = this.boost;
         if (context.externalValueSet()) {
@@ -269,6 +293,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
+                        } else {
+                            throw new ElasticSearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -285,14 +311,9 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             }
         }
 
-        CustomIntegerNumericField field = new CustomIntegerNumericField(this, value);
+        CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
         field.setBoost(boost);
         return field;
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.INT;
     }
 
     @Override
@@ -315,26 +336,8 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
-        }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
-        }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
-        }
-        if (omitNorms != Defaults.OMIT_NORMS) {
-            builder.field("omit_norms", omitNorms);
-        }
-        if (indexOptions != Defaults.INDEX_OPTIONS) {
-            builder.field("index_options", indexOptionToString(indexOptions));
-        }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
-        }
-        if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
-            builder.field("fuzzy_factor", fuzzyFactor);
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
@@ -350,15 +353,15 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
         private final NumberFieldMapper mapper;
 
-        public CustomIntegerNumericField(NumberFieldMapper mapper, int number) {
-            super(mapper, mapper.stored() ? Numbers.intToBytes(number) : null);
+        public CustomIntegerNumericField(NumberFieldMapper mapper, int number, FieldType fieldType) {
+            super(mapper, mapper.fieldType().stored() ? number : null, fieldType);
             this.mapper = mapper;
             this.number = number;
         }
 
         @Override
-        public TokenStream tokenStreamValue() {
-            if (isIndexed) {
+        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+            if (fieldType().indexed()) {
                 return mapper.popCachedStream().setIntValue(number);
             }
             return null;

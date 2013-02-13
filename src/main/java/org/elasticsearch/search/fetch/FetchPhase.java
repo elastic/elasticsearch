@@ -20,26 +20,19 @@
 package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.common.text.StringAndBytesText;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.JustUidFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.UidAndSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.selector.AllButSourceFieldSelector;
-import org.elasticsearch.index.mapper.selector.FieldMappersFieldSelector;
-import org.elasticsearch.index.mapper.selector.UidAndSourceFieldSelector;
-import org.elasticsearch.index.mapper.selector.UidFieldSelector;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -55,10 +48,9 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
+import static com.google.common.collect.Lists.newArrayList;
 
 /**
  *
@@ -88,28 +80,25 @@ public class FetchPhase implements SearchPhase {
     }
 
     public void execute(SearchContext context) {
-        ResetFieldSelector fieldSelector;
+        FieldsVisitor fieldsVisitor;
         List<String> extractFieldNames = null;
         boolean sourceRequested = false;
         if (!context.hasFieldNames()) {
             if (context.hasPartialFields()) {
                 // partial fields need the source, so fetch it, but don't return it
-                fieldSelector = new UidAndSourceFieldSelector();
-                sourceRequested = false;
+                fieldsVisitor = new UidAndSourceFieldsVisitor();
             } else if (context.hasScriptFields()) {
                 // we ask for script fields, and no field names, don't load the source
-                fieldSelector = UidFieldSelector.INSTANCE;
-                sourceRequested = false;
+                fieldsVisitor = new JustUidFieldsVisitor();
             } else {
-                fieldSelector = new UidAndSourceFieldSelector();
                 sourceRequested = true;
+                fieldsVisitor = new UidAndSourceFieldsVisitor();
             }
         } else if (context.fieldNames().isEmpty()) {
-            fieldSelector = UidFieldSelector.INSTANCE;
-            sourceRequested = false;
+            fieldsVisitor = new JustUidFieldsVisitor();
         } else {
             boolean loadAllStored = false;
-            FieldMappersFieldSelector fieldSelectorMapper = null;
+            Set<String> fieldNames = null;
             for (String fieldName : context.fieldNames()) {
                 if (fieldName.equals("*")) {
                     loadAllStored = true;
@@ -120,110 +109,69 @@ public class FetchPhase implements SearchPhase {
                     continue;
                 }
                 FieldMappers x = context.smartNameFieldMappers(fieldName);
-                if (x != null && x.mapper().stored()) {
-                    if (fieldSelectorMapper == null) {
-                        fieldSelectorMapper = new FieldMappersFieldSelector();
+                if (x != null && x.mapper().fieldType().stored()) {
+                    if (fieldNames == null) {
+                        fieldNames = new HashSet<String>();
                     }
-                    fieldSelectorMapper.add(x);
+                    fieldNames.add(x.mapper().names().indexName());
                 } else {
                     if (extractFieldNames == null) {
-                        extractFieldNames = Lists.newArrayList();
+                        extractFieldNames = newArrayList();
                     }
                     extractFieldNames.add(fieldName);
                 }
             }
-
             if (loadAllStored) {
                 if (sourceRequested || extractFieldNames != null) {
-                    fieldSelector = null; // load everything, including _source
+                    fieldsVisitor = new CustomFieldsVisitor(true, true); // load everything, including _source
                 } else {
-                    fieldSelector = AllButSourceFieldSelector.INSTANCE;
+                    fieldsVisitor = new CustomFieldsVisitor(true, false);
                 }
-            } else if (fieldSelectorMapper != null) {
-                // we are asking specific stored fields, just add the UID and be done
-                fieldSelectorMapper.add(UidFieldMapper.NAME);
-                if (extractFieldNames != null || sourceRequested) {
-                    fieldSelectorMapper.add(SourceFieldMapper.NAME);
-                }
-                fieldSelector = fieldSelectorMapper;
+            } else if (fieldNames != null) {
+                boolean loadSource = extractFieldNames != null || sourceRequested;
+                fieldsVisitor = new CustomFieldsVisitor(fieldNames, loadSource);
             } else if (extractFieldNames != null || sourceRequested) {
-                fieldSelector = new UidAndSourceFieldSelector();
+                fieldsVisitor = new UidAndSourceFieldsVisitor();
             } else {
-                fieldSelector = UidFieldSelector.INSTANCE;
+                fieldsVisitor = new JustUidFieldsVisitor();
             }
         }
 
         InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
-            Document doc = loadDocument(context, fieldSelector, docId);
-            Uid uid = extractUid(context, doc, fieldSelector);
 
-            DocumentMapper documentMapper = context.mapperService().documentMapper(uid.type());
+            loadStoredFields(context, fieldsVisitor, docId);
+            fieldsVisitor.postProcess(context.mapperService());
 
-            if (documentMapper == null) {
-                throw new TypeMissingException(new Index(context.shardTarget().index()), uid.type(), "failed to find type loaded for doc [" + uid.id() + "]");
+            Map<String, SearchHitField> searchFields = null;
+            if (fieldsVisitor.fields() != null) {
+                searchFields = new HashMap<String, SearchHitField>(fieldsVisitor.fields().size());
+                for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
+                    searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue()));
+                }
             }
 
-            byte[] source = extractSource(doc, documentMapper);
+            DocumentMapper documentMapper = context.mapperService().documentMapper(fieldsVisitor.uid().type());
+            Text typeText;
+            if (documentMapper == null) {
+                typeText = new StringAndBytesText(fieldsVisitor.uid().type());
+            } else {
+                typeText = documentMapper.typeText();
+            }
+            InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, sourceRequested ? fieldsVisitor.source() : null, searchFields);
 
-            // get the version
-
-            InternalSearchHit searchHit = new InternalSearchHit(docId, uid.id(), uid.type(), sourceRequested ? source : null, null);
             hits[index] = searchHit;
 
-            for (Object oField : doc.getFields()) {
-                Fieldable field = (Fieldable) oField;
-                String name = field.name();
-
-                // ignore UID, we handled it above
-                if (name.equals(UidFieldMapper.NAME)) {
-                    continue;
-                }
-
-                // ignore source, we handled it above
-                if (name.equals(SourceFieldMapper.NAME)) {
-                    continue;
-                }
-
-                Object value = null;
-                FieldMappers fieldMappers = documentMapper.mappers().indexName(field.name());
-                if (fieldMappers != null) {
-                    FieldMapper mapper = fieldMappers.mapper();
-                    if (mapper != null) {
-                        name = mapper.names().fullName();
-                        value = mapper.valueForSearch(field);
-                    }
-                }
-                if (value == null) {
-                    if (field.isBinary()) {
-                        value = new BytesArray(field.getBinaryValue(), field.getBinaryOffset(), field.getBinaryLength());
-                    } else {
-                        value = field.stringValue();
-                    }
-                }
-
-                if (searchHit.fieldsOrNull() == null) {
-                    searchHit.fields(new HashMap<String, SearchHitField>(2));
-                }
-
-                SearchHitField hitField = searchHit.fields().get(name);
-                if (hitField == null) {
-                    hitField = new InternalSearchHitField(name, new ArrayList<Object>(2));
-                    searchHit.fields().put(name, hitField);
-                }
-                hitField.values().add(value);
-            }
-
-            int readerIndex = context.searcher().readerIndex(docId);
-            IndexReader subReader = context.searcher().subReaders()[readerIndex];
-            int subDoc = docId - context.searcher().docStarts()[readerIndex];
+            int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
+            AtomicReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
+            int subDoc = docId - subReaderContext.docBase;
 
             // go over and extract fields that are not mapped / stored
-            context.lookup().setNextReader(subReader);
+            context.lookup().setNextReader(subReaderContext);
             context.lookup().setNextDocId(subDoc);
-            if (source != null) {
-                context.lookup().source().setNextSource(new BytesArray(source));
+            if (searchHit.source() != null) {
+                context.lookup().source().setNextSource(new BytesArray(searchHit.source()));
             }
             if (extractFieldNames != null) {
                 for (String extractFieldName : extractFieldNames) {
@@ -246,7 +194,7 @@ public class FetchPhase implements SearchPhase {
             for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
                 FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
                 if (fetchSubPhase.hitExecutionNeeded(context)) {
-                    hitContext.reset(searchHit, subReader, subDoc, context.searcher().getIndexReader(), docId, doc);
+                    hitContext.reset(searchHit, subReaderContext, subDoc, context.searcher().getIndexReader(), docId, fieldsVisitor);
                     fetchSubPhase.hitExecute(context, hitContext);
                 }
             }
@@ -261,31 +209,10 @@ public class FetchPhase implements SearchPhase {
         context.fetchResult().hits(new InternalSearchHits(hits, context.queryResult().topDocs().totalHits, context.queryResult().topDocs().getMaxScore()));
     }
 
-    private byte[] extractSource(Document doc, DocumentMapper documentMapper) {
-        Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
-        if (sourceField != null) {
-            return documentMapper.sourceMapper().nativeValue(sourceField);
-        }
-        return null;
-    }
-
-    private Uid extractUid(SearchContext context, Document doc, @Nullable ResetFieldSelector fieldSelector) {
-        String sUid = doc.get(UidFieldMapper.NAME);
-        if (sUid != null) {
-            return Uid.createUid(sUid);
-        }
-        // no type, nothing to do (should not really happen)
-        List<String> fieldNames = new ArrayList<String>();
-        for (Fieldable field : doc.getFields()) {
-            fieldNames.add(field.name());
-        }
-        throw new FetchPhaseExecutionException(context, "Failed to load uid from the index, missing internal _uid field, current fields in the doc [" + fieldNames + "], selector [" + fieldSelector + "]");
-    }
-
-    private Document loadDocument(SearchContext context, @Nullable ResetFieldSelector fieldSelector, int docId) {
+    private void loadStoredFields(SearchContext context, FieldsVisitor fieldVisitor, int docId) {
+        fieldVisitor.reset();
         try {
-            if (fieldSelector != null) fieldSelector.reset();
-            return context.searcher().doc(docId, fieldSelector);
+            context.searcher().doc(docId, fieldVisitor);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(context, "Failed to fetch doc id [" + docId + "]", e);
         }

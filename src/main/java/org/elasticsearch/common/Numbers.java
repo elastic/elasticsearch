@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common;
 
+import org.apache.lucene.util.BytesRef;
+
 /**
- * A set of utlities around numbers.
- *
- *
+ * A set of utilities for numbers.
  */
 public final class Numbers {
 
@@ -40,6 +40,10 @@ public final class Numbers {
         return (short) (((arr[0] & 0xff) << 8) | (arr[1] & 0xff));
     }
 
+    public static short bytesToShort(BytesRef bytes) {
+        return (short) (((bytes.bytes[bytes.offset] & 0xff) << 8) | (bytes.bytes[bytes.offset + 1] & 0xff));
+    }
+
     /**
      * Converts a byte array to an int.
      *
@@ -48,6 +52,10 @@ public final class Numbers {
      */
     public static int bytesToInt(byte[] arr) {
         return (arr[0] << 24) | ((arr[1] & 0xff) << 16) | ((arr[2] & 0xff) << 8) | (arr[3] & 0xff);
+    }
+
+    public static int bytesToInt(BytesRef bytes) {
+        return (bytes.bytes[bytes.offset] << 24) | ((bytes.bytes[bytes.offset + 1] & 0xff) << 16) | ((bytes.bytes[bytes.offset + 2] & 0xff) << 8) | (bytes.bytes[bytes.offset + 3] & 0xff);
     }
 
     /**
@@ -62,6 +70,12 @@ public final class Numbers {
         return (((long) high) << 32) | (low & 0x0ffffffffL);
     }
 
+    public static long bytesToLong(BytesRef bytes) {
+        int high = (bytes.bytes[bytes.offset + 0] << 24) | ((bytes.bytes[bytes.offset + 1] & 0xff) << 16) | ((bytes.bytes[bytes.offset + 2] & 0xff) << 8) | (bytes.bytes[bytes.offset + 3] & 0xff);
+        int low = (bytes.bytes[bytes.offset + 4] << 24) | ((bytes.bytes[bytes.offset + 5] & 0xff) << 16) | ((bytes.bytes[bytes.offset + 6] & 0xff) << 8) | (bytes.bytes[bytes.offset + 7] & 0xff);
+        return (((long) high) << 32) | (low & 0x0ffffffffL);
+    }
+
     /**
      * Converts a byte array to float.
      *
@@ -72,6 +86,10 @@ public final class Numbers {
         return Float.intBitsToFloat(bytesToInt(arr));
     }
 
+    public static float bytesToFloat(BytesRef bytes) {
+        return Float.intBitsToFloat(bytesToInt(bytes));
+    }
+
     /**
      * Converts a byte array to double.
      *
@@ -80,6 +98,10 @@ public final class Numbers {
      */
     public static double bytesToDouble(byte[] arr) {
         return Double.longBitsToDouble(bytesToLong(arr));
+    }
+
+    public static double bytesToDouble(BytesRef bytes) {
+        return Double.longBitsToDouble(bytesToLong(bytes));
     }
 
     /**

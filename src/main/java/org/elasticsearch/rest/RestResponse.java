@@ -44,13 +44,19 @@ public interface RestResponse {
      */
     int contentLength() throws IOException;
 
+    int contentOffset() throws IOException;
+
     byte[] prefixContent();
 
     int prefixContentLength();
 
+    int prefixContentOffset();
+
     byte[] suffixContent();
 
     int suffixContentLength();
+
+    int suffixContentOffset();
 
     RestStatus status();
 }

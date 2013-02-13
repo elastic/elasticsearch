@@ -20,11 +20,11 @@
 package org.elasticsearch.search.facet;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.AndFilter;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ public abstract class AbstractFacetCollector extends FacetCollector {
 
     protected Filter filter;
 
-    private DocSet docSet = null;
+    private Bits bits = null;
 
     public AbstractFacetCollector(String facetName) {
         this.facetName = facetName;
@@ -74,20 +74,20 @@ public abstract class AbstractFacetCollector extends FacetCollector {
     }
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    public void setNextReader(AtomicReaderContext context) throws IOException {
         if (filter != null) {
-            docSet = DocSets.convert(reader, filter.getDocIdSet(reader));
+            bits = DocIdSets.toSafeBits(context.reader(), filter.getDocIdSet(context, context.reader().getLiveDocs()));
         }
-        doSetNextReader(reader, docBase);
+        doSetNextReader(context);
     }
 
-    protected abstract void doSetNextReader(IndexReader reader, int docBase) throws IOException;
+    protected abstract void doSetNextReader(AtomicReaderContext context) throws IOException;
 
     @Override
     public void collect(int doc) throws IOException {
-        if (docSet == null) {
+        if (bits == null) {
             doCollect(doc);
-        } else if (docSet.get(doc)) {
+        } else if (bits.get(doc)) {
             doCollect(doc);
         }
     }

@@ -53,6 +53,9 @@ public class TenShardsOneReplicaRoutingTests {
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.allow_rebalance", "always")
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .put("cluster.routing.allocation.balance.index", 0.0f)
+                .put("cluster.routing.allocation.balance.replica", 1.0f)
+                .put("cluster.routing.allocation.balance.primary", 0.0f)
                 .build());
 
         logger.info("Building initial routing table");
@@ -173,8 +176,8 @@ public class TenShardsOneReplicaRoutingTests {
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(10));
-        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(8));
-        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(6));
+        assertThat(routingNodes.node("node1").numberOfShardsWithState(STARTED), equalTo(7));
+        assertThat(routingNodes.node("node2").numberOfShardsWithState(STARTED), equalTo(7));
         assertThat(routingNodes.node("node3").numberOfShardsWithState(STARTED), equalTo(6));
     }
 }

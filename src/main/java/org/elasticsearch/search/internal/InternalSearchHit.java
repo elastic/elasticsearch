@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -61,9 +63,8 @@ public class InternalSearchHit implements SearchHit {
 
     private float score = Float.NEGATIVE_INFINITY;
 
-    private String id;
-
-    private String type;
+    private Text id;
+    private Text type;
 
     private long version = -1;
 
@@ -89,11 +90,11 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(int docId, String id, String type, byte[] source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, Text type, BytesReference source, Map<String, SearchHitField> fields) {
         this.docId = docId;
-        this.id = id;
+        this.id = new StringAndBytesText(id);
         this.type = type;
-        this.source = source == null ? null : new BytesArray(source);
+        this.source = source;
         this.fields = fields;
     }
 
@@ -145,7 +146,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public String id() {
-        return id;
+        return id.string();
     }
 
     @Override
@@ -155,7 +156,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public String type() {
-        return type;
+        return type.string();
     }
 
     @Override
@@ -295,6 +296,15 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public void sortValues(Object[] sortValues) {
+        // LUCENE 4 UPGRADE: There must be a better way
+        // we want to convert to a Text object here, and not BytesRef
+        if (sortValues != null) {
+            for (int i = 0; i < sortValues.length; i++) {
+                if (sortValues[i] instanceof BytesRef) {
+                    sortValues[i] = new StringAndBytesText(new BytesArray((BytesRef) sortValues[i]));
+                }
+            }
+        }
         this.sortValues = sortValues;
     }
 
@@ -370,9 +380,9 @@ public class InternalSearchHit implements SearchHit {
         builder.startObject();
         if (explanation() != null) {
             builder.field("_shard", shard.shardId());
-            builder.field("_node", shard.nodeId());
+            builder.field("_node", shard.nodeIdText());
         }
-        builder.field(Fields._INDEX, shard.index());
+        builder.field(Fields._INDEX, shard.indexText());
         builder.field(Fields._TYPE, type);
         builder.field(Fields._ID, id);
         if (version != -1) {
@@ -471,8 +481,8 @@ public class InternalSearchHit implements SearchHit {
 
     public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         score = in.readFloat();
-        id = in.readUTF();
-        type = in.readUTF();
+        id = in.readText();
+        type = in.readSharedText();
         version = in.readLong();
         source = in.readBytesReference();
         if (source.length() == 0) {
@@ -556,7 +566,7 @@ public class InternalSearchHit implements SearchHit {
                 if (type == 0) {
                     sortValues[i] = null;
                 } else if (type == 1) {
-                    sortValues[i] = in.readUTF();
+                    sortValues[i] = in.readString();
                 } else if (type == 2) {
                     sortValues[i] = in.readInt();
                 } else if (type == 3) {
@@ -571,6 +581,8 @@ public class InternalSearchHit implements SearchHit {
                     sortValues[i] = in.readShort();
                 } else if (type == 8) {
                     sortValues[i] = in.readBoolean();
+                } else if (type == 9) {
+                    sortValues[i] = in.readText();
                 } else {
                     throw new IOException("Can't match type [" + type + "]");
                 }
@@ -581,7 +593,7 @@ public class InternalSearchHit implements SearchHit {
         if (size > 0) {
             matchedFilters = new String[size];
             for (int i = 0; i < size; i++) {
-                matchedFilters[i] = in.readUTF();
+                matchedFilters[i] = in.readString();
             }
         }
 
@@ -604,8 +616,8 @@ public class InternalSearchHit implements SearchHit {
 
     public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
         out.writeFloat(score);
-        out.writeUTF(id);
-        out.writeUTF(type);
+        out.writeText(id);
+        out.writeSharedText(type);
         out.writeLong(version);
         out.writeBytesReference(source);
         if (explanation == null) {
@@ -642,7 +654,7 @@ public class InternalSearchHit implements SearchHit {
                     Class type = sortValue.getClass();
                     if (type == String.class) {
                         out.writeByte((byte) 1);
-                        out.writeUTF((String) sortValue);
+                        out.writeString((String) sortValue);
                     } else if (type == Integer.class) {
                         out.writeByte((byte) 2);
                         out.writeInt((Integer) sortValue);
@@ -664,6 +676,9 @@ public class InternalSearchHit implements SearchHit {
                     } else if (type == Boolean.class) {
                         out.writeByte((byte) 8);
                         out.writeBoolean((Boolean) sortValue);
+                    } else if (sortValue instanceof Text) {
+                        out.writeByte((byte) 9);
+                        out.writeText((Text) sortValue);
                     } else {
                         throw new IOException("Can't handle sort field value of type [" + type + "]");
                     }
@@ -676,7 +691,7 @@ public class InternalSearchHit implements SearchHit {
         } else {
             out.writeVInt(matchedFilters.length);
             for (String matchedFilter : matchedFilters) {
-                out.writeUTF(matchedFilter);
+                out.writeString(matchedFilter);
             }
         }
 

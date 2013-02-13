@@ -21,17 +21,21 @@ package org.apache.lucene.search.vectorhighlight;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
+import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Collection;
+import java.util.List;
 
 /**
  *
@@ -85,19 +89,45 @@ public class CustomFieldQuery extends FieldQuery {
         } else if (sourceQuery instanceof FilteredQuery) {
             flatten(((FilteredQuery) sourceQuery).getQuery(), reader, flatQueries);
             flatten(((FilteredQuery) sourceQuery).getFilter(), reader, flatQueries);
+        } else if (sourceQuery instanceof XFilteredQuery) {
+            flatten(((XFilteredQuery) sourceQuery).getQuery(), reader, flatQueries);
+            flatten(((XFilteredQuery) sourceQuery).getFilter(), reader, flatQueries);
         } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
-            try {
-                flatten(sourceQuery.rewrite(reader), reader, flatQueries);
-            } catch (IOException e) {
-                // ignore
-            }
+            flatten(sourceQuery.rewrite(reader), reader, flatQueries);
         } else if (sourceQuery instanceof FiltersFunctionScoreQuery) {
             flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
+        } else if (sourceQuery instanceof ExtendedCommonTermsQuery) {
+            flatten(((ExtendedCommonTermsQuery)sourceQuery).rewrite(reader), reader, flatQueries);
+        } else if (sourceQuery instanceof MultiPhraseQuery) {
+            MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
+            convertMultiPhraseQuery(0, new int[q.getTermArrays().size()] , q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
         } else {
             super.flatten(sourceQuery, reader, flatQueries);
+        } 
+    }
+    
+    private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, List<Term[]> terms, int[] pos, IndexReader reader, Collection<Query> flatQueries) throws IOException {
+        /*
+         * we walk all possible ways and for each path down the MPQ we create a PhraseQuery this is what FieldQuery supports.
+         * It seems expensive but most queries will pretty small.
+         */
+        if (currentPos == terms.size()) {
+            PhraseQuery query = new PhraseQuery();
+            query.setBoost(orig.getBoost());
+            query.setSlop(orig.getSlop());
+            for (int i = 0; i < termsIdx.length; i++) {
+                query.add(terms.get(i)[termsIdx[i]], pos[i]);
+            }
+            this.flatten(query, reader, flatQueries);
+        } else {
+            Term[] t = terms.get(currentPos);
+            for (int i = 0; i < t.length; i++) {
+                termsIdx[currentPos] = i;
+                convertMultiPhraseQuery(currentPos+1, termsIdx, orig, terms, pos, reader, flatQueries);
+            }
         }
     }
-
+    
     void flatten(Filter sourceFilter, IndexReader reader, Collection<Query> flatQueries) throws IOException {
         Boolean highlight = highlightFilters.get();
         if (highlight == null || highlight.equals(Boolean.FALSE)) {
@@ -105,11 +135,6 @@ public class CustomFieldQuery extends FieldQuery {
         }
         if (sourceFilter instanceof TermFilter) {
             flatten(new TermQuery(((TermFilter) sourceFilter).getTerm()), reader, flatQueries);
-        } else if (sourceFilter instanceof XTermsFilter) {
-            XTermsFilter termsFilter = (XTermsFilter) sourceFilter;
-            for (Term term : termsFilter.getTerms()) {
-                flatten(new TermQuery(term), reader, flatQueries);
-            }
         } else if (sourceFilter instanceof MultiTermQueryWrapperFilter) {
             if (multiTermQueryWrapperFilterQueryField != null) {
                 try {
@@ -120,14 +145,9 @@ public class CustomFieldQuery extends FieldQuery {
             }
         } else if (sourceFilter instanceof XBooleanFilter) {
             XBooleanFilter booleanFilter = (XBooleanFilter) sourceFilter;
-            if (booleanFilter.getMustFilters() != null) {
-                for (Filter filter : booleanFilter.getMustFilters()) {
-                    flatten(filter, reader, flatQueries);
-                }
-            }
-            if (booleanFilter.getShouldFilters() != null) {
-                for (Filter filter : booleanFilter.getShouldFilters()) {
-                    flatten(filter, reader, flatQueries);
+            for (FilterClause clause : booleanFilter.clauses()) {
+                if (clause.getOccur() == BooleanClause.Occur.MUST || clause.getOccur() == BooleanClause.Occur.SHOULD) {
+                    flatten(clause.getFilter(), reader, flatQueries);
                 }
             }
         }

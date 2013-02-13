@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.histogram.unbounded;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
@@ -91,9 +91,9 @@ public class ScriptHistogramFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        keyScript.setNextReader(reader);
-        valueScript.setNextReader(reader);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        keyScript.setNextReader(context);
+        valueScript.setNextReader(context);
     }
 
     @Override

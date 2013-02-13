@@ -31,6 +31,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUID;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
@@ -77,6 +80,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final TransportService transportService;
 
     private final ClusterService clusterService;
+
+    private AllocationService allocationService;
 
     private final ClusterName clusterName;
 
@@ -159,6 +164,11 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     public void setNodeService(@Nullable NodeService nodeService) {
         this.nodeService = nodeService;
+    }
+
+    @Override
+    public void setAllocationService(AllocationService allocationService) {
+        this.allocationService = allocationService;
     }
 
     @Override
@@ -269,6 +279,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private void asyncJoinCluster() {
         if (currentJoinThread != null) {
             // we are already joining, ignore...
+            logger.trace("a join thread already running");
             return;
         }
         threadPool.generic().execute(new Runnable() {
@@ -293,6 +304,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             retry = false;
             DiscoveryNode masterNode = findMaster();
             if (masterNode == null) {
+                logger.trace("no masterNode returned");
                 retry = true;
                 continue;
             }
@@ -358,7 +370,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
         if (master) {
-            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("zen-disco-node_left(" + node + ")", Priority.HIGH, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     DiscoveryNodes.Builder builder = new DiscoveryNodes.Builder()
@@ -370,7 +382,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                         return rejoin(currentState, "not enough master nodes");
                     }
-                    return currentState;
+                    // eagerly run reroute to remove dead nodes from routing table
+                    RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(currentState).build());
+                    return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
                 }
             });
         } else {
@@ -399,7 +413,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                     return rejoin(currentState, "not enough master nodes");
                 }
-                return currentState;
+                // eagerly run reroute to remove dead nodes from routing table
+                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(currentState).build());
+                return newClusterStateBuilder().state(currentState).routingResult(routingResult).build();
             }
 
             @Override
@@ -449,7 +465,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         logger.info("master_left [{}], reason [{}]", masterNode, reason);
 
-        clusterService.submitStateUpdateTask("zen-disco-master_failed (" + masterNode + ")", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-master_failed (" + masterNode + ")", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (!masterNode.id().equals(currentState.nodes().masterNodeId())) {
@@ -614,6 +630,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private DiscoveryNode findMaster() {
         ZenPing.PingResponse[] fullPingResponses = pingService.pingAndWait(pingTimeout);
         if (fullPingResponses == null) {
+            logger.trace("No full ping responses");
             return null;
         }
         if (logger.isTraceEnabled()) {

@@ -28,6 +28,7 @@ import org.elasticsearch.action.delete.index.IndexDeleteRequest;
 import org.elasticsearch.action.delete.index.IndexDeleteResponse;
 import org.elasticsearch.action.delete.index.ShardDeleteResponse;
 import org.elasticsearch.action.delete.index.TransportIndexDeleteAction;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.replication.TransportShardReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,7 +51,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportDeleteAction extends TransportShardReplicationOperationAction<DeleteRequest, DeleteRequest, DeleteResponse> {
 
-    private final boolean autoCreateIndex;
+    private final AutoCreateIndex autoCreateIndex;
 
     private final TransportCreateIndexAction createIndexAction;
 
@@ -63,7 +64,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
         super(settings, transportService, clusterService, indicesService, threadPool, shardStateAction);
         this.createIndexAction = createIndexAction;
         this.indexDeleteAction = indexDeleteAction;
-        this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
+        this.autoCreateIndex = new AutoCreateIndex(settings);
     }
 
     @Override
@@ -73,7 +74,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override
     protected void doExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
-        if (autoCreateIndex && !clusterService.state().metaData().hasConcreteIndex(request.index())) {
+        if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             request.beforeLocalFork();
             createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(delete api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override

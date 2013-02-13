@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +40,7 @@ public class BrazilianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Bra
         super(index, indexSettings, name, settings);
         analyzer = new BrazilianAnalyzer(version,
                 Analysis.parseStopWords(env, settings, BrazilianAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
     }
 
     @Override

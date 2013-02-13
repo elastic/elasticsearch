@@ -62,7 +62,8 @@ public class SingleThreadBulkStress {
             nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node" + i)).node();
         }
 
-        Node client = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
+        //Node client = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
+        Node client = nodes[0];
 
         Client client1 = client.client();
 

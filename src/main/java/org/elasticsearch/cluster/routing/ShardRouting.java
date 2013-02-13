@@ -85,22 +85,29 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
     boolean started();
 
     /**
-     * The shard is in relocating mode.
+     * Returns <code>true</code> iff the this shard is currently relocating to
+     * another node. Otherwise <code>false</code>
+     * 
+     * @see ShardRoutingState#RELOCATING
      */
     boolean relocating();
 
     /**
-     * Relocating or started.
+     * Returns <code>true</code> iff the this shard is currently
+     * {@link ShardRoutingState#STARTED started} or
+     * {@link ShardRoutingState#RELOCATING relocating} to another node.
+     * Otherwise <code>false</code>
      */
     boolean active();
 
     /**
-     * The shard is assigned to a node.
+     * Returns <code>true</code> iff this shard is assigned to a node ie. not
+     * {@link ShardRoutingState#UNASSIGNED unassigned}. Otherwise <code>false</code>
      */
     boolean assignedToNode();
 
     /**
-     * The current node id the shard is allocated to.
+     * The current node id the shard is allocated on.
      */
     String currentNodeId();
 
@@ -110,7 +117,7 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
     String relocatingNodeId();
 
     /**
-     * Is this a primary shard.
+     * Returns <code>true</code> iff this shard is a primary.
      */
     boolean primary();
 

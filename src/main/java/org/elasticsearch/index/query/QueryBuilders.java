@@ -65,6 +65,16 @@ public abstract class QueryBuilders {
     public static MatchQueryBuilder matchQuery(String name, Object text) {
         return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.BOOLEAN);
     }
+    
+    /**
+     * Creates a common query for the provided field name and text.
+     *
+     * @param name The field name.
+     * @param text The query text (to be analyzed).
+     */
+    public static CommonTermsQueryBuilder commonTerms(String name, Object text) {
+        return new CommonTermsQueryBuilder(name, text);
+    }
 
     /**
      * Creates a match query with type "BOOLEAN" for the provided field name and text.
@@ -355,6 +365,17 @@ public abstract class QueryBuilders {
         return new WildcardQueryBuilder(name, query);
     }
 
+
+    /**
+     * A Query that matches documents containing terms with a specified regular expression.
+     *
+     * @param name   The name of the field
+     * @param regexp The regular expression
+     */
+    public static RegexpQueryBuilder regexpQuery(String name, String regexp) {
+        return new RegexpQueryBuilder(name, regexp);
+    }
+
     /**
      * A query that parses a query string and runs it. There are two modes that this operates. The first,
      * when no field is added (using {@link QueryStringQueryBuilder#field(String)}, will run the query once and non prefixed fields
@@ -453,6 +474,16 @@ public abstract class QueryBuilders {
      */
     public static ConstantScoreQueryBuilder constantScoreQuery(FilterBuilder filterBuilder) {
         return new ConstantScoreQueryBuilder(filterBuilder);
+    }
+    
+    /**
+     * A query that wraps another query and simply returns a constant score equal to the
+     * query boost for every document in the query.
+     *
+     * @param queryBuilder The query to wrap in a constant score query
+     */
+    public static ConstantScoreQueryBuilder constantScoreQuery(QueryBuilder queryBuilder) {
+        return new ConstantScoreQueryBuilder(queryBuilder);
     }
 
     /**

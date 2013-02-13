@@ -19,9 +19,11 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
@@ -63,76 +65,72 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(Searcher searcher) throws IOException {
-        return new CustomBoostFactorWeight(searcher);
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
+        Weight subQueryWeight = subQuery.createWeight(searcher);
+        return new CustomBoostFactorWeight(subQueryWeight);
     }
 
     class CustomBoostFactorWeight extends Weight {
-        Searcher searcher;
-        Weight subQueryWeight;
 
-        public CustomBoostFactorWeight(Searcher searcher) throws IOException {
-            this.searcher = searcher;
-            this.subQueryWeight = subQuery.weight(searcher);
+        final Weight subQueryWeight;
+
+        public CustomBoostFactorWeight(Weight subQueryWeight) throws IOException {
+            this.subQueryWeight = subQueryWeight;
         }
 
         public Query getQuery() {
             return FunctionScoreQuery.this;
         }
 
-        public float getValue() {
-            return getBoost();
-        }
-
         @Override
-        public float sumOfSquaredWeights() throws IOException {
-            float sum = subQueryWeight.sumOfSquaredWeights();
+        public float getValueForNormalization() throws IOException {
+            float sum = subQueryWeight.getValueForNormalization();
             sum *= getBoost() * getBoost();
             return sum;
         }
 
         @Override
-        public void normalize(float norm) {
-            norm *= getBoost();
-            subQueryWeight.normalize(norm);
+        public void normalize(float norm, float topLevelBoost) {
+            subQueryWeight.normalize(norm, topLevelBoost * getBoost());
         }
 
         @Override
-        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder, boolean topScorer) throws IOException {
-            Scorer subQueryScorer = subQueryWeight.scorer(reader, scoreDocsInOrder, false);
+        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+            Scorer subQueryScorer = subQueryWeight.scorer(context, scoreDocsInOrder, false, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
             }
-            function.setNextReader(reader);
-            return new CustomBoostFactorScorer(getSimilarity(searcher), this, subQueryScorer, function);
+            function.setNextReader(context);
+            return new CustomBoostFactorScorer(this, subQueryScorer, function);
         }
 
         @Override
-        public Explanation explain(IndexReader reader, int doc) throws IOException {
-            Explanation subQueryExpl = subQueryWeight.explain(reader, doc);
+        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
+            Explanation subQueryExpl = subQueryWeight.explain(context, doc);
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
 
-            function.setNextReader(reader);
+            function.setNextReader(context);
             Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
-            float sc = getValue() * functionExplanation.getValue();
+            float sc = getBoost() * functionExplanation.getValue();
             Explanation res = new ComplexExplanation(true, sc, "custom score, product of:");
             res.addDetail(functionExplanation);
-            res.addDetail(new Explanation(getValue(), "queryBoost"));
+            res.addDetail(new Explanation(getBoost(), "queryBoost"));
             return res;
         }
     }
 
 
     static class CustomBoostFactorScorer extends Scorer {
-        private final float subQueryWeight;
+
+        private final float subQueryBoost;
         private final Scorer scorer;
         private final ScoreFunction function;
 
-        private CustomBoostFactorScorer(Similarity similarity, CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function) throws IOException {
-            super(similarity);
-            this.subQueryWeight = w.getValue();
+        private CustomBoostFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function) throws IOException {
+            super(w);
+            this.subQueryBoost = w.getQuery().getBoost();
             this.scorer = scorer;
             this.function = function;
         }
@@ -154,7 +152,12 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public float score() throws IOException {
-            return subQueryWeight * function.score(scorer.docID(), scorer.score());
+            return subQueryBoost * function.score(scorer.docID(), scorer.score());
+        }
+
+        @Override
+        public int freq() throws IOException {
+            return scorer.freq();
         }
     }
 

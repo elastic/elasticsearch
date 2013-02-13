@@ -9,6 +9,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -95,6 +96,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                 out.writeBoolean(true);
                 response.writeTo(out);
             } else {
+                out.writeBoolean(false);
                 out.writeString(failureMessage);
             }
         }
@@ -167,5 +169,18 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     static final class Fields {
         static final XContentBuilderString RESPONSES = new XContentBuilderString("responses");
         static final XContentBuilderString ERROR = new XContentBuilderString("error");
+    }
+    
+    @Override
+    public String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            builder.startObject();
+            toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
+        } catch (IOException e) {
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+        }
     }
 }

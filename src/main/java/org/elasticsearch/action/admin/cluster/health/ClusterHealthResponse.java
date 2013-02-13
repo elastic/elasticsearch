@@ -236,7 +236,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
 
         out.writeVInt(validationFailures.size());
         for (String failure : validationFailures) {
-            out.writeUTF(failure);
+            out.writeString(failure);
         }
     }
 

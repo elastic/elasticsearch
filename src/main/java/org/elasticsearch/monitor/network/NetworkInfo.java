@@ -145,16 +145,16 @@ public class NetworkInfo implements Streamable, Serializable, ToXContent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            name = in.readUTF();
-            address = in.readUTF();
-            macAddress = in.readUTF();
+            name = in.readString();
+            address = in.readString();
+            macAddress = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeUTF(name);
-            out.writeUTF(address);
-            out.writeUTF(macAddress);
+            out.writeString(name);
+            out.writeString(address);
+            out.writeString(macAddress);
         }
 
     }

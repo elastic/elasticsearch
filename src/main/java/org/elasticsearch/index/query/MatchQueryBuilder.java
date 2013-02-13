@@ -50,6 +50,11 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         PHRASE_PREFIX
     }
 
+    public static enum ZeroTermsQuery {
+        NONE,
+        ALL
+    }
+
     private final String name;
 
     private final Object text;
@@ -77,6 +82,12 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     private String fuzzyRewrite = null;
 
     private Boolean lenient;
+    
+    private Boolean fuzzyTranspositions = null;
+
+    private ZeroTermsQuery zeroTermsQuery;
+    
+    private Float cutoff_Frequency = null;
 
     /**
      * Constructs a new text query.
@@ -148,6 +159,16 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         this.maxExpansions = maxExpansions;
         return this;
     }
+    
+    /**
+     * Set a cutoff value in [0..1] (or absolute number >=1) representing the
+     * maximum threshold of a terms document frequency to be considered a low
+     * frequency term.
+     */
+    public MatchQueryBuilder cutoffFrequency(float cutoff) {
+        this.cutoff_Frequency = cutoff;
+        return this;
+    }
 
     public MatchQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
         this.minimumShouldMatch = minimumShouldMatch;
@@ -163,12 +184,23 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         this.fuzzyRewrite = fuzzyRewrite;
         return this;
     }
+    
+    public MatchQueryBuilder fuzzyTranspositions(boolean fuzzyTranspositions) {
+        //LUCENE 4 UPGRADE add documentation
+        this.fuzzyTranspositions = fuzzyTranspositions;
+        return this;
+    }
 
     /**
      * Sets whether format based failures will be ignored.
      */
     public MatchQueryBuilder setLenient(boolean lenient) {
         this.lenient = lenient;
+        return this;
+    }
+
+    public MatchQueryBuilder zeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+        this.zeroTermsQuery = zeroTermsQuery;
         return this;
     }
 
@@ -211,10 +243,20 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         if (fuzzyRewrite != null) {
             builder.field("fuzzy_rewrite", fuzzyRewrite);
         }
-
+        if (fuzzyTranspositions != null) {
+            //LUCENE 4 UPGRADE we need to document this & test this
+            builder.field("fuzzy_transpositions", fuzzyTranspositions);
+        }
         if (lenient != null) {
             builder.field("lenient", lenient);
         }
+        if (zeroTermsQuery != null) {
+            builder.field("zero_terms_query", zeroTermsQuery.toString());
+        }
+        if (cutoff_Frequency != null) {
+            builder.field("cutoff_frequency", cutoff_Frequency);
+        }
+        
 
         builder.endObject();
         builder.endObject();

@@ -65,6 +65,7 @@ public abstract class SharedStorageGateway extends AbstractLifecycleComponent<Ga
         this.clusterService = clusterService;
         this.writeStateExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "gateway#writeMetaData"));
         clusterService.addLast(this);
+        logger.warn("shared gateway has been deprecated, please use the (default) local gateway");
     }
 
     @Inject

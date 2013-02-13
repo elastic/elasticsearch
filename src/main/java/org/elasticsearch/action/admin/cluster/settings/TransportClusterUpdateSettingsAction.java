@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -80,7 +81,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
-        clusterService.submitStateUpdateTask("cluster_update_settings", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("cluster_update_settings", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 try {
@@ -137,7 +138,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
             @Override
             public void clusterStateProcessed(ClusterState clusterState) {
                 // now, reroute
-                clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", new ClusterStateUpdateTask() {
+                clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings", Priority.URGENT, new ClusterStateUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
                         try {

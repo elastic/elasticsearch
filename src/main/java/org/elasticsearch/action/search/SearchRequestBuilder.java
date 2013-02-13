@@ -35,8 +35,10 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
+import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.util.Map;
 
@@ -125,14 +127,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setTimeout(String timeout) {
         sourceBuilder().timeout(timeout);
-        return this;
-    }
-
-    /**
-     * A query hint to optionally later be used when routing the request.
-     */
-    public SearchRequestBuilder setQueryHint(String queryHint) {
-        request.queryHint(queryHint);
         return this;
     }
 
@@ -654,6 +648,40 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * The highlighter type to use.
+     */
+    public SearchRequestBuilder setHighlighterType(String type) {
+        highlightBuilder().highlighterType(type);
+        return this;
+    }
+
+    /**
+     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#setText(String)}.
+     */
+    public SearchRequestBuilder setSuggestText(String globalText) {
+        suggestBuilder().setText(globalText);
+        return this;
+    }
+
+    /**
+     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#addSuggestion(org.elasticsearch.search.suggest.SuggestBuilder.Suggestion)}.
+     */
+    public SearchRequestBuilder addSuggestion(SuggestBuilder.Suggestion suggestion) {
+        suggestBuilder().addSuggestion(suggestion);
+        return this;
+    }
+    
+    public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer) {
+        rescoreBuilder().setRescorer(rescorer);
+        return this;
+    }
+    
+    public SearchRequestBuilder setRescoreWindow(int window) {
+        rescoreBuilder().setWindowSize(window);
+        return this;
+    }
+    
+    /**
      * Sets the source of the request as a json string. Note, settings anything other
      * than the search type will cause this source to be overridden, consider using
      * {@link #setExtraSource(String)}.
@@ -825,4 +853,13 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     private HighlightBuilder highlightBuilder() {
         return sourceBuilder().highlighter();
     }
+
+    private SuggestBuilder suggestBuilder() {
+        return sourceBuilder().suggest();
+    }
+    
+    private RescoreBuilder rescoreBuilder() {
+        return sourceBuilder().rescore();
+    }
+
 }

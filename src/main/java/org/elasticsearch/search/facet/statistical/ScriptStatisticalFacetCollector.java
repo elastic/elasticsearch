@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.facet.statistical;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
@@ -35,15 +35,10 @@ import java.util.Map;
 public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
 
     private final SearchScript script;
-
     private double min = Double.POSITIVE_INFINITY;
-
     private double max = Double.NEGATIVE_INFINITY;
-
     private double total = 0;
-
     private double sumOfSquares = 0.0;
-
     private long count;
 
     public ScriptStatisticalFacetCollector(String facetName, String scriptLang, String script, Map<String, Object> params, SearchContext context) {
@@ -72,8 +67,8 @@ public class ScriptStatisticalFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        script.setNextReader(reader);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        script.setNextReader(context);
     }
 
     @Override

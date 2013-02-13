@@ -23,14 +23,17 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.cache.Weigher;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.CachedFilter;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -46,7 +49,7 @@ import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 
-public class WeightedFilterCache extends AbstractIndexComponent implements FilterCache, SegmentReader.CoreClosedListener, RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> {
+public class WeightedFilterCache extends AbstractIndexComponent implements FilterCache, SegmentReader.CoreClosedListener, RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> {
 
     final IndicesFilterCache indicesFilterCache;
 
@@ -60,7 +63,6 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     public WeightedFilterCache(Index index, @IndexSettings Settings indexSettings, IndicesFilterCache indicesFilterCache) {
         super(index, indexSettings);
         this.indicesFilterCache = indicesFilterCache;
-        indicesFilterCache.addRemovalListener(index.name(), this);
     }
 
     @Override
@@ -71,7 +73,6 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     @Override
     public void close() throws ElasticSearchException {
         clear("close");
-        indicesFilterCache.removeRemovalListener(index.name());
     }
 
     @Override
@@ -120,18 +121,13 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
         if (filterToCache instanceof NoCacheFilter) {
             return filterToCache;
         }
-        if (isCached(filterToCache)) {
+        if (CachedFilter.isCached(filterToCache)) {
             return filterToCache;
         }
         return new FilterCacheFilterWrapper(filterToCache, this);
     }
 
-    @Override
-    public boolean isCached(Filter filter) {
-        return filter instanceof FilterCacheFilterWrapper;
-    }
-
-    static class FilterCacheFilterWrapper extends Filter {
+    static class FilterCacheFilterWrapper extends CachedFilter {
 
         private final Filter filter;
 
@@ -142,34 +138,39 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             this.cache = cache;
         }
 
+
         @Override
-        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             Object filterKey = filter;
             if (filter instanceof CacheKeyFilter) {
                 filterKey = ((CacheKeyFilter) filter).cacheKey();
             }
-            FilterCacheKey cacheKey = new FilterCacheKey(cache.index().name(), reader.getCoreCacheKey(), filterKey);
-            Cache<FilterCacheKey, DocSet> innerCache = cache.indicesFilterCache.cache();
+            FilterCacheKey cacheKey = new FilterCacheKey(this.cache, context.reader().getCoreCacheKey(), filterKey);
+            Cache<FilterCacheKey, DocIdSet> innerCache = cache.indicesFilterCache.cache();
 
-            DocSet cacheValue = innerCache.getIfPresent(cacheKey);
+            DocIdSet cacheValue = innerCache.getIfPresent(cacheKey);
             if (cacheValue == null) {
-                if (!cache.seenReaders.containsKey(reader.getCoreCacheKey())) {
-                    Boolean previous = cache.seenReaders.putIfAbsent(reader.getCoreCacheKey(), Boolean.TRUE);
-                    if (previous == null && (reader instanceof SegmentReader)) {
-                        ((SegmentReader) reader).addCoreClosedListener(cache);
+                if (!cache.seenReaders.containsKey(context.reader().getCoreCacheKey())) {
+                    Boolean previous = cache.seenReaders.putIfAbsent(context.reader().getCoreCacheKey(), Boolean.TRUE);
+                    if (previous == null && (context.reader() instanceof SegmentReader)) {
+                        ((SegmentReader) context.reader()).addCoreClosedListener(cache);
                         cache.seenReadersCount.inc();
                     }
                 }
 
-                cacheValue = DocSets.cacheable(reader, filter.getDocIdSet(reader));
+                // we can't pass down acceptedDocs provided, because we are caching the result, and acceptedDocs
+                // might be specific to a query AST, we do pass down the live docs to make sure we optimize the execution
+                cacheValue = DocIdSets.toCacheable(context.reader(), filter.getDocIdSet(context, context.reader().getLiveDocs()));
                 // we might put the same one concurrently, that's fine, it will be replaced and the removal
                 // will be called
-                cache.totalMetric.inc(cacheValue.sizeInBytes());
+                cache.totalMetric.inc(sizeInBytes(cacheValue));
                 innerCache.put(cacheKey, cacheValue);
             }
 
-            // return null if its EMPTY, this allows for further optimizations to ignore filters
-            return cacheValue == DocSet.EMPTY_DOC_SET ? null : cacheValue;
+            // note, we don't wrap the return value with a BitsFilteredDocIdSet.wrap(docIdSet, acceptDocs) because
+            // we rely on our custom XFilteredQuery to do the wrapping if needed, so we don't have the wrap each
+            // filter on its own
+            return cacheValue == DocIdSet.EMPTY_DOCIDSET ? null : cacheValue;
         }
 
         public String toString() {
@@ -187,11 +188,11 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
 
-    public static class FilterCacheValueWeigher implements Weigher<WeightedFilterCache.FilterCacheKey, DocSet> {
+    public static class FilterCacheValueWeigher implements Weigher<WeightedFilterCache.FilterCacheKey, DocIdSet> {
 
         @Override
-        public int weigh(FilterCacheKey key, DocSet value) {
-            int weight = (int) Math.min(value.sizeInBytes(), Integer.MAX_VALUE);
+        public int weigh(FilterCacheKey key, DocIdSet value) {
+            int weight = (int) Math.min(sizeInBytes(value), Integer.MAX_VALUE);
             return weight == 0 ? 1 : weight;
         }
     }
@@ -199,28 +200,36 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     // this will only be called for our index / data, IndicesFilterCache makes sure it works like this based on the
     // index we register the listener with
     @Override
-    public void onRemoval(RemovalNotification<FilterCacheKey, DocSet> removalNotification) {
+    public void onRemoval(RemovalNotification<FilterCacheKey, DocIdSet> removalNotification) {
         if (removalNotification.wasEvicted()) {
             evictionsMetric.inc();
         }
         if (removalNotification.getValue() != null) {
-            totalMetric.dec(removalNotification.getValue().sizeInBytes());
+            totalMetric.dec(sizeInBytes(removalNotification.getValue()));
         }
     }
 
+    static long sizeInBytes(DocIdSet set) {
+        if (set instanceof FixedBitSet) {
+            return ((FixedBitSet) set).getBits().length * 8 + 16;
+        }
+        // only for empty ones
+        return 1;
+    }
+
     public static class FilterCacheKey {
-        private final String index;
+        private final RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> removalListener;
         private final Object readerKey;
         private final Object filterKey;
 
-        public FilterCacheKey(String index, Object readerKey, Object filterKey) {
-            this.index = index;
+        public FilterCacheKey(RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> removalListener, Object readerKey, Object filterKey) {
+            this.removalListener = removalListener;
             this.readerKey = readerKey;
             this.filterKey = filterKey;
         }
 
-        public String index() {
-            return index;
+        public RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> removalListener() {
+            return removalListener;
         }
 
         public Object readerKey() {

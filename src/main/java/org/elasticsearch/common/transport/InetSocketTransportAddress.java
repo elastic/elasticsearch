@@ -118,7 +118,7 @@ public class InetSocketTransportAddress implements TransportAddress {
             int port = in.readInt();
             this.address = new InetSocketAddress(inetAddress, port);
         } else {
-            this.address = new InetSocketAddress(in.readUTF(), in.readInt());
+            this.address = new InetSocketAddress(in.readString(), in.readInt());
         }
     }
 
@@ -133,7 +133,7 @@ public class InetSocketTransportAddress implements TransportAddress {
                 out.writeInt(((Inet6Address) address.getAddress()).getScopeId());
         } else {
             out.writeByte((byte) 1);
-            out.writeUTF(address.getHostName());
+            out.writeString(address.getHostName());
         }
         out.writeInt(address.getPort());
     }

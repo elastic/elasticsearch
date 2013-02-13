@@ -24,8 +24,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -36,7 +36,6 @@ import org.elasticsearch.search.facet.histogram.unbounded.*;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -115,38 +114,43 @@ public class HistogramFacetProcessor extends AbstractComponent implements FacetP
             throw new FacetPhaseExecutionException(facetName, "[interval] is required to be set for histogram facet");
         }
 
-        if (sFrom != null && sTo != null && keyField != null) {
-            FieldMapper mapper = context.smartNameFieldMapper(keyField);
-            if (mapper == null) {
-                throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyField + "]");
+        FieldMapper keyMapper = context.smartNameFieldMapper(keyField);
+        if (keyMapper == null) {
+            throw new FacetPhaseExecutionException(facetName, "No mapping found for key_field [" + keyField + "]");
+        }
+        IndexNumericFieldData keyIndexFieldData = context.fieldData().getForField(keyMapper);
+
+        IndexNumericFieldData valueIndexFieldData = null;
+        if (valueField != null) {
+            FieldMapper valueMapper = context.smartNameFieldMapper(valueField);
+            if (valueMapper == null) {
+                throw new FacetPhaseExecutionException(facetName, "No mapping found for value_field [" + valueField + "]");
             }
-            long from = ((Number) mapper.valueFromString(sFrom)).longValue();
-            long to = ((Number) mapper.valueFromString(sTo)).longValue();
+            valueIndexFieldData = context.fieldData().getForField(valueMapper);
+        }
+
+        if (sFrom != null && sTo != null && keyField != null) {
+            long from = ((Number) keyMapper.value(sFrom)).longValue();
+            long to = ((Number) keyMapper.value(sTo)).longValue();
 
             if (valueField != null) {
-                return new BoundedValueHistogramFacetCollector(facetName, keyField, valueField, interval, from, to, comparatorType, context);
+                return new BoundedValueHistogramFacetCollector(facetName, keyIndexFieldData, valueIndexFieldData, interval, from, to, comparatorType, context);
             } else if (valueScript != null) {
-                return new BoundedValueScriptHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, interval, from, to, comparatorType, context);
+                return new BoundedValueScriptHistogramFacetCollector(facetName, keyIndexFieldData, scriptLang, valueScript, params, interval, from, to, comparatorType, context);
             } else {
-                return new BoundedCountHistogramFacetCollector(facetName, keyField, interval, from, to, comparatorType, context);
+                return new BoundedCountHistogramFacetCollector(facetName, keyIndexFieldData, interval, from, to, comparatorType, context);
             }
         }
 
         if (valueScript != null) {
-            return new ValueScriptHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, interval, comparatorType, context);
+            return new ValueScriptHistogramFacetCollector(facetName, keyIndexFieldData, scriptLang, valueScript, params, interval, comparatorType, context);
         } else if (valueField == null) {
-            return new CountHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
+            return new CountHistogramFacetCollector(facetName, keyIndexFieldData, interval, comparatorType, context);
         } else if (keyField.equals(valueField)) {
-            return new FullHistogramFacetCollector(facetName, keyField, interval, comparatorType, context);
+            return new FullHistogramFacetCollector(facetName, keyIndexFieldData, interval, comparatorType, context);
         } else {
             // we have a value field, and its different than the key
-            return new ValueHistogramFacetCollector(facetName, keyField, valueField, interval, comparatorType, context);
+            return new ValueHistogramFacetCollector(facetName, keyIndexFieldData, valueIndexFieldData, interval, comparatorType, context);
         }
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalHistogramFacet first = (InternalHistogramFacet) facets.get(0);
-        return first.reduce(name, facets);
     }
 }

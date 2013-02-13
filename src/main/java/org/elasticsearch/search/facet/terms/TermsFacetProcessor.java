@@ -21,32 +21,22 @@ package org.elasticsearch.search.facet.terms;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.ip.IpFieldMapper;
-import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetCollector;
+import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
-import org.elasticsearch.search.facet.terms.bytes.TermsByteFacetCollector;
-import org.elasticsearch.search.facet.terms.bytes.TermsByteOrdinalsFacetCollector;
 import org.elasticsearch.search.facet.terms.doubles.TermsDoubleFacetCollector;
-import org.elasticsearch.search.facet.terms.doubles.TermsDoubleOrdinalsFacetCollector;
-import org.elasticsearch.search.facet.terms.floats.TermsFloatFacetCollector;
-import org.elasticsearch.search.facet.terms.floats.TermsFloatOrdinalsFacetCollector;
 import org.elasticsearch.search.facet.terms.index.IndexNameFacetCollector;
-import org.elasticsearch.search.facet.terms.ints.TermsIntFacetCollector;
-import org.elasticsearch.search.facet.terms.ints.TermsIntOrdinalsFacetCollector;
-import org.elasticsearch.search.facet.terms.ip.TermsIpFacetCollector;
-import org.elasticsearch.search.facet.terms.ip.TermsIpOrdinalsFacetCollector;
 import org.elasticsearch.search.facet.terms.longs.TermsLongFacetCollector;
-import org.elasticsearch.search.facet.terms.longs.TermsLongOrdinalsFacetCollector;
-import org.elasticsearch.search.facet.terms.shorts.TermsShortFacetCollector;
-import org.elasticsearch.search.facet.terms.shorts.TermsShortOrdinalsFacetCollector;
 import org.elasticsearch.search.facet.terms.strings.FieldsTermsStringFacetCollector;
 import org.elasticsearch.search.facet.terms.strings.ScriptTermsStringFieldFacetCollector;
 import org.elasticsearch.search.facet.terms.strings.TermsStringFacetCollector;
@@ -80,7 +70,7 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
         int size = 10;
 
         String[] fieldsNames = null;
-        ImmutableSet<String> excluded = ImmutableSet.of();
+        ImmutableSet<BytesRef> excluded = ImmutableSet.of();
         String regex = null;
         String regexFlags = null;
         TermsFacet.ComparatorType comparatorType = TermsFacet.ComparatorType.COUNT;
@@ -101,9 +91,9 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("exclude".equals(currentFieldName)) {
-                    ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+                    ImmutableSet.Builder<BytesRef> builder = ImmutableSet.builder();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        builder.add(parser.text());
+                        builder.add(parser.bytes());
                     }
                     excluded = builder.build();
                 } else if ("fields".equals(currentFieldName)) {
@@ -146,69 +136,40 @@ public class TermsFacetProcessor extends AbstractComponent implements FacetProce
         if (regex != null) {
             pattern = Regex.compile(regex, regexFlags);
         }
+
+        SearchScript searchScript = null;
+        if (script != null) {
+            searchScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
+        }
+
         if (fieldsNames != null) {
-            return new FieldsTermsStringFacetCollector(facetName, fieldsNames, size, comparatorType, allTerms, context, excluded, pattern, scriptLang, script, params);
+            return new FieldsTermsStringFacetCollector(facetName, fieldsNames, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
         }
         if (field == null && fieldsNames == null && script != null) {
             return new ScriptTermsStringFieldFacetCollector(facetName, size, comparatorType, context, excluded, pattern, scriptLang, script, params);
         }
 
         FieldMapper fieldMapper = context.smartNameFieldMapper(field);
-        if (fieldMapper != null) {
-            if (fieldMapper instanceof IpFieldMapper) {
-                if (script != null || "map".equals(executionHint)) {
-                    return new TermsIpFacetCollector(facetName, field, size, comparatorType, allTerms, context, scriptLang, script, params);
-                } else {
-                    return new TermsIpOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, null);
-                }
-            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
-                if (script != null || "map".equals(executionHint)) {
-                    return new TermsLongFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
-                } else {
-                    return new TermsLongOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded);
-                }
-            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.DOUBLE) {
-                if (script != null) {
-                    return new TermsDoubleFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
-                } else {
-                    return new TermsDoubleOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded);
-                }
-            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.INT) {
-                if (script != null || "map".equals(executionHint)) {
-                    return new TermsIntFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
-                } else {
-                    return new TermsIntOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded);
-                }
-            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.FLOAT) {
-                if (script != null || "map".equals(executionHint)) {
-                    return new TermsFloatFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
-                } else {
-                    return new TermsFloatOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded);
-                }
-            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.SHORT) {
-                if (script != null || "map".equals(executionHint)) {
-                    return new TermsShortFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
-                } else {
-                    return new TermsShortOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded);
-                }
-            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.BYTE) {
-                if (script != null || "map".equals(executionHint)) {
-                    return new TermsByteFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, scriptLang, script, params);
-                } else {
-                    return new TermsByteOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded);
-                }
-            } else if (fieldMapper.fieldDataType() == FieldDataType.DefaultTypes.STRING) {
-                if (script == null && !"map".equals(executionHint)) {
-                    return new TermsStringOrdinalsFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, pattern);
-                }
+        if (fieldMapper == null) {
+            throw new FacetPhaseExecutionException(facetName, "failed to find mapping for [" + field + "]");
+        }
+
+        IndexFieldData indexFieldData = context.fieldData().getForField(fieldMapper);
+        if (indexFieldData instanceof IndexNumericFieldData) {
+            IndexNumericFieldData indexNumericFieldData = (IndexNumericFieldData) indexFieldData;
+            if (indexNumericFieldData.getNumericType().isFloatingPoint()) {
+                return new TermsDoubleFacetCollector(facetName, indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript);
+            } else {
+                return new TermsLongFacetCollector(facetName, indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript);
+            }
+        } else {
+            if (script != null || "map".equals(executionHint)) {
+                return new TermsStringFacetCollector(facetName, indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+            } else if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
+                return new TermsStringOrdinalsFacetCollector(facetName, (IndexFieldData.WithOrdinals) indexFieldData, size, comparatorType, allTerms, context, excluded, pattern);
+            } else {
+                return new TermsStringFacetCollector(facetName, indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
             }
         }
-        return new TermsStringFacetCollector(facetName, field, size, comparatorType, allTerms, context, excluded, pattern, scriptLang, script, params);
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalTermsFacet first = (InternalTermsFacet) facets.get(0);
-        return first.reduce(name, facets);
     }
 }

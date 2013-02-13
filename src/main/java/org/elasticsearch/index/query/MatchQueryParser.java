@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.CommonTermsQuery;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
@@ -68,7 +70,7 @@ public class MatchQueryParser implements QueryParser {
         }
         String fieldName = parser.currentName();
 
-        String text = null;
+        Object value = null;
         float boost = 1.0f;
         MatchQuery matchQuery = new MatchQuery(parseContext);
         String minimumShouldMatch = null;
@@ -81,7 +83,7 @@ public class MatchQueryParser implements QueryParser {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
                     if ("query".equals(currentFieldName)) {
-                        text = parser.text();
+                        value = parser.objectText();
                     } else if ("type".equals(currentFieldName)) {
                         String tStr = parser.text();
                         if ("boolean".equals(tStr)) {
@@ -122,8 +124,21 @@ public class MatchQueryParser implements QueryParser {
                         matchQuery.setRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
                     } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
                         matchQuery.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(parser.textOrNull(), null));
+                    } else if ("fuzzy_transpositions".equals(fieldName)) {
+                        matchQuery.setTranspositions(parser.booleanValue());
                     } else if ("lenient".equals(currentFieldName)) {
                         matchQuery.setLenient(parser.booleanValue());
+                    } else if ("cutoff_frequency".equals(currentFieldName)) {
+                        matchQuery.setCommonTermsCutoff(parser.floatValue());
+                    } else if ("zero_terms_query".equals(currentFieldName)) {
+                        String zeroTermsDocs = parser.text();
+                        if ("none".equalsIgnoreCase(zeroTermsDocs)) {
+                            matchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE);
+                        } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
+                            matchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.ALL);
+                        } else {
+                            throw new QueryParsingException(parseContext.index(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                        }
                     } else {
                         throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
                     }
@@ -131,24 +146,28 @@ public class MatchQueryParser implements QueryParser {
             }
             parser.nextToken();
         } else {
-            text = parser.text();
+            value = parser.objectText();
             // move to the next token
-            parser.nextToken();
+            token = parser.nextToken();
+            if (token != XContentParser.Token.END_OBJECT) {
+                throw new QueryParsingException(parseContext.index(), "[match] query parsed in simplified form, with direct field name, but included more options than just the field name, possibly use its 'options' form, with 'query' element?");
+            }
         }
 
-        if (text == null) {
+        if (value == null) {
             throw new QueryParsingException(parseContext.index(), "No text specified for text query");
         }
 
-        Query query = matchQuery.parse(type, fieldName, text);
+        Query query = matchQuery.parse(type, fieldName, value);
         if (query == null) {
             return null;
         }
 
         if (query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+        } else if (query instanceof ExtendedCommonTermsQuery) {
+            ((ExtendedCommonTermsQuery)query).setMinimumNumberShouldMatch(minimumShouldMatch);
         }
-
         query.setBoost(boost);
         return query;
     }

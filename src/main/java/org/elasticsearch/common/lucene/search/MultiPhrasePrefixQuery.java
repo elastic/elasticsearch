@@ -19,11 +19,12 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermEnum;
+import gnu.trove.set.hash.THashSet;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
@@ -137,7 +138,7 @@ public class MultiPhrasePrefixQuery extends Query {
         }
         Term[] suffixTerms = termArrays.get(sizeMinus1);
         int position = positions.get(sizeMinus1);
-        List<Term> terms = new ArrayList<Term>();
+        Set<Term> terms = new THashSet<Term>();
         for (Term term : suffixTerms) {
             getPrefixTerms(terms, term, reader);
             if (terms.size() > maxExpansions) {
@@ -151,24 +152,33 @@ public class MultiPhrasePrefixQuery extends Query {
         return query.rewrite(reader);
     }
 
-    private void getPrefixTerms(List<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
-        TermEnum enumerator = reader.terms(prefix);
-        try {
-            do {
-                Term term = enumerator.term();
-                if (term != null
-                        && term.text().startsWith(prefix.text())
-                        && term.field().equals(field)) {
-                    terms.add(term);
-                } else {
+    private void getPrefixTerms(Set<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
+        // SlowCompositeReaderWrapper could be used... but this would merge all terms from each segment into one terms
+        // instance, which is very expensive. Therefore I think it is better to iterate over each leaf individually.
+        TermsEnum termsEnum = null;
+        List<AtomicReaderContext> leaves = reader.leaves();
+        for (AtomicReaderContext leaf : leaves) {
+            Terms _terms = leaf.reader().terms(field);
+            if (_terms == null) {
+                continue;
+            }
+
+            termsEnum = _terms.iterator(termsEnum);
+            TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(prefix.bytes());
+            if (TermsEnum.SeekStatus.END == seekStatus) {
+                continue;
+            }
+
+            for (BytesRef term = termsEnum.term(); term != null; term = termsEnum.next()) {
+                if (!StringHelper.startsWith(term, prefix.bytes())) {
                     break;
                 }
+
+                terms.add(new Term(field, BytesRef.deepCopyOf(term)));
                 if (terms.size() >= maxExpansions) {
-                    break;
+                    return;
                 }
-            } while (enumerator.next());
-        } finally {
-            enumerator.close();
+            }
         }
     }
 
@@ -261,5 +271,9 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         return true;
+    }
+    
+    public String getField() {
+        return field;
     }
 }

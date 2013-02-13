@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.search.nested;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
@@ -32,7 +34,7 @@ public class NestedDocsFilter extends Filter {
 
     public static final NestedDocsFilter INSTANCE = new NestedDocsFilter();
 
-    private final PrefixFilter filter = new PrefixFilter(new Term(TypeFieldMapper.NAME, "__"));
+    private final PrefixFilter filter = new PrefixFilter(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
 
     private final int hashCode = filter.hashCode();
 
@@ -41,8 +43,8 @@ public class NestedDocsFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        return filter.getDocIdSet(reader);
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        return filter.getDocIdSet(context, acceptDocs);
     }
 
     @Override

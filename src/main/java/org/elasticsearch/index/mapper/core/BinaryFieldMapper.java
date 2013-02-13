@@ -20,18 +20,21 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
@@ -44,13 +47,19 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 /**
  *
  */
-public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
+public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
     public static final String CONTENT_TYPE = "binary";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final long COMPRESS_THRESHOLD = -1;
-        public static final Field.Store STORE = Field.Store.YES;
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setStored(true);
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, BinaryFieldMapper> {
@@ -60,8 +69,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         private long compressThreshold = Defaults.COMPRESS_THRESHOLD;
 
         public Builder(String name) {
-            super(name);
-            store = Defaults.STORE;
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -82,7 +90,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(buildNames(context), store, compress, compressThreshold);
+            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold, provider);
         }
     }
 
@@ -114,53 +122,57 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
 
     private long compressThreshold;
 
-    protected BinaryFieldMapper(Names names, Field.Store store, Boolean compress, long compressThreshold) {
-        super(names, Field.Index.NO, store, Field.TermVector.NO, 1.0f, true, IndexOptions.DOCS_ONLY, null, null);
+    protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold, PostingsFormatProvider provider) {
+        super(names, 1.0f, fieldType, null, null, provider, null, null);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }
 
     @Override
-    public Object valueForSearch(Fieldable field) {
-        return value(field);
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
-    public byte[] value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public FieldDataType defaultFieldDataType() {
+        return null;
+    }
+
+    @Override
+    public Object valueForSearch(Object value) {
+        return value(value);
+    }
+
+    @Override
+    public BytesReference value(Object value) {
         if (value == null) {
-            return value;
+            return null;
+        }
+
+        BytesReference bytes;
+        if (value instanceof BytesRef) {
+            bytes = new BytesArray((BytesRef) value);
+        } else if (value instanceof BytesReference) {
+            bytes = (BytesReference) value;
+        } else if (value instanceof byte[]) {
+            bytes = new BytesArray((byte[]) value);
+        } else {
+            try {
+                bytes = new BytesArray(Base64.decode(value.toString()));
+            } catch (IOException e) {
+                throw new ElasticSearchParseException("failed to convert bytes", e);
+            }
         }
         try {
-            return CompressorFactory.uncompressIfNeeded(new BytesArray(value)).toBytes();
+            return CompressorFactory.uncompressIfNeeded(bytes);
         } catch (IOException e) {
             throw new ElasticSearchParseException("failed to decompress source", e);
         }
     }
 
     @Override
-    public byte[] valueFromString(String value) {
-        // assume its base64 (json)
-        try {
-            return Base64.decode(value);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    @Override
-    public String valueAsString(Fieldable field) {
-        return null;
-    }
-
-    @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
-    @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
-        if (!stored()) {
+        if (!fieldType().stored()) {
             return null;
         }
         byte[] value;
@@ -184,7 +196,7 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         if (value == null) {
             return null;
         }
-        return new Field(names.indexName(), value);
+        return new Field(names.indexName(), value, fieldType);
     }
 
     @Override
@@ -204,6 +216,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper<byte[]> {
         }
         if (compressThreshold != -1) {
             builder.field("compress_threshold", new ByteSizeValue(compressThreshold).toString());
+        }
+        if (fieldType.stored() != defaultFieldType().stored()) {
+            builder.field("store", fieldType.stored());
         }
         builder.endObject();
         return builder;

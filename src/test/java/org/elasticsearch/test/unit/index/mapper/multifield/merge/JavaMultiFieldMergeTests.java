@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.multifield.merge;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -49,14 +49,14 @@ public class JavaMultiFieldMergeTests {
 
         DocumentMapper docMapper = parser.parse(mapping);
 
-        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed"), nullValue());
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/merge/test-data.json"));
         Document doc = docMapper.parse(json).rootDoc();
-        Fieldable f = doc.getFieldable("name");
+        IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
-        f = doc.getFieldable("name.indexed");
+        f = doc.getField("name.indexed");
         assertThat(f, nullValue());
 
 
@@ -68,9 +68,9 @@ public class JavaMultiFieldMergeTests {
 
         docMapper.merge(docMapper2, mergeFlags().simulate(false));
 
-        assertThat(docMapper.mappers().name("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
 
-        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed2"), nullValue());
@@ -78,9 +78,9 @@ public class JavaMultiFieldMergeTests {
 
         json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/merge/test-data.json"));
         doc = docMapper.parse(json).rootDoc();
-        f = doc.getFieldable("name");
+        f = doc.getField("name");
         assertThat(f, notNullValue());
-        f = doc.getFieldable("name.indexed");
+        f = doc.getField("name.indexed");
         assertThat(f, notNullValue());
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/multifield/merge/test-mapping3.json");
@@ -91,9 +91,9 @@ public class JavaMultiFieldMergeTests {
 
         docMapper.merge(docMapper3, mergeFlags().simulate(false));
 
-        assertThat(docMapper.mappers().name("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
 
-        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed2").mapper(), notNullValue());
@@ -108,9 +108,9 @@ public class JavaMultiFieldMergeTests {
 
         docMapper.merge(docMapper4, mergeFlags().simulate(false));
 
-        assertThat(docMapper.mappers().name("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().name("name").mapper().fieldType().indexed(), equalTo(true));
 
-        assertThat(docMapper.mappers().fullName("name").mapper().indexed(), equalTo(true));
+        assertThat(docMapper.mappers().fullName("name").mapper().fieldType().indexed(), equalTo(true));
         assertThat(docMapper.mappers().fullName("name.indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed").mapper(), notNullValue());
         assertThat(docMapper.mappers().fullName("name.not_indexed2").mapper(), notNullValue());

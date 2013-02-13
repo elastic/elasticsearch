@@ -21,11 +21,12 @@ package org.elasticsearch.index.analysis;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.analysis.StopAnalyzer;
+import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.de.GermanAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
 import org.apache.lucene.analysis.snowball.SnowballAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -51,7 +52,7 @@ import java.util.Set;
  */
 public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<SnowballAnalyzer> {
 
-    private static final ImmutableMap<String, Set<?>> defaultLanguageStopwords = MapBuilder.<String, Set<?>>newMapBuilder()
+    private static final ImmutableMap<String, CharArraySet> defaultLanguageStopwords = MapBuilder.<String, CharArraySet>newMapBuilder()
             .put("English", StopAnalyzer.ENGLISH_STOP_WORDS_SET)
             .put("Dutch", DutchAnalyzer.getDefaultStopSet())
             .put("German", GermanAnalyzer.getDefaultStopSet())
@@ -66,8 +67,8 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
         super(index, indexSettings, name, settings);
 
         String language = settings.get("language", settings.get("name", "English"));
-        Set<?> defaultStopwords = defaultLanguageStopwords.containsKey(language) ? defaultLanguageStopwords.get(language) : ImmutableSet.<Set<?>>of();
-        Set<?> stopWords = Analysis.parseStopWords(env, settings, defaultStopwords, version);
+        CharArraySet defaultStopwords = defaultLanguageStopwords.containsKey(language) ? defaultLanguageStopwords.get(language) : CharArraySet.EMPTY_SET;
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords, version);
 
         analyzer = new SnowballAnalyzer(version, language, stopWords);
     }

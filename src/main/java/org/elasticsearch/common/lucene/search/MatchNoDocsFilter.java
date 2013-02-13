@@ -19,9 +19,10 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 
@@ -31,7 +32,7 @@ import java.io.IOException;
 public class MatchNoDocsFilter extends Filter {
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
         return null;
     }
 

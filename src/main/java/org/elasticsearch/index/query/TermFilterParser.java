@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
@@ -54,7 +55,7 @@ public class TermFilterParser implements FilterParser {
         boolean cache = true; // since usually term filter is on repeating terms, cache it by default
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        String value = null;
+        Object value = null;
 
         String filterName = null;
         String currentFieldName = null;
@@ -70,9 +71,9 @@ public class TermFilterParser implements FilterParser {
                         currentFieldName = parser.currentName();
                     } else {
                         if ("term".equals(currentFieldName)) {
-                            value = parser.text();
+                            value = parser.objectBytes();
                         } else if ("value".equals(currentFieldName)) {
-                            value = parser.text();
+                            value = parser.objectBytes();
                         } else if ("_name".equals(currentFieldName)) {
                             filterName = parser.text();
                         } else if ("_cache".equals(currentFieldName)) {
@@ -93,7 +94,7 @@ public class TermFilterParser implements FilterParser {
                     cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else {
                     fieldName = currentFieldName;
-                    value = parser.text();
+                    value = parser.objectBytes();
                 }
             }
         }
@@ -112,16 +113,16 @@ public class TermFilterParser implements FilterParser {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
-                    filter = smartNameFieldMappers.mapper().fieldFilter(value, parseContext);
+                    filter = smartNameFieldMappers.mapper().termFilter(value, parseContext);
                 } finally {
                     QueryParseContext.setTypes(previousTypes);
                 }
             } else {
-                filter = smartNameFieldMappers.mapper().fieldFilter(value, parseContext);
+                filter = smartNameFieldMappers.mapper().termFilter(value, parseContext);
             }
         }
         if (filter == null) {
-            filter = new TermFilter(new Term(fieldName, value));
+            filter = new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(value)));
         }
 
         if (cache) {

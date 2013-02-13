@@ -21,10 +21,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.all.AllEntries;
+import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -66,7 +66,7 @@ public class ParseContext {
 
     private DocumentMapper.ParseListener listener;
 
-    private String uid;
+    private UidField uid;
 
     private StringBuilder stringBuilder = new StringBuilder();
 
@@ -79,6 +79,11 @@ public class ParseContext {
     private Object externalValue;
 
     private AllEntries allEntries = new AllEntries();
+
+    private float docBoost = 1.0f;
+
+    private FieldMapperListener.Aggregator newFieldMappers = new FieldMapperListener.Aggregator();
+    private ObjectMapperListener.Aggregator newObjectMappers = new ObjectMapperListener.Aggregator();
 
     public ParseContext(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser, DocumentMapper docMapper, ContentPath path) {
         this.index = index;
@@ -107,10 +112,21 @@ public class ParseContext {
         this.listener = listener == null ? DocumentMapper.ParseListener.EMPTY : listener;
         this.allEntries = new AllEntries();
         this.ignoredValues.clear();
+        this.docBoost = 1.0f;
+        this.newFieldMappers.mappers.clear();
+        this.newObjectMappers.mappers.clear();
     }
 
     public boolean flyweight() {
         return sourceToParse.flyweight();
+    }
+
+    public FieldMapperListener.Aggregator newFieldMappers() {
+        return newFieldMappers;
+    }
+
+    public ObjectMapperListener.Aggregator newObjectMappers() {
+        return newObjectMappers;
     }
 
     public DocumentMapperParser docMapperParser() {
@@ -216,19 +232,19 @@ public class ParseContext {
         this.id = id;
     }
 
-    public String uid() {
+    public UidField uid() {
         return this.uid;
     }
 
     /**
      * Really, just the uid mapper should set this.
      */
-    public void uid(String uid) {
+    public void uid(UidField uid) {
         this.uid = uid;
     }
 
     public boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.index());
+        return includeInAll(includeInAll, mapper.fieldType().indexed());
     }
 
     /**
@@ -236,13 +252,13 @@ public class ParseContext {
      * is <tt>false</tt>. If its enabled, then will return <tt>true</tt> only if the specific flag is <tt>null</tt> or
      * its actual value (so, if not set, defaults to "true") and the field is indexed.
      */
-    private boolean includeInAll(Boolean specificIncludeInAll, Field.Index index) {
+    private boolean includeInAll(Boolean specificIncludeInAll, boolean indexed) {
         if (!docMapper.allFieldMapper().enabled()) {
             return false;
         }
         // not explicitly set
         if (specificIncludeInAll == null) {
-            return index != Field.Index.NO;
+            return indexed;
         }
         return specificIncludeInAll;
     }
@@ -271,6 +287,14 @@ public class ParseContext {
     public Object externalValue() {
         externalValueSet = false;
         return externalValue;
+    }
+
+    public float docBoost() {
+        return this.docBoost;
+    }
+
+    public void docBoost(float docBoost) {
+        this.docBoost = docBoost;
     }
 
     /**

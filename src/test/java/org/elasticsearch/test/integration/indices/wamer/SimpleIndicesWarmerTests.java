@@ -23,6 +23,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.hamcrest.Matchers;
@@ -142,4 +143,20 @@ public class SimpleIndicesWarmerTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field", "value2").setRefresh(true).execute().actionGet();
     }
+
+    @Test
+    public void deleteNonExistentIndexWarmerTest() {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+
+        try {
+            client.admin().indices().prepareDeleteWarmer().setIndices("test").setName("foo").execute().actionGet(1000);
+            assert false : "warmer foo should not exist";
+        }
+        catch(IndexWarmerMissingException ex) {
+            assertThat(ex.name(), equalTo("foo"));
+        }
+    }
+
 }

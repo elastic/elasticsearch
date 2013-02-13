@@ -52,7 +52,7 @@ public class SearchWhileCreatingIndexTests extends AbstractNodesTests {
         }
 
         for (int i = 0; i < 20; i++) {
-            node.client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 10)).execute().actionGet();
+            node.client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 10)).execute().actionGet();
 
             node.client().prepareIndex("test", "type1").setSource("field", "test").execute().actionGet();
             node.client().admin().indices().prepareRefresh().execute().actionGet();

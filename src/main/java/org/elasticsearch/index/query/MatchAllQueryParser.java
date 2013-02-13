@@ -53,7 +53,7 @@ public class MatchAllQueryParser implements QueryParser {
         String currentFieldName = null;
 
         XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while (((token = parser.nextToken()) != XContentParser.Token.END_OBJECT && token != XContentParser.Token.END_ARRAY)) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
@@ -71,7 +71,9 @@ public class MatchAllQueryParser implements QueryParser {
             return Queries.MATCH_ALL_QUERY;
         }
 
-        MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);
+        //LUCENE 4 UPGRADE norms field is not supported anymore need to find another way or drop the functionality
+        //MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);
+        MatchAllDocsQuery query = new MatchAllDocsQuery();
         query.setBoost(boost);
         return query;
     }

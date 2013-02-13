@@ -21,12 +21,14 @@ package org.elasticsearch.test.integration.search.basic;
 
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -69,7 +71,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         client = getClient();
 
         client.admin().indices().create(createIndexRequest("test")
-                .settings(settingsBuilder().put("number_of_shards", 3).put("number_of_replicas", 0).put("routing.hash.type", "simple")))
+                .settings(settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).put("routing.hash.type", "simple")))
                 .actionGet();
 
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
@@ -365,6 +367,28 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         response = client.search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
         assertThat(response.shardFailures().length, equalTo(0));
         assertThat(response.hits().hits().length, equalTo(0));
+
+        logger.info("Done Testing failed search");
+    }
+
+    @Test
+    public void testFailedMultiSearchWithWrongQuery() throws Exception {
+        logger.info("Start Testing failed multi search with a wrong query");
+
+        MultiSearchResponse response = client.prepareMultiSearch()
+                // Add custom score query with missing script
+                .add(client.prepareSearch("test").setQuery(QueryBuilders.customScoreQuery(QueryBuilders.termQuery("nid", 1))))
+                .add(client.prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
+                .add(client.prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+                .execute().actionGet();
+        assertThat(response.responses().length, equalTo(3));
+        assertThat(response.responses()[0].failureMessage(), notNullValue());
+
+        assertThat(response.responses()[1].failureMessage(), nullValue());
+        assertThat(response.responses()[1].getResponse().hits().hits().length, equalTo(1));
+
+        assertThat(response.responses()[2].failureMessage(), nullValue());
+        assertThat(response.responses()[2].getResponse().hits().hits().length, equalTo(10));
 
         logger.info("Done Testing failed search");
     }

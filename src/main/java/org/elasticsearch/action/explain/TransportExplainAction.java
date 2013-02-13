@@ -44,6 +44,9 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rescore.RescorePhase;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -86,7 +89,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexService(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
-        Term uidTerm = UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(request.type(), request.id()));
+        Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));
         if (!result.exists()) {
             return new ExplainResponse(false);
@@ -104,9 +107,15 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         try {
             context.parsedQuery(parseQuery(request, indexService));
             context.preProcess();
-            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docStart;
-
-            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+            int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().reader.docBase;
+            Explanation explanation;
+            if (context.rescore() != null) {
+                RescoreSearchContext ctx = context.rescore();
+                Rescorer rescorer = ctx.rescorer();
+                explanation = rescorer.explain(topLevelDocId, context, ctx);
+            } else {
+                explanation = context.searcher().explain(context.query(), topLevelDocId);
+            }
             if (request.fields() != null) {
                 if (request.fields().length == 1 && "_source".equals(request.fields()[0])) {
                     request.fields(null); // Load the _source field

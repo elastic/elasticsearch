@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
@@ -65,6 +66,16 @@ public class BytesStreamInput extends StreamInput {
             return super.readBytesReference(length);
         }
         BytesArray bytes = new BytesArray(buf, pos, length);
+        pos += length;
+        return bytes;
+    }
+
+    @Override
+    public BytesRef readBytesRef(int length) throws IOException {
+        if (unsafe) {
+            return super.readBytesRef(length);
+        }
+        BytesRef bytes = new BytesRef(buf, pos, length);
         pos += length;
         return bytes;
     }

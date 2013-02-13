@@ -103,7 +103,7 @@ public interface IndexShardGateway extends IndexShardComponent, CloseableIndexCo
          * Indicates that the index has changed from the latest snapshot.
          */
         public boolean indexChanged() {
-            return lastIndexVersion != indexCommit.getVersion();
+            return lastIndexVersion != indexCommit.getGeneration();
         }
 
         /**

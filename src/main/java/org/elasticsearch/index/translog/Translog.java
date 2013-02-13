@@ -321,17 +321,17 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
-            id = in.readUTF();
-            type = in.readUTF();
+            id = in.readString();
+            type = in.readString();
             source = in.readBytesReference();
             if (version >= 1) {
                 if (in.readBoolean()) {
-                    routing = in.readUTF();
+                    routing = in.readString();
                 }
             }
             if (version >= 2) {
                 if (in.readBoolean()) {
-                    parent = in.readUTF();
+                    parent = in.readString();
                 }
             }
             if (version >= 3) {
@@ -348,20 +348,20 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(5); // version
-            out.writeUTF(id);
-            out.writeUTF(type);
+            out.writeString(id);
+            out.writeString(type);
             out.writeBytesReference(source);
             if (routing == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(routing);
+                out.writeString(routing);
             }
             if (parent == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(parent);
+                out.writeString(parent);
             }
             out.writeLong(version);
             out.writeLong(timestamp);
@@ -450,17 +450,17 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
-            id = in.readUTF();
-            type = in.readUTF();
+            id = in.readString();
+            type = in.readString();
             source = in.readBytesReference();
             if (version >= 1) {
                 if (in.readBoolean()) {
-                    routing = in.readUTF();
+                    routing = in.readString();
                 }
             }
             if (version >= 2) {
                 if (in.readBoolean()) {
-                    parent = in.readUTF();
+                    parent = in.readString();
                 }
             }
             if (version >= 3) {
@@ -477,20 +477,20 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(5); // version
-            out.writeUTF(id);
-            out.writeUTF(type);
+            out.writeString(id);
+            out.writeString(type);
             out.writeBytesReference(source);
             if (routing == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(routing);
+                out.writeString(routing);
             }
             if (parent == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(parent);
+                out.writeString(parent);
             }
             out.writeLong(version);
             out.writeLong(timestamp);
@@ -540,7 +540,7 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             int version = in.readVInt(); // version
-            uid = new Term(in.readUTF(), in.readUTF());
+            uid = new Term(in.readString(), in.readString());
             if (version >= 1) {
                 this.version = in.readLong();
             }
@@ -549,8 +549,8 @@ public interface Translog extends IndexShardComponent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(1); // version
-            out.writeUTF(uid.field());
-            out.writeUTF(uid.text());
+            out.writeString(uid.field());
+            out.writeString(uid.text());
             out.writeLong(version);
         }
     }
@@ -608,14 +608,14 @@ public interface Translog extends IndexShardComponent {
             if (version < 2) {
                 // for query_parser_name, which was removed
                 if (in.readBoolean()) {
-                    in.readUTF();
+                    in.readString();
                 }
             }
             int typesSize = in.readVInt();
             if (typesSize > 0) {
                 types = new String[typesSize];
                 for (int i = 0; i < typesSize; i++) {
-                    types[i] = in.readUTF();
+                    types[i] = in.readString();
                 }
             }
             if (version >= 1) {
@@ -623,7 +623,7 @@ public interface Translog extends IndexShardComponent {
                 if (aliasesSize > 0) {
                     filteringAliases = new String[aliasesSize];
                     for (int i = 0; i < aliasesSize; i++) {
-                        filteringAliases[i] = in.readUTF();
+                        filteringAliases[i] = in.readString();
                     }
                 }
             }
@@ -635,12 +635,12 @@ public interface Translog extends IndexShardComponent {
             out.writeBytesReference(source);
             out.writeVInt(types.length);
             for (String type : types) {
-                out.writeUTF(type);
+                out.writeString(type);
             }
             if (filteringAliases != null) {
                 out.writeVInt(filteringAliases.length);
                 for (String alias : filteringAliases) {
-                    out.writeUTF(alias);
+                    out.writeString(alias);
                 }
             } else {
                 out.writeVInt(0);

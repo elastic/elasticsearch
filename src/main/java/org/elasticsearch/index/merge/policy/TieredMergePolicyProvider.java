@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.merge.policy;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
@@ -31,7 +33,6 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
@@ -81,6 +82,10 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         // fixing maxMergeAtOnce, see TieredMergePolicy#setMaxMergeAtOnce
         if (!(segmentsPerTier >= maxMergeAtOnce)) {
             int newMaxMergeAtOnce = (int) segmentsPerTier;
+            // max merge at once should be at least 2
+            if (newMaxMergeAtOnce <= 1) {
+                newMaxMergeAtOnce = 2;
+            }
             logger.debug("[tiered] merge policy changing max_merge_at_once from [{}] to [{}] because segments_per_tier [{}] has to be higher or equal to it", maxMergeAtOnce, newMaxMergeAtOnce, segmentsPerTier);
             this.maxMergeAtOnce = newMaxMergeAtOnce;
         }
@@ -219,62 +224,19 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         }
     }
 
-    public static class EnableMergeTieredMergePolicyProvider extends CustomTieredMergePolicyProvider implements EnableMergePolicy {
-
-        private final ThreadLocal<Boolean> enableMerge = new ThreadLocal<Boolean>() {
-            @Override
-            protected Boolean initialValue() {
-                return Boolean.FALSE;
-            }
-        };
+    public static class EnableMergeTieredMergePolicyProvider extends CustomTieredMergePolicyProvider {
 
         public EnableMergeTieredMergePolicyProvider(TieredMergePolicyProvider provider) {
             super(provider);
         }
 
         @Override
-        public void enableMerge() {
-            enableMerge.set(Boolean.TRUE);
-        }
-
-        @Override
-        public void disableMerge() {
-            enableMerge.set(Boolean.FALSE);
-        }
-
-        @Override
-        public boolean isMergeEnabled() {
-            return enableMerge.get() == Boolean.TRUE;
-        }
-
-        @Override
-        public void close() {
-            enableMerge.remove();
-            super.close();
-        }
-
-        @Override
-        public MergePolicy.MergeSpecification findMerges(SegmentInfos infos) throws IOException {
-            if (enableMerge.get() == Boolean.FALSE) {
+        public MergePolicy.MergeSpecification findMerges(MergeTrigger trigger, SegmentInfos infos) throws IOException {
+            // we don't enable merges while indexing documents, we do them in the background
+            if (trigger == MergeTrigger.SEGMENT_FLUSH) {
                 return null;
             }
-            return super.findMerges(infos);
-        }
-
-        @Override
-        public MergeSpecification findForcedMerges(SegmentInfos infos, int maxSegmentCount, Map<SegmentInfo, Boolean> segmentsToMerge) throws IOException {
-            if (enableMerge.get() == Boolean.FALSE) {
-                return null;
-            }
-            return super.findForcedMerges(infos, maxSegmentCount, segmentsToMerge);
-        }
-
-        @Override
-        public MergeSpecification findForcedDeletesMerges(SegmentInfos infos) throws CorruptIndexException, IOException {
-            if (enableMerge.get() == Boolean.FALSE) {
-                return null;
-            }
-            return super.findForcedDeletesMerges(infos);
+            return super.findMerges(trigger, infos);
         }
     }
 }

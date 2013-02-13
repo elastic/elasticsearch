@@ -37,7 +37,7 @@ public class ConcurrentDocumentOperationTests extends AbstractNodesTests {
 
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
         nodes[0].client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("number_of_shards", 1).put("number_of_replicas", nodes.length - 1))
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", nodes.length - 1))
                 .execute().actionGet();
 
         logger.info("execute concurrent updates on the same doc");

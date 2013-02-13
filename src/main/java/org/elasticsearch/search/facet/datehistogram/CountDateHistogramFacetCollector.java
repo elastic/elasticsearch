@@ -20,17 +20,13 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import gnu.trove.map.hash.TLongLongHashMap;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.joda.TimeZoneRounding;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.longs.LongFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -41,48 +37,28 @@ import java.io.IOException;
  */
 public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String indexFieldName;
+    private final IndexNumericFieldData indexFieldData;
 
     private final DateHistogramFacet.ComparatorType comparatorType;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType fieldDataType;
-
-    private LongFieldData fieldData;
-
+    private LongValues values;
     private final DateHistogramProc histoProc;
 
-    public CountDateHistogramFacetCollector(String facetName, String fieldName, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public CountDateHistogramFacetCollector(String facetName, IndexNumericFieldData indexFieldData, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
-        this.fieldDataCache = context.fieldDataCache();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        FieldMapper mapper = smartMappers.mapper();
-
-        indexFieldName = mapper.names().indexName();
-        fieldDataType = mapper.fieldDataType();
-        histoProc = new DateHistogramProc(tzRounding);
+        this.indexFieldData = indexFieldData;
+        this.histoProc = new DateHistogramProc(tzRounding);
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, histoProc);
+        values.forEachValueInDoc(doc, histoProc);
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        values = indexFieldData.load(context).getLongValues();
     }
 
     @Override
@@ -90,7 +66,7 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
         return new InternalCountDateHistogramFacet(facetName, comparatorType, histoProc.counts(), true);
     }
 
-    public static class DateHistogramProc implements LongFieldData.LongValueInDocProc {
+    public static class DateHistogramProc implements LongValues.ValueInDocProc {
 
         private final TLongLongHashMap counts = CacheRecycler.popLongLongMap();
 
@@ -98,6 +74,10 @@ public class CountDateHistogramFacetCollector extends AbstractFacetCollector {
 
         public DateHistogramProc(TimeZoneRounding tzRounding) {
             this.tzRounding = tzRounding;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override

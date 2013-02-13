@@ -21,27 +21,34 @@ package org.elasticsearch.index.mapper.ip;
 
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
-import org.apache.lucene.search.*;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.NumericRangeFilter;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericAnalyzer;
 import org.elasticsearch.index.analysis.NumericTokenizer;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -86,6 +93,12 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final String NULL_VALUE = null;
+
+        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, IpFieldMapper> {
@@ -93,7 +106,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         protected String nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -104,8 +117,9 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public IpFieldMapper build(BuilderContext context) {
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IpFieldMapper fieldMapper = new IpFieldMapper(buildNames(context),
-                    precisionStep, index, store, boost, omitNorms, indexOptions, nullValue, ignoreMalformed(context));
+                    precisionStep, boost, fieldType, nullValue, ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -129,14 +143,23 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     private String nullValue;
 
-    protected IpFieldMapper(Names names, int precisionStep,
-                            Field.Index index, Field.Store store,
-                            float boost, boolean omitNorms, IndexOptions indexOptions,
-                            String nullValue, Explicit<Boolean> ignoreMalformed) {
-        super(names, precisionStep, null, index, store, boost, omitNorms, indexOptions,
+    protected IpFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+                            String nullValue, Explicit<Boolean> ignoreMalformed,
+                            PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+        super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_ip/" + precisionStep, new NumericIpAnalyzer(precisionStep)),
-                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)));
+                new NamedAnalyzer("_ip/max", new NumericIpAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("long");
     }
 
     @Override
@@ -145,43 +168,50 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Long value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public Long value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToLong(value);
-    }
-
-    @Override
-    public Long valueFromString(String value) {
-        return ipToLong(value);
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof BytesRef) {
+            return Numbers.bytesToLong((BytesRef) value);
+        }
+        return ipToLong(value.toString());
     }
 
     /**
-     * IPs should return as a string, delegates to {@link #valueAsString(org.apache.lucene.document.Fieldable)}.
+     * IPs should return as a string.
      */
     @Override
-    public Object valueForSearch(Fieldable field) {
-        return valueAsString(field);
-    }
-
-    @Override
-    public String valueAsString(Fieldable field) {
-        Long value = value(field);
-        if (value == null) {
+    public Object valueForSearch(Object value) {
+        Long val = value(value);
+        if (val == null) {
             return null;
         }
-        return longToIp(value);
+        return longToIp(val);
     }
 
     @Override
-    public String indexedValue(String value) {
-        return NumericUtils.longToPrefixCoded(ipToLong(value));
+    public BytesRef indexedValueForSearch(Object value) {
+        BytesRef bytesRef = new BytesRef();
+        NumericUtils.longToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
+        return bytesRef;
+    }
+
+    private long parseValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).longValue();
+        }
+        if (value instanceof BytesRef) {
+            return ipToLong(((BytesRef) value).utf8ToString());
+        }
+        return ipToLong(value.toString());
     }
 
     @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         long iValue = ipToLong(value);
         long iSim;
         try {
@@ -200,31 +230,26 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        return new FuzzyQuery(names().createIndexNameTerm(value), (float) minSim, prefixLength, maxExpansions);
-    }
-
-    @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : ipToLong(lowerTerm),
-                upperTerm == null ? null : ipToLong(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : ipToLong(lowerTerm),
-                upperTerm == null ? null : ipToLong(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newLongRange(fieldDataCache, names.indexName(),
-                lowerTerm == null ? null : ipToLong(lowerTerm),
-                upperTerm == null ? null : ipToLong(upperTerm),
+    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newLongRange((IndexNumericFieldData) fieldData.getForField(this),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
@@ -241,7 +266,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         String ipAsString;
         if (context.externalValueSet()) {
             ipAsString = (String) context.externalValue();
@@ -264,12 +289,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
         }
 
         final long value = ipToLong(ipAsString);
-        return new LongFieldMapper.CustomLongNumericField(this, value);
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.LONG;
+        return new LongFieldMapper.CustomLongNumericField(this, value, fieldType);
     }
 
     @Override
@@ -291,21 +311,6 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
-        }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
-        }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
-        }
-        if (omitNorms != Defaults.OMIT_NORMS) {
-            builder.field("omit_norms", omitNorms);
-        }
-        if (indexOptions != Defaults.INDEX_OPTIONS) {
-            builder.field("index_options", indexOptionToString(indexOptions));
-        }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
         }

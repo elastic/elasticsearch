@@ -19,12 +19,14 @@
 
 package org.elasticsearch.search.lookup;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.document.SingleFieldSelector;
+import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
@@ -44,24 +46,25 @@ public class FieldsLookup implements Map {
     @Nullable
     private final String[] types;
 
-    private IndexReader reader;
+    private AtomicReader reader;
 
     private int docId = -1;
 
     private final Map<String, FieldLookup> cachedFieldData = Maps.newHashMap();
 
-    private final SingleFieldSelector fieldSelector = new SingleFieldSelector();
+    private final SingleFieldsVisitor fieldVisitor;
 
     FieldsLookup(MapperService mapperService, @Nullable String[] types) {
         this.mapperService = mapperService;
         this.types = types;
+        this.fieldVisitor = new SingleFieldsVisitor(null);
     }
 
-    public void setNextReader(IndexReader reader) {
-        if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
+    public void setNextReader(AtomicReaderContext context) {
+        if (this.reader == context.reader()) { // if we are called with the same reader, don't invalidate source
             return;
         }
-        this.reader = reader;
+        this.reader = context.reader();
         clearCache();
         this.docId = -1;
     }
@@ -150,10 +153,13 @@ public class FieldsLookup implements Map {
             data = new FieldLookup(mapper);
             cachedFieldData.put(name, data);
         }
-        if (data.doc() == null) {
-            fieldSelector.name(data.mapper().names().indexName());
+        if (data.fields() == null) {
+            String fieldName = data.mapper().names().indexName();
+            fieldVisitor.reset(fieldName);
             try {
-                data.doc(reader.document(docId, fieldSelector));
+                reader.document(docId, fieldVisitor);
+                fieldVisitor.postProcess(data.mapper());
+                data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.mapper().names().indexName())));
             } catch (IOException e) {
                 throw new ElasticSearchParseException("failed to load field [" + name + "]", e);
             }

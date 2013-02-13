@@ -81,14 +81,14 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
         if (typesSize > 0) {
             types = new String[typesSize];
             for (int i = 0; i < typesSize; i++) {
-                types[i] = in.readUTF();
+                types[i] = in.readString();
             }
         }
         int aliasesSize = in.readVInt();
         if (aliasesSize > 0) {
             filteringAliases = new String[aliasesSize];
             for (int i = 0; i < aliasesSize; i++) {
-                filteringAliases[i] = in.readUTF();
+                filteringAliases[i] = in.readString();
             }
         }
     }
@@ -102,12 +102,12 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
 
         out.writeVInt(types.length);
         for (String type : types) {
-            out.writeUTF(type);
+            out.writeString(type);
         }
         if (filteringAliases != null) {
             out.writeVInt(filteringAliases.length);
             for (String alias : filteringAliases) {
-                out.writeUTF(alias);
+                out.writeString(alias);
             }
         } else {
             out.writeVInt(0);

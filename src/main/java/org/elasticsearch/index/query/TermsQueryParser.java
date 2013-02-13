@@ -92,10 +92,16 @@ public class TermsQueryParser implements QueryParser {
                     minimumShouldMatch = parser.textOrNull();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
             }
+        }
+
+        if (fieldName == null) {
+            throw new QueryParsingException(parseContext.index(), "No field specified for terms query");
         }
 
         FieldMapper mapper = null;
@@ -112,7 +118,7 @@ public class TermsQueryParser implements QueryParser {
             BooleanQuery query = new BooleanQuery(disableCoord);
             for (String value : values) {
                 if (mapper != null) {
-                    query.add(new BooleanClause(mapper.fieldQuery(value, parseContext), BooleanClause.Occur.SHOULD));
+                    query.add(new BooleanClause(mapper.termQuery(value, parseContext), BooleanClause.Occur.SHOULD));
                 } else {
                     query.add(new TermQuery(new Term(fieldName, value)), BooleanClause.Occur.SHOULD);
                 }

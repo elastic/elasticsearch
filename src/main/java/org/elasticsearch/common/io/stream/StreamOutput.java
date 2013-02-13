@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -106,6 +107,15 @@ public abstract class StreamOutput extends OutputStream {
         bytes.writeTo(this);
     }
 
+    public void writeBytesRef(BytesRef bytes) throws IOException {
+        if (bytes == null) {
+            writeVInt(0);
+            return;
+        }
+        writeVInt(bytes.length);
+        write(bytes.bytes, bytes.offset, bytes.length);
+    }
+
     public final void writeShort(short v) throws IOException {
         writeByte((byte) (v >> 8));
         writeByte((byte) v);
@@ -155,22 +165,20 @@ public abstract class StreamOutput extends OutputStream {
         writeByte((byte) i);
     }
 
-    @Deprecated
-    public void writeOptionalUTF(@Nullable String str) throws IOException {
-        if (str == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeUTF(str);
-        }
-    }
-
     public void writeOptionalString(@Nullable String str) throws IOException {
         if (str == null) {
             writeBoolean(false);
         } else {
             writeBoolean(true);
             writeString(str);
+        }
+    }
+
+    public void writeOptionalText(@Nullable Text text) throws IOException {
+        if (text == null) {
+            writeInt(-1);
+        } else {
+            writeText(text);
         }
     }
 
@@ -194,6 +202,10 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public void writeSharedText(Text text) throws IOException {
+        writeText(text);
+    }
+
     public void writeString(String str) throws IOException {
         int charCount = str.length();
         writeVInt(charCount);
@@ -211,16 +223,6 @@ public abstract class StreamOutput extends OutputStream {
                 writeByte((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
-    }
-
-    /**
-     * Writes a string.
-     *
-     * @deprecated use {@link #writeString(String)}
-     */
-    @Deprecated
-    public void writeUTF(String str) throws IOException {
-        writeString(str);
     }
 
     public void writeFloat(float v) throws IOException {
@@ -358,6 +360,9 @@ public abstract class StreamOutput extends OutputStream {
         } else if (value instanceof Text) {
             writeByte((byte) 15);
             writeText((Text) value);
+        } else if (type == Short.class) {
+            writeByte((byte) 16);
+            writeShort((Short) value);
         } else {
             throw new IOException("Can't write type [" + type + "]");
         }

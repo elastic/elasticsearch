@@ -19,24 +19,19 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.longs.LongFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * A histogram facet collector that uses the same field as the key as well as the
@@ -44,48 +39,25 @@ import java.util.Map;
  */
 public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String indexFieldName;
+    private final IndexNumericFieldData keyIndexFieldData;
 
     private final DateHistogramFacet.ComparatorType comparatorType;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType fieldDataType;
-
-    private LongFieldData fieldData;
-
+    private LongValues keyValues;
     private final SearchScript valueScript;
-
     private final DateHistogramProc histoProc;
 
-    public ValueScriptDateHistogramFacetCollector(String facetName, String fieldName, String scriptLang, String valueScript, Map<String, Object> params, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public ValueScriptDateHistogramFacetCollector(String facetName, IndexNumericFieldData keyIndexFieldData, SearchScript valueScript, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
-        this.fieldDataCache = context.fieldDataCache();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
-
-        FieldMapper mapper = smartMappers.mapper();
-
-        indexFieldName = mapper.names().indexName();
-        fieldDataType = mapper.fieldDataType();
-
+        this.keyIndexFieldData = keyIndexFieldData;
+        this.valueScript = valueScript;
         histoProc = new DateHistogramProc(tzRounding, this.valueScript);
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, histoProc);
+        keyValues.forEachValueInDoc(doc, histoProc);
     }
 
     @Override
@@ -94,9 +66,9 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
-        valueScript.setNextReader(reader);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        keyValues = keyIndexFieldData.load(context).getLongValues();
+        valueScript.setNextReader(context);
     }
 
     @Override
@@ -104,7 +76,7 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
         return new InternalFullDateHistogramFacet(facetName, comparatorType, histoProc.entries, true);
     }
 
-    public static class DateHistogramProc implements LongFieldData.LongValueInDocProc {
+    public static class DateHistogramProc implements LongValues.ValueInDocProc {
 
         private final TimeZoneRounding tzRounding;
 
@@ -115,6 +87,10 @@ public class ValueScriptDateHistogramFacetCollector extends AbstractFacetCollect
         public DateHistogramProc(TimeZoneRounding tzRounding, SearchScript valueScript) {
             this.tzRounding = tzRounding;
             this.valueScript = valueScript;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override

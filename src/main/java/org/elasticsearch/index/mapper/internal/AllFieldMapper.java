@@ -21,20 +21,25 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -63,6 +68,14 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         public static final String NAME = AllFieldMapper.NAME;
         public static final String INDEX_NAME = AllFieldMapper.NAME;
         public static final boolean ENABLED = true;
+
+        public static final FieldType FIELD_TYPE = new FieldType();
+
+        static {
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(true);
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, AllFieldMapper> {
@@ -73,7 +86,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         boolean autoBoost = false;
 
         public Builder() {
-            super(Defaults.NAME);
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
             indexName = Defaults.INDEX_NAME;
         }
@@ -84,29 +97,12 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
 
         @Override
-        public Builder store(Field.Store store) {
-            return super.store(store);
-        }
-
-        @Override
-        public Builder termVector(Field.TermVector termVector) {
-            return super.termVector(termVector);
-        }
-
-        @Override
-        protected Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
-            return super.indexAnalyzer(indexAnalyzer);
-        }
-
-        @Override
-        protected Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
-            return super.searchAnalyzer(searchAnalyzer);
-        }
-
-        @Override
         public AllFieldMapper build(BuilderContext context) {
-            return new AllFieldMapper(name, store, termVector, omitNorms, indexOptions,
-                    indexAnalyzer, searchAnalyzer, enabled, autoBoost);
+            // In case the mapping overrides these
+            fieldType.setIndexed(true);
+            fieldType.setTokenized(true);
+
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, provider, similarity, fieldDataSettings);
         }
     }
 
@@ -138,13 +134,12 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, null, null, Defaults.ENABLED, false);
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null);
     }
 
-    protected AllFieldMapper(String name, Field.Store store, Field.TermVector termVector, boolean omitNorms, IndexOptions indexOptions,
-                             NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, boolean enabled, boolean autoBoost) {
-        super(new Names(name, name, name, name), Field.Index.ANALYZED, store, termVector, 1.0f, omitNorms, indexOptions, indexAnalyzer,
-                searchAnalyzer);
+    protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
+                             boolean enabled, boolean autoBoost, PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, provider, similarity, fieldDataSettings);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -155,20 +150,29 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("string");
+    }
+
+    @Override
     public Query queryStringTermQuery(Term term) {
         if (!autoBoost) {
             return new TermQuery(term);
         }
-        if (indexOptions == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) {
+        if (fieldType.indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) {
             return new AllTermQuery(term);
         }
         return new TermQuery(term);
     }
 
     @Override
-    public Query fieldQuery(String value, QueryParseContext context) {
-        return queryStringTermQuery(names().createIndexNameTerm(value));
-
+    public Query termQuery(Object value, QueryParseContext context) {
+        return queryStringTermQuery(names().createIndexNameTerm(indexedValueForSearch(value)));
     }
 
     @Override
@@ -195,7 +199,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
-    protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    protected Field parseCreateField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
@@ -210,7 +214,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
 
         Analyzer analyzer = findAnalyzer(context);
-        return new AllField(names.indexName(), store, termVector, context.allEntries(), analyzer);
+        return new AllField(names.indexName(), context.allEntries(), analyzer, fieldType);
     }
 
     private Analyzer findAnalyzer(ParseContext context) {
@@ -229,22 +233,12 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
-    public Void value(Fieldable field) {
+    public Void value(Object value) {
         return null;
     }
 
     @Override
-    public Void valueFromString(String value) {
-        return null;
-    }
-
-    @Override
-    public String valueAsString(Fieldable field) {
-        return null;
-    }
-
-    @Override
-    public Object valueForSearch(Fieldable field) {
+    public Object valueForSearch(Object value) {
         return null;
     }
 
@@ -256,7 +250,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && store == Defaults.STORE && termVector == Defaults.TERM_VECTOR && indexAnalyzer == null && searchAnalyzer == null) {
+        if (enabled == Defaults.ENABLED && fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
+                fieldType.storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
+                indexAnalyzer == null && searchAnalyzer == null) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -266,11 +262,20 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         if (autoBoost != false) {
             builder.field("auto_boost", autoBoost);
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
         }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
+        if (fieldType.storeTermVectors() != Defaults.FIELD_TYPE.storeTermVectors()) {
+            builder.field("store_term_vector", fieldType.storeTermVectors());
+        }
+        if (fieldType.storeTermVectorOffsets() != Defaults.FIELD_TYPE.storeTermVectorOffsets()) {
+            builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
+        }
+        if (fieldType.storeTermVectorPositions() != Defaults.FIELD_TYPE.storeTermVectorPositions()) {
+            builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
+        }
+        if (fieldType.storeTermVectorPayloads() != Defaults.FIELD_TYPE.storeTermVectorPayloads()) {
+            builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
         }
         if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
             // same analyzers, output it once
@@ -282,6 +287,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
                 builder.field("search_analyzer", searchAnalyzer.name());
             }
+        }
+        if (similarity() != null) {
+            builder.field("similarity", similarity().name());
         }
         builder.endObject();
         return builder;

@@ -39,8 +39,12 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.CacheStats;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.fielddata.IndexFieldDataModule;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.gateway.IndexGateway;
 import org.elasticsearch.index.gateway.IndexGatewayModule;
@@ -183,6 +187,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         GetStats getStats = new GetStats();
         SearchStats searchStats = new SearchStats();
         CacheStats cacheStats = new CacheStats();
+        FieldDataStats fieldDataStats = new FieldDataStats();
         MergeStats mergeStats = new MergeStats();
         RefreshStats refreshStats = new RefreshStats();
         FlushStats flushStats = new FlushStats();
@@ -208,8 +213,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 flushStats.add(indexShard.flushStats());
             }
             cacheStats.add(indexService.cache().stats());
+            fieldDataStats.add(indexService.fieldData().stats());
         }
-        return new NodeIndicesStats(storeStats, docsStats, indexingStats, getStats, searchStats, cacheStats, mergeStats, refreshStats, flushStats);
+        return new NodeIndicesStats(storeStats, docsStats, indexingStats, getStats, searchStats, cacheStats, fieldDataStats, mergeStats, refreshStats, flushStats);
     }
 
     /**
@@ -275,8 +281,10 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
         modules.add(new SimilarityModule(indexSettings));
         modules.add(new IndexCacheModule(indexSettings));
-        modules.add(new IndexQueryParserModule(indexSettings));
+        modules.add(new IndexFieldDataModule(indexSettings));
+        modules.add(new CodecModule(indexSettings));
         modules.add(new MapperServiceModule());
+        modules.add(new IndexQueryParserModule(indexSettings));
         modules.add(new IndexAliasesServiceModule());
         modules.add(new IndexGatewayModule(indexSettings, injector.getInstance(Gateway.class)));
         modules.add(new IndexModule(indexSettings));
@@ -342,6 +350,7 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
         indexInjector.getInstance(PercolatorService.class).close();
         indexInjector.getInstance(IndexCache.class).close();
+        indexInjector.getInstance(IndexFieldDataService.class).clear();
         indexInjector.getInstance(AnalysisService.class).close();
         indexInjector.getInstance(IndexEngine.class).close();
         indexInjector.getInstance(IndexServiceManagement.class).close();

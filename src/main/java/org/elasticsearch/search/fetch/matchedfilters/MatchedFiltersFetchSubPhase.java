@@ -23,9 +23,9 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -66,9 +66,9 @@ public class MatchedFiltersFetchSubPhase implements FetchSubPhase {
             String name = entry.getKey();
             Filter filter = entry.getValue();
             try {
-                DocIdSet docIdSet = filter.getDocIdSet(hitContext.reader());
+                DocIdSet docIdSet = filter.getDocIdSet(hitContext.readerContext(), null); // null is fine, since we filter by hitContext.docId()
                 if (docIdSet != null) {
-                    DocSet docSet = DocSets.convert(hitContext.reader(), docIdSet);
+                    Bits docSet = DocIdSets.toSafeBits(hitContext.reader(), docIdSet);
                     if (docSet.get(hitContext.docId())) {
                         matchedFilters.add(name);
                     }

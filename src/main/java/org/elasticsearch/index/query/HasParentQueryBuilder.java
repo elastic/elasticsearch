@@ -30,12 +30,11 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
 
     private final QueryBuilder queryBuilder;
     private final String parentType;
-    private String scope;
-    private String executionType;
+    private String scoreType;
     private float boost = 1.0f;
 
     /**
-     * @param parentType The parent type
+     * @param parentType  The parent type
      * @param parentQuery The query that will be matched with parent documents
      */
     public HasParentQueryBuilder(String parentType, QueryBuilder parentQuery) {
@@ -43,23 +42,16 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         this.queryBuilder = parentQuery;
     }
 
-    public HasParentQueryBuilder scope(String scope) {
-        this.scope = scope;
+    public HasParentQueryBuilder boost(float boost) {
+        this.boost = boost;
         return this;
     }
 
     /**
-     * Expert: Sets the low level parent to child filtering implementation. Can be: 'bitset' or 'uid'
-     *
-     * This option is experimental and will be removed.
+     * Defines how the parent score is mapped into the child documents.
      */
-    public HasParentQueryBuilder executionType(String executionType) {
-        this.executionType = executionType;
-        return this;
-    }
-
-    public HasParentQueryBuilder boost(float boost) {
-        this.boost = boost;
+    public HasParentQueryBuilder scoreType(String scoreType) {
+        this.scoreType = scoreType;
         return this;
     }
 
@@ -68,11 +60,8 @@ public class HasParentQueryBuilder extends BaseQueryBuilder implements Boostable
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("parent_type", parentType);
-        if (scope != null) {
-            builder.field("_scope", scope);
-        }
-        if (executionType != null) {
-            builder.field("execution_type", executionType);
+        if (scoreType != null) {
+            builder.field("score_type", scoreType);
         }
         if (boost != 1.0f) {
             builder.field("boost", boost);

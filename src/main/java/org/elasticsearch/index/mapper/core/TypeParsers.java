@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper.core;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Field.Index;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
@@ -39,10 +37,11 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
  *
  */
 public class TypeParsers {
-    
+
     public static final String INDEX_OPTIONS_DOCS = "docs";
     public static final String INDEX_OPTIONS_FREQS = "freqs";
     public static final String INDEX_OPTIONS_POSITIONS = "positions";
+    public static final String INDEX_OPTIONS_OFFSETS = "offsets";
 
     public static void parseNumberField(NumberFieldMapper.Builder builder, String name, Map<String, Object> numberNode, Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, numberNode, parserContext);
@@ -51,10 +50,12 @@ public class TypeParsers {
             Object propNode = entry.getValue();
             if (propName.equals("precision_step")) {
                 builder.precisionStep(nodeIntegerValue(propNode));
-            } else if (propName.equals("fuzzy_factor")) {
-                builder.fuzzyFactor(propNode.toString());
             } else if (propName.equals("ignore_malformed")) {
                 builder.ignoreMalformed(nodeBooleanValue(propNode));
+            } else if (propName.equals("omit_norms")) {
+                builder.omitNorms(nodeBooleanValue(propNode));
+            } else if (propName.equals("similarity")) {
+                builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
             }
         }
     }
@@ -68,11 +69,21 @@ public class TypeParsers {
             } else if (propName.equals("store")) {
                 builder.store(parseStore(name, propNode.toString()));
             } else if (propName.equals("index")) {
-                builder.index(parseIndex(name, propNode.toString()));
+                parseIndex(name, propNode.toString(), builder);
+            } else if (propName.equals("tokenized")) {
+                builder.tokenized(nodeBooleanValue(propNode));
             } else if (propName.equals("term_vector")) {
-                builder.termVector(parseTermVector(name, propNode.toString()));
+                parseTermVector(name, propNode.toString(), builder);
             } else if (propName.equals("boost")) {
                 builder.boost(nodeFloatValue(propNode));
+            } else if (propName.equals("store_term_vectors")) {
+                builder.storeTermVectors(nodeBooleanValue(propNode));
+            } else if (propName.equals("store_term_vector_offsets")) {
+                builder.storeTermVectorOffsets(nodeBooleanValue(propNode));
+            } else if (propName.equals("store_term_vector_positions")) {
+                builder.storeTermVectorPositions(nodeBooleanValue(propNode));
+            } else if (propName.equals("store_term_vector_payloads")) {
+                builder.storeTermVectorPayloads(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_norms")) {
                 builder.omitNorms(nodeBooleanValue(propNode));
             } else if (propName.equals("omit_term_freq_and_positions")) {
@@ -101,13 +112,22 @@ public class TypeParsers {
                 builder.searchAnalyzer(analyzer);
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
+            } else if (propName.equals("postings_format")) {
+                String postingFormatName = propNode.toString();
+                builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
+            } else if (propName.equals("similarity")) {
+                builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
+            } else if (propName.equals("fielddata")) {
+                builder.fieldDataSettings(propNode.toString());
             }
         }
     }
 
     private static IndexOptions nodeIndexOptionValue(final Object propNode) {
         final String value = propNode.toString();
-        if (INDEX_OPTIONS_POSITIONS.equalsIgnoreCase(value)) {
+        if (INDEX_OPTIONS_OFFSETS.equalsIgnoreCase(value)) {
+            return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS;
+        } else if (INDEX_OPTIONS_POSITIONS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
         } else if (INDEX_OPTIONS_FREQS.equalsIgnoreCase(value)) {
             return IndexOptions.DOCS_AND_FREQS;
@@ -122,48 +142,46 @@ public class TypeParsers {
         return Joda.forPattern(node.toString());
     }
 
-    public static Field.TermVector parseTermVector(String fieldName, String termVector) throws MapperParsingException {
+    public static void parseTermVector(String fieldName, String termVector, AbstractFieldMapper.Builder builder) throws MapperParsingException {
         termVector = Strings.toUnderscoreCase(termVector);
         if ("no".equals(termVector)) {
-            return Field.TermVector.NO;
+            builder.storeTermVectors(false);
         } else if ("yes".equals(termVector)) {
-            return Field.TermVector.YES;
+            builder.storeTermVectors(true);
         } else if ("with_offsets".equals(termVector)) {
-            return Field.TermVector.WITH_OFFSETS;
+            builder.storeTermVectorOffsets(true);
         } else if ("with_positions".equals(termVector)) {
-            return Field.TermVector.WITH_POSITIONS;
+            builder.storeTermVectorPositions(true);
         } else if ("with_positions_offsets".equals(termVector)) {
-            return Field.TermVector.WITH_POSITIONS_OFFSETS;
+            builder.storeTermVectorPositions(true);
+            builder.storeTermVectorOffsets(true);
         } else {
             throw new MapperParsingException("Wrong value for termVector [" + termVector + "] for field [" + fieldName + "]");
         }
     }
 
-    public static Field.Index parseIndex(String fieldName, String index) throws MapperParsingException {
+    public static void parseIndex(String fieldName, String index, AbstractFieldMapper.Builder builder) throws MapperParsingException {
         index = Strings.toUnderscoreCase(index);
         if ("no".equals(index)) {
-            return Field.Index.NO;
+            builder.index(false);
         } else if ("not_analyzed".equals(index)) {
-            return Field.Index.NOT_ANALYZED;
+            builder.index(true);
+            builder.tokenized(false);
         } else if ("analyzed".equals(index)) {
-            return Field.Index.ANALYZED;
+            builder.index(true);
+            builder.tokenized(true);
         } else {
             throw new MapperParsingException("Wrong value for index [" + index + "] for field [" + fieldName + "]");
         }
     }
 
-    public static Field.Store parseStore(String fieldName, String store) throws MapperParsingException {
+    public static boolean parseStore(String fieldName, String store) throws MapperParsingException {
         if ("no".equals(store)) {
-            return Field.Store.NO;
+            return false;
         } else if ("yes".equals(store)) {
-            return Field.Store.YES;
+            return true;
         } else {
-            boolean value = nodeBooleanValue(store);
-            if (value) {
-                return Field.Store.YES;
-            } else {
-                return Field.Store.NO;
-            }
+            return nodeBooleanValue(store);
         }
     }
 

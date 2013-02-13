@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.transport.netty.ChannelBufferStreamInputFactory;
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -105,5 +106,32 @@ public class ChannelBufferBytesReference implements BytesReference {
     @Override
     public String toUtf8() {
         return buffer.toString(Charsets.UTF_8);
+    }
+
+    @Override
+    public BytesRef toBytesRef() {
+        if (buffer.hasArray()) {
+            return new BytesRef(buffer.array(), buffer.arrayOffset() + buffer.readerIndex(), buffer.readableBytes());
+        }
+        byte[] copy = new byte[buffer.readableBytes()];
+        buffer.getBytes(buffer.readerIndex(), copy);
+        return new BytesRef(copy);
+    }
+
+    @Override
+    public BytesRef copyBytesRef() {
+        byte[] copy = new byte[buffer.readableBytes()];
+        buffer.getBytes(buffer.readerIndex(), copy);
+        return new BytesRef(copy);
+    }
+
+    @Override
+    public int hashCode() {
+        return Helper.bytesHashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return Helper.bytesEqual(this, (BytesReference) obj);
     }
 }

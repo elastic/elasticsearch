@@ -28,9 +28,9 @@ import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -41,7 +41,6 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -138,21 +137,19 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
             }
         }
 
+        if (interval == null) {
+            throw new FacetPhaseExecutionException(facetName, "[interval] is required to be set for histogram facet");
+        }
+
         if (keyField == null) {
             throw new FacetPhaseExecutionException(facetName, "key field is required to be set for histogram facet, either using [field] or using [key_field]");
         }
 
-        FieldMapper mapper = context.smartNameFieldMapper(keyField);
-        if (mapper == null) {
+        FieldMapper keyMapper = context.smartNameFieldMapper(keyField);
+        if (keyMapper == null) {
             throw new FacetPhaseExecutionException(facetName, "(key) field [" + keyField + "] not found");
         }
-        if (mapper.fieldDataType() != FieldDataType.DefaultTypes.LONG) {
-            throw new FacetPhaseExecutionException(facetName, "(key) field [" + keyField + "] is not of type date");
-        }
-
-        if (interval == null) {
-            throw new FacetPhaseExecutionException(facetName, "[interval] is required to be set for histogram facet");
-        }
+        IndexNumericFieldData keyIndexFieldData = context.fieldData().getForField(keyMapper);
 
         TimeZoneRounding.Builder tzRoundingBuilder;
         DateFieldParser fieldParser = dateFieldParsers.get(interval);
@@ -171,11 +168,17 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                 .build();
 
         if (valueScript != null) {
-            return new ValueScriptDateHistogramFacetCollector(facetName, keyField, scriptLang, valueScript, params, tzRounding, comparatorType, context);
-        } else if (valueField == null) {
-            return new CountDateHistogramFacetCollector(facetName, keyField, tzRounding, comparatorType, context);
+            SearchScript script = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
+            return new ValueScriptDateHistogramFacetCollector(facetName, keyIndexFieldData, script, tzRounding, comparatorType, context);
+        } else if (valueField != null) {
+            FieldMapper valueMapper = context.smartNameFieldMapper(valueField);
+            if (valueMapper == null) {
+                throw new FacetPhaseExecutionException(facetName, "(value) field [" + valueField + "] not found");
+            }
+            IndexNumericFieldData valueIndexFieldData = context.fieldData().getForField(valueMapper);
+            return new ValueDateHistogramFacetCollector(facetName, keyIndexFieldData, valueIndexFieldData, tzRounding, comparatorType, context);
         } else {
-            return new ValueDateHistogramFacetCollector(facetName, keyField, valueField, tzRounding, comparatorType, context);
+            return new CountDateHistogramFacetCollector(facetName, keyIndexFieldData, tzRounding, comparatorType, context);
         }
     }
 
@@ -205,12 +208,6 @@ public class DateHistogramFacetProcessor extends AbstractComponent implements Fa
                 return DateTimeZone.forID(text);
             }
         }
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalDateHistogramFacet first = (InternalDateHistogramFacet) facets.get(0);
-        return first.reduce(name, facets);
     }
 
     static interface DateFieldParser {

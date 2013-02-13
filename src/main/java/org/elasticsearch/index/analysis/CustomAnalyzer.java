@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.*;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 
-import java.io.IOException;
 import java.io.Reader;
 
 /**
@@ -71,7 +71,7 @@ public final class CustomAnalyzer extends Analyzer {
     }
 
     @Override
-    public int getOffsetGap(Fieldable field) {
+    public int getOffsetGap(String field) {
         if (offsetGap < 0) {
             return super.getOffsetGap(field);
         }
@@ -79,49 +79,22 @@ public final class CustomAnalyzer extends Analyzer {
     }
 
     @Override
-    public final TokenStream tokenStream(String fieldName, Reader reader) {
-        return buildHolder(reader).tokenStream;
-    }
-
-    @Override
-    public final TokenStream reusableTokenStream(String fieldName, Reader reader) throws IOException {
-        Holder holder = (Holder) getPreviousTokenStream();
-        if (holder == null) {
-            holder = buildHolder(charFilterIfNeeded(reader));
-            setPreviousTokenStream(holder);
-        } else {
-            holder.tokenizer.reset(charFilterIfNeeded(reader));
-        }
-        return holder.tokenStream;
-    }
-
-    private Holder buildHolder(Reader input) {
-        Tokenizer tokenizer = tokenizerFactory.create(input);
+    protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
+        Tokenizer tokenizer = tokenizerFactory.create(reader);
         TokenStream tokenStream = tokenizer;
         for (TokenFilterFactory tokenFilter : tokenFilters) {
             tokenStream = tokenFilter.create(tokenStream);
         }
-        return new Holder(tokenizer, tokenStream);
+        return new TokenStreamComponents(tokenizer, tokenStream);
     }
 
-    private Reader charFilterIfNeeded(Reader reader) {
+    @Override
+    protected Reader initReader(String fieldName, Reader reader) {
         if (charFilters != null && charFilters.length > 0) {
-            CharStream charStream = CharReader.get(reader);
             for (CharFilterFactory charFilter : charFilters) {
-                charStream = charFilter.create(charStream);
+                reader = charFilter.create(reader);
             }
-            reader = charStream;
         }
         return reader;
-    }
-
-    static class Holder {
-        final Tokenizer tokenizer;
-        final TokenStream tokenStream;
-
-        private Holder(Tokenizer tokenizer, TokenStream tokenStream) {
-            this.tokenizer = tokenizer;
-            this.tokenStream = tokenStream;
-        }
     }
 }

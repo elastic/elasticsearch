@@ -31,6 +31,19 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.util.List;
 
+/**
+ * Similar to the {@link ClusterRebalanceAllocationDecider} this
+ * {@link AllocationDecider} controls the number of currently in-progress
+ * re-balance (relocation) operations and restricts node allocations if the
+ * configured threashold is reached. The default number of concurrent rebalance
+ * operations is set to <tt>2</tt>
+ * <p>
+ * Re-balance operations can be controlled in real-time via the cluster update API using
+ * <tt>cluster.routing.allocation.cluster_concurrent_rebalance</tt>. Iff this
+ * setting is set to <tt>-1</tt> the number of concurrent re-balance operations
+ * are unlimited.
+ * 
+ */
 public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     static {
@@ -61,9 +74,9 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (clusterConcurrentRebalance == -1) {
-            return true;
+            return Decision.YES;
         }
         int rebalance = 0;
         for (RoutingNode node : allocation.routingNodes()) {
@@ -75,8 +88,8 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
             }
         }
         if (rebalance >= clusterConcurrentRebalance) {
-            return false;
+            return Decision.NO;
         }
-        return true;
+        return Decision.YES;
     }
 }

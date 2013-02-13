@@ -19,14 +19,12 @@
 
 package org.elasticsearch.test.unit.common.lucene.search;
 
-import org.apache.lucene.analysis.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.XTermsFilter;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.*;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.FixedBitSet;
@@ -51,26 +49,26 @@ public class TermsFilterTests {
         for (int i = 0; i < 100; i++) {
             Document doc = new Document();
             int term = i * 10; //terms are units of 10;
-            doc.add(new Field(fieldName, "" + term, Field.Store.NO, Field.Index.NOT_ANALYZED));
-            doc.add(new Field("all", "xxx", Field.Store.NO, Field.Index.NOT_ANALYZED));
+            doc.add(new Field(fieldName, "" + term, StringField.TYPE_NOT_STORED));
+            doc.add(new Field("all", "xxx", StringField.TYPE_NOT_STORED));
             w.addDocument(doc);
             if ((i % 40) == 0) {
                 w.commit();
             }
         }
-        IndexReader reader = w.getReader();
+        AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(w, true));
         w.close();
 
         TermFilter tf = new TermFilter(new Term(fieldName, "19"));
-        FixedBitSet bits = (FixedBitSet) tf.getDocIdSet(reader);
+        FixedBitSet bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits, nullValue());
 
         tf = new TermFilter(new Term(fieldName, "20"));
-        bits = (FixedBitSet) tf.getDocIdSet(reader);
+        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits.cardinality(), equalTo(1));
 
         tf = new TermFilter(new Term("all", "xxx"));
-        bits = (FixedBitSet) tf.getDocIdSet(reader);
+        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits.cardinality(), equalTo(100));
 
         reader.close();
@@ -85,30 +83,30 @@ public class TermsFilterTests {
         for (int i = 0; i < 100; i++) {
             Document doc = new Document();
             int term = i * 10; //terms are units of 10;
-            doc.add(new Field(fieldName, "" + term, Field.Store.NO, Field.Index.NOT_ANALYZED));
-            doc.add(new Field("all", "xxx", Field.Store.NO, Field.Index.NOT_ANALYZED));
+            doc.add(new Field(fieldName, "" + term, StringField.TYPE_NOT_STORED));
+            doc.add(new Field("all", "xxx", StringField.TYPE_NOT_STORED));
             w.addDocument(doc);
             if ((i % 40) == 0) {
                 w.commit();
             }
         }
-        IndexReader reader = w.getReader();
+        AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(w, true));
         w.close();
 
-        XTermsFilter tf = new XTermsFilter(new Term[]{new Term(fieldName, "19")});
-        FixedBitSet bits = (FixedBitSet) tf.getDocIdSet(reader);
+        TermsFilter tf = new TermsFilter(new Term[]{new Term(fieldName, "19")});
+        FixedBitSet bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits, nullValue());
 
-        tf = new XTermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20")});
-        bits = (FixedBitSet) tf.getDocIdSet(reader);
+        tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20")});
+        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits.cardinality(), equalTo(1));
 
-        tf = new XTermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10")});
-        bits = (FixedBitSet) tf.getDocIdSet(reader);
+        tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10")});
+        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits.cardinality(), equalTo(2));
 
-        tf = new XTermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10"), new Term(fieldName, "00")});
-        bits = (FixedBitSet) tf.getDocIdSet(reader);
+        tf = new TermsFilter(new Term[]{new Term(fieldName, "19"), new Term(fieldName, "20"), new Term(fieldName, "10"), new Term(fieldName, "00")});
+        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
         assertThat(bits.cardinality(), equalTo(2));
 
         reader.close();

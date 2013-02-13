@@ -30,7 +30,8 @@ import java.io.IOException;
 import java.io.Serializable;
 
 /**
- *
+ * {@link ImmutableShardRouting} immutably encapsulates information about shard
+ * routings like id, state, version, etc.
  */
 public class ImmutableShardRouting implements Streamable, Serializable, ShardRouting {
 
@@ -172,18 +173,47 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
         return new PlainShardIterator(shardId(), asList);
     }
 
+    /**
+     * Reads a {@link ImmutableShardRouting} instance of a shard from an {@link InputStream}
+     * 
+     * @param in {@link InputStream} to read the entry from
+     * @return {@link ImmutableShardRouting} instances read from the given {@link InputStream}
+     * 
+     * @throws IOException if some exception occurs during the read operations
+     */
     public static ImmutableShardRouting readShardRoutingEntry(StreamInput in) throws IOException {
         ImmutableShardRouting entry = new ImmutableShardRouting();
         entry.readFrom(in);
         return entry;
     }
 
+    /**
+     * Reads a routingentry from an inputstream with given <code>index</code> and
+     * <code>shardId</code>.
+     * 
+     * @param in inputstream to read the entry from
+     * @param index shards index
+     * @param id id of the shard
+     * @return Shard routing entry read
+     * 
+     * @throws IOException if some exception occurs during the read operations
+     */
     public static ImmutableShardRouting readShardRoutingEntry(StreamInput in, String index, int shardId) throws IOException {
         ImmutableShardRouting entry = new ImmutableShardRouting();
         entry.readFrom(in, index, shardId);
         return entry;
     }
 
+    /**
+     * Read information from an inputstream with given <code>index</code> and
+     * <code>shardId</code>.
+     * 
+     * @param in inputstream to read the entry from
+     * @param index shards index
+     * @param id id of the shard
+     * 
+     * @throws IOException if some exception occurs during the read operations
+     */
     public void readFrom(StreamInput in, String index, int shardId) throws IOException {
         this.index = index;
         this.shardId = shardId;
@@ -194,11 +224,11 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     public void readFromThin(StreamInput in) throws IOException {
         version = in.readLong();
         if (in.readBoolean()) {
-            currentNodeId = in.readUTF();
+            currentNodeId = in.readString();
         }
 
         if (in.readBoolean()) {
-            relocatingNodeId = in.readUTF();
+            relocatingNodeId = in.readString();
         }
 
         primary = in.readBoolean();
@@ -207,24 +237,26 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, in.readUTF(), in.readVInt());
+        readFrom(in, in.readString(), in.readVInt());
     }
-
+    
     /**
-     * Does not write index name and shard id
+     * Writes shard information to {@link StreamOutput} without writing index name and shard id
+     * @param out {@link StreamOutput} to write shard information to
+     * @throws IOException if something happens during write
      */
     public void writeToThin(StreamOutput out) throws IOException {
         out.writeLong(version);
         if (currentNodeId != null) {
             out.writeBoolean(true);
-            out.writeUTF(currentNodeId);
+            out.writeString(currentNodeId);
         } else {
             out.writeBoolean(false);
         }
 
         if (relocatingNodeId != null) {
             out.writeBoolean(true);
-            out.writeUTF(relocatingNodeId);
+            out.writeString(relocatingNodeId);
         } else {
             out.writeBoolean(false);
         }
@@ -235,7 +267,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(index);
+        out.writeString(index);
         out.writeVInt(shardId);
         writeToThin(out);
     }

@@ -19,13 +19,15 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 
 import java.io.IOException;
 
@@ -34,93 +36,83 @@ import java.io.IOException;
  */
 public class InMemoryGeoBoundingBoxFilter extends Filter {
 
-    private final Point topLeft;
+    private final GeoPoint topLeft;
+    private final GeoPoint bottomRight;
 
-    private final Point bottomRight;
+    private final IndexGeoPointFieldData indexFieldData;
 
-    private final String fieldName;
-
-    private final FieldDataCache fieldDataCache;
-
-    public InMemoryGeoBoundingBoxFilter(Point topLeft, Point bottomRight, String fieldName, FieldDataCache fieldDataCache) {
+    public InMemoryGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, IndexGeoPointFieldData indexFieldData) {
         this.topLeft = topLeft;
         this.bottomRight = bottomRight;
-        this.fieldName = fieldName;
-        this.fieldDataCache = fieldDataCache;
+        this.indexFieldData = indexFieldData;
     }
 
-    public Point topLeft() {
+    public GeoPoint topLeft() {
         return topLeft;
     }
 
-    public Point bottomRight() {
+    public GeoPoint bottomRight() {
         return bottomRight;
     }
 
     public String fieldName() {
-        return fieldName;
+        return indexFieldData.getFieldNames().indexName();
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+        final GeoPointValues values = indexFieldData.load(context).getGeoPointValues();
 
         //checks to see if bounding box crosses 180 degrees
-        if (topLeft.lon > bottomRight.lon) {
-            return new Meridian180GeoBoundingBoxDocSet(reader.maxDoc(), fieldData, topLeft, bottomRight);
+        if (topLeft.lon() > bottomRight.lon()) {
+            return new Meridian180GeoBoundingBoxDocSet(context.reader().maxDoc(), acceptedDocs, values, topLeft, bottomRight);
         } else {
-            return new GeoBoundingBoxDocSet(reader.maxDoc(), fieldData, topLeft, bottomRight);
+            return new GeoBoundingBoxDocSet(context.reader().maxDoc(), acceptedDocs, values, topLeft, bottomRight);
         }
     }
 
     @Override
     public String toString() {
-        return "GeoBoundingBoxFilter(" + fieldName + ", "  + topLeft + ", " + bottomRight + ")";
+        return "GeoBoundingBoxFilter(" + indexFieldData.getFieldNames().indexName() + ", " + topLeft + ", " + bottomRight + ")";
     }
 
-    public static class Meridian180GeoBoundingBoxDocSet extends GetDocSet {
-        private final GeoPointFieldData fieldData;
-        private final Point topLeft;
-        private final Point bottomRight;
+    public static class Meridian180GeoBoundingBoxDocSet extends MatchDocIdSet {
+        private final GeoPointValues values;
+        private final GeoPoint topLeft;
+        private final GeoPoint bottomRight;
 
-        public Meridian180GeoBoundingBoxDocSet(int maxDoc, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
-            super(maxDoc);
-            this.fieldData = fieldData;
+        public Meridian180GeoBoundingBoxDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, GeoPoint topLeft, GeoPoint bottomRight) {
+            super(maxDoc, acceptDocs);
+            this.values = values;
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
         }
 
         @Override
         public boolean isCacheable() {
-            // not cacheable for several reasons:
-            // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
-            // 2. Its already fast without in mem bitset, since it works with field data
-            return false;
+            return true;
         }
 
         @Override
-        public boolean get(int doc) {
-            if (!fieldData.hasValue(doc)) {
+        protected boolean matchDoc(int doc) {
+            if (!values.hasValue(doc)) {
                 return false;
             }
 
-            if (fieldData.multiValued()) {
-                double[] lats = fieldData.latValues(doc);
-                double[] lons = fieldData.lonValues(doc);
-                for (int i = 0; i < lats.length; i++) {
-                    double lat = lats[i];
-                    double lon = lons[i];
-                    if (((topLeft.lon <= lon || bottomRight.lon >= lon)) &&
-                            (topLeft.lat >= lat && bottomRight.lat <= lat)) {
+            if (values.isMultiValued()) {
+                GeoPointValues.Iter iter = values.getIter(doc);
+                while (iter.hasNext()) {
+                    GeoPoint point = iter.next();
+                    if (((topLeft.lon() <= point.lon() || bottomRight.lon() >= point.lon())) &&
+                            (topLeft.lat() >= point.lat() && bottomRight.lat() <= point.lat())) {
                         return true;
                     }
                 }
             } else {
-                double lat = fieldData.latValue(doc);
-                double lon = fieldData.lonValue(doc);
+                GeoPoint point = values.getValue(doc);
 
-                if (((topLeft.lon <= lon || bottomRight.lon >= lon)) &&
-                        (topLeft.lat >= lat && bottomRight.lat <= lat)) {
+                if (((topLeft.lon() <= point.lon() || bottomRight.lon() >= point.lon())) &&
+                        (topLeft.lat() >= point.lat() && bottomRight.lat() <= point.lat())) {
                     return true;
                 }
             }
@@ -128,47 +120,42 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
         }
     }
 
-    public static class GeoBoundingBoxDocSet extends GetDocSet {
-        private final GeoPointFieldData fieldData;
-        private final Point topLeft;
-        private final Point bottomRight;
+    public static class GeoBoundingBoxDocSet extends MatchDocIdSet {
+        private final GeoPointValues values;
+        private final GeoPoint topLeft;
+        private final GeoPoint bottomRight;
 
-        public GeoBoundingBoxDocSet(int maxDoc, GeoPointFieldData fieldData, Point topLeft, Point bottomRight) {
-            super(maxDoc);
-            this.fieldData = fieldData;
+        public GeoBoundingBoxDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, GeoPoint topLeft, GeoPoint bottomRight) {
+            super(maxDoc, acceptDocs);
+            this.values = values;
             this.topLeft = topLeft;
             this.bottomRight = bottomRight;
         }
 
         @Override
         public boolean isCacheable() {
-            // not cacheable for several reasons:
-            // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
-            // 2. Its already fast without in mem bitset, since it works with field data
-            return false;
+            return true;
         }
 
         @Override
-        public boolean get(int doc) {
-            if (!fieldData.hasValue(doc)) {
+        protected boolean matchDoc(int doc) {
+            if (!values.hasValue(doc)) {
                 return false;
             }
 
-            if (fieldData.multiValued()) {
-                double[] lats = fieldData.latValues(doc);
-                double[] lons = fieldData.lonValues(doc);
-                for (int i = 0; i < lats.length; i++) {
-                    if (topLeft.lon <= lons[i] && bottomRight.lon >= lons[i]
-                            && topLeft.lat >= lats[i] && bottomRight.lat <= lats[i]) {
+            if (values.isMultiValued()) {
+                GeoPointValues.Iter iter = values.getIter(doc);
+                while (iter.hasNext()) {
+                    GeoPoint point = iter.next();
+                    if (topLeft.lon() <= point.lon() && bottomRight.lon() >= point.lon()
+                            && topLeft.lat() >= point.lat() && bottomRight.lat() <= point.lat()) {
                         return true;
                     }
                 }
             } else {
-                double lat = fieldData.latValue(doc);
-                double lon = fieldData.lonValue(doc);
-
-                if (topLeft.lon <= lon && bottomRight.lon >= lon
-                        && topLeft.lat >= lat && bottomRight.lat <= lat) {
+                GeoPoint point = values.getValue(doc);
+                if (topLeft.lon() <= point.lon() && bottomRight.lon() >= point.lon()
+                        && topLeft.lat() >= point.lat() && bottomRight.lat() <= point.lat()) {
                     return true;
                 }
             }

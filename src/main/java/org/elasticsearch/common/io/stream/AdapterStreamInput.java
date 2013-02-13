@@ -99,11 +99,6 @@ public abstract class AdapterStreamInput extends StreamInput {
     }
 
     @Override
-    public String readUTF() throws IOException {
-        return in.readUTF();
-    }
-
-    @Override
     public String readString() throws IOException {
         return in.readString();
     }
@@ -111,6 +106,11 @@ public abstract class AdapterStreamInput extends StreamInput {
     @Override
     public Text readText() throws IOException {
         return in.readText();
+    }
+
+    @Override
+    public Text readSharedText() throws IOException {
+        return in.readSharedText();
     }
 
     @Override

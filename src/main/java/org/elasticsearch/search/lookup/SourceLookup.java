@@ -20,15 +20,13 @@
 package org.elasticsearch.search.lookup;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldSelector;
+import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 
 import java.util.Collection;
 import java.util.List;
@@ -41,7 +39,7 @@ import java.util.Set;
 // TODO: If we are processing it in the per hit fetch phase, we cna initialize it with a source if it was loaded..
 public class SourceLookup implements Map {
 
-    private IndexReader reader;
+    private AtomicReader reader;
 
     private int docId = -1;
 
@@ -61,12 +59,13 @@ public class SourceLookup implements Map {
             return source;
         }
         try {
-            Document doc = reader.document(docId, SourceFieldSelector.INSTANCE);
-            Fieldable sourceField = doc.getFieldable(SourceFieldMapper.NAME);
-            if (sourceField == null) {
-                source = ImmutableMap.of();
+            JustSourceFieldsVisitor sourceFieldVisitor = new JustSourceFieldsVisitor();
+            reader.document(docId, sourceFieldVisitor);
+            BytesReference source = sourceFieldVisitor.source();
+            if (source == null) {
+                this.source = ImmutableMap.of();
             } else {
-                this.source = sourceAsMap(sourceField.getBinaryValue(), sourceField.getBinaryOffset(), sourceField.getBinaryLength());
+                this.source = sourceAsMap(source);
             }
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);
@@ -82,11 +81,11 @@ public class SourceLookup implements Map {
         return XContentHelper.convertToMap(bytes, offset, length, false).v2();
     }
 
-    public void setNextReader(IndexReader reader) {
-        if (this.reader == reader) { // if we are called with the same reader, don't invalidate source
+    public void setNextReader(AtomicReaderContext context) {
+        if (this.reader == context.reader()) { // if we are called with the same reader, don't invalidate source
             return;
         }
-        this.reader = reader;
+        this.reader = context.reader();
         this.source = null;
         this.sourceAsBytes = null;
         this.docId = -1;

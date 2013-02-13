@@ -19,26 +19,61 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.lucene.search.Similarity;
+import org.apache.lucene.search.similarities.*;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- *
+ * Abstract implemenetation of {@link SimilarityProvider} providing common behaviour
  */
-public abstract class AbstractSimilarityProvider<T extends Similarity> extends AbstractIndexComponent implements SimilarityProvider<T> {
+public abstract class AbstractSimilarityProvider implements SimilarityProvider {
+
+    protected static final Normalization NO_NORMALIZATION = new Normalization.NoNormalization();
 
     private final String name;
 
-    protected AbstractSimilarityProvider(Index index, @IndexSettings Settings indexSettings, String name) {
-        super(index, indexSettings);
+    /**
+     * Creates a new AbstractSimilarityProvider with the given name
+     *
+     * @param name Name of the Provider
+     */
+    protected AbstractSimilarityProvider(String name) {
         this.name = name;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String name() {
         return this.name;
+    }
+
+    /**
+     * Parses the given Settings and creates the appropriate {@link Normalization}
+     *
+     * @param settings Settings to parse
+     * @return {@link Normalization} referred to in the Settings
+     */
+    protected Normalization parseNormalization(Settings settings) {
+        String normalization = settings.get("normalization");
+
+        if ("no".equals(normalization)) {
+            return NO_NORMALIZATION;
+        } else if ("h1".equals(normalization)) {
+            float c = settings.getAsFloat("normalization.h1.c", 1f);
+            return new NormalizationH1(c);
+        } else if ("h2".equals(normalization)) {
+            float c = settings.getAsFloat("normalization.h2.c", 1f);
+            return new NormalizationH2(c);
+        } else if ("h3".equals(normalization)) {
+            float c = settings.getAsFloat("normalization.h3.c", 800f);
+            return new NormalizationH3(c);
+        } else if ("z".equals(normalization)) {
+            float z = settings.getAsFloat("normalization.z.z", 0.30f);
+            return new NormalizationZ(z);
+        } else {
+            throw new ElasticSearchIllegalArgumentException("Unsupported Normalization [" + normalization + "]");
+        }
     }
 }

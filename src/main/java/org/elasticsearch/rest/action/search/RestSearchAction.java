@@ -45,6 +45,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
+import static org.elasticsearch.search.suggest.SuggestBuilder.fuzzySuggestion;
 
 /**
  *
@@ -139,7 +140,6 @@ public class RestSearchAction extends BaseRestHandler {
         }
 
         searchRequest.types(RestActions.splitTypes(request.param("type")));
-        searchRequest.queryHint(request.param("query_hint"));
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         if (request.hasParam("ignore_indices")) {
@@ -275,6 +275,20 @@ public class RestSearchAction extends BaseRestHandler {
                 searchSourceBuilder = new SearchSourceBuilder();
             }
             searchSourceBuilder.stats(Strings.splitStringByCommaToArray(sStats));
+        }
+
+        String suggestField = request.param("suggest_field");
+        if (suggestField != null) {
+            String suggestText = request.param("suggest_text", queryString);
+            int suggestSize = request.paramAsInt("suggest_size", 5);
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            String suggestMode = request.param("suggest_mode");
+            searchSourceBuilder.suggest().addSuggestion(
+                    fuzzySuggestion(suggestField).setField(suggestField).setText(suggestText).setSize(suggestSize)
+                            .setSuggestMode(suggestMode)
+            );
         }
 
         return searchSourceBuilder;

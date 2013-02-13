@@ -35,8 +35,6 @@ import static org.elasticsearch.search.SearchShardTarget.readSearchShardTarget;
 
 /**
  * Represents a failure to search on a specific shard.
- *
- *
  */
 public class ShardSearchFailure implements ShardOperationFailedException {
 
@@ -58,7 +56,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
             this.shardTarget = ((SearchException) actual).shard();
         }
         if (actual != null && actual instanceof ElasticSearchException) {
-            status = ((ElasticSearchException) t).status();
+            status = ((ElasticSearchException) actual).status();
         } else {
             status = RestStatus.INTERNAL_SERVER_ERROR;
         }
@@ -128,7 +126,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         if (in.readBoolean()) {
             shardTarget = readSearchShardTarget(in);
         }
-        reason = in.readUTF();
+        reason = in.readString();
         status = RestStatus.readFrom(in);
     }
 
@@ -140,7 +138,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
             out.writeBoolean(true);
             shardTarget.writeTo(out);
         }
-        out.writeUTF(reason);
+        out.writeString(reason);
         RestStatus.writeTo(out, status);
     }
 }

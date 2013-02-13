@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +37,16 @@ import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
- *
+ * A {@link RoutingService} listens to clusters state. When this service
+ * receives a {@link ClusterChangedEvent} the cluster state will be verified and
+ * the routing tables might be updated.
+ * <p>
+ * Note: The {@link RoutingService} is responsible for cluster wide operations
+ * that include modifications to the cluster state. Such an operation can only
+ * be performed on the clusters master node. Unless the local node this service
+ * is running on is the clusters master node this service will not perform any
+ * actions.
+ * </p>
  */
 public class RoutingService extends AbstractLifecycleComponent<RoutingService> implements ClusterStateListener {
 
@@ -129,7 +139,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
             if (lifecycle.stopped()) {
                 return;
             }
-            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask(CLUSTER_UPDATE_TASK_SOURCE, Priority.HIGH, new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     RoutingAllocation.Result routingResult = allocationService.reroute(currentState);

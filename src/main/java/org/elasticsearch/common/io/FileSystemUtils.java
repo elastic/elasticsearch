@@ -115,6 +115,18 @@ public class FileSystemUtils {
         return false;
     }
 
+    /**
+     * Returns true if at least one of the files exists.
+     */
+    public static boolean exists(File... files) {
+        for (File file : files) {
+            if (file.exists()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static boolean deleteRecursively(File[] roots) {
         boolean deleted = true;
         for (File root : roots) {

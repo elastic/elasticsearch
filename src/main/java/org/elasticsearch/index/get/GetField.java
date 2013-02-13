@@ -86,7 +86,7 @@ public class GetField implements Streamable, Iterable<Object> {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         int size = in.readVInt();
         values = new ArrayList<Object>(size);
         for (int i = 0; i < size; i++) {
@@ -96,7 +96,7 @@ public class GetField implements Streamable, Iterable<Object> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeVInt(values.size());
         for (Object obj : values) {
             out.writeGenericValue(obj);

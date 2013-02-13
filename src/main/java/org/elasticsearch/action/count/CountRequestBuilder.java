@@ -53,14 +53,6 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
     }
 
     /**
-     * A query hint to optionally later be used when routing the request.
-     */
-    public CountRequestBuilder setQueryHint(String queryHint) {
-        request.queryHint(queryHint);
-        return this;
-    }
-
-    /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
     public CountRequestBuilder setRouting(String routing) {

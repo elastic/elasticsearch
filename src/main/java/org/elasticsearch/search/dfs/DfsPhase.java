@@ -20,8 +20,14 @@
 package org.elasticsearch.search.dfs;
 
 import com.google.common.collect.ImmutableMap;
+import gnu.trove.map.TMap;
 import gnu.trove.set.hash.THashSet;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.TermStatistics;
+import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -59,13 +65,31 @@ public class DfsPhase implements SearchPhase {
             THashSet<Term> termsSet = cachedTermsSet.get().get();
             termsSet.clear();
             context.query().extractTerms(termsSet);
+            if (context.rescore() != null) {
+                context.rescore().rescorer().extractTerms(context, context.rescore(), termsSet);
+            }
+            
             Term[] terms = termsSet.toArray(new Term[termsSet.size()]);
-            int[] freqs = context.searcher().docFreqs(terms);
+            TermStatistics[] termStatistics = new TermStatistics[terms.length];
+            IndexReaderContext indexReaderContext = context.searcher().getTopReaderContext();
+            for (int i = 0; i < terms.length; i++) {
+                // LUCENE 4 UPGRADE: cache TermContext?
+                TermContext termContext = TermContext.build(indexReaderContext, terms[i], false);
+                termStatistics[i] = context.searcher().termStatistics(terms[i], termContext);
+            }
 
-            context.dfsResult().termsAndFreqs(terms, freqs);
-            context.dfsResult().maxDoc(context.searcher().getIndexReader().maxDoc());
+            TMap<String, CollectionStatistics> fieldStatistics = new ExtTHashMap<String, CollectionStatistics>();
+            for (Term term : terms) {
+                if (!fieldStatistics.containsKey(term.field())) {
+                    fieldStatistics.put(term.field(), context.searcher().collectionStatistics(term.field()));
+                }
+            }
+
+            context.dfsResult().termsStatistics(terms, termStatistics)
+                    .fieldStatistics(fieldStatistics)
+                    .maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
-            throw new DfsPhaseExecutionException(context, "", e);
+            throw new DfsPhaseExecutionException(context, "Exception during dfs phase", e);
         }
     }
 }

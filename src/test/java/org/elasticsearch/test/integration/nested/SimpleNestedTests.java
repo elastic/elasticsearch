@@ -19,12 +19,14 @@
 
 package org.elasticsearch.test.integration.nested;
 
+import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
@@ -382,7 +384,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("number_of_shards", numberOfShards))
+                .setSettings(settingsBuilder().put("index.number_of_shards", numberOfShards))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested").startObject("properties")
@@ -422,23 +424,31 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         TermsStatsFacet termsStatsFacet = searchResponse.facets().facet("facet1");
         assertThat(termsStatsFacet.entries().size(), equalTo(4));
-        assertThat(termsStatsFacet.entries().get(0).term(), equalTo("blue"));
+        assertThat(termsStatsFacet.entries().get(0).term().string(), equalTo("blue"));
         assertThat(termsStatsFacet.entries().get(0).count(), equalTo(3l));
         assertThat(termsStatsFacet.entries().get(0).total(), equalTo(8d));
-        assertThat(termsStatsFacet.entries().get(1).term(), equalTo("yellow"));
+        assertThat(termsStatsFacet.entries().get(1).term().string(), equalTo("yellow"));
         assertThat(termsStatsFacet.entries().get(1).count(), equalTo(2l));
         assertThat(termsStatsFacet.entries().get(1).total(), equalTo(13d));
-        assertThat(termsStatsFacet.entries().get(2).term(), equalTo("green"));
+        assertThat(termsStatsFacet.entries().get(2).term().string(), equalTo("green"));
         assertThat(termsStatsFacet.entries().get(2).count(), equalTo(2l));
         assertThat(termsStatsFacet.entries().get(2).total(), equalTo(14d));
-        assertThat(termsStatsFacet.entries().get(3).term(), equalTo("red"));
+        assertThat(termsStatsFacet.entries().get(3).term().string(), equalTo("red"));
         assertThat(termsStatsFacet.entries().get(3).count(), equalTo(1l));
         assertThat(termsStatsFacet.entries().get(3).total(), equalTo(12d));
 
         // test scope ones
         searchResponse = client.prepareSearch("test")
-                .setQuery(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue")).scope("my"))
-                .addFacet(FacetBuilders.termsStatsFacet("facet1").keyField("nested1.nested2.field2_1").valueField("nested1.nested2.field2_2").scope("my"))
+                .setQuery(
+                        nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue"))
+                )
+                .addFacet(
+                        FacetBuilders.termsStatsFacet("facet1")
+                                .keyField("nested1.nested2.field2_1")
+                                .valueField("nested1.nested2.field2_2")
+                                .nested("nested1.nested2")
+                                .facetFilter(nestedFilter("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue")).join(false))
+                )
                 .execute().actionGet();
 
         assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
@@ -446,8 +456,118 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         termsStatsFacet = searchResponse.facets().facet("facet1");
         assertThat(termsStatsFacet.entries().size(), equalTo(1));
-        assertThat(termsStatsFacet.entries().get(0).term(), equalTo("blue"));
+        assertThat(termsStatsFacet.entries().get(0).term().string(), equalTo("blue"));
         assertThat(termsStatsFacet.entries().get(0).count(), equalTo(3l));
         assertThat(termsStatsFacet.entries().get(0).total(), equalTo(8d));
     }
+
+    @Test
+    // When IncludeNestedDocsQuery is wrapped in a FilteredQuery then a in-finite loop occurs b/c of a bug in IncludeNestedDocsQuery#advance()
+    // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
+    public void testDeleteNestedDocsWithAlias() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().indices().prepareAliases()
+                .addAlias("test", "alias1", FilterBuilders.termFilter("field1", "value1")).execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", "value1")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("field1", "value2")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1_1")
+                .field("n_field2", "n_value2_1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1_2")
+                .field("n_field2", "n_value2_2")
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(6l));
+
+        client.prepareDeleteByQuery("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
+
+        // This must be 3, otherwise child docs aren't deleted.
+        // If this is 5 then only the parent has been removed
+        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3l));
+        assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+    }
+
+    @Test
+    public void testExplain() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", "value1")
+                .startArray("nested1")
+                .startObject()
+                .field("n_field1", "n_value1")
+                .endObject()
+                .startObject()
+                .field("n_field1", "n_value1")
+                .endObject()
+                .endArray()
+                .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1")).scoreMode("total"))
+                .setExplain(true)
+                .execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        Explanation explanation = searchResponse.hits().hits()[0].explanation();
+        assertThat(explanation.getValue(), equalTo(2f));
+        assertThat(explanation.getDescription(), equalTo("Score based on child doc range from 0 to 1"));
+        // TODO: Enable when changes from BlockJoinQuery#explain are added to Lucene (Most likely version 4.2)
+//        assertThat(explanation.getDetails().length, equalTo(2));
+//        assertThat(explanation.getDetails()[0].getValue(), equalTo(1f));
+//        assertThat(explanation.getDetails()[0].getDescription(), equalTo("Child[0]"));
+//        assertThat(explanation.getDetails()[1].getValue(), equalTo(1f));
+//        assertThat(explanation.getDetails()[1].getDescription(), equalTo("Child[1]"));
+    }
+
 }

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +40,7 @@ public class CzechAnalyzerProvider extends AbstractIndexAnalyzerProvider<CzechAn
         super(index, indexSettings, name, settings);
         analyzer = new CzechAnalyzer(version,
                 Analysis.parseStopWords(env, settings, CzechAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
     }
 
     @Override

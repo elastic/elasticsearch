@@ -19,16 +19,21 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -54,9 +59,8 @@ public class NestedQueryParser implements QueryParser {
         Filter filter = null;
         boolean filterFound = false;
         float boost = 1.0f;
-        String scope = null;
         String path = null;
-        BlockJoinQuery.ScoreMode scoreMode = BlockJoinQuery.ScoreMode.Avg;
+        ScoreMode scoreMode = ScoreMode.Avg;
 
         // we need a late binding filter so we can inject a parent nested filter inner nested queries
         LateBindingParentFilter currentParentFilterContext = parentFilterContext.get();
@@ -86,17 +90,17 @@ public class NestedQueryParser implements QueryParser {
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("_scope".equals(currentFieldName)) {
-                        scope = parser.text();
+                        throw new QueryParsingException(parseContext.index(), "the [_scope] support in [nested] query has been removed, use nested filter as a facet_filter in the relevant facet");
                     } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
                         String sScoreMode = parser.text();
                         if ("avg".equals(sScoreMode)) {
-                            scoreMode = BlockJoinQuery.ScoreMode.Avg;
+                            scoreMode = ScoreMode.Avg;
                         } else if ("max".equals(sScoreMode)) {
-                            scoreMode = BlockJoinQuery.ScoreMode.Max;
+                            scoreMode = ScoreMode.Max;
                         } else if ("total".equals(sScoreMode)) {
-                            scoreMode = BlockJoinQuery.ScoreMode.Total;
+                            scoreMode = ScoreMode.Total;
                         } else if ("none".equals(sScoreMode)) {
-                            scoreMode = BlockJoinQuery.ScoreMode.None;
+                            scoreMode = ScoreMode.None;
                         } else {
                             throw new QueryParsingException(parseContext.index(), "illegal score_mode for nested query [" + sScoreMode + "]");
                         }
@@ -117,7 +121,7 @@ public class NestedQueryParser implements QueryParser {
             }
 
             if (filter != null) {
-                query = new DeletionAwareConstantScoreQuery(filter);
+                query = new XConstantScoreQuery(filter);
             }
 
             MapperService.SmartNameObjectMapper mapper = parseContext.smartObjectMapper(path);
@@ -135,7 +139,7 @@ public class NestedQueryParser implements QueryParser {
             Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
-            query = new FilteredQuery(query, childFilter);
+            query = new XFilteredQuery(query, childFilter);
 
             Filter parentFilter = currentParentFilterContext;
             if (parentFilter == null) {
@@ -148,13 +152,8 @@ public class NestedQueryParser implements QueryParser {
                 parentFilter = parseContext.cacheFilter(parentFilter, null);
             }
 
-            BlockJoinQuery joinQuery = new BlockJoinQuery(query, parentFilter, scoreMode);
+            ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, scoreMode);
             joinQuery.setBoost(boost);
-
-            if (scope != null) {
-                SearchContext.current().addNestedQuery(scope, joinQuery);
-            }
-
             return joinQuery;
         } finally {
             // restore the thread local one...
@@ -184,8 +183,9 @@ public class NestedQueryParser implements QueryParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            return filter.getDocIdSet(reader);
+        public DocIdSet getDocIdSet(AtomicReaderContext ctx, Bits liveDocs) throws IOException {
+            //LUCENE 4 UPGRADE just passing on ctx and live docs here
+            return filter.getDocIdSet(ctx, liveDocs);
         }
     }
 }

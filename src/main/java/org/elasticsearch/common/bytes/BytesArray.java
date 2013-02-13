@@ -20,6 +20,8 @@
 package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -40,7 +42,28 @@ public class BytesArray implements BytesReference {
     private int length;
 
     public BytesArray(String bytes) {
-        this(bytes.getBytes(Charsets.UTF_8));
+        BytesRef bytesRef = new BytesRef();
+        UnicodeUtil.UTF16toUTF8(bytes, 0, bytes.length(), bytesRef);
+        this.bytes = bytesRef.bytes;
+        this.offset = bytesRef.offset;
+        this.length = bytesRef.length;
+    }
+
+    public BytesArray(BytesRef bytesRef) {
+        this(bytesRef, false);
+    }
+
+    public BytesArray(BytesRef bytesRef, boolean deepCopy) {
+        if (deepCopy) {
+            BytesRef copy = BytesRef.deepCopyOf(bytesRef);
+            bytes = copy.bytes;
+            offset = copy.offset;
+            length = copy.length;
+        } else {
+            bytes = bytesRef.bytes;
+            offset = bytesRef.offset;
+            length = bytesRef.length;
+        }
     }
 
     public BytesArray(byte[] bytes) {
@@ -130,33 +153,22 @@ public class BytesArray implements BytesReference {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        return bytesEquals((BytesArray) obj);
+    public BytesRef toBytesRef() {
+        return new BytesRef(bytes, offset, length);
     }
 
-    public boolean bytesEquals(BytesArray other) {
-        if (length == other.length) {
-            int otherUpto = other.offset;
-            final byte[] otherBytes = other.bytes;
-            final int end = offset + length;
-            for (int upto = offset; upto < end; upto++, otherUpto++) {
-                if (bytes[upto] != otherBytes[otherUpto]) {
-                    return false;
-                }
-            }
-            return true;
-        } else {
-            return false;
-        }
+    @Override
+    public BytesRef copyBytesRef() {
+        return new BytesRef(Arrays.copyOfRange(bytes, offset, offset + length));
     }
 
     @Override
     public int hashCode() {
-        int result = 0;
-        final int end = offset + length;
-        for (int i = offset; i < end; i++) {
-            result = 31 * result + bytes[i];
-        }
-        return result;
+        return Helper.bytesHashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return Helper.bytesEqual(this, (BytesReference) obj);
     }
 }

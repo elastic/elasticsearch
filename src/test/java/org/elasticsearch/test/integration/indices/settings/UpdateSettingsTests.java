@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.indices.settings;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -52,16 +53,30 @@ public class UpdateSettingsTests extends AbstractNodesTests {
 
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
+        try {
+            client("node1").admin().indices().prepareUpdateSettings("test")
+                    .setSettings(ImmutableSettings.settingsBuilder()
+                            .put("index.refresh_interval", -1) // this one can change
+                            .put("index.cache.filter.type", "none") // this one can't
+                    )
+                    .execute().actionGet();
+            assert false;
+        } catch (ElasticSearchIllegalArgumentException e) {
+            // all is well
+        }
+
+        IndexMetaData indexMetaData = client("node1").admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        assertThat(indexMetaData.settings().get("index.refresh_interval"), nullValue());
+        assertThat(indexMetaData.settings().get("index.cache.filter.type"), nullValue());
+
         client("node1").admin().indices().prepareUpdateSettings("test")
                 .setSettings(ImmutableSettings.settingsBuilder()
                         .put("index.refresh_interval", -1) // this one can change
-                        .put("index.cache.filter.type", "none") // this one can't
                 )
                 .execute().actionGet();
 
-        IndexMetaData indexMetaData = client("node1").admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
+        indexMetaData = client("node1").admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test");
         assertThat(indexMetaData.settings().get("index.refresh_interval"), equalTo("-1"));
-        assertThat(indexMetaData.settings().get("index.cache.filter.type"), nullValue());
 
         // now close the index, change the non dynamic setting, and see that it applies
 

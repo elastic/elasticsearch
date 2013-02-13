@@ -19,27 +19,34 @@
 
 package org.elasticsearch.search.dfs;
 
+import gnu.trove.map.TMap;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
 public class DfsSearchResult extends TransportResponse implements SearchPhaseResult {
 
-    private static Term[] EMPTY_TERMS = new Term[0];
-    private static int[] EMPTY_FREQS = new int[0];
+    private static final Term[] EMPTY_TERMS = new Term[0];
+    private static final TermStatistics[] EMPTY_TERM_STATS = new TermStatistics[0];
 
     private SearchShardTarget shardTarget;
     private long id;
     private Term[] terms;
-    private int[] freqs;
+    private TermStatistics[] termStatistics;
+    private TMap<String, CollectionStatistics> fieldStatistics = new ExtTHashMap<String, CollectionStatistics>();
     private int maxDoc;
 
     public DfsSearchResult() {
@@ -73,9 +80,14 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return maxDoc;
     }
 
-    public DfsSearchResult termsAndFreqs(Term[] terms, int[] freqs) {
+    public DfsSearchResult termsStatistics(Term[] terms, TermStatistics[] termStatistics) {
         this.terms = terms;
-        this.freqs = freqs;
+        this.termStatistics = termStatistics;
+        return this;
+    }
+
+    public DfsSearchResult fieldStatistics(TMap<String, CollectionStatistics> fieldStatistics) {
+        this.fieldStatistics = fieldStatistics;
         return this;
     }
 
@@ -83,8 +95,12 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         return terms;
     }
 
-    public int[] freqs() {
-        return freqs;
+    public TermStatistics[] termStatistics() {
+        return termStatistics;
+    }
+
+    public TMap<String, CollectionStatistics> fieldStatistics() {
+        return fieldStatistics;
     }
 
     public static DfsSearchResult readDfsSearchResult(StreamInput in) throws IOException, ClassNotFoundException {
@@ -104,18 +120,28 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         } else {
             terms = new Term[termsSize];
             for (int i = 0; i < terms.length; i++) {
-                terms[i] = new Term(in.readUTF(), in.readUTF());
+                terms[i] = new Term(in.readString(), in.readBytesRef());
             }
         }
-        int freqsSize = in.readVInt();
-        if (freqsSize == 0) {
-            freqs = EMPTY_FREQS;
+        int termsStatsSize = in.readVInt();
+        if (termsStatsSize == 0) {
+            termStatistics = EMPTY_TERM_STATS;
         } else {
-            freqs = new int[freqsSize];
-            for (int i = 0; i < freqs.length; i++) {
-                freqs[i] = in.readVInt();
+            termStatistics = new TermStatistics[termsStatsSize];
+            for (int i = 0; i < termStatistics.length; i++) {
+                BytesRef term = terms[i].bytes();
+                long docFreq = in.readVLong();
+                long totalTermFreq = in.readVLong();
+                termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
             }
         }
+        int numFieldStatistics = in.readVInt();
+        for (int i = 0; i < numFieldStatistics; i++) {
+            String field = in.readString();
+            CollectionStatistics stats = new CollectionStatistics(field, in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
+            fieldStatistics.put(field, stats);
+        }
+
         maxDoc = in.readVInt();
     }
 
@@ -126,13 +152,23 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
 //        shardTarget.writeTo(out);
         out.writeVInt(terms.length);
         for (Term term : terms) {
-            out.writeUTF(term.field());
-            out.writeUTF(term.text());
+            out.writeString(term.field());
+            out.writeBytesRef(term.bytes());
         }
-        out.writeVInt(freqs.length);
-        for (int freq : freqs) {
-            out.writeVInt(freq);
+        out.writeVInt(termStatistics.length);
+        for (TermStatistics termStatistic : termStatistics) {
+            out.writeVLong(termStatistic.docFreq());
+            out.writeVLong(termStatistic.totalTermFreq());
+        }
+        out.writeVInt(fieldStatistics.size());
+        for (Map.Entry<String, CollectionStatistics> entry : fieldStatistics.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeVLong(entry.getValue().maxDoc());
+            out.writeVLong(entry.getValue().docCount());
+            out.writeVLong(entry.getValue().sumTotalTermFreq());
+            out.writeVLong(entry.getValue().sumDocFreq());
         }
         out.writeVInt(maxDoc);
     }
+
 }

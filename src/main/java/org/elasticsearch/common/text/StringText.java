@@ -42,6 +42,7 @@ public class StringText implements Text {
     }
 
     private final String text;
+    private int hash;
 
     public StringText(String text) {
         this.text = text;
@@ -70,5 +71,25 @@ public class StringText implements Text {
     @Override
     public String toString() {
         return string();
+    }
+
+    @Override
+    public int hashCode() {
+        // we use bytes here so we can be consistent with other text implementations
+        if (hash == 0) {
+            hash = bytes().hashCode();
+        }
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        // we use bytes here so we can be consistent with other text implementations
+        return bytes().equals(((Text) obj).bytes());
+    }
+
+    @Override
+    public int compareTo(Text text) {
+        return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes(), text.bytes());
     }
 }

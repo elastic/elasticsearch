@@ -19,13 +19,15 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -35,87 +37,80 @@ import java.util.Arrays;
  */
 public class GeoPolygonFilter extends Filter {
 
-    private final Point[] points;
+    private final GeoPoint[] points;
 
-    private final String fieldName;
+    private final IndexGeoPointFieldData indexFieldData;
 
-    private final FieldDataCache fieldDataCache;
-
-    public GeoPolygonFilter(Point[] points, String fieldName, FieldDataCache fieldDataCache) {
+    public GeoPolygonFilter(GeoPoint[] points, IndexGeoPointFieldData indexFieldData) {
         this.points = points;
-        this.fieldName = fieldName;
-        this.fieldDataCache = fieldDataCache;
+        this.indexFieldData = indexFieldData;
     }
 
-    public Point[] points() {
+    public GeoPoint[] points() {
         return points;
     }
 
     public String fieldName() {
-        return this.fieldName;
+        return indexFieldData.getFieldNames().indexName();
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
-        return new GeoPolygonDocSet(reader.maxDoc(), fieldData, points);
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+        final GeoPointValues values = indexFieldData.load(context).getGeoPointValues();
+        return new GeoPolygonDocIdSet(context.reader().maxDoc(), acceptedDocs, values, points);
     }
 
     @Override
     public String toString() {
-        return "GeoPolygonFilter(" + fieldName + ", "  + Arrays.toString(points) + ")";
+        return "GeoPolygonFilter(" + indexFieldData.getFieldNames().indexName() + ", " + Arrays.toString(points) + ")";
     }
 
-    public static class GeoPolygonDocSet extends GetDocSet {
-        private final GeoPointFieldData fieldData;
-        private final Point[] points;
+    public static class GeoPolygonDocIdSet extends MatchDocIdSet {
+        private final GeoPointValues values;
+        private final GeoPoint[] points;
 
-        public GeoPolygonDocSet(int maxDoc, GeoPointFieldData fieldData, Point[] points) {
-            super(maxDoc);
-            this.fieldData = fieldData;
+        public GeoPolygonDocIdSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, GeoPoint[] points) {
+            super(maxDoc, acceptDocs);
+            this.values = values;
             this.points = points;
         }
 
         @Override
         public boolean isCacheable() {
-            // not cacheable for several reasons:
-            // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
-            // 2. Its already fast without in mem bitset, since it works with field data
-            return false;
+            return true;
         }
 
         @Override
-        public boolean get(int doc) {
-            if (!fieldData.hasValue(doc)) {
+        protected boolean matchDoc(int doc) {
+            if (!values.hasValue(doc)) {
                 return false;
             }
 
-            if (fieldData.multiValued()) {
-                double[] lats = fieldData.latValues(doc);
-                double[] lons = fieldData.lonValues(doc);
-                for (int i = 0; i < lats.length; i++) {
-                    if (pointInPolygon(points, lats[i], lons[i])) {
+            if (values.isMultiValued()) {
+                GeoPointValues.Iter iter = values.getIter(doc);
+                while (iter.hasNext()) {
+                    GeoPoint point = iter.next();
+                    if (pointInPolygon(points, point.lat(), point.lon())) {
                         return true;
                     }
                 }
             } else {
-                double lat = fieldData.latValue(doc);
-                double lon = fieldData.lonValue(doc);
-                return pointInPolygon(points, lat, lon);
+                GeoPoint point = values.getValue(doc);
+                return pointInPolygon(points, point.lat(), point.lon());
             }
             return false;
         }
 
-        private static boolean pointInPolygon(Point[] points, double lat, double lon) {
+        private static boolean pointInPolygon(GeoPoint[] points, double lat, double lon) {
             int i;
             int j = points.length - 1;
             boolean inPoly = false;
 
             for (i = 0; i < points.length; i++) {
-                if (points[i].lon < lon && points[j].lon >= lon
-                        || points[j].lon < lon && points[i].lon >= lon) {
-                    if (points[i].lat + (lon - points[i].lon) /
-                            (points[j].lon - points[i].lon) * (points[j].lat - points[i].lat) < lat) {
+                if (points[i].lon() < lon && points[j].lon() >= lon
+                        || points[j].lon() < lon && points[i].lon() >= lon) {
+                    if (points[i].lat() + (lon - points[i].lon()) /
+                            (points[j].lon() - points[i].lon()) * (points[j].lat() - points[i].lat()) < lat) {
                         inPoly = !inPoly;
                     }
                 }

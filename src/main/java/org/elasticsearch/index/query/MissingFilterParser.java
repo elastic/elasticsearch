@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
@@ -119,8 +120,8 @@ public class MissingFilterParser implements FilterParser {
         if (nullFilter != null) {
             if (existenceFilter != null) {
                 XBooleanFilter combined = new XBooleanFilter();
-                combined.addShould(existenceFilter);
-                combined.addShould(nullFilter);
+                combined.add(existenceFilter, BooleanClause.Occur.SHOULD);
+                combined.add(nullFilter, BooleanClause.Occur.SHOULD);
                 // cache the not filter as well, so it will be faster
                 filter = parseContext.cacheFilter(combined, null);
             } else {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 
@@ -27,10 +28,10 @@ import org.elasticsearch.common.util.concurrent.ThreadLocals;
  */
 public class StringRestResponse extends Utf8RestResponse {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>> cache = new ThreadLocal<ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>>() {
+    private static ThreadLocal<ThreadLocals.CleanableValue<BytesRef>> cache = new ThreadLocal<ThreadLocals.CleanableValue<BytesRef>>() {
         @Override
-        protected ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result> initialValue() {
-            return new ThreadLocals.CleanableValue<UnicodeUtil.UTF8Result>(new UnicodeUtil.UTF8Result());
+        protected ThreadLocals.CleanableValue<BytesRef> initialValue() {
+            return new ThreadLocals.CleanableValue<BytesRef>(new BytesRef());
         }
     };
 
@@ -42,8 +43,8 @@ public class StringRestResponse extends Utf8RestResponse {
         super(status, convert(content));
     }
 
-    private static UnicodeUtil.UTF8Result convert(String content) {
-        UnicodeUtil.UTF8Result result = cache.get().get();
+    private static BytesRef convert(String content) {
+        BytesRef result = cache.get().get();
         UnicodeUtil.UTF16toUTF8(content, 0, content.length(), result);
         return result;
     }

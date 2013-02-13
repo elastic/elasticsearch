@@ -23,9 +23,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -35,7 +36,6 @@ import org.elasticsearch.search.facet.termsstats.strings.TermsStatsStringFacetCo
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class TermsStatsFacetProcessor extends AbstractComponent implements FacetProcessor {
@@ -102,29 +102,28 @@ public class TermsStatsFacetProcessor extends AbstractComponent implements Facet
             throw new FacetPhaseExecutionException(facetName, "either [value_field] or [script] are required to be set for terms stats facet");
         }
 
-        FieldMapper keyFieldMapper = context.smartNameFieldMapper(keyField);
-        if (keyFieldMapper != null) {
-            if (keyFieldMapper.fieldDataType() == FieldDataType.DefaultTypes.LONG) {
-                return new TermsStatsLongFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);
-            } else if (keyFieldMapper.fieldDataType() == FieldDataType.DefaultTypes.INT) {
-                return new TermsStatsLongFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);
-            } else if (keyFieldMapper.fieldDataType() == FieldDataType.DefaultTypes.SHORT) {
-                return new TermsStatsLongFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);
-            } else if (keyFieldMapper.fieldDataType() == FieldDataType.DefaultTypes.BYTE) {
-                return new TermsStatsLongFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);
-            } else if (keyFieldMapper.fieldDataType() == FieldDataType.DefaultTypes.DOUBLE) {
-                return new TermsStatsDoubleFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);
-            } else if (keyFieldMapper.fieldDataType() == FieldDataType.DefaultTypes.FLOAT) {
-                return new TermsStatsDoubleFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);
-            }
+        FieldMapper keyMapper = context.smartNameFieldMapper(keyField);
+        if (keyMapper == null) {
+            throw new FacetPhaseExecutionException(facetName, "failed to find mapping for " + keyField);
+        }
+        IndexFieldData keyIndexFieldData = context.fieldData().getForField(keyMapper);
+
+        IndexNumericFieldData valueIndexFieldData = null;
+        SearchScript valueScript = null;
+        if (valueField != null) {
+            valueIndexFieldData = context.fieldData().getForField(context.smartNameFieldMapper(valueField));
+        } else {
+            valueScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
         }
 
-        return new TermsStatsStringFacetCollector(facetName, keyField, valueField, size, comparatorType, context, scriptLang, script, params);
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalTermsStatsFacet first = (InternalTermsStatsFacet) facets.get(0);
-        return first.reduce(name, facets);
+        if (keyIndexFieldData instanceof IndexNumericFieldData) {
+            IndexNumericFieldData keyIndexNumericFieldData = (IndexNumericFieldData) keyIndexFieldData;
+            if (keyIndexNumericFieldData.getNumericType().isFloatingPoint()) {
+                return new TermsStatsDoubleFacetCollector(facetName, keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, comparatorType, context);
+            } else {
+                return new TermsStatsLongFacetCollector(facetName, keyIndexNumericFieldData, valueIndexFieldData, valueScript, size, comparatorType, context);
+            }
+        }
+        return new TermsStatsStringFacetCollector(facetName, keyIndexFieldData, valueIndexFieldData, valueScript, size, comparatorType, context);
     }
 }

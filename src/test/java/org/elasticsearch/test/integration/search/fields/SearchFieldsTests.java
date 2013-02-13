@@ -21,10 +21,16 @@ package org.elasticsearch.test.integration.search.fields;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -276,5 +282,70 @@ public class SearchFieldsTests extends AbstractNodesTests {
         assertThat(partial2, notNullValue());
         assertThat(partial2.containsKey("obj1"), equalTo(false));
         assertThat(partial2.containsKey("field1"), equalTo(true));
+    }
+
+    @Test
+    public void testStoredFieldsWithoutSource() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("_source").field("enabled", false).endObject()
+                .startObject("byte_field").field("type", "byte").field("store", "yes").endObject()
+                .startObject("short_field").field("type", "short").field("store", "yes").endObject()
+                .startObject("integer_field").field("type", "integer").field("store", "yes").endObject()
+                .startObject("long_field").field("type", "long").field("store", "yes").endObject()
+                .startObject("float_field").field("type", "float").field("store", "yes").endObject()
+                .startObject("double_field").field("type", "double").field("store", "yes").endObject()
+                .startObject("date_field").field("type", "date").field("store", "yes").endObject()
+                .startObject("boolean_field").field("type", "boolean").field("store", "yes").endObject()
+                .startObject("binary_field").field("type", "binary").field("store", "yes").endObject()
+                .endObject().endObject().endObject().string();
+
+        client.admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("byte_field", (byte) 1)
+                .field("short_field", (short) 2)
+                .field("integer_field", 3)
+                .field("long_field", 4l)
+                .field("float_field", 5.0f)
+                .field("double_field", 6.0d)
+                .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC)))
+                .field("boolean_field", true)
+                .field("binary_field", Base64.encodeBytes("testing text".getBytes("UTF8")))
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery())
+                .addField("byte_field")
+                .addField("short_field")
+                .addField("integer_field")
+                .addField("long_field")
+                .addField("float_field")
+                .addField("double_field")
+                .addField("date_field")
+                .addField("boolean_field")
+                .addField("binary_field")
+                .execute().actionGet();
+
+        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.hits().hits().length, equalTo(1));
+        assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(9));
+
+
+        assertThat(searchResponse.hits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
+        assertThat(searchResponse.hits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
+        assertThat(searchResponse.hits().getAt(0).fields().get("integer_field").value(), equalTo((Object) 3));
+        assertThat(searchResponse.hits().getAt(0).fields().get("long_field").value(), equalTo((Object) 4l));
+        assertThat(searchResponse.hits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0f));
+        assertThat(searchResponse.hits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
+        String dateTime = Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC));
+        assertThat(searchResponse.hits().getAt(0).fields().get("date_field").value(), equalTo((Object) dateTime));
+        assertThat(searchResponse.hits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) Boolean.TRUE));
+        assertThat(((BytesReference) searchResponse.hits().getAt(0).fields().get("binary_field").value()).toBytesArray(), equalTo((BytesReference) new BytesArray("testing text".getBytes("UTF8"))));
+
     }
 }

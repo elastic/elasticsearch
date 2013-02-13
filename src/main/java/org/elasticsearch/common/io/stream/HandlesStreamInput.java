@@ -20,6 +20,7 @@
 package org.elasticsearch.common.io.stream;
 
 import gnu.trove.map.hash.TIntObjectHashMap;
+import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
 
@@ -29,8 +30,9 @@ import java.io.IOException;
 public class HandlesStreamInput extends AdapterStreamInput {
 
     private final TIntObjectHashMap<String> handles = new TIntObjectHashMap<String>();
-
     private final TIntObjectHashMap<String> identityHandles = new TIntObjectHashMap<String>();
+
+    private final TIntObjectHashMap<Text> handlesText = new TIntObjectHashMap<Text>();
 
     HandlesStreamInput() {
         super();
@@ -38,31 +40,6 @@ public class HandlesStreamInput extends AdapterStreamInput {
 
     public HandlesStreamInput(StreamInput in) {
         super(in);
-    }
-
-    @Override
-    @Deprecated
-    public String readUTF() throws IOException {
-        byte b = in.readByte();
-        if (b == 0) {
-            // full string with handle
-            int handle = in.readVInt();
-            String s = in.readUTF();
-            handles.put(handle, s);
-            return s;
-        } else if (b == 1) {
-            return handles.get(in.readVInt());
-        } else if (b == 2) {
-            // full string with handle
-            int handle = in.readVInt();
-            String s = in.readUTF();
-            identityHandles.put(handle, s);
-            return s;
-        } else if (b == 3) {
-            return identityHandles.get(in.readVInt());
-        } else {
-            throw new IOException("Expected handle header, got [" + b + "]");
-        }
     }
 
     @Override
@@ -90,20 +67,40 @@ public class HandlesStreamInput extends AdapterStreamInput {
     }
 
     @Override
+    public Text readSharedText() throws IOException {
+        byte b = in.readByte();
+        if (b == 0) {
+            int handle = in.readVInt();
+            Text s = in.readText();
+            handlesText.put(handle, s);
+            return s;
+        } else if (b == 1) {
+            return handlesText.get(in.readVInt());
+        } else if (b == 2) {
+            return in.readText();
+        } else {
+            throw new IOException("Expected handle header, got [" + b + "]");
+        }
+    }
+
+    @Override
     public void reset() throws IOException {
         super.reset();
         handles.clear();
         identityHandles.clear();
+        handlesText.clear();
     }
 
     public void reset(StreamInput in) {
         super.reset(in);
         handles.clear();
         identityHandles.clear();
+        handlesText.clear();
     }
 
     public void cleanHandles() {
         handles.clear();
         identityHandles.clear();
+        handlesText.clear();
     }
 }

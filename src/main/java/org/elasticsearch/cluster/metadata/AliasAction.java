@@ -181,41 +181,41 @@ public class AliasAction implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         actionType = Type.fromValue(in.readByte());
-        index = in.readUTF();
-        alias = in.readUTF();
+        index = in.readString();
+        alias = in.readString();
         if (in.readBoolean()) {
-            filter = in.readUTF();
+            filter = in.readString();
         }
         if (in.readBoolean()) {
-            indexRouting = in.readUTF();
+            indexRouting = in.readString();
         }
         if (in.readBoolean()) {
-            searchRouting = in.readUTF();
+            searchRouting = in.readString();
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeByte(actionType.value());
-        out.writeUTF(index);
-        out.writeUTF(alias);
+        out.writeString(index);
+        out.writeString(alias);
         if (filter == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(filter);
+            out.writeString(filter);
         }
         if (indexRouting == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(indexRouting);
+            out.writeString(indexRouting);
         }
         if (searchRouting == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(searchRouting);
+            out.writeString(searchRouting);
         }
     }
 

@@ -19,19 +19,22 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -49,33 +52,34 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     public static final String NAME = "_type";
 
-    public static final Term TERM_FACTORY = new Term(NAME, "");
-
     public static final String CONTENT_TYPE = "_type";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = TypeFieldMapper.NAME;
         public static final String INDEX_NAME = TypeFieldMapper.NAME;
-        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
-        public static final Field.Store STORE = Field.Store.NO;
-        public static final boolean OMIT_NORMS = true;
-        public static final IndexOptions INDEX_OPTIONS = IndexOptions.DOCS_ONLY;
+
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, TypeFieldMapper> {
 
         public Builder() {
-            super(Defaults.NAME);
+            super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
             indexName = Defaults.INDEX_NAME;
-            index = Defaults.INDEX;
-            store = Defaults.STORE;
-            omitNorms = Defaults.OMIT_NORMS;
-            indexOptions = Defaults.INDEX_OPTIONS;
         }
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            return new TypeFieldMapper(name, indexName, index, store, termVector, boost, omitNorms, indexOptions);
+            return new TypeFieldMapper(name, indexName, boost, fieldType, provider, fieldDataSettings);
         }
     }
 
@@ -94,60 +98,47 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     protected TypeFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.INDEX, Defaults.STORE, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS);
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, null);
     }
 
-    public TypeFieldMapper(String name, String indexName, Field.Index index, Field.Store store, Field.TermVector termVector,
-                           float boost, boolean omitNorms, IndexOptions indexOptions) {
-        super(new Names(name, indexName, indexName, name), index, store, termVector, boost, omitNorms, indexOptions, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER);
-    }
-
-    public String value(Document document) {
-        Fieldable field = document.getFieldable(names.indexName());
-        return field == null ? null : value(field);
+    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
+        super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
+                Lucene.KEYWORD_ANALYZER, provider, null, fieldDataSettings);
     }
 
     @Override
-    public String value(Fieldable field) {
-        return field.stringValue();
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
     }
 
     @Override
-    public String valueFromString(String value) {
-        return value;
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("string");
     }
 
     @Override
-    public String valueAsString(Fieldable field) {
-        return value(field);
-    }
-
-    @Override
-    public String indexedValue(String value) {
-        return value;
-    }
-
-    public Term term(String value) {
-        return names().createIndexNameTerm(value);
-    }
-
-    @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
-        if (index == Field.Index.NO) {
-            return new PrefixFilter(UidFieldMapper.TERM_FACTORY.createTerm(Uid.typePrefix(value)));
+    public String value(Object value) {
+        if (value == null) {
+            return null;
         }
-        return new TermFilter(names().createIndexNameTerm(value));
+        return value.toString();
     }
 
     @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
-        return new DeletionAwareConstantScoreQuery(context.cacheFilter(fieldFilter(value, context), null));
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        return new XConstantScoreQuery(context.cacheFilter(termFilter(value, context), null));
     }
 
     @Override
-    public boolean useFieldQueryWithQueryString() {
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        if (!fieldType.indexed()) {
+            return new PrefixFilter(new Term(UidFieldMapper.NAME, Uid.typePrefixAsBytes(BytesRefs.toBytesRef(value))));
+        }
+        return new TermFilter(names().createIndexNameTerm(BytesRefs.toBytesRef(value)));
+    }
+
+    @Override
+    public boolean useTermQueryWithQueryString() {
         return true;
     }
 
@@ -176,10 +167,10 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
-        if (index == Field.Index.NO && store == Field.Store.NO) {
+        if (!fieldType.indexed() && !fieldType.stored()) {
             return null;
         }
-        return new Field(names.indexName(), false, context.type(), store, index, termVector);
+        return new Field(names.indexName(), context.type(), fieldType);
     }
 
     @Override
@@ -190,15 +181,15 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (store == Defaults.STORE && index == Defaults.INDEX) {
+        if (fieldType.stored() == Defaults.FIELD_TYPE.stored() && fieldType.indexed() == Defaults.FIELD_TYPE.indexed()) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
         }
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
+        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+            builder.field("index", fieldType.indexed());
         }
         builder.endObject();
         return builder;

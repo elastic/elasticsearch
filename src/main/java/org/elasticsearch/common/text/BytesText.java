@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 public class BytesText implements Text {
 
     private BytesReference bytes;
+    private int hash;
 
     public BytesText(BytesReference bytes) {
         this.bytes = bytes;
@@ -60,5 +61,23 @@ public class BytesText implements Text {
     @Override
     public String toString() {
         return string();
+    }
+
+    @Override
+    public int hashCode() {
+        if (hash == 0) {
+            hash = bytes.hashCode();
+        }
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return bytes().equals(((Text) obj).bytes());
+    }
+
+    @Override
+    public int compareTo(Text text) {
+        return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes(), text.bytes());
     }
 }

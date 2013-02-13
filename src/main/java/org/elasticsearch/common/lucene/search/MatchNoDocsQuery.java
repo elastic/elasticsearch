@@ -19,9 +19,10 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
 import java.util.Set;
@@ -43,20 +44,6 @@ public final class MatchNoDocsQuery extends Query {
      * Weight implementation that matches no documents.
      */
     private class MatchNoDocsWeight extends Weight {
-        /**
-         * The similarity implementation.
-         */
-        private final Similarity similarity;
-
-
-        /**
-         * Creates a new weight that matches nothing.
-         *
-         * @param searcher the search to match for
-         */
-        public MatchNoDocsWeight(final Searcher searcher) {
-            this.similarity = searcher.getSimilarity();
-        }
 
         @Override
         public String toString() {
@@ -69,36 +56,29 @@ public final class MatchNoDocsQuery extends Query {
         }
 
         @Override
-        public float getValue() {
+        public float getValueForNormalization() throws IOException {
             return 0;
         }
 
         @Override
-        public float sumOfSquaredWeights() {
-            return 0;
+        public void normalize(float norm, float topLevelBoost) {
         }
 
         @Override
-        public void normalize(final float queryNorm) {
-        }
-
-        @Override
-        public Scorer scorer(final IndexReader reader,
-                             final boolean scoreDocsInOrder,
-                             final boolean topScorer) throws IOException {
+        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
             return null;
         }
 
         @Override
-        public Explanation explain(final IndexReader reader,
+        public Explanation explain(final AtomicReaderContext context,
                                    final int doc) {
             return new ComplexExplanation(false, 0, "MatchNoDocs matches nothing");
         }
     }
 
     @Override
-    public Weight createWeight(final Searcher searcher) {
-        return new MatchNoDocsWeight(searcher);
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
+        return new MatchNoDocsWeight();
     }
 
     @Override

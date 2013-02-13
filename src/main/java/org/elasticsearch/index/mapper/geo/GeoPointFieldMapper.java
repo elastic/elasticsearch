@@ -19,24 +19,27 @@
 
 package org.elasticsearch.index.mapper.geo;
 
-import org.apache.lucene.document.Field;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
-import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.index.search.geo.GeoUtils;
-import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,8 +58,6 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
  * "lat" : 1.1,
  * "lon" : 2.1
  * }
- *
- *
  */
 public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
@@ -73,7 +74,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     public static class Defaults {
         public static final ContentPath.Type PATH_TYPE = ContentPath.Type.FULL;
-        public static final Field.Store STORE = Field.Store.NO;
+        public static final boolean STORE = false;
         public static final boolean ENABLE_LATLON = false;
         public static final boolean ENABLE_GEOHASH = false;
         public static final int PRECISION = GeoHashUtils.PRECISION;
@@ -81,6 +82,16 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         public static final boolean NORMALIZE_LON = true;
         public static final boolean VALIDATE_LAT = true;
         public static final boolean VALIDATE_LON = true;
+
+        public static final FieldType FIELD_TYPE = new FieldType(StringFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends Mapper.Builder<Builder, GeoPointFieldMapper> {
@@ -95,7 +106,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
         private int precision = Defaults.PRECISION;
 
-        private Field.Store store = Defaults.STORE;
+        private boolean store = Defaults.STORE;
 
         boolean validateLat = Defaults.VALIDATE_LAT;
         boolean validateLon = Defaults.VALIDATE_LON;
@@ -132,7 +143,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             return this;
         }
 
-        public Builder store(Field.Store store) {
+        public Builder store(boolean store) {
             this.store = store;
             return this;
         }
@@ -143,7 +154,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             context.path().pathType(pathType);
 
             GeoStringFieldMapper geoStringMapper = new GeoStringFieldMapper.Builder(name)
-                    .index(Field.Index.NOT_ANALYZED).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).includeInAll(false).store(store).build(context);
+                    .includeInAll(false).store(store).build(context);
 
 
             DoubleFieldMapper latMapper = null;
@@ -162,7 +173,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             }
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash) {
-                geohashMapper = stringField(Names.GEOHASH).index(Field.Index.NOT_ANALYZED).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).build(context);
+                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).build(context);
             }
             context.path().remove();
 
@@ -278,6 +289,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         return lonMapper;
     }
 
+    public GeoStringFieldMapper stringMapper() {
+        return this.geoStringMapper;
+    }
+
     public boolean isEnableLatLon() {
         return enableLatLon;
     }
@@ -374,11 +389,11 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     }
 
     private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
-       if (normalizeLat || normalizeLon) {
-            Point point = new Point(lat, lon);
+        if (normalizeLat || normalizeLon) {
+            GeoPoint point = new GeoPoint(lat, lon);
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-            lat = point.lat;
-            lon = point.lon;
+            lat = point.lat();
+            lon = point.lon();
         }
 
         if (validateLat) {
@@ -407,38 +422,33 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     }
 
     private void parseGeohash(ParseContext context, String geohash) throws IOException {
-        double[] values = GeoHashUtils.decode(geohash);
-        double lat = values[0];
-        double lon = values[1];
+        GeoPoint point = GeoHashUtils.decode(geohash);
 
         if (normalizeLat || normalizeLon) {
-            Point point = new Point(lat, lon);
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-            lat = point.lat;
-            lon = point.lon;
         }
 
         if (validateLat) {
-            if (lat > 90.0 || lat < -90.0) {
-                throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + lat + "] for " + name);
+            if (point.lat() > 90.0 || point.lat() < -90.0) {
+                throw new ElasticSearchIllegalArgumentException("illegal latitude value [" + point.lat() + "] for " + name);
             }
         }
         if (validateLon) {
-            if (lon > 180.0 || lon < -180) {
-                throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + lon + "] for " + name);
+            if (point.lon() > 180.0 || point.lon() < -180) {
+                throw new ElasticSearchIllegalArgumentException("illegal longitude value [" + point.lon() + "] for " + name);
             }
         }
 
-        context.externalValue(Double.toString(lat) + ',' + Double.toString(lon));
+        context.externalValue(Double.toString(point.lat()) + ',' + Double.toString(point.lat()));
         geoStringMapper.parse(context);
         if (enableGeoHash) {
             context.externalValue(geohash);
             geohashMapper.parse(context);
         }
         if (enableLatLon) {
-            context.externalValue(lat);
+            context.externalValue(point.lat());
             latMapper.parse(context);
-            context.externalValue(lon);
+            context.externalValue(point.lon());
             lonMapper.parse(context);
         }
     }
@@ -493,8 +503,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         if (enableGeoHash != Defaults.ENABLE_GEOHASH) {
             builder.field("geohash", enableGeoHash);
         }
-        if (geoStringMapper.store() != Defaults.STORE) {
-            builder.field("store", geoStringMapper.store().name().toLowerCase());
+        if (geoStringMapper.fieldType().stored() != Defaults.STORE) {
+            builder.field("store", geoStringMapper.fieldType().stored());
         }
         if (precision != Defaults.PRECISION) {
             builder.field("geohash_precision", precision);
@@ -534,7 +544,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             protected String nullValue = Defaults.NULL_VALUE;
 
             public Builder(String name) {
-                super(name);
+                super(name, new FieldType(GeoPointFieldMapper.Defaults.FIELD_TYPE));
                 builder = this;
             }
 
@@ -552,8 +562,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             @Override
             public GeoStringFieldMapper build(BuilderContext context) {
                 GeoStringFieldMapper fieldMapper = new GeoStringFieldMapper(buildNames(context),
-                        index, store, termVector, boost, omitNorms, indexOptions, nullValue,
-                        indexAnalyzer, searchAnalyzer);
+                        boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, provider, fieldDataSettings);
                 fieldMapper.includeInAll(includeInAll);
                 return fieldMapper;
             }
@@ -561,13 +570,21 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
         GeoPointFieldMapper geoMapper;
 
-        public GeoStringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector, float boost, boolean omitNorms, IndexOptions indexOptions, String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-            super(names, index, store, termVector, boost, omitNorms, indexOptions, nullValue, indexAnalyzer, searchAnalyzer);
+        public GeoStringFieldMapper(Names names, float boost, FieldType fieldType, String nullValue,
+                                    NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
+                                    PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
+            super(names, boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, searchAnalyzer, Defaults.POSITION_OFFSET_GAP, Defaults.IGNORE_ABOVE,
+                    provider, null, fieldDataSettings);
         }
 
         @Override
-        public FieldDataType fieldDataType() {
-            return GeoPointFieldDataType.TYPE;
+        public FieldType defaultFieldType() {
+            return GeoPointFieldMapper.Defaults.FIELD_TYPE;
+        }
+
+        @Override
+        public FieldDataType defaultFieldDataType() {
+            return new FieldDataType("geo_point");
         }
 
         public GeoPointFieldMapper geoMapper() {

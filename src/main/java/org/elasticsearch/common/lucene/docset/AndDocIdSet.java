@@ -21,8 +21,10 @@ package org.elasticsearch.common.lucene.docset;
 
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -30,36 +32,96 @@ import java.util.List;
  */
 public class AndDocIdSet extends DocIdSet {
 
-    private final List<DocIdSet> sets;
+    private final DocIdSet[] sets;
 
-    public AndDocIdSet(List<DocIdSet> sets) {
+    public AndDocIdSet(DocIdSet[] sets) {
         this.sets = sets;
     }
 
     @Override
     public boolean isCacheable() {
-        // not cacheable, the reason is that by default, when constructing the filter, it is not cacheable,
-        // so if someone wants it to be cacheable, we might as well construct a cached version of the result
-        return false;
-//        for (DocIdSet set : sets) {
-//            if (!set.isCacheable()) {
-//                return false;
-//            }
-//        }
-//        return true;
+        for (DocIdSet set : sets) {
+            if (!set.isCacheable()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public Bits bits() throws IOException {
+        Bits[] bits = new Bits[sets.length];
+        for (int i = 0; i < sets.length; i++) {
+            bits[i] = sets[i].bits();
+            if (bits[i] == null) {
+                return null;
+            }
+        }
+        return new AndBits(bits);
     }
 
     @Override
     public DocIdSetIterator iterator() throws IOException {
-        return new AndDocIdSetIterator();
+        // we try and be smart here, if we can iterate through docsets quickly, prefer to iterate
+        // over them as much as possible, before actually going to "bits" based ones to check
+        List<DocIdSet> iterators = new ArrayList<DocIdSet>(sets.length);
+        List<Bits> bits = new ArrayList<Bits>(sets.length);
+        for (DocIdSet set : sets) {
+            if (DocIdSets.isFastIterator(set)) {
+                iterators.add(set);
+            } else {
+                Bits bit = set.bits();
+                if (bit != null) {
+                    bits.add(bit);
+                } else {
+                    iterators.add(set);
+                }
+            }
+        }
+        if (bits.isEmpty()) {
+            return new IteratorBasedIterator(iterators.toArray(new DocIdSet[iterators.size()]));
+        }
+        if (iterators.isEmpty()) {
+            return new BitsDocIdSetIterator(new AndBits(bits.toArray(new Bits[bits.size()])));
+        }
+        // combination of both..., first iterating over the "fast" ones, and then checking on the more
+        // expensive ones
+        return new BitsDocIdSetIterator.FilteredIterator(
+                new IteratorBasedIterator(iterators.toArray(new DocIdSet[iterators.size()])),
+                new AndBits(bits.toArray(new Bits[bits.size()]))
+        );
     }
 
-    class AndDocIdSetIterator extends DocIdSetIterator {
+    static class AndBits implements Bits {
+
+        private final Bits[] bits;
+
+        AndBits(Bits[] bits) {
+            this.bits = bits;
+        }
+
+        @Override
+        public boolean get(int index) {
+            for (Bits bit : bits) {
+                if (!bit.get(index)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public int length() {
+            return bits[0].length();
+        }
+    }
+
+    static class IteratorBasedIterator extends DocIdSetIterator {
         int lastReturn = -1;
         private DocIdSetIterator[] iterators = null;
 
-        AndDocIdSetIterator() throws IOException {
-            iterators = new DocIdSetIterator[sets.size()];
+        IteratorBasedIterator(DocIdSet[] sets) throws IOException {
+            iterators = new DocIdSetIterator[sets.length];
             int j = 0;
             for (DocIdSet set : sets) {
                 if (set == null) {

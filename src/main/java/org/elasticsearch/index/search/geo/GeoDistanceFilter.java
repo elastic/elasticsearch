@@ -19,19 +19,20 @@
 
 package org.elasticsearch.index.search.geo;
 
-import com.google.common.collect.ImmutableList;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.lucene.docset.AndDocSet;
-import org.elasticsearch.common.lucene.docset.DocSet;
-import org.elasticsearch.common.lucene.docset.DocSets;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.docset.AndDocIdSet;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldData;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
@@ -48,22 +49,19 @@ public class GeoDistanceFilter extends Filter {
 
     private final GeoDistance geoDistance;
 
-    private final String fieldName;
-
-    private final FieldDataCache fieldDataCache;
+    private final IndexGeoPointFieldData indexFieldData;
 
     private final GeoDistance.FixedSourceDistance fixedSourceDistance;
     private GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
     private final Filter boundingBoxFilter;
 
-    public GeoDistanceFilter(double lat, double lon, double distance, GeoDistance geoDistance, String fieldName, GeoPointFieldMapper mapper, FieldDataCache fieldDataCache,
+    public GeoDistanceFilter(double lat, double lon, double distance, GeoDistance geoDistance, IndexGeoPointFieldData indexFieldData, GeoPointFieldMapper mapper,
                              String optimizeBbox) {
         this.lat = lat;
         this.lon = lon;
         this.distance = distance;
         this.geoDistance = geoDistance;
-        this.fieldName = fieldName;
-        this.fieldDataCache = fieldDataCache;
+        this.indexFieldData = indexFieldData;
 
         this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, DistanceUnit.MILES);
         if (optimizeBbox != null && !"none".equals(optimizeBbox)) {
@@ -99,25 +97,24 @@ public class GeoDistanceFilter extends Filter {
     }
 
     public String fieldName() {
-        return fieldName;
+        return indexFieldData.getFieldNames().indexName();
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        DocSet boundingBoxDocSet = null;
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+        DocIdSet boundingBoxDocSet = null;
         if (boundingBoxFilter != null) {
-            DocIdSet docIdSet = boundingBoxFilter.getDocIdSet(reader);
-            if (docIdSet == null) {
+            boundingBoxDocSet = boundingBoxFilter.getDocIdSet(context, acceptedDocs);
+            if (DocIdSets.isEmpty(boundingBoxDocSet)) {
                 return null;
             }
-            boundingBoxDocSet = DocSets.convert(reader, docIdSet);
         }
-        final GeoPointFieldData fieldData = (GeoPointFieldData) fieldDataCache.cache(GeoPointFieldDataType.TYPE, reader, fieldName);
-        GeoDistanceDocSet distDocSet = new GeoDistanceDocSet(reader.maxDoc(), fieldData, fixedSourceDistance, distanceBoundingCheck, distance);
+        final GeoPointValues values = indexFieldData.load(context).getGeoPointValues();
+        GeoDistanceDocSet distDocSet = new GeoDistanceDocSet(context.reader().maxDoc(), acceptedDocs, values, fixedSourceDistance, distanceBoundingCheck, distance);
         if (boundingBoxDocSet == null) {
             return distDocSet;
         } else {
-            return new AndDocSet(ImmutableList.of(boundingBoxDocSet, distDocSet));
+            return new AndDocIdSet(new DocIdSet[]{boundingBoxDocSet, distDocSet});
         }
     }
 
@@ -131,7 +128,8 @@ public class GeoDistanceFilter extends Filter {
         if (Double.compare(filter.distance, distance) != 0) return false;
         if (Double.compare(filter.lat, lat) != 0) return false;
         if (Double.compare(filter.lon, lon) != 0) return false;
-        if (fieldName != null ? !fieldName.equals(filter.fieldName) : filter.fieldName != null) return false;
+        if (!indexFieldData.getFieldNames().indexName().equals(filter.indexFieldData.getFieldNames().indexName()))
+            return false;
         if (geoDistance != filter.geoDistance) return false;
 
         return true;
@@ -139,7 +137,7 @@ public class GeoDistanceFilter extends Filter {
 
     @Override
     public String toString() {
-        return "GeoDistanceFilter(" + fieldName + ", "  + geoDistance + ", "  + distance + ", " + lat + ", " + lon + ")";
+        return "GeoDistanceFilter(" + indexFieldData.getFieldNames().indexName() + ", " + geoDistance + ", " + distance + ", " + lat + ", " + lon + ")";
     }
 
     @Override
@@ -153,20 +151,20 @@ public class GeoDistanceFilter extends Filter {
         temp = distance != +0.0d ? Double.doubleToLongBits(distance) : 0L;
         result = 31 * result + (int) (temp ^ (temp >>> 32));
         result = 31 * result + (geoDistance != null ? geoDistance.hashCode() : 0);
-        result = 31 * result + (fieldName != null ? fieldName.hashCode() : 0);
+        result = 31 * result + indexFieldData.getFieldNames().indexName().hashCode();
         return result;
     }
 
-    public static class GeoDistanceDocSet extends GetDocSet {
+    public static class GeoDistanceDocSet extends MatchDocIdSet {
         private final double distance; // in miles
-        private final GeoPointFieldData fieldData;
+        private final GeoPointValues values;
         private final GeoDistance.FixedSourceDistance fixedSourceDistance;
         private final GeoDistance.DistanceBoundingCheck distanceBoundingCheck;
 
-        public GeoDistanceDocSet(int maxDoc, GeoPointFieldData fieldData, GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistance.DistanceBoundingCheck distanceBoundingCheck,
+        public GeoDistanceDocSet(int maxDoc, @Nullable Bits acceptDocs, GeoPointValues values, GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistance.DistanceBoundingCheck distanceBoundingCheck,
                                  double distance) {
-            super(maxDoc);
-            this.fieldData = fieldData;
+            super(maxDoc, acceptDocs);
+            this.values = values;
             this.fixedSourceDistance = fixedSourceDistance;
             this.distanceBoundingCheck = distanceBoundingCheck;
             this.distance = distance;
@@ -174,26 +172,21 @@ public class GeoDistanceFilter extends Filter {
 
         @Override
         public boolean isCacheable() {
-            // not cacheable for several reasons:
-            // 1. It is only relevant when _cache is set to true, and then, we really want to create in mem bitset
-            // 2. Its already fast without in mem bitset, since it works with field data
-            return false;
+            return true;
         }
 
         @Override
-        public boolean get(int doc) {
-            if (!fieldData.hasValue(doc)) {
+        protected boolean matchDoc(int doc) {
+            if (!values.hasValue(doc)) {
                 return false;
             }
 
-            if (fieldData.multiValued()) {
-                double[] lats = fieldData.latValues(doc);
-                double[] lons = fieldData.lonValues(doc);
-                for (int i = 0; i < lats.length; i++) {
-                    double lat = lats[i];
-                    double lon = lons[i];
-                    if (distanceBoundingCheck.isWithin(lat, lon)) {
-                        double d = fixedSourceDistance.calculate(lat, lon);
+            if (values.isMultiValued()) {
+                GeoPointValues.Iter iter = values.getIter(doc);
+                while (iter.hasNext()) {
+                    GeoPoint point = iter.next();
+                    if (distanceBoundingCheck.isWithin(point.lat(), point.lon())) {
+                        double d = fixedSourceDistance.calculate(point.lat(), point.lon());
                         if (d < distance) {
                             return true;
                         }
@@ -201,10 +194,9 @@ public class GeoDistanceFilter extends Filter {
                 }
                 return false;
             } else {
-                double lat = fieldData.latValue(doc);
-                double lon = fieldData.lonValue(doc);
-                if (distanceBoundingCheck.isWithin(lat, lon)) {
-                    double d = fixedSourceDistance.calculate(lat, lon);
+                GeoPoint point = values.getValue(doc);
+                if (distanceBoundingCheck.isWithin(point.lat(), point.lon())) {
+                    double d = fixedSourceDistance.calculate(point.lat(), point.lon());
                     return d < distance;
                 }
             }

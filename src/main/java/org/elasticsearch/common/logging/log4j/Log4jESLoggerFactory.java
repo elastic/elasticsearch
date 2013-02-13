@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.logging.log4j;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
@@ -26,6 +28,11 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
  *
  */
 public class Log4jESLoggerFactory extends ESLoggerFactory {
+
+    @Override
+    protected ESLogger rootLogger() {
+        return new Log4jESLogger(null, Logger.getRootLogger());
+    }
 
     @Override
     protected ESLogger newInstance(String prefix, String name) {

@@ -20,15 +20,11 @@
 package org.elasticsearch.search.internal;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.ElasticSearchException;
@@ -36,20 +32,21 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -65,7 +62,9 @@ import org.elasticsearch.search.group.SearchContextGroup;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
+import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 /**
  *
@@ -86,6 +85,13 @@ public class SearchContext implements Releasable {
 
     public static SearchContext current() {
         return current.get();
+    }
+
+    public static interface Rewrite {
+
+        void contextRewrite(SearchContext searchContext) throws Exception;
+
+        void contextClear();
     }
 
     private final long id;
@@ -163,6 +169,10 @@ public class SearchContext implements Releasable {
 
     private SearchContextHighlight highlight;
 
+    private SuggestionSearchContext suggest;
+    
+    private RescoreSearchContext rescore;
+
     private SearchLookup searchLookup;
 
     private boolean queryRewritten;
@@ -171,9 +181,8 @@ public class SearchContext implements Releasable {
 
     private volatile long lastAccessTime;
 
-    private List<ScopePhase> scopePhases = null;
+    private List<Rewrite> rewrites = null;
 
-    private Map<String, BlockJoinQuery> nestedQueries;
 
     public SearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
@@ -201,16 +210,10 @@ public class SearchContext implements Releasable {
             scanContext.clear();
         }
         // clear and scope phase we  have
-        if (scopePhases != null) {
-            for (ScopePhase scopePhase : scopePhases) {
-                scopePhase.clear();
+        if (rewrites != null) {
+            for (Rewrite rewrite : rewrites) {
+                rewrite.contextClear();
             }
-        }
-        // we should close this searcher, since its a new one we create each time, and we use the IndexReader
-        try {
-            searcher.close();
-        } catch (Exception e) {
-            // ignore any exception here
         }
         engineSearcher.release();
         return true;
@@ -229,11 +232,11 @@ public class SearchContext implements Releasable {
         Filter searchFilter = mapperService().searchFilter(types());
         if (searchFilter != null) {
             if (Queries.isConstantMatchAllQuery(query())) {
-                Query q = new DeletionAwareConstantScoreQuery(filterCache().cache(searchFilter));
+                Query q = new XConstantScoreQuery(filterCache().cache(searchFilter));
                 q.setBoost(query().getBoost());
                 parsedQuery(new ParsedQuery(q, parsedQuery()));
             } else {
-                parsedQuery(new ParsedQuery(new FilteredQuery(query(), filterCache().cache(searchFilter)), parsedQuery()));
+                parsedQuery(new ParsedQuery(new XFilteredQuery(query(), filterCache().cache(searchFilter)), parsedQuery()));
             }
         }
     }
@@ -319,6 +322,22 @@ public class SearchContext implements Releasable {
         this.highlight = highlight;
     }
 
+    public SuggestionSearchContext suggest() {
+        return suggest;
+    }
+
+    public void suggest(SuggestionSearchContext suggest) {
+        this.suggest = suggest;
+    }
+    
+    public RescoreSearchContext rescore() {
+        return this.rescore;
+    }
+    
+    public void rescore(RescoreSearchContext rescore) {
+        this.rescore = rescore;
+    }
+
     public boolean hasScriptFields() {
         return scriptFields != null;
     }
@@ -373,8 +392,8 @@ public class SearchContext implements Releasable {
         return indexService.cache().filter();
     }
 
-    public FieldDataCache fieldDataCache() {
-        return indexService.cache().fieldData();
+    public IndexFieldDataService fieldData() {
+        return indexService.fieldData();
     }
 
     public IdCache idCache() {
@@ -559,7 +578,7 @@ public class SearchContext implements Releasable {
     public SearchLookup lookup() {
         // TODO: The types should take into account the parsing context in QueryParserContext...
         if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldDataCache(), request.types());
+            searchLookup = new SearchLookup(mapperService(), fieldData(), request.types());
         }
         return searchLookup;
     }
@@ -576,26 +595,15 @@ public class SearchContext implements Releasable {
         return fetchResult;
     }
 
-    public List<ScopePhase> scopePhases() {
-        return this.scopePhases;
-    }
-
-    public void addScopePhase(ScopePhase scopePhase) {
-        if (this.scopePhases == null) {
-            this.scopePhases = new ArrayList<ScopePhase>();
+    public void addRewrite(Rewrite rewrite) {
+        if (this.rewrites == null) {
+            this.rewrites = new ArrayList<Rewrite>();
         }
-        this.scopePhases.add(scopePhase);
+        this.rewrites.add(rewrite);
     }
 
-    public Map<String, BlockJoinQuery> nestedQueries() {
-        return this.nestedQueries;
-    }
-
-    public void addNestedQuery(String scope, BlockJoinQuery query) {
-        if (nestedQueries == null) {
-            nestedQueries = new HashMap<String, BlockJoinQuery>();
-        }
-        nestedQueries.put(scope, query);
+    public List<Rewrite> rewrites() {
+        return this.rewrites;
     }
 
     public ScanContext scanContext() {

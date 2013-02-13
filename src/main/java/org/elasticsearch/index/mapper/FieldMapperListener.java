@@ -25,17 +25,22 @@ import java.util.List;
 /**
  *
  */
-public interface FieldMapperListener {
+public abstract class FieldMapperListener {
 
-    public static class Aggregator implements FieldMapperListener {
-
-        public final List<FieldMapper> fieldMappers = new ArrayList<FieldMapper>();
+    public static class Aggregator extends FieldMapperListener {
+        public final List<FieldMapper> mappers = new ArrayList<FieldMapper>();
 
         @Override
         public void fieldMapper(FieldMapper fieldMapper) {
-            fieldMappers.add(fieldMapper);
+            mappers.add(fieldMapper);
         }
     }
 
-    void fieldMapper(FieldMapper fieldMapper);
+    public abstract void fieldMapper(FieldMapper fieldMapper);
+
+    public void fieldMappers(FieldMapper... fieldMappers) {
+        for (FieldMapper mapper : fieldMappers) {
+            fieldMapper(mapper);
+        }
+    }
 }

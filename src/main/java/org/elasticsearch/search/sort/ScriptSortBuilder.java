@@ -66,6 +66,16 @@ public class ScriptSortBuilder extends SortBuilder {
     }
 
     /**
+     * Sets parameters for the script.
+     *
+     * @param params The script parameters
+     */
+    public ScriptSortBuilder setParams(Map<String, Object> params) {
+        this.params = params;
+        return this;
+    }
+
+    /**
      * Sets the sort order.
      */
     @Override

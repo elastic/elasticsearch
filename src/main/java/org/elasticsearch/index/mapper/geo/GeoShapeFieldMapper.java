@@ -1,7 +1,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
@@ -13,6 +13,8 @@ import org.elasticsearch.common.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -55,6 +57,18 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public static final int GEOHASH_LEVELS = GeohashPrefixTree.getMaxLevelsPossible();
         public static final int QUADTREE_LEVELS = QuadPrefixTree.DEFAULT_MAX_LEVELS;
         public static final double DISTANCE_ERROR_PCT = 0.025d;
+
+        public static final FieldType FIELD_TYPE = new FieldType();
+
+        static {
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setStoreTermVectors(false);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends AbstractFieldMapper.Builder<Builder, GeoShapeFieldMapper> {
@@ -66,7 +80,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         private SpatialPrefixTree prefixTree;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.FIELD_TYPE));
         }
 
         public Builder tree(String tree) {
@@ -96,7 +110,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                 throw new ElasticSearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
-            return new GeoShapeFieldMapper(buildNames(context), prefixTree, distanceErrorPct);
+            return new GeoShapeFieldMapper(buildNames(context), prefixTree, distanceErrorPct, fieldType, provider);
         }
     }
 
@@ -123,13 +137,24 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     private final SpatialStrategy spatialStrategy;
 
-    public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct) {
-        super(names, Field.Index.NOT_ANALYZED, Field.Store.NO, Field.TermVector.NO, 1, true, FieldInfo.IndexOptions.DOCS_ONLY, null, null);
+    public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct,
+                               FieldType fieldType, PostingsFormatProvider provider) {
+        super(names, 1, fieldType, null, null, provider, null, null);
         this.spatialStrategy = new TermQueryPrefixTreeStrategy(names, prefixTree, distanceErrorPct);
     }
 
     @Override
-    protected Fieldable parseCreateField(ParseContext context) throws IOException {
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return null;
+    }
+
+    @Override
+    protected Field parseCreateField(ParseContext context) throws IOException {
         return spatialStrategy.createField(GeoJSONShapeParser.parse(context.parser()));
     }
 
@@ -162,17 +187,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    public String value(Fieldable field) {
-        throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
-    }
-
-    @Override
-    public String valueFromString(String value) {
-        throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
-    }
-
-    @Override
-    public String valueAsString(Fieldable field) {
+    public String value(Object value) {
         throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.index.mapper.source;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -46,8 +47,8 @@ public class CompressSourceMappingTests {
                 .field("field1", "value1")
                 .field("field2", "value2")
                 .endObject().bytes());
-
-        assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(false));
+        BytesRef bytes = doc.rootDoc().getBinaryValue("_source");
+        assertThat(CompressorFactory.isCompressed(bytes.bytes, bytes.offset, bytes.length), equalTo(false));
     }
 
     @Test
@@ -63,7 +64,8 @@ public class CompressSourceMappingTests {
                 .field("field2", "value2")
                 .endObject().bytes());
 
-        assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(true));
+        BytesRef bytes = doc.rootDoc().getBinaryValue("_source");
+        assertThat(CompressorFactory.isCompressed(bytes.bytes, bytes.offset, bytes.length), equalTo(true));
     }
 
     @Test
@@ -78,7 +80,8 @@ public class CompressSourceMappingTests {
                 .field("field1", "value1")
                 .endObject().bytes());
 
-        assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(false));
+        BytesRef bytes = doc.rootDoc().getBinaryValue("_source");
+        assertThat(CompressorFactory.isCompressed(bytes.bytes, bytes.offset, bytes.length), equalTo(false));
 
         doc = documentMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -88,6 +91,7 @@ public class CompressSourceMappingTests {
                 .field("field2", "value2 xxxxxxxxxxxxxx yyyyyyyyyyyyyyyyyyy zzzzzzzzzzzzzzzzz")
                 .endObject().bytes());
 
-        assertThat(CompressorFactory.isCompressed(doc.rootDoc().getBinaryValue("_source")), equalTo(true));
+        bytes = doc.rootDoc().getBinaryValue("_source");
+        assertThat(CompressorFactory.isCompressed(bytes.bytes, bytes.offset, bytes.length), equalTo(true));
     }
 }

@@ -1293,10 +1293,13 @@ public class Strings {
      * @return the delimited String
      */
     public static String collectionToDelimitedString(Iterable coll, String delim, String prefix, String suffix) {
+        return collectionToDelimitedString(coll, delim, prefix, suffix, new StringBuilder());
+    }
+
+    public static String collectionToDelimitedString(Iterable coll, String delim, String prefix, String suffix, StringBuilder sb) {
         if (Iterables.isEmpty(coll)) {
             return "";
         }
-        StringBuilder sb = new StringBuilder();
         Iterator it = coll.iterator();
         while (it.hasNext()) {
             sb.append(prefix).append(it.next()).append(suffix);
@@ -1339,10 +1342,13 @@ public class Strings {
      * @return the delimited String
      */
     public static String arrayToDelimitedString(Object[] arr, String delim) {
+        return arrayToDelimitedString(arr, delim, new StringBuilder());
+    }
+
+    public static String arrayToDelimitedString(Object[] arr, String delim, StringBuilder sb) {
         if (isEmpty(arr)) {
             return "";
         }
-        StringBuilder sb = new StringBuilder();
         for (int i = 0; i < arr.length; i++) {
             if (i > 0) {
                 sb.append(delim);

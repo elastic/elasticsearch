@@ -21,7 +21,7 @@ package org.elasticsearch.test.unit.index.analysis.synonyms;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.TermAttribute;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.logging.ESLogger;
@@ -90,11 +90,12 @@ public class SynonymsAnalysisTest {
         allEntries.reset();
 
         TokenStream stream = AllTokenStream.allTokenStream("_all", allEntries, analyzer);
-        TermAttribute termAtt = stream.addAttribute(TermAttribute.class);
+        stream.reset();
+        CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 
         StringBuilder sb = new StringBuilder();
         while (stream.incrementToken()) {
-            sb.append(termAtt.term()).append(" ");
+            sb.append(termAtt.toString()).append(" ");
         }
 
         MatcherAssert.assertThat(target, equalTo(sb.toString().trim()));

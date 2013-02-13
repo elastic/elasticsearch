@@ -104,7 +104,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     public HttpInfo info() {
-        return new HttpInfo(transport.boundAddress());
+        return transport.info();
     }
 
     public HttpStats stats() {

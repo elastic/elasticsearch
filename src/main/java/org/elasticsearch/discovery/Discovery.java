@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.node.service.NodeService;
@@ -49,6 +50,12 @@ public interface Discovery extends LifecycleComponent<Discovery> {
      * Here as a hack to solve dep injection problem...
      */
     void setNodeService(@Nullable NodeService nodeService);
+
+    /**
+     * Another hack to solve dep injection problem..., note, this will be called before
+     * any start is called.
+     */
+    void setAllocationService(AllocationService allocationService);
 
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish

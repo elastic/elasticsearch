@@ -27,6 +27,7 @@ import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  *
@@ -100,6 +101,20 @@ public class InternalQueryFacet implements QueryFacet, InternalFacet {
         return count;
     }
 
+    @Override
+    public Facet reduce(List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        int count = 0;
+        for (Facet facet : facets) {
+            if (facet.name().equals(name)) {
+                count += ((QueryFacet) facet).count();
+            }
+        }
+        return new InternalQueryFacet(name, count);
+    }
+
     static final class Fields {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString COUNT = new XContentBuilderString("count");
@@ -122,13 +137,13 @@ public class InternalQueryFacet implements QueryFacet, InternalFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         count = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeVLong(count);
     }
 }

@@ -186,7 +186,7 @@ public class ByteBufferIndexInput extends IndexInput {
     }
 
     @Override
-    public Object clone() {
+    public IndexInput clone() {
         ByteBufferIndexInput cloned = (ByteBufferIndexInput) super.clone();
         cloned.file.incRef(); // inc ref on cloned one
         if (currentBuffer != EMPTY_BUFFER) {

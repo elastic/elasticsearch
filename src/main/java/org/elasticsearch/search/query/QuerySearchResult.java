@@ -29,6 +29,7 @@ import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
 import org.elasticsearch.search.group.Group;
 import org.elasticsearch.search.group.InternalGroup;
+import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.TransportResponse;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
@@ -46,6 +47,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private TopDocs topDocs;
     private InternalFacets facets;
     private InternalGroup group;
+    private Suggest suggest;
     private boolean searchTimedOut;
 
     public QuerySearchResult() {
@@ -112,6 +114,14 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         this.group = group;
     }
 
+    public Suggest suggest() {
+        return suggest;
+    }
+
+    public void suggest(Suggest suggest) {
+        this.suggest = suggest;
+    }
+
     public int from() {
         return from;
     }
@@ -150,6 +160,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         if (in.readBoolean()) {
             //group = InternalGroup.readGroup(in);
             //InternalGroup.Streams.stream(type).readGroup(type, in);
+            suggest = Suggest.readSuggest(in);
         }
         searchTimedOut = in.readBoolean();
     }
@@ -173,6 +184,12 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         } else {
             out.writeBoolean(true);
             group.writeTo(out);
+        }
+        if (suggest == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            suggest.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
     }

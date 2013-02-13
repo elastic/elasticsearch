@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -59,7 +60,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class TransportBulkAction extends TransportAction<BulkRequest, BulkResponse> {
 
-    private final boolean autoCreateIndex;
+    private final AutoCreateIndex autoCreateIndex;
 
     private final boolean allowIdGeneration;
 
@@ -77,7 +78,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
 
-        this.autoCreateIndex = settings.getAsBoolean("action.auto_create_index", true);
+        this.autoCreateIndex = new AutoCreateIndex(settings);
         this.allowIdGeneration = componentSettings.getAsBoolean("action.allow_id_generation", true);
 
         transportService.registerHandler(BulkAction.NAME, new TransportHandler());
@@ -101,11 +102,12 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             }
         }
 
-        if (autoCreateIndex) {
+        if (autoCreateIndex.needToCheck()) {
             final AtomicInteger counter = new AtomicInteger(indices.size());
             final AtomicBoolean failed = new AtomicBoolean();
+            ClusterState state = clusterService.state();
             for (String index : indices) {
-                if (!clusterService.state().metaData().hasConcreteIndex(index)) {
+                if (autoCreateIndex.shouldAutoCreate(index, state)) {
                     createIndexAction.execute(new CreateIndexRequest(index).cause("auto(bulk api)"), new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {

@@ -35,6 +35,11 @@ public abstract class AbstractRestResponse implements RestResponse {
     }
 
     @Override
+    public int prefixContentOffset() {
+        return 0;
+    }
+
+    @Override
     public byte[] suffixContent() {
         return null;
     }
@@ -42,5 +47,10 @@ public abstract class AbstractRestResponse implements RestResponse {
     @Override
     public int suffixContentLength() {
         return -1;
+    }
+
+    @Override
+    public int suffixContentOffset() {
+        return 0;
     }
 }

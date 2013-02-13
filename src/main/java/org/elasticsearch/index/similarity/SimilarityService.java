@@ -19,81 +19,90 @@
 
 package org.elasticsearch.index.similarity;
 
-import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.search.Similarity;
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.name.Named;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
-
-import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
  */
 public class SimilarityService extends AbstractIndexComponent {
 
-    private final ImmutableMap<String, SimilarityProvider> similarityProviders;
+    private final SimilarityLookupService similarityLookupService;
+    private final MapperService mapperService;
 
-    private final ImmutableMap<String, Similarity> similarities;
+    private final Similarity perFieldSimilarity;
 
     public SimilarityService(Index index) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, null);
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
+    }
+
+    public SimilarityService(Index index, Settings settings) {
+        this (index, settings, new SimilarityLookupService(index, settings), null);
     }
 
     @Inject
     public SimilarityService(Index index, @IndexSettings Settings indexSettings,
-                             @Nullable Map<String, SimilarityProviderFactory> providerFactories) {
+                             final SimilarityLookupService similarityLookupService, final MapperService mapperService) {
         super(index, indexSettings);
+        this.similarityLookupService = similarityLookupService;
+        this.mapperService = mapperService;
 
-        Map<String, SimilarityProvider> similarityProviders = newHashMap();
-        if (providerFactories != null) {
-            Map<String, Settings> providersSettings = indexSettings.getGroups("index.similarity");
-            for (Map.Entry<String, SimilarityProviderFactory> entry : providerFactories.entrySet()) {
-                String similarityName = entry.getKey();
-                SimilarityProviderFactory similarityProviderFactory = entry.getValue();
+        Similarity defaultSimilarity = similarityLookupService.similarity("default").get();
+        // Expert users can configure the base type as being different to default, but out-of-box we use default.
+        Similarity baseSimilarity = (similarityLookupService.similarity("base") != null) ? similarityLookupService.similarity("base").get() :
+                defaultSimilarity;
 
-                Settings similaritySettings = providersSettings.get(similarityName);
-                if (similaritySettings == null) {
-                    similaritySettings = ImmutableSettings.Builder.EMPTY_SETTINGS;
-                }
-
-                SimilarityProvider similarityProvider = similarityProviderFactory.create(similarityName, similaritySettings);
-                similarityProviders.put(similarityName, similarityProvider);
-            }
-        }
-
-        // add defaults
-        if (!similarityProviders.containsKey("index")) {
-            similarityProviders.put("index", new DefaultSimilarityProvider(index, indexSettings, "index", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        if (!similarityProviders.containsKey("search")) {
-            similarityProviders.put("search", new DefaultSimilarityProvider(index, indexSettings, "search", ImmutableSettings.Builder.EMPTY_SETTINGS));
-        }
-        this.similarityProviders = ImmutableMap.copyOf(similarityProviders);
-
-
-        Map<String, Similarity> similarities = newHashMap();
-        for (SimilarityProvider provider : similarityProviders.values()) {
-            similarities.put(provider.name(), provider.get());
-        }
-        this.similarities = ImmutableMap.copyOf(similarities);
+        this.perFieldSimilarity = (mapperService != null) ? new PerFieldSimilarity(defaultSimilarity, baseSimilarity, mapperService) :
+                defaultSimilarity;
     }
 
-    public Similarity similarity(String name) {
-        return similarities.get(name);
+    public Similarity similarity() {
+        return perFieldSimilarity;
     }
 
-    public Similarity defaultIndexSimilarity() {
-        return similarities.get("index");
+    public SimilarityLookupService similarityLookupService() {
+        return similarityLookupService;
     }
 
-    public Similarity defaultSearchSimilarity() {
-        return similarities.get("search");
+    public MapperService mapperService() {
+        return mapperService;
+    }
+
+    static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
+
+        private final Similarity defaultSimilarity;
+        private final Similarity baseSimilarity;
+        private final MapperService mapperService;
+
+        PerFieldSimilarity(Similarity defaultSimilarity, Similarity baseSimilarity, MapperService mapperService) {
+            this.defaultSimilarity = defaultSimilarity;
+            this.baseSimilarity = baseSimilarity;
+            this.mapperService = mapperService;
+        }
+
+        @Override
+        public float coord(int overlap, int maxOverlap) {
+            return baseSimilarity.coord(overlap, maxOverlap);
+        }
+
+        @Override
+        public float queryNorm(float valueForNormalization) {
+            return baseSimilarity.queryNorm(valueForNormalization);
+        }
+
+        @Override
+        public Similarity get(String name) {
+            FieldMapper mapper = mapperService.smartNameFieldMapper(name);
+            return (mapper != null && mapper.similarity() != null) ? mapper.similarity().get() : defaultSimilarity;
+        }
     }
 }

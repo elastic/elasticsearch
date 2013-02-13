@@ -2,9 +2,10 @@ package org.elasticsearch.test.unit.common.lucene.spatial.prefix;
 
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
-import org.apache.lucene.analysis.KeywordAnalyzer;
+import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -64,7 +65,7 @@ public class TermQueryPrefixTreeStrategyTests {
 
     private Document newDocument(String id, Shape shape) {
         Document document = new Document();
-        document.add(new Field("id", id, Field.Store.YES, Field.Index.NOT_ANALYZED));
+        document.add(new Field("id", id, StringField.TYPE_STORED));
         document.add(STRATEGY.createField(shape));
         return document;
     }
@@ -75,7 +76,7 @@ public class TermQueryPrefixTreeStrategyTests {
         Set<String> foundIDs = new HashSet<String>();
         for (ScoreDoc doc : topDocs.scoreDocs) {
             Document foundDocument = indexSearcher.doc(doc.doc);
-            foundIDs.add(foundDocument.getFieldable("id").stringValue());
+            foundIDs.add(foundDocument.getField("id").stringValue());
         }
 
         for (String id : ids) {
@@ -132,13 +133,13 @@ public class TermQueryPrefixTreeStrategyTests {
     }
 
     @Test
-    public void testContainsRelation() throws IOException {
+    public void testWithinRelation() throws IOException {
         Rectangle rectangle = newRectangle().topLeft(-45, 45).bottomRight(45, -45).build();
 
-        Filter filter = STRATEGY.createContainsFilter(rectangle);
+        Filter filter = STRATEGY.createWithinFilter(rectangle);
         assertTopDocs(indexSearcher.search(new MatchAllDocsQuery(), filter, 10), "1");
 
-        Query query = STRATEGY.createContainsQuery(rectangle);
+        Query query = STRATEGY.createWithinQuery(rectangle);
         assertTopDocs(indexSearcher.search(query, 10), "1");
 
         Shape polygon = newPolygon()
@@ -148,15 +149,15 @@ public class TermQueryPrefixTreeStrategyTests {
                 .point(-45, -45)
                 .point(-45, 45).build();
 
-        filter = STRATEGY.createContainsFilter(polygon);
+        filter = STRATEGY.createWithinFilter(polygon);
         assertTopDocs(indexSearcher.search(new MatchAllDocsQuery(), filter, 10), "1");
 
-        query = STRATEGY.createContainsQuery(polygon);
+        query = STRATEGY.createWithinQuery(polygon);
         assertTopDocs(indexSearcher.search(query, 10), "1");
     }
 
     @AfterTest
     public void tearDown() throws IOException {
-        IOUtils.close(indexSearcher, indexReader, directory);
+        IOUtils.close(indexReader, directory);
     }
 }

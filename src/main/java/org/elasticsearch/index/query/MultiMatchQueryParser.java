@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MultiMatchQuery;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -58,7 +56,7 @@ public class MultiMatchQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        String text = null;
+        Object value = null;
         float boost = 1.0f;
         MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(parseContext);
@@ -102,7 +100,7 @@ public class MultiMatchQueryParser implements QueryParser {
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
-                    text = parser.text();
+                    value = parser.objectText();
                 } else if ("type".equals(currentFieldName)) {
                     String tStr = parser.text();
                     if ("boolean".equals(tStr)) {
@@ -146,7 +144,9 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if ("use_dis_max".equals(currentFieldName) || "useDisMax".equals(currentFieldName)) {
                     multiMatchQuery.setUseDisMax(parser.booleanValue());
                 } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
-                    multiMatchQuery.setTieBreaker(parser.intValue());
+                    multiMatchQuery.setTieBreaker(parser.floatValue());
+                }  else if ("cutoff_frequency".equals(currentFieldName)) {
+                    multiMatchQuery.setCommonTermsCutoff(parser.floatValue());
                 } else if ("lenient".equals(currentFieldName)) {
                     multiMatchQuery.setLenient(parser.booleanValue());
                 } else {
@@ -155,7 +155,7 @@ public class MultiMatchQueryParser implements QueryParser {
             }
         }
 
-        if (text == null) {
+        if (value == null) {
             throw new QueryParsingException(parseContext.index(), "No text specified for match_all query");
         }
 
@@ -163,7 +163,7 @@ public class MultiMatchQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No fields specified for match_all query");
         }
 
-        Query query = multiMatchQuery.parse(type, fieldNameWithBoosts, text);
+        Query query = multiMatchQuery.parse(type, fieldNameWithBoosts, value);
         if (query == null) {
             return null;
         }

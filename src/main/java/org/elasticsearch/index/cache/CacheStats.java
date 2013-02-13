@@ -34,43 +34,26 @@ import java.io.IOException;
  */
 public class CacheStats implements Streamable, ToXContent {
 
-    long fieldEvictions;
     long filterEvictions;
     long filterCount;
-    long fieldSize;
     long filterSize;
-    long bloomSize;
     long idCacheSize;
 
     public CacheStats() {
     }
 
-    public CacheStats(long fieldEvictions, long filterEvictions, long fieldSize, long filterSize, long filterCount, long bloomSize, long idCacheSize) {
-        this.fieldEvictions = fieldEvictions;
+    public CacheStats(long filterEvictions, long filterSize, long filterCount, long idCacheSize) {
         this.filterEvictions = filterEvictions;
-        this.fieldSize = fieldSize;
         this.filterSize = filterSize;
         this.filterCount = filterCount;
-        this.bloomSize = bloomSize;
         this.idCacheSize = idCacheSize;
     }
 
     public void add(CacheStats stats) {
-        this.fieldEvictions += stats.fieldEvictions;
         this.filterEvictions += stats.filterEvictions;
-        this.fieldSize += stats.fieldSize;
         this.filterSize += stats.filterSize;
         this.filterCount += stats.filterCount;
-        this.bloomSize += stats.bloomSize;
         this.idCacheSize += stats.idCacheSize;
-    }
-
-    public long fieldEvictions() {
-        return this.fieldEvictions;
-    }
-
-    public long getFieldEvictions() {
-        return this.fieldEvictions();
     }
 
     public long filterEvictions() {
@@ -97,22 +80,6 @@ public class CacheStats implements Streamable, ToXContent {
         return filterCount;
     }
 
-    public long fieldSizeInBytes() {
-        return this.fieldSize;
-    }
-
-    public long getFieldSizeInBytes() {
-        return fieldSizeInBytes();
-    }
-
-    public ByteSizeValue fieldSize() {
-        return new ByteSizeValue(fieldSize);
-    }
-
-    public ByteSizeValue getFieldSize() {
-        return this.fieldSize();
-    }
-
     public long filterSizeInBytes() {
         return this.filterSize;
     }
@@ -129,22 +96,6 @@ public class CacheStats implements Streamable, ToXContent {
         return filterSize();
     }
 
-    public long bloomSizeInBytes() {
-        return this.bloomSize;
-    }
-
-    public long getBloomSizeInBytes() {
-        return this.bloomSize;
-    }
-
-    public ByteSizeValue bloomSize() {
-        return new ByteSizeValue(bloomSize);
-    }
-
-    public ByteSizeValue getBloomSize() {
-        return bloomSize();
-    }
-
     public long idCacheSizeInBytes() {
         return idCacheSize;
     }
@@ -158,21 +109,16 @@ public class CacheStats implements Streamable, ToXContent {
     }
 
     public ByteSizeValue getIdCacheSize() {
-        return bloomSize();
+        return idCacheSize();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.CACHE);
-        builder.field(Fields.FIELD_EVICTIONS, fieldEvictions);
-        builder.field(Fields.FIELD_SIZE, fieldSize().toString());
-        builder.field(Fields.FIELD_SIZE_IN_BYTES, fieldSize);
         builder.field(Fields.FILTER_COUNT, filterCount);
         builder.field(Fields.FILTER_EVICTIONS, filterEvictions);
         builder.field(Fields.FILTER_SIZE, filterSize().toString());
         builder.field(Fields.FILTER_SIZE_IN_BYTES, filterSize);
-        builder.field(Fields.BLOOM_SIZE, bloomSize().toString());
-        builder.field(Fields.BLOOM_SIZE_IN_BYTES, bloomSize);
         builder.field(Fields.ID_CACHE_SIZE, idCacheSize().toString());
         builder.field(Fields.ID_CACHE_SIZE_IN_BYTES, idCacheSize);
         builder.endObject();
@@ -181,15 +127,10 @@ public class CacheStats implements Streamable, ToXContent {
 
     static final class Fields {
         static final XContentBuilderString CACHE = new XContentBuilderString("cache");
-        static final XContentBuilderString FIELD_SIZE = new XContentBuilderString("field_size");
-        static final XContentBuilderString FIELD_SIZE_IN_BYTES = new XContentBuilderString("field_size_in_bytes");
-        static final XContentBuilderString FIELD_EVICTIONS = new XContentBuilderString("field_evictions");
         static final XContentBuilderString FILTER_EVICTIONS = new XContentBuilderString("filter_evictions");
         static final XContentBuilderString FILTER_COUNT = new XContentBuilderString("filter_count");
         static final XContentBuilderString FILTER_SIZE = new XContentBuilderString("filter_size");
         static final XContentBuilderString FILTER_SIZE_IN_BYTES = new XContentBuilderString("filter_size_in_bytes");
-        static final XContentBuilderString BLOOM_SIZE = new XContentBuilderString("bloom_size");
-        static final XContentBuilderString BLOOM_SIZE_IN_BYTES = new XContentBuilderString("bloom_size_in_bytes");
         static final XContentBuilderString ID_CACHE_SIZE = new XContentBuilderString("id_cache_size");
         static final XContentBuilderString ID_CACHE_SIZE_IN_BYTES = new XContentBuilderString("id_cache_size_in_bytes");
     }
@@ -202,23 +143,17 @@ public class CacheStats implements Streamable, ToXContent {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        fieldEvictions = in.readVLong();
         filterEvictions = in.readVLong();
-        fieldSize = in.readVLong();
         filterSize = in.readVLong();
         filterCount = in.readVLong();
-        bloomSize = in.readVLong();
         idCacheSize = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(fieldEvictions);
         out.writeVLong(filterEvictions);
-        out.writeVLong(fieldSize);
         out.writeVLong(filterSize);
         out.writeVLong(filterCount);
-        out.writeVLong(bloomSize);
         out.writeVLong(idCacheSize);
     }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Classes;
@@ -324,6 +325,15 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public String toDelimitedString(char delimiter) {
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, String> entry : settings.entrySet()) {
+            sb.append(entry.getKey()).append("=").append(entry.getValue()).append(delimiter);
+        }
+        return sb.toString();
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -347,7 +357,7 @@ public class ImmutableSettings implements Settings {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
         for (int i = 0; i < numberOfSettings; i++) {
-            builder.put(in.readUTF(), in.readUTF());
+            builder.put(in.readString(), in.readString());
         }
         return builder.build();
     }
@@ -355,9 +365,13 @@ public class ImmutableSettings implements Settings {
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         out.writeVInt(settings.getAsMap().size());
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            out.writeUTF(entry.getKey());
-            out.writeUTF(entry.getValue());
+            out.writeString(entry.getKey());
+            out.writeString(entry.getValue());
         }
+    }
+
+    public static Builder builder() {
+        return new Builder();
     }
 
     /**
@@ -581,6 +595,18 @@ public class ImmutableSettings implements Settings {
         public Builder put(Properties properties) {
             for (Map.Entry entry : properties.entrySet()) {
                 map.put((String) entry.getKey(), (String) entry.getValue());
+            }
+            return this;
+        }
+
+        public Builder loadFromDelimitedString(String value, char delimiter) {
+            String[] values = Strings.splitStringToArray(value, delimiter);
+            for (String s : values) {
+                int index = s.indexOf('=');
+                if (index == -1) {
+                    throw new ElasticSearchIllegalArgumentException("value [" + s + "] for settings loaded with delimiter [" + delimiter + "] is malformed, missing =");
+                }
+                map.put(s.substring(0, index), s.substring(index + 1));
             }
             return this;
         }

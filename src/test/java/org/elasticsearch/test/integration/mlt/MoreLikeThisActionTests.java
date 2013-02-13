@@ -19,15 +19,18 @@
 
 package org.elasticsearch.test.integration.mlt;
 
+import java.util.Collections;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.client.Requests.*;
@@ -45,7 +48,7 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
     private Client client1;
     private Client client2;
 
-    @BeforeMethod
+    @BeforeClass
     public void startServers() {
         startNode("server1");
         startNode("server2");
@@ -53,7 +56,7 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         client2 = getClient2();
     }
 
-    @AfterMethod
+    @AfterClass
     public void closeServers() {
         client1.close();
         client2.close();
@@ -70,6 +73,10 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
 
     @Test
     public void testSimpleMoreLikeThis() throws Exception {
+        try {
+            client1.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+        }
         logger.info("Creating index test");
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
@@ -94,6 +101,10 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
 
     @Test
     public void testMoreLikeThisWithAliases() throws Exception {
+        try {
+            client1.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+        }
         logger.info("Creating index test");
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
@@ -134,7 +145,13 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         startNode("client-node", ImmutableSettings.settingsBuilder().put("node.client", true));
         try {
             client1.admin().indices().prepareDelete("foo").execute().actionGet();
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+                .startObject("properties")
+                .endObject()
+                .endObject().endObject().string();
+        client1.admin().indices().prepareCreate("foo").addMapping("bar", mapping).execute().actionGet();
         client1.prepareIndex("foo", "bar", "1")
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
                 .execute().actionGet();
@@ -146,6 +163,28 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         searchResponse = client3.prepareMoreLikeThis("foo", "bar", "1").execute().actionGet();
         assertThat(searchResponse, notNullValue());
         client3.close();
+    }
+
+    @Test
+    // See: https://github.com/elasticsearch/elasticsearch/issues/2489
+    public void testMoreLikeWithCustomRouting() throws Exception {
+        try {
+            client1.admin().indices().prepareDelete("foo").execute().actionGet();
+        } catch (IndexMissingException e) {
+        }
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
+                .startObject("properties")
+                .endObject()
+                .endObject().endObject().string();
+        client1.admin().indices().prepareCreate("foo").addMapping("bar", mapping).execute().actionGet();
+        client1.prepareIndex("foo", "bar", "1")
+                .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
+                .setRouting("2")
+                .execute().actionGet();
+        client1.admin().indices().prepareRefresh("foo").execute().actionGet();
+
+        SearchResponse searchResponse = client1.prepareMoreLikeThis("foo", "bar", "1").setRouting("2").execute().actionGet();
+        assertThat(searchResponse, notNullValue());
     }
 
 }

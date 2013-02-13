@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterClause;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -130,9 +130,7 @@ public class BoolFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "[bool] filter has no inner should/must/must_not elements");
         }
 
-        if ((boolFilter.getMustFilters() == null || boolFilter.getMustFilters().isEmpty())
-                && (boolFilter.getNotFilters() == null || boolFilter.getNotFilters().isEmpty())
-                && (boolFilter.getShouldFilters() == null || boolFilter.getShouldFilters().isEmpty())) {
+        if (boolFilter.clauses().isEmpty()) {
             return null;
         }
 

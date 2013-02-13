@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis.compound;
 
 import org.apache.lucene.analysis.compound.CompoundWordTokenFilterBase;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -30,8 +31,6 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Set;
-
 /**
  * Contains the common configuration settings between subclasses of this class.
  */
@@ -41,7 +40,7 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
     protected final int minSubwordSize;
     protected final int maxSubwordSize;
     protected final boolean onlyLongestMatch;
-    protected final Set<?> wordList;
+    protected final CharArraySet wordList;
 
     @Inject
     public AbstractCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {

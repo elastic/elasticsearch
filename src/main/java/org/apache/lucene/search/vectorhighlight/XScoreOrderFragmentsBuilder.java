@@ -26,13 +26,14 @@ import java.util.List;
 /**
  * An implementation of FragmentsBuilder that outputs score-order fragments.
  */
-public class XScoreOrderFragmentsBuilder extends AbstractFragmentsBuilder {
+public class XScoreOrderFragmentsBuilder extends BaseFragmentsBuilder {
 
     /**
      * a constructor.
      */
     public XScoreOrderFragmentsBuilder() {
         super();
+        setDiscreteMultiValueHighlighting(true);
     }
 
     /**
@@ -43,14 +44,17 @@ public class XScoreOrderFragmentsBuilder extends AbstractFragmentsBuilder {
      */
     public XScoreOrderFragmentsBuilder(String[] preTags, String[] postTags) {
         super(preTags, postTags);
+        setDiscreteMultiValueHighlighting(true);
     }
 
     public XScoreOrderFragmentsBuilder(BoundaryScanner bs) {
         super(bs);
+        setDiscreteMultiValueHighlighting(true);
     }
 
     public XScoreOrderFragmentsBuilder(String[] preTags, String[] postTags, BoundaryScanner bs) {
         super(preTags, postTags, bs);
+        setDiscreteMultiValueHighlighting(true);
     }
 
     /**
@@ -65,12 +69,12 @@ public class XScoreOrderFragmentsBuilder extends AbstractFragmentsBuilder {
     public static class ScoreComparator implements Comparator<WeightedFragInfo> {
 
         public int compare(WeightedFragInfo o1, WeightedFragInfo o2) {
-            if (o1.totalBoost > o2.totalBoost) return -1;
-            else if (o1.totalBoost < o2.totalBoost) return 1;
+            if (o1.getTotalBoost() > o2.getTotalBoost()) return -1;
+            else if (o1.getTotalBoost() < o2.getTotalBoost()) return 1;
                 // if same score then check startOffset
             else {
-                if (o1.startOffset < o2.startOffset) return -1;
-                else if (o1.startOffset > o2.startOffset) return 1;
+                if (o1.getStartOffset() < o2.getStartOffset()) return -1;
+                else if (o1.getStartOffset() > o2.getStartOffset()) return 1;
             }
             return 0;
         }

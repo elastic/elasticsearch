@@ -48,6 +48,10 @@ public class HighlightBuilder implements ToXContent {
 
     private Boolean requireFieldMatch;
 
+    private String highlighterType;
+
+    private String fragmenter;
+
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
      * default number of fragments of 5 using the default encoder
@@ -176,6 +180,24 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Set type of highlighter to use. Supported types
+     * are <tt>highlighter</tt> and <tt>fast-vector-highlighter</tt>.
+     */
+    public HighlightBuilder highlighterType(String highlighterType) {
+        this.highlighterType = highlighterType;
+        return this;
+    }
+
+    /**
+     * Sets what fragmenter to use to break up text that is eligible for highlighting.
+     * This option is only applicable when using plain / normal highlighter.
+     */
+    public HighlightBuilder fragmenter(String fragmenter) {
+        this.fragmenter = fragmenter;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
@@ -197,6 +219,12 @@ public class HighlightBuilder implements ToXContent {
         if (requireFieldMatch != null) {
             builder.field("require_field_match", requireFieldMatch);
         }
+        if (highlighterType != null) {
+            builder.field("type", highlighterType);
+        }
+        if (fragmenter != null) {
+            builder.field("fragmenter", fragmenter);
+        }
         if (fields != null) {
             builder.startObject("fields");
             for (Field field : fields) {
@@ -212,6 +240,12 @@ public class HighlightBuilder implements ToXContent {
                 }
                 if (field.requireFieldMatch != null) {
                     builder.field("require_field_match", field.requireFieldMatch);
+                }
+                if (field.highlighterType != null) {
+                    builder.field("type", field.highlighterType);
+                }
+                if (field.fragmenter != null) {
+                    builder.field("fragmenter", field.fragmenter);
                 }
 
                 builder.endObject();
@@ -229,6 +263,8 @@ public class HighlightBuilder implements ToXContent {
         int fragmentOffset = -1;
         int numOfFragments = -1;
         Boolean requireFieldMatch;
+        String highlighterType;
+        String fragmenter;
 
         public Field(String name) {
             this.name = name;
@@ -255,6 +291,16 @@ public class HighlightBuilder implements ToXContent {
 
         public Field requireFieldMatch(boolean requireFieldMatch) {
             this.requireFieldMatch = requireFieldMatch;
+            return this;
+        }
+
+        public Field highlighterType(String highlighterType) {
+            this.highlighterType = highlighterType;
+            return this;
+        }
+
+        public Field fragmenter(String fragmenter) {
+            this.fragmenter = fragmenter;
             return this;
         }
     }

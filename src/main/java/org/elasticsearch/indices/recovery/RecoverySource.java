@@ -21,8 +21,12 @@ package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -30,6 +34,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -59,26 +64,53 @@ public class RecoverySource extends AbstractComponent {
     }
 
     private final TransportService transportService;
-
     private final IndicesService indicesService;
-
     private final RecoverySettings recoverySettings;
+
+    private final ClusterService clusterService;
+
+    private final TimeValue internalActionTimeout;
+    private final TimeValue internalActionLongTimeout;
 
 
     @Inject
     public RecoverySource(Settings settings, TransportService transportService, IndicesService indicesService,
-                          RecoverySettings recoverySettings) {
+                          RecoverySettings recoverySettings, ClusterService clusterService) {
         super(settings);
         this.transportService = transportService;
         this.indicesService = indicesService;
+        this.clusterService = clusterService;
 
         this.recoverySettings = recoverySettings;
 
         transportService.registerHandler(Actions.START_RECOVERY, new StartRecoveryTransportRequestHandler());
+        this.internalActionTimeout = componentSettings.getAsTime("internal_action_timeout", TimeValue.timeValueMinutes(15));
+        this.internalActionLongTimeout = new TimeValue(internalActionTimeout.millis() * 2);
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {
         final InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
+
+        // verify that our (the source) shard state is marking the shard to be in recovery mode as well, otherwise
+        // the index operations will not be routed to it properly
+        RoutingNode node = clusterService.state().readOnlyRoutingNodes().node(request.targetNode().id());
+        if (node == null) {
+            throw new DelayRecoveryException("source node does not have the node [" + request.targetNode() + "] in its state yet..");
+        }
+        ShardRouting targetShardRouting = null;
+        for (ShardRouting shardRouting : node) {
+            if (shardRouting.shardId().equals(request.shardId())) {
+                targetShardRouting = shardRouting;
+                break;
+            }
+        }
+        if (targetShardRouting == null) {
+            throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+        }
+        if (!targetShardRouting.initializing()) {
+            throw new DelayRecoveryException("source node has the state of the target shard to be [" + targetShardRouting.state() + "], expecting to be [initializing]");
+        }
+
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
         final RecoveryResponse response = new RecoveryResponse();
         shard.recover(new Engine.RecoveryHandler() {
@@ -122,7 +154,7 @@ public class RecoverySource extends AbstractComponent {
 
                     RecoveryFilesInfoRequest recoveryInfoFilesRequest = new RecoveryFilesInfoRequest(request.recoveryId(), request.shardId(), response.phase1FileNames, response.phase1FileSizes,
                             response.phase1ExistingFileNames, response.phase1ExistingFileSizes, response.phase1TotalSize, response.phase1ExistingTotalSize);
-                    transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                    transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest, TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
 
                     final CountDownLatch latch = new CountDownLatch(response.phase1FileNames.size());
                     final AtomicReference<Exception> lastException = new AtomicReference<Exception>();
@@ -135,7 +167,8 @@ public class RecoverySource extends AbstractComponent {
                                     final int BUFFER_SIZE = (int) recoverySettings.fileChunkSize().bytes();
                                     byte[] buf = new byte[BUFFER_SIZE];
                                     StoreFileMetaData md = shard.store().metaData(name);
-                                    indexInput = shard.store().openInputRaw(name);
+                                    // TODO: maybe use IOContext.READONCE?
+                                    indexInput = shard.store().openInputRaw(name, IOContext.READ);
                                     boolean shouldCompressRequest = recoverySettings.compress();
                                     if (CompressorFactory.isCompressed(indexInput)) {
                                         shouldCompressRequest = false;
@@ -157,10 +190,9 @@ public class RecoverySource extends AbstractComponent {
                                         indexInput.readBytes(buf, 0, toRead, false);
                                         BytesArray content = new BytesArray(buf, 0, toRead);
                                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK, new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), name, position, len, md.checksum(), content),
-                                                TransportRequestOptions.options().withCompress(shouldCompressRequest).withLowType(), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                                                TransportRequestOptions.options().withCompress(shouldCompressRequest).withLowType().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                         readCount += toRead;
                                     }
-                                    indexInput.close();
                                 } catch (Exception e) {
                                     lastException.set(e);
                                 } finally {
@@ -185,7 +217,7 @@ public class RecoverySource extends AbstractComponent {
 
                     // now, set the clean files request
                     Set<String> snapshotFiles = Sets.newHashSet(snapshot.getFiles());
-                    transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES, new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), snapshotFiles), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                    transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES, new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), snapshotFiles), TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
 
                     stopWatch.stop();
                     logger.trace("[{}][{}] recovery [phase1] to {}: took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
@@ -202,7 +234,7 @@ public class RecoverySource extends AbstractComponent {
                 }
                 logger.trace("[{}][{}] recovery [phase2] to {}: start", request.shardId().index().name(), request.shardId().id(), request.targetNode());
                 StopWatch stopWatch = new StopWatch().start();
-                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG, new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId()), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG, new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId()), TransportRequestOptions.options().withTimeout(internalActionTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 stopWatch.stop();
                 response.startTime = stopWatch.totalTime().millis();
                 logger.trace("[{}][{}] recovery [phase2] to {}: start took [{}]", request.shardId().index().name(), request.shardId().id(), request.targetNode(), stopWatch.totalTime());
@@ -224,7 +256,7 @@ public class RecoverySource extends AbstractComponent {
                 logger.trace("[{}][{}] recovery [phase3] to {}: sending transaction log operations", request.shardId().index().name(), request.shardId().id(), request.targetNode());
                 StopWatch stopWatch = new StopWatch().start();
                 int totalOperations = sendSnapshot(snapshot);
-                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FINALIZE, new RecoveryFinalizeRecoveryRequest(request.recoveryId(), request.shardId()), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FINALIZE, new RecoveryFinalizeRecoveryRequest(request.recoveryId(), request.shardId()), TransportRequestOptions.options().withTimeout(internalActionLongTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 if (request.markAsRelocated()) {
                     // TODO what happens if the recovery process fails afterwards, we need to mark this back to started
                     try {
@@ -262,7 +294,7 @@ public class RecoverySource extends AbstractComponent {
                         }
 
                         RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(request.recoveryId(), request.shardId(), operations);
-                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest, TransportRequestOptions.options().withCompress(recoverySettings.compress()).withLowType(), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest, TransportRequestOptions.options().withCompress(recoverySettings.compress()).withLowType().withTimeout(internalActionLongTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                         ops = 0;
                         size = 0;
                         operations.clear();
@@ -271,7 +303,7 @@ public class RecoverySource extends AbstractComponent {
                 // send the leftover
                 if (!operations.isEmpty()) {
                     RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(request.recoveryId(), request.shardId(), operations);
-                    transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest, TransportRequestOptions.options().withCompress(recoverySettings.compress()).withLowType(), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                    transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest, TransportRequestOptions.options().withCompress(recoverySettings.compress()).withLowType().withTimeout(internalActionLongTimeout), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 }
                 return totalOperations;
             }

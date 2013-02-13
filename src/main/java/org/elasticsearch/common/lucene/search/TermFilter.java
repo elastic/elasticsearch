@@ -19,13 +19,11 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermDocs;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.Lucene;
 
 import java.io.IOException;
 
@@ -45,26 +43,25 @@ public class TermFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        FixedBitSet result = null;
-        TermDocs td = reader.termDocs();
-        try {
-            td.seek(term);
-            // batch read, in Lucene 4.0 its no longer needed
-            int[] docs = new int[Lucene.BATCH_ENUM_DOCS];
-            int[] freqs = new int[Lucene.BATCH_ENUM_DOCS];
-            int number = td.read(docs, freqs);
-            if (number > 0) {
-                result = new FixedBitSet(reader.maxDoc());
-                while (number > 0) {
-                    for (int i = 0; i < number; i++) {
-                        result.set(docs[i]);
-                    }
-                    number = td.read(docs, freqs);
-                }
-            }
-        } finally {
-            td.close();
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        Terms terms = context.reader().terms(term.field());
+        if (terms == null) {
+            return null;
+        }
+
+        TermsEnum termsEnum = terms.iterator(null);
+        if (!termsEnum.seekExact(term.bytes(), false)) {
+            return null;
+        }
+        DocsEnum docsEnum = termsEnum.docs(acceptDocs, null);
+        int docId = docsEnum.nextDoc();
+        if (docId == DocsEnum.NO_MORE_DOCS) {
+            return null;
+        }
+
+        final FixedBitSet result = new FixedBitSet(context.reader().maxDoc());
+        for (; docId < DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+            result.set(docId);
         }
         return result;
     }

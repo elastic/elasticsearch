@@ -21,7 +21,6 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.ExtendedIndexSearcher;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
@@ -39,7 +38,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -156,7 +154,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         IndexReader reader();
 
-        ExtendedIndexSearcher searcher();
+        IndexSearcher searcher();
     }
 
     static class SimpleSearcher implements Searcher {
@@ -173,8 +171,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         @Override
-        public ExtendedIndexSearcher searcher() {
-            return (ExtendedIndexSearcher) searcher;
+        public IndexSearcher searcher() {
+            return searcher;
         }
 
         @Override
@@ -476,7 +474,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         public UidField uidField() {
-            return (UidField) doc.rootDoc().getFieldable(UidFieldMapper.NAME);
+            return doc.uid();
         }
 
 
@@ -604,7 +602,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         }
 
         public UidField uidField() {
-            return (UidField) doc.rootDoc().getFieldable(UidFieldMapper.NAME);
+            return doc.uid();
         }
 
         public Index startTime(long startTime) {
@@ -736,16 +734,18 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final String[] filteringAliases;
         private final Filter aliasFilter;
         private final String[] types;
+        private final Filter parentFilter;
 
         private long startTime;
         private long endTime;
 
-        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, String... types) {
+        public DeleteByQuery(Query query, BytesReference source, @Nullable String[] filteringAliases, @Nullable Filter aliasFilter, Filter parentFilter, String... types) {
             this.query = query;
             this.source = source;
             this.types = types;
             this.filteringAliases = filteringAliases;
             this.aliasFilter = aliasFilter;
+            this.parentFilter = parentFilter;
         }
 
         public Query query() {
@@ -766,6 +766,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Filter aliasFilter() {
             return aliasFilter;
+        }
+
+        public boolean nested() {
+            return parentFilter != null;
+        }
+
+        public Filter parentFilter() {
+            return parentFilter;
         }
 
         public DeleteByQuery startTime(long startTime) {

@@ -21,7 +21,7 @@ package org.elasticsearch.test.unit.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.TermAttribute;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.all.AllEntries;
@@ -98,11 +98,12 @@ public class CompoundAnalysisTests {
         allEntries.reset();
 
         TokenStream stream = AllTokenStream.allTokenStream("_all", allEntries, analyzer);
-        TermAttribute termAtt = stream.addAttribute(TermAttribute.class);
+        stream.reset();
+        CharTermAttribute termAtt = stream.addAttribute(CharTermAttribute.class);
 
         List<String> terms = new ArrayList<String>();
         while (stream.incrementToken()) {
-            String tokText = termAtt.term();
+            String tokText = termAtt.toString();
             terms.add(tokText);
         }
         return terms;

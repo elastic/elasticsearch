@@ -23,13 +23,11 @@ import java.io.IOException;
 
 /**
  * A custom directory that allows to forceSync (since the actual directory might disable it)
- *
- *
  */
 public interface ForceSyncDirectory {
 
     /**
-     * Similar to {@link org.apache.lucene.store.Directory#sync(String)} but forces it even if its
+     * Similar to {@link org.apache.lucene.store.Directory#sync(java.util.Collection)} but forces it even if its
      * disabled.
      */
     void forceSync(String name) throws IOException;

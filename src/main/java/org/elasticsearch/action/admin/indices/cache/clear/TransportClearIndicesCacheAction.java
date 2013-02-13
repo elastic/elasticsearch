@@ -127,10 +127,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             if (request.fieldDataCache()) {
                 clearedAtLeastOne = true;
                 if (request.fields() == null || request.fields().length == 0) {
-                    service.cache().fieldData().clear("api");
+                    service.fieldData().clear();
                 } else {
                     for (String field : request.fields()) {
-                        service.cache().fieldData().clear("api", field);
+                        service.fieldData().clearField(field);
                     }
                 }
             }
@@ -138,15 +138,11 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                 clearedAtLeastOne = true;
                 service.cache().idCache().clear();
             }
-            if (request.bloomCache()) {
-                clearedAtLeastOne = true;
-                service.cache().bloomCache().clear();
-            }
             if (!clearedAtLeastOne) {
                 if (request.fields() != null && request.fields().length > 0) {
                     // only clear caches relating to the specified fields
                     for (String field : request.fields()) {
-                        service.cache().fieldData().clear("api", field);
+                        service.fieldData().clearField(field);
                     }
                 } else {
                     service.cache().clear("api");

@@ -20,11 +20,13 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.analyzer;
@@ -83,7 +85,7 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
     }
 
     public AnalyzerMapper(String path) {
-        this.path = path;
+        this.path = path.intern();
     }
 
     @Override
@@ -99,7 +101,15 @@ public class AnalyzerMapper implements Mapper, InternalMapper, RootMapper {
     public void postParse(ParseContext context) throws IOException {
         Analyzer analyzer = context.docMapper().mappers().indexAnalyzer();
         if (path != null) {
-            String value = context.doc().get(path);
+            String value = null;
+            List<IndexableField> fields = context.doc().getFields();
+            for (int i = 0, fieldsSize = fields.size(); i < fieldsSize; i++) {
+                IndexableField field = fields.get(i);
+                if (field.name() == path) {
+                    value = field.stringValue();
+                    break;
+                }
+            }
             if (value == null) {
                 value = context.ignoredValue(path);
             }

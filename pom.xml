@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch</artifactId>
-    <version>0.20.0.Beta1-SNAPSHOT</version>
+    <version>0.21.0.Beta1-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>ElasticSearch - Open Source, Distributed, RESTful Search Engine</description>
     <inceptionYear>2009</inceptionYear>
@@ -30,7 +30,7 @@
     </parent>
 
     <properties>
-        <lucene.version>3.6.1</lucene.version>
+        <lucene.version>4.1.0</lucene.version>
     </properties>
 
     <repositories>
@@ -51,7 +51,13 @@
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-analyzers</artifactId>
+            <artifactId>lucene-analyzers-common</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-codecs</artifactId>
             <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
@@ -79,6 +85,25 @@
             <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-queryparser</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-suggest</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.lucene</groupId>
+            <artifactId>lucene-join</artifactId>
+            <version>${lucene.version}</version>
+            <scope>compile</scope>
+        </dependency>
+
 
         <!-- START: dependencies that are shaded -->
         <dependency>
@@ -119,28 +144,28 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.0.5</version>
+            <version>2.1.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.0.4</version>
+            <version>2.1.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.0.5</version>
+            <version>2.1.1</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.5.8.Final</version>
+            <version>3.6.2.Final</version>
             <scope>compile</scope>
         </dependency>
 
@@ -202,14 +227,6 @@
             <groupId>org.fusesource</groupId>
             <artifactId>sigar</artifactId>
             <version>1.6.4</version>
-            <scope>compile</scope>
-            <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>org.xerial.snappy</groupId>
-            <artifactId>snappy-java</artifactId>
-            <version>1.0.4.1</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -315,6 +332,7 @@
                         <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                         <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
                         <es.index.store.compress.stored>${env.ES_TEST_COMPRESS}</es.index.store.compress.stored>
+                        <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}</es.action.wait_on_mapping_change>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
@@ -531,7 +549,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, log4j*, jna*, snappy-java-*, spatial4j*, jts*</includes>
+                                    <includes>lucene*, log4j*, jna*, spatial4j*, jts*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -581,5 +599,35 @@
                 </executions>
             </plugin>
         </plugins>
+        <pluginManagement>
+            <plugins>
+                <!-- make m2e stfu -->
+                <plugin>
+                    <groupId>org.eclipse.m2e</groupId>
+                    <artifactId>lifecycle-mapping</artifactId>
+                    <version>1.0.0</version>
+                    <configuration>
+                        <lifecycleMappingMetadata>
+                            <pluginExecutions>
+                                <!-- copy-dependency plugin -->
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>org.apache.maven.plugins</groupId>
+                                        <artifactId>maven-dependency-plugin</artifactId>
+                                        <versionRange>[1.0.0,)</versionRange>
+                                        <goals>
+                                            <goal>copy-dependencies</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <ignore/>
+                                    </action>
+                                </pluginExecution>
+                            </pluginExecutions>
+                        </lifecycleMappingMetadata>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
     </build>
 </project>

@@ -47,6 +47,7 @@ import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import java.io.IOException;
 import java.util.*;
 
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.*;
 
 /**
@@ -197,6 +198,7 @@ public class IndexMetaData {
 
     private transient final int totalNumberOfShards;
 
+    private final DiscoveryNodeFilters requireFilters;
     private final DiscoveryNodeFilters includeFilters;
     private final DiscoveryNodeFilters excludeFilters;
 
@@ -213,17 +215,23 @@ public class IndexMetaData {
 
         this.aliases = aliases;
 
+        ImmutableMap<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
+        if (requireMap.isEmpty()) {
+            requireFilters = null;
+        } else {
+            requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
+        }
         ImmutableMap<String, String> includeMap = settings.getByPrefix("index.routing.allocation.include.").getAsMap();
         if (includeMap.isEmpty()) {
             includeFilters = null;
         } else {
-            includeFilters = DiscoveryNodeFilters.buildFromKeyValue(includeMap);
+            includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
         }
         ImmutableMap<String, String> excludeMap = settings.getByPrefix("index.routing.allocation.exclude.").getAsMap();
         if (excludeMap.isEmpty()) {
             excludeFilters = null;
         } else {
-            excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(excludeMap);
+            excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
         }
     }
 
@@ -330,6 +338,11 @@ public class IndexMetaData {
 
     public <T extends Custom> T custom(String type) {
         return (T) customs.get(type);
+    }
+
+    @Nullable
+    public DiscoveryNodeFilters requireFilters() {
+        return requireFilters;
     }
 
     @Nullable
@@ -646,7 +659,7 @@ public class IndexMetaData {
         }
 
         public static IndexMetaData readFrom(StreamInput in) throws IOException {
-            Builder builder = new Builder(in.readUTF());
+            Builder builder = new Builder(in.readString());
             builder.version(in.readLong());
             builder.state(State.fromId(in.readByte()));
             builder.settings(readSettingsFromStream(in));
@@ -662,7 +675,7 @@ public class IndexMetaData {
             }
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
-                String type = in.readUTF();
+                String type = in.readString();
                 Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
                 builder.putCustom(type, customIndexMetaData);
             }
@@ -670,7 +683,7 @@ public class IndexMetaData {
         }
 
         public static void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
-            out.writeUTF(indexMetaData.index());
+            out.writeString(indexMetaData.index());
             out.writeLong(indexMetaData.version());
             out.writeByte(indexMetaData.state().id());
             writeSettingsToStream(indexMetaData.settings(), out);
@@ -684,7 +697,7 @@ public class IndexMetaData {
             }
             out.writeVInt(indexMetaData.customs().size());
             for (Map.Entry<String, Custom> entry : indexMetaData.customs().entrySet()) {
-                out.writeUTF(entry.getKey());
+                out.writeString(entry.getKey());
                 lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
             }
         }

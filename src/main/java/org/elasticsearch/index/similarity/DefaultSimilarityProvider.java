@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.similarity;
 
-import org.apache.lucene.search.DefaultSimilarity;
+import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -27,18 +27,28 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
 /**
- *
+ * {@link SimilarityProvider} for {@link DefaultSimilarity}.
+ * <p/>
+ * Configuration options available:
+ * <ul>
+ *     <li>discount_overlaps</li>
+ * </ul>
+ * @see DefaultSimilarity For more information about configuration
  */
-public class DefaultSimilarityProvider extends AbstractSimilarityProvider<DefaultSimilarity> {
+public class DefaultSimilarityProvider extends AbstractSimilarityProvider {
 
-    private DefaultSimilarity similarity;
+    private final DefaultSimilarity similarity = new DefaultSimilarity();
 
     @Inject
-    public DefaultSimilarityProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
-        this.similarity = new DefaultSimilarity();
+    public DefaultSimilarityProvider(@Assisted String name, @Assisted Settings settings) {
+        super(name);
+        boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
+        this.similarity.setDiscountOverlaps(discountOverlaps);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public DefaultSimilarity get() {
         return similarity;

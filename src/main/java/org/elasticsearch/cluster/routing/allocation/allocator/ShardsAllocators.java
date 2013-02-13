@@ -31,6 +31,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.none.NoneGatewayAllocator;
 
 /**
+ * The {@link ShardsAllocator} class offers methods for allocating shard within a cluster.
+ * These methods include moving shards and re-balancing the cluster. It also allows management
+ * of shards by their state. 
  */
 public class ShardsAllocators extends AbstractComponent implements ShardsAllocator {
 
@@ -42,7 +45,7 @@ public class ShardsAllocators extends AbstractComponent implements ShardsAllocat
     }
 
     public ShardsAllocators(Settings settings) {
-        this(settings, new NoneGatewayAllocator(), new EvenShardsCountAllocator(settings));
+      this(settings, new NoneGatewayAllocator(), new BalancedShardsAllocator(settings));
     }
 
     @Inject

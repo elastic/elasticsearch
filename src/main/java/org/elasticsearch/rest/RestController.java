@@ -209,6 +209,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
         public void continueProcessing(RestRequest request, RestChannel channel) {
             try {
                 int loc = index;
+                index++;
                 if (loc > filters.length) {
                     throw new ElasticSearchIllegalStateException("filter continueProcessing was called more than expected");
                 } else if (loc == filters.length) {
@@ -217,7 +218,6 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                     RestFilter preProcessor = filters[loc];
                     preProcessor.process(request, channel, this);
                 }
-                index++;
             } catch (Exception e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -523,6 +524,12 @@ public final class XContentBuilder implements BytesStream {
             value = value.toBytesArray();
         }
         generator.writeBinary(value.array(), value.arrayOffset(), value.length());
+        return this;
+    }
+
+    public XContentBuilder field(XContentBuilderString name, BytesRef value) throws IOException {
+        field(name);
+        generator.writeUTF8String(value.bytes, value.offset, value.length);
         return this;
     }
 

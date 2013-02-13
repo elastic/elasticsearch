@@ -29,9 +29,10 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.mvel.MvelScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -43,6 +44,7 @@ import java.io.InputStreamReader;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -55,8 +57,7 @@ public class ScriptService extends AbstractComponent {
 
     private final ConcurrentMap<String, CompiledScript> staticCache = ConcurrentCollections.newConcurrentMap();
 
-    // TODO expose some cache aspects like expiration and max size
-    private final Cache<CacheKey, CompiledScript> cache = CacheBuilder.newBuilder().build();
+    private final Cache<CacheKey, CompiledScript> cache;
 
     private final boolean disableDynamic;
 
@@ -71,8 +72,21 @@ public class ScriptService extends AbstractComponent {
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines) {
         super(settings);
 
+        int cacheMaxSize = componentSettings.getAsInt("cache.max_size", 500);
+        TimeValue cacheExpire = componentSettings.getAsTime("cache.expire", null);
+        logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
+
         this.defaultLang = componentSettings.get("default_lang", "mvel");
         this.disableDynamic = componentSettings.getAsBoolean("disable_dynamic", false);
+
+        CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
+        if (cacheMaxSize >= 0) {
+            cacheBuilder.maximumSize(cacheMaxSize);
+        }
+        if (cacheExpire != null) {
+            cacheBuilder.expireAfterAccess(cacheExpire.nanos(), TimeUnit.NANOSECONDS);
+        }
+        this.cache = cacheBuilder.build();
 
         ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
         for (ScriptEngineService scriptEngine : scriptEngines) {
@@ -179,8 +193,8 @@ public class ScriptService extends AbstractComponent {
         return search(compile(lang, script), lookup, vars);
     }
 
-    public SearchScript search(MapperService mapperService, FieldDataCache fieldDataCache, String lang, String script, @Nullable Map<String, Object> vars) {
-        return search(compile(lang, script), new SearchLookup(mapperService, fieldDataCache, null), vars);
+    public SearchScript search(MapperService mapperService, IndexFieldDataService fieldDataService, String lang, String script, @Nullable Map<String, Object> vars) {
+        return search(compile(lang, script), new SearchLookup(mapperService, fieldDataService, null), vars);
     }
 
     public Object execute(CompiledScript compiledScript, Map vars) {

@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Scorer;
 
@@ -41,7 +41,7 @@ public class NoopCollector extends Collector {
     }
 
     @Override
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
+    public void setNextReader(AtomicReaderContext context) throws IOException {
     }
 
     @Override

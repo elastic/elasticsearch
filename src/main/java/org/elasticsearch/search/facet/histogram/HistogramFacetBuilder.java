@@ -29,8 +29,6 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * A facet builder of histogram facets.
- *
- *
  */
 public class HistogramFacetBuilder extends AbstractFacetBuilder {
     private String keyFieldName;
@@ -113,15 +111,6 @@ public class HistogramFacetBuilder extends AbstractFacetBuilder {
      */
     public HistogramFacetBuilder global(boolean global) {
         super.global(global);
-        return this;
-    }
-
-    /**
-     * Marks the facet to run in a specific scope.
-     */
-    @Override
-    public HistogramFacetBuilder scope(String scope) {
-        super.scope(scope);
         return this;
     }
 

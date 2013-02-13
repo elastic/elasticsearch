@@ -276,6 +276,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override
+    public HttpInfo info() {
+        return new HttpInfo(boundAddress(), maxContentLength.bytes());
+    }
+
+    @Override
     public HttpStats stats() {
         OpenChannelsHandler channels = serverOpenChannels;
         return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels(), channels == null ? 0 : channels.totalChannels());

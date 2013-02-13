@@ -20,22 +20,25 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -59,8 +62,13 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     public static class Defaults extends NumberFieldMapper.Defaults {
         public static final String NAME = "_boost";
         public static final Float NULL_VALUE = null;
-        public static final Field.Index INDEX = Field.Index.NO;
-        public static final Field.Store STORE = Field.Store.NO;
+
+        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setStored(false);
+        }
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, BoostFieldMapper> {
@@ -68,10 +76,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         protected Float nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
-            index = Defaults.INDEX;
-            store = Defaults.STORE;
         }
 
         public Builder nullValue(float nullValue) {
@@ -82,7 +88,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    precisionStep, index, store, boost, omitNorms, indexOptions, nullValue);
+                    precisionStep, boost, fieldType, nullValue, provider, fieldDataSettings);
         }
     }
 
@@ -110,17 +116,26 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     protected BoostFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.PRECISION_STEP, Defaults.INDEX, Defaults.STORE,
-                Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Defaults.NULL_VALUE);
+        this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
+                Defaults.NULL_VALUE, null, null);
     }
 
-    protected BoostFieldMapper(String name, String indexName, int precisionStep, Field.Index index, Field.Store store,
-                               float boost, boolean omitNorms, IndexOptions indexOptions,
-                               Float nullValue) {
-        super(new Names(name, indexName, indexName, name), precisionStep, null, index, store, boost, omitNorms, indexOptions,
+    protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType,
+                               Float nullValue, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
+        super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType,
                 Defaults.IGNORE_MALFORMED, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
-                new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)));
+                new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)), provider, null, fieldDataSettings);
         this.nullValue = nullValue;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("float");
     }
 
     @Override
@@ -129,26 +144,39 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    public Float value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public Float value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToFloat(value);
+        if (value instanceof Number) {
+            return ((Number) value).floatValue();
+        }
+        if (value instanceof BytesRef) {
+            return Numbers.bytesToFloat((BytesRef) value);
+        }
+        return Float.parseFloat(value.toString());
     }
 
     @Override
-    public Float valueFromString(String value) {
-        return Float.parseFloat(value);
+    public BytesRef indexedValueForSearch(Object value) {
+        int intValue = NumericUtils.floatToSortableInt(parseValue(value));
+        BytesRef bytesRef = new BytesRef();
+        NumericUtils.intToPrefixCoded(intValue, precisionStep(), bytesRef);
+        return bytesRef;
+    }
+
+    private float parseValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).floatValue();
+        }
+        if (value instanceof BytesRef) {
+            return Float.parseFloat(((BytesRef) value).utf8ToString());
+        }
+        return Float.parseFloat(value.toString());
     }
 
     @Override
-    public String indexedValue(String value) {
-        return NumericUtils.floatToPrefixCoded(Float.parseFloat(value));
-    }
-
-    @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         float iValue = Float.parseFloat(value);
         float iSim = Float.parseFloat(minSim);
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
@@ -158,36 +186,26 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        float iValue = Float.parseFloat(value);
-        float iSim = (float) (minSim * dFuzzyFactor);
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-    }
-
-    @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Float.parseFloat(lowerTerm),
-                upperTerm == null ? null : Float.parseFloat(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newFloatRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Float.parseFloat(lowerTerm),
-                upperTerm == null ? null : Float.parseFloat(upperTerm),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newFloatRange(fieldDataCache, names.indexName(),
-                lowerTerm == null ? null : Float.parseFloat(lowerTerm),
-                upperTerm == null ? null : Float.parseFloat(upperTerm),
+    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newFloatRange((IndexNumericFieldData) fieldData.getForField(this),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
@@ -224,19 +242,19 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         // we override parse since we want to handle cases where it is not indexed and not stored (the default)
         float value = parseFloatValue(context);
         if (!Float.isNaN(value)) {
-            context.doc().setBoost(value);
+            context.docBoost(value);
         }
         super.parse(context);
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         final float value = parseFloatValue(context);
         if (Float.isNaN(value)) {
             return null;
         }
-        context.doc().setBoost(value);
-        return new FloatFieldMapper.CustomFloatNumericField(this, value);
+        context.docBoost(value);
+        return new FloatFieldMapper.CustomFloatNumericField(this, value, fieldType);
     }
 
     private float parseFloatValue(ParseContext context) throws IOException {
@@ -250,11 +268,6 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
             value = context.parser().floatValue();
         }
         return value;
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.FLOAT;
     }
 
     @Override

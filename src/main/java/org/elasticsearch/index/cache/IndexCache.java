@@ -31,8 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.bloom.BloomCache;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
@@ -45,13 +43,9 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
 
     private final FilterCache filterCache;
 
-    private final FieldDataCache fieldDataCache;
-
     private final QueryParserCache queryParserCache;
 
     private final IdCache idCache;
-
-    private final BloomCache bloomCache;
 
     private final TimeValue refreshInterval;
 
@@ -61,14 +55,11 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     private CacheStats latestCacheStats;
 
     @Inject
-    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, FieldDataCache fieldDataCache,
-                      QueryParserCache queryParserCache, IdCache idCache, BloomCache bloomCache) {
+    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, IdCache idCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
-        this.fieldDataCache = fieldDataCache;
         this.queryParserCache = queryParserCache;
         this.idCache = idCache;
-        this.bloomCache = bloomCache;
 
         this.refreshInterval = componentSettings.getAsTime("stats.refresh_interval", TimeValue.timeValueSeconds(1));
 
@@ -85,7 +76,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
 
     public synchronized void invalidateCache() {
         FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
-        latestCacheStats = new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, bloomCache.sizeInBytes(), idCache.sizeInBytes());
+        latestCacheStats = new CacheStats(filterCache.evictions(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, idCache.sizeInBytes());
         latestCacheStatsTimestamp = System.currentTimeMillis();
     }
 
@@ -93,7 +84,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         long timestamp = System.currentTimeMillis();
         if ((timestamp - latestCacheStatsTimestamp) > refreshInterval.millis()) {
             FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
-            latestCacheStats = new CacheStats(fieldDataCache.evictions(), filterCache.evictions(), fieldDataCache.sizeInBytes(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, bloomCache.sizeInBytes(), idCache.sizeInBytes());
+            latestCacheStats = new CacheStats(filterCache.evictions(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, idCache.sizeInBytes());
             latestCacheStatsTimestamp = timestamp;
         }
         return latestCacheStats;
@@ -103,16 +94,8 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         return filterCache;
     }
 
-    public FieldDataCache fieldData() {
-        return fieldDataCache;
-    }
-
     public IdCache idCache() {
         return this.idCache;
-    }
-
-    public BloomCache bloomCache() {
-        return this.bloomCache;
     }
 
     public QueryParserCache queryParserCache() {
@@ -122,10 +105,8 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     @Override
     public void close() throws ElasticSearchException {
         filterCache.close();
-        fieldDataCache.close();
         idCache.close();
         queryParserCache.close();
-        bloomCache.close();
         if (clusterService != null) {
             clusterService.remove(this);
         }
@@ -133,17 +114,13 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
 
     public void clear(IndexReader reader) {
         filterCache.clear(reader);
-        fieldDataCache.clear(reader);
         idCache.clear(reader);
-        bloomCache.clear(reader);
     }
 
     public void clear(String reason) {
         filterCache.clear(reason);
-        fieldDataCache.clear(reason);
         idCache.clear();
         queryParserCache.clear();
-        bloomCache.clear();
     }
 
     @Override

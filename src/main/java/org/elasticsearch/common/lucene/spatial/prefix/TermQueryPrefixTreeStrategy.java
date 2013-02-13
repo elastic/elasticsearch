@@ -5,15 +5,16 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.operation.buffer.BufferOp;
 import com.vividsolutions.jts.operation.buffer.BufferParameters;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoShapeConstants;
+import org.elasticsearch.common.geo.ShapeBuilder;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.spatial.SpatialStrategy;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.Node;
 import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.common.geo.ShapeBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 
 import java.util.List;
@@ -24,14 +25,14 @@ import java.util.List;
  */
 public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
 
-    private static final double CONTAINS_BUFFER_DISTANCE = 0.5;
+    private static final double WITHIN_BUFFER_DISTANCE = 0.5;
     private static final BufferParameters BUFFER_PARAMETERS = new BufferParameters(3, BufferParameters.CAP_SQUARE);
 
     /**
      * Creates a new TermQueryPrefixTreeStrategy
      *
-     * @param fieldName Name of the field the Strategy applies to
-     * @param prefixTree SpatialPrefixTree that will be used to represent Shapes
+     * @param fieldName        Name of the field the Strategy applies to
+     * @param prefixTree       SpatialPrefixTree that will be used to represent Shapes
      * @param distanceErrorPct Distance Error Percentage used to guide the
      *                         SpatialPrefixTree on how precise it should be
      */
@@ -48,11 +49,11 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
                 calcDistanceFromErrPct(shape, getDistanceErrorPct(), GeoShapeConstants.SPATIAL_CONTEXT));
         List<Node> nodes = getPrefixTree().getNodes(shape, detailLevel, false);
 
-        Term[] nodeTerms = new Term[nodes.size()];
+        BytesRef[] nodeTerms = new BytesRef[nodes.size()];
         for (int i = 0; i < nodes.size(); i++) {
-            nodeTerms[i] = getFieldName().createIndexNameTerm(nodes.get(i).getTokenString());
+            nodeTerms[i] = new BytesRef(nodes.get(i).getTokenString());
         }
-        return new XTermsFilter(nodeTerms);
+        return new TermsFilter(getFieldName().indexName(), nodeTerms);
     }
 
     /**
@@ -84,7 +85,7 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
 
         XBooleanFilter filter = new XBooleanFilter();
         for (Node node : nodes) {
-            filter.addNot(new TermFilter(getFieldName().createIndexNameTerm(node.getTokenString())));
+            filter.add(new TermFilter(getFieldName().createIndexNameTerm(node.getTokenString())), BooleanClause.Occur.MUST_NOT);
         }
 
         return filter;
@@ -113,17 +114,17 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
      * {@inheritDoc}
      */
     @Override
-    public Filter createContainsFilter(Shape shape) {
+    public Filter createWithinFilter(Shape shape) {
         Filter intersectsFilter = createIntersectsFilter(shape);
 
         Geometry shapeGeometry = ShapeBuilder.toJTSGeometry(shape);
-        Geometry buffer = BufferOp.bufferOp(shapeGeometry, CONTAINS_BUFFER_DISTANCE, BUFFER_PARAMETERS);
+        Geometry buffer = BufferOp.bufferOp(shapeGeometry, WITHIN_BUFFER_DISTANCE, BUFFER_PARAMETERS);
         Shape bufferedShape = new JtsGeometry(buffer.difference(shapeGeometry), GeoShapeConstants.SPATIAL_CONTEXT, true);
         Filter bufferedFilter = createIntersectsFilter(bufferedShape);
 
         XBooleanFilter filter = new XBooleanFilter();
-        filter.addShould(intersectsFilter);
-        filter.addNot(bufferedFilter);
+        filter.add(intersectsFilter, BooleanClause.Occur.SHOULD);
+        filter.add(bufferedFilter, BooleanClause.Occur.MUST_NOT);
 
         return filter;
     }
@@ -132,11 +133,11 @@ public class TermQueryPrefixTreeStrategy extends SpatialStrategy {
      * {@inheritDoc}
      */
     @Override
-    public Query createContainsQuery(Shape shape) {
+    public Query createWithinQuery(Shape shape) {
         Query intersectsQuery = createIntersectsQuery(shape);
 
         Geometry shapeGeometry = ShapeBuilder.toJTSGeometry(shape);
-        Geometry buffer = BufferOp.bufferOp(shapeGeometry, CONTAINS_BUFFER_DISTANCE, BUFFER_PARAMETERS);
+        Geometry buffer = BufferOp.bufferOp(shapeGeometry, WITHIN_BUFFER_DISTANCE, BUFFER_PARAMETERS);
         Shape bufferedShape = new JtsGeometry(buffer.difference(shapeGeometry), GeoShapeConstants.SPATIAL_CONTEXT, true);
         Query bufferedQuery = createIntersectsQuery(bufferedShape);
 

@@ -41,6 +41,9 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     private Integer prefixLength;
 
     private Integer maxExpansions;
+    
+    //LUCENE 4 UPGRADE  we need a testcase for this + documentation
+    private Boolean transpositions;
 
     /**
      * Constructs a new term query.
@@ -81,6 +84,11 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         this.maxExpansions = maxExpansions;
         return this;
     }
+    
+    public FuzzyQueryBuilder transpositions(boolean transpositions) {
+      this.transpositions = transpositions;
+      return this;
+    }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -92,6 +100,9 @@ public class FuzzyQueryBuilder extends BaseQueryBuilder implements BoostableQuer
             builder.field("value", value);
             if (boost != -1) {
                 builder.field("boost", boost);
+            }
+            if (transpositions != null) {
+                builder.field("transpositions", transpositions);
             }
             if (minSimilarity != null) {
                 builder.field("min_similarity", minSimilarity);

@@ -19,12 +19,15 @@
 
 package org.elasticsearch.index.search.nested;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 
 import java.io.IOException;
@@ -33,7 +36,7 @@ public class NonNestedDocsFilter extends Filter {
 
     public static final NonNestedDocsFilter INSTANCE = new NonNestedDocsFilter();
 
-    private final PrefixFilter filter = new PrefixFilter(new Term(TypeFieldMapper.NAME, "__"));
+    private final PrefixFilter filter = new PrefixFilter(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
 
     private final int hashCode = filter.hashCode();
 
@@ -42,14 +45,14 @@ public class NonNestedDocsFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-        DocIdSet docSet = filter.getDocIdSet(reader);
-        if (docSet == null || docSet == DocIdSet.EMPTY_DOCIDSET) {
+    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        DocIdSet docSet = filter.getDocIdSet(context, acceptDocs);
+        if (DocIdSets.isEmpty(docSet)) {
             // will almost never happen, and we need an OpenBitSet for the parent filter in
             // BlockJoinQuery, we cache it anyhow...
-            docSet = new FixedBitSet(reader.maxDoc());
+            docSet = new FixedBitSet(context.reader().maxDoc());
         }
-        ((FixedBitSet) docSet).flip(0, reader.maxDoc());
+        ((FixedBitSet) docSet).flip(0, context.reader().maxDoc());
         return docSet;
     }
 

@@ -218,7 +218,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
     }
 
     @Override
-    public Facet reduce(String name, List<Facet> facets) {
+    public Facet reduce(List<Facet> facets) {
         if (facets.size() == 1) {
             return facets.get(0);
         }
@@ -268,7 +268,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         comparatorType = ComparatorType.fromId(in.readByte());
 
         int size = in.readVInt();
@@ -282,7 +282,7 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeByte(comparatorType.id());
         out.writeVInt(counts.size());
         for (TLongLongIterator it = counts.iterator(); it.hasNext(); ) {

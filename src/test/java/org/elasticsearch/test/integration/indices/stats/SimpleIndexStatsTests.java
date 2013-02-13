@@ -57,6 +57,7 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
 
     @Test
     public void simpleStats() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
         // rely on 1 replica for this tests
         client.admin().indices().prepareCreate("test1").execute().actionGet();
         client.admin().indices().prepareCreate("test2").execute().actionGet();

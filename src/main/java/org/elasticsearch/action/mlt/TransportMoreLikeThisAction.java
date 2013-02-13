@@ -19,9 +19,11 @@
 
 package org.elasticsearch.action.mlt;
 
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.Field;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -33,7 +35,10 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetField;
@@ -47,7 +52,6 @@ import org.elasticsearch.transport.*;
 
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 
 import static com.google.common.collect.Sets.newHashSet;
@@ -118,6 +122,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 .fields(getFields.toArray(new String[getFields.size()]))
                 .type(request.type())
                 .id(request.id())
+                .routing(request.routing())
                 .listenerThreaded(true)
                 .operationThreaded(true);
 
@@ -131,7 +136,10 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 }
                 final BoolQueryBuilder boolBuilder = boolQuery();
                 try {
-                    DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
+                    final DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
+                    if (docMapper == null) {
+                        throw new ElasticSearchException("No DocumentMapper found for type [" + request.type() + "]");
+                    }
                     final Set<String> fields = newHashSet();
                     if (request.fields() != null) {
                         for (String field : request.fields()) {
@@ -258,16 +266,16 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
     }
 
     private void parseSource(GetResponse getResponse, final BoolQueryBuilder boolBuilder, DocumentMapper docMapper, final Set<String> fields, final MoreLikeThisRequest request) {
-        if (getResponse.source() == null) {
+        if (getResponse.isSourceEmpty()) {
             return;
         }
         docMapper.parse(SourceToParse.source(getResponse.sourceRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
             @Override
-            public boolean beforeFieldAdded(FieldMapper fieldMapper, Fieldable field, Object parseContext) {
+            public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
                 if (fieldMapper instanceof InternalMapper) {
                     return true;
                 }
-                String value = fieldMapper.valueAsString(field);
+                String value = fieldMapper.value(convertField(field)).toString();
                 if (value == null) {
                     return false;
                 }
@@ -281,8 +289,20 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         });
     }
 
-    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Fieldable field) {
-        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.valueAsString(field));
+    private Object convertField(Field field) {
+        if (field.stringValue() != null) {
+            return field.stringValue();
+        } else if (field.binaryValue() != null) {
+            return BytesRef.deepCopyOf(field.binaryValue()).bytes;
+        } else if (field.numericValue() != null) {
+            return field.numericValue();
+        } else {
+            throw new ElasticSearchIllegalStateException("Field should have either a string, numeric or binary value");
+        }
+    }
+
+    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Field field) {
+        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.value(convertField(field)).toString());
     }
 
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText) {

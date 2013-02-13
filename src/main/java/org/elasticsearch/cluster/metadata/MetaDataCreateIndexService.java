@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
@@ -131,9 +132,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         final CreateIndexListener listener = new CreateIndexListener(mdLock, request, userListener);
 
-        clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create-index [" + request.index + "], cause [" + request.cause + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
+                boolean indexCreated = false;
+                String failureReason = null;
                 try {
                     try {
                         validate(request, currentState);
@@ -258,15 +261,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
                     indicesService.createIndex(request.index, actualIndexSettings, clusterService.state().nodes().localNode().id());
+                    indexCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index);
                     MapperService mapperService = indexService.mapperService();
                     // first, add the default mapping
                     if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
                         try {
-                            mapperService.add(MapperService.DEFAULT_MAPPING, XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string());
+                            mapperService.merge(MapperService.DEFAULT_MAPPING, XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string(), false);
                         } catch (Exception e) {
-                            indicesService.deleteIndex(request.index, "failed on parsing default mapping on index creation");
+                            failureReason = "failed on parsing default mapping on index creation";
                             throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
                         }
                     }
@@ -275,9 +279,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             continue;
                         }
                         try {
-                            mapperService.add(entry.getKey(), XContentFactory.jsonBuilder().map(entry.getValue()).string());
+                            // apply the default here, its the first time we parse it
+                            mapperService.merge(entry.getKey(), XContentFactory.jsonBuilder().map(entry.getValue()).string(), true);
                         } catch (Exception e) {
-                            indicesService.deleteIndex(request.index, "failed on parsing mappings on index creation");
+                            failureReason = "failed on parsing mappings on index creation";
                             throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);
                         }
                     }
@@ -296,7 +301,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         indexMetaDataBuilder.putCustom(customEntry.getKey(), customEntry.getValue());
                     }
                     indexMetaDataBuilder.state(request.state);
-                    final IndexMetaData indexMetaData = indexMetaDataBuilder.build();
+                    final IndexMetaData indexMetaData;
+                    try {
+                        indexMetaData = indexMetaDataBuilder.build();
+                    } catch (Exception e) {
+                        failureReason = "failed to build index metadata";
+                        throw e;
+                    }
 
                     MetaData newMetaData = newMetaDataBuilder()
                             .metaData(currentState.metaData())
@@ -350,8 +361,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     });
 
                     return updatedState;
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("[{}] failed to create", e, request.index);
+                    if (indexCreated) {
+                        // Index was already partially created - need to clean up
+                        indicesService.deleteIndex(request.index, failureReason != null ? failureReason : "failed to create index");
+                    }
                     listener.onFailure(e);
                     return currentState;
                 }

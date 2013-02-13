@@ -22,11 +22,11 @@ package org.elasticsearch.benchmark.search.geo;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.search.geo.GeoDistance;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 
@@ -61,7 +61,7 @@ public class GeoDistanceSearchBenchmark {
                     .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                     .endObject().endObject().string();
             client.admin().indices().prepareCreate("test")
-                    .setSettings(ImmutableSettings.settingsBuilder().put("number_of_shards", 1).put("number_of_replicas", 0))
+                    .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                     .addMapping("type1", mapping)
                     .execute().actionGet();
 

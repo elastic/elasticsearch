@@ -49,7 +49,7 @@ public class CompoundTypesTests {
                 .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
-        assertThat((double) doc.rootDoc().getFieldable("field1").getBoost(), closeTo(1.0d, 0.000001d));
+        assertThat((double) doc.rootDoc().getField("field1").boost(), closeTo(1.0d, 0.000001d));
         assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -59,7 +59,7 @@ public class CompoundTypesTests {
                 .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
-        assertThat((double) doc.rootDoc().getFieldable("field1").getBoost(), closeTo(2.0d, 0.000001d));
+        assertThat((double) doc.rootDoc().getField("field1").boost(), closeTo(2.0d, 0.000001d));
         assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
 
         doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -69,7 +69,7 @@ public class CompoundTypesTests {
                 .bytes());
 
         assertThat(doc.rootDoc().get("field1"), equalTo("value1"));
-        assertThat((double) doc.rootDoc().getFieldable("field1").getBoost(), closeTo(1.0d, 0.000001d));
+        assertThat((double) doc.rootDoc().getField("field1").boost(), closeTo(1.0d, 0.000001d));
         assertThat(doc.rootDoc().get("field2"), equalTo("value2"));
     }
 }

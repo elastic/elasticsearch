@@ -321,21 +321,21 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         pid = in.readLong();
-        version = in.readUTF();
-        vmName = in.readUTF();
-        vmVersion = in.readUTF();
-        vmVendor = in.readUTF();
+        version = in.readString();
+        vmName = in.readString();
+        vmVersion = in.readString();
+        vmVendor = in.readString();
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
         for (int i = 0; i < inputArguments.length; i++) {
-            inputArguments[i] = in.readUTF();
+            inputArguments[i] = in.readString();
         }
-        bootClassPath = in.readUTF();
-        classPath = in.readUTF();
+        bootClassPath = in.readString();
+        classPath = in.readString();
         systemProperties = new HashMap<String, String>();
         int size = in.readInt();
         for (int i = 0; i < size; i++) {
-            systemProperties.put(in.readUTF(), in.readUTF());
+            systemProperties.put(in.readString(), in.readString());
         }
         mem = new Mem();
         mem.readFrom(in);
@@ -344,21 +344,21 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(pid);
-        out.writeUTF(version);
-        out.writeUTF(vmName);
-        out.writeUTF(vmVersion);
-        out.writeUTF(vmVendor);
+        out.writeString(version);
+        out.writeString(vmName);
+        out.writeString(vmVersion);
+        out.writeString(vmVendor);
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);
         for (String inputArgument : inputArguments) {
-            out.writeUTF(inputArgument);
+            out.writeString(inputArgument);
         }
-        out.writeUTF(bootClassPath);
-        out.writeUTF(classPath);
+        out.writeString(bootClassPath);
+        out.writeString(classPath);
         out.writeInt(systemProperties.size());
         for (Map.Entry<String, String> entry : systemProperties.entrySet()) {
-            out.writeUTF(entry.getKey());
-            out.writeUTF(entry.getValue());
+            out.writeString(entry.getKey());
+            out.writeString(entry.getValue());
         }
         mem.writeTo(out);
     }

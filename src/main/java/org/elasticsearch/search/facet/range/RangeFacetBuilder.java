@@ -30,8 +30,6 @@ import java.util.List;
 
 /**
  * A facet builder of range facets.
- *
- *
  */
 public class RangeFacetBuilder extends AbstractFacetBuilder {
 
@@ -130,15 +128,6 @@ public class RangeFacetBuilder extends AbstractFacetBuilder {
      */
     public RangeFacetBuilder global(boolean global) {
         super.global(global);
-        return this;
-    }
-
-    /**
-     * Marks the facet to run in a specific scope.
-     */
-    @Override
-    public RangeFacetBuilder scope(String scope) {
-        super.scope(scope);
         return this;
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter;
+import org.apache.lucene.analysis.util.CharArrayMap;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
@@ -38,7 +39,7 @@ import java.util.Map;
 @AnalysisSettingsRequired
 public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final Map<String, String> dictionary;
+    private final CharArrayMap<String> dictionary;
 
     @Inject
     public StemmerOverrideTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
@@ -48,7 +49,7 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
         if (rules == null) {
             throw new ElasticSearchIllegalArgumentException("stemmer override filter requires either `rules` or `rules_path` to be configured");
         }
-        dictionary = new HashMap<String, String>();
+        dictionary = new CharArrayMap<String>(version, rules.size(), false);
         parseRules(rules, dictionary, "=>");
     }
 
@@ -57,7 +58,7 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
         return new StemmerOverrideFilter(Version.LUCENE_32, tokenStream, dictionary);
     }
 
-    static void parseRules(List<String> rules, Map<String, String> rulesMap, String mappingSep) {
+    static void parseRules(List<String> rules, CharArrayMap<String> rulesMap, String mappingSep) {
         for (String rule : rules) {
             String key, override;
             List<String> mapping = Strings.splitSmart(rule, mappingSep, false);

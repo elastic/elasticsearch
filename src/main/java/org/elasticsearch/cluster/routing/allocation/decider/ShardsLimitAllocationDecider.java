@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -30,10 +31,30 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.List;
 
 /**
- *
+ * This {@link AllocationDecider} limits the number of shards per node on a per
+ * index basis. The allocator prevents a single node to hold more than
+ * {@value #INDEX_TOTAL_SHARDS_PER_NODE} per index during the allocation
+ * process. The limits of this decider can be changed in real-time via a the
+ * index settings API.
+ * <p>
+ * If {@value #INDEX_TOTAL_SHARDS_PER_NODE} is reset to a negative value shards
+ * per index are unlimited per node. Shards currently in the
+ * {@link ShardRoutingState#RELOCATING relocating} state are ignored by this
+ * {@link AllocationDecider} until the shard changed its state to either
+ * {@link ShardRoutingState#STARTED started},
+ * {@link ShardRoutingState#INITIALIZING inializing} or
+ * {@link ShardRoutingState#UNASSIGNED unassigned}
+ * <p>
+ * Note: Reducing the number of shards per node via the index update API can
+ * trigger relocation and significant additional load on the clusters nodes.
+ * </p>
  */
 public class ShardsLimitAllocationDecider extends AllocationDecider {
 
+    /**
+     * Controls the maximum number of shards per index on a single elastic
+     * search node. Negative values are interpreted as unlimited.
+     */
     public static final String INDEX_TOTAL_SHARDS_PER_NODE = "index.routing.allocation.total_shards_per_node";
 
     static {
@@ -75,11 +96,11 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
     }
 
     @Override
-    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         IndexMetaData indexMd = allocation.routingNodes().metaData().index(shardRouting.index());
         int totalShardsPerNode = indexMd.settings().getAsInt(INDEX_TOTAL_SHARDS_PER_NODE, -1);
         if (totalShardsPerNode <= 0) {
-            return true;
+            return Decision.YES;
         }
 
         int nodeCount = 0;
@@ -96,8 +117,8 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             nodeCount++;
         }
         if (nodeCount > totalShardsPerNode) {
-            return false;
+            return Decision.NO;
         }
-        return true;
+        return Decision.YES;
     }
 }

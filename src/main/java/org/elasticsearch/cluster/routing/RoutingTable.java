@@ -37,7 +37,9 @@ import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
 
 /**
- *
+ * Represents a global cluster-wide routing table for all indices including the
+ * version of the current routing state. 
+ * @see IndexRoutingTable
  */
 public class RoutingTable implements Iterable<IndexRoutingTable> {
 
@@ -53,6 +55,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         this.indicesRouting = ImmutableMap.copyOf(indicesRouting);
     }
 
+    /**
+     * Returns the version of the {@link RoutingTable}.
+     * @return version of the {@link RoutingTable}
+     */
     public long version() {
         return this.version;
     }

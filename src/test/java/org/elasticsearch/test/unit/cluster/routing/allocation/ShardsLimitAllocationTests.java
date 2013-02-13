@@ -100,6 +100,9 @@ public class ShardsLimitAllocationTests {
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put("cluster.routing.allocation.node_initial_primaries_recoveries", 10)
                 .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .put("cluster.routing.allocation.balance.index", 0.0f)
+                .put("cluster.routing.allocation.balance.replica", 1.0f)
+                .put("cluster.routing.allocation.balance.primary", 0.0f)
                 .build());
 
         logger.info("Building initial routing table");
@@ -177,23 +180,14 @@ public class ShardsLimitAllocationTests {
 
         assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(3));
         assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(RELOCATING), equalTo(2));
-
-        logger.info("start the moving shards, a shard from test1 should move back to node1");
-        routingNodes = clusterState.routingNodes();
-        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
-        clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-
-        assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(3));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(RELOCATING), equalTo(0));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(INITIALIZING), equalTo(2));
-        assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(5));
         assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(RELOCATING), equalTo(2));
-
-        logger.info("finalize movement, another shard will move");
+        assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(3));
+        // the first move will destroy the balance and the balancer will move 2 shards from node2 to node one right after
+        // moving the nodes to node2 since we consider INITIALIZING nodes during rebalance
         routingNodes = clusterState.routingNodes();
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = newClusterStateBuilder().state(clusterState).routingTable(routingTable).build();
-
+        // now we are done compared to EvenShardCountAllocator since the Balancer is not soely based on the average 
         assertThat(clusterState.readOnlyRoutingNodes().node("node1").numberOfShardsWithState(STARTED), equalTo(5));
         assertThat(clusterState.readOnlyRoutingNodes().node("node2").numberOfShardsWithState(STARTED), equalTo(5));
     }

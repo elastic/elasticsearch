@@ -63,6 +63,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
     private String id;
 
+    private String routing;
+
     private String[] fields;
 
     private float percentTermsToMatch = -1;
@@ -138,6 +140,17 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     public MoreLikeThisRequest id(String id) {
         this.id = id;
         return this;
+    }
+
+    /**
+     * @return The routing for this request. This used for the `get` part of the mlt request.
+     */
+    public String routing() {
+        return routing;
+    }
+
+    public void routing(String routing) {
+        this.routing = routing;
     }
 
     /**
@@ -527,7 +540,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         } else {
             fields = new String[size];
             for (int i = 0; i < size; i++) {
-                fields[i] = in.readUTF();
+                fields[i] = in.readString();
             }
         }
 
@@ -538,7 +551,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         if (size > 0) {
             stopWords = new String[size];
             for (int i = 0; i < size; i++) {
-                stopWords[i] = in.readUTF();
+                stopWords[i] = in.readString();
             }
         }
         minDocFreq = in.readVInt();
@@ -548,7 +561,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         boostTerms = in.readFloat();
         searchType = SearchType.fromId(in.readByte());
         if (in.readBoolean()) {
-            searchQueryHint = in.readUTF();
+            searchQueryHint = in.readString();
         }
         size = in.readVInt();
         if (size == 0) {

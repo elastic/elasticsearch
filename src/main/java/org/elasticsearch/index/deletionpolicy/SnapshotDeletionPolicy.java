@@ -132,10 +132,10 @@ public class SnapshotDeletionPolicy extends AbstractIndexShardComponent implemen
      * Helper method to snapshot a give commit.
      */
     private SnapshotIndexCommit snapshot(SnapshotIndexCommit commit) throws IOException {
-        SnapshotHolder snapshotHolder = snapshots.get(commit.getVersion());
+        SnapshotHolder snapshotHolder = snapshots.get(commit.getGeneration());
         if (snapshotHolder == null) {
             snapshotHolder = new SnapshotHolder(0);
-            snapshots.put(commit.getVersion(), snapshotHolder);
+            snapshots.put(commit.getGeneration(), snapshotHolder);
         }
         snapshotHolder.counter++;
         return new OneTimeReleaseSnapshotIndexCommit(this, commit);

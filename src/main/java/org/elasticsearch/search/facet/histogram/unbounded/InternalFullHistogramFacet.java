@@ -213,7 +213,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
     }
 
     @Override
-    public Facet reduce(String name, List<Facet> facets) {
+    public Facet reduce(List<Facet> facets) {
         if (facets.size() == 1) {
             // we need to sort it
             InternalFullHistogramFacet internalFacet = (InternalFullHistogramFacet) facets.get(0);
@@ -309,7 +309,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         comparatorType = ComparatorType.fromId(in.readByte());
 
         cachedEntries = false;
@@ -322,7 +322,7 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeByte(comparatorType.id());
         out.writeVInt(entries.size());
         for (FullEntry entry : entries) {

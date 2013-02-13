@@ -34,7 +34,6 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
     private boolean filterCache = false;
     private boolean fieldDataCache = false;
     private boolean idCache = false;
-    private boolean bloomCache = false;
     private String[] fields = null;
 
     ClearIndicesCacheRequest() {
@@ -82,26 +81,16 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         return this;
     }
 
-    public boolean bloomCache() {
-        return this.bloomCache;
-    }
-
-    public ClearIndicesCacheRequest bloomCache(boolean bloomCache) {
-        this.bloomCache = bloomCache;
-        return this;
-    }
-
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         filterCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
         idCache = in.readBoolean();
-        bloomCache = in.readBoolean();
         int size = in.readVInt();
         if (size > 0) {
             fields = new String[size];
             for (int i = 0; i < size; i++) {
-                fields[i] = in.readUTF();
+                fields[i] = in.readString();
             }
         }
     }
@@ -111,13 +100,12 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         out.writeBoolean(filterCache);
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(idCache);
-        out.writeBoolean(bloomCache);
         if (fields == null) {
             out.writeVInt(0);
         } else {
             out.writeVInt(fields.length);
             for (String field : fields) {
-                out.writeUTF(field);
+                out.writeString(field);
             }
         }
     }

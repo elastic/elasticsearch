@@ -37,7 +37,7 @@ public final class SettingsLoaderFactory {
     public static SettingsLoader loaderFromResource(String resourceName) {
         if (resourceName.endsWith(".json")) {
             return new JsonSettingsLoader();
-        } else if (resourceName.endsWith(".yml")) {
+        } else if (resourceName.endsWith(".yml") || resourceName.endsWith(".yaml")) {
             return new YamlSettingsLoader();
         } else if (resourceName.endsWith(".properties")) {
             return new PropertiesSettingsLoader();

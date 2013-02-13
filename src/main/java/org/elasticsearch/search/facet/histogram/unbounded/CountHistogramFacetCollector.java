@@ -20,16 +20,12 @@
 package org.elasticsearch.search.facet.histogram.unbounded;
 
 import gnu.trove.map.hash.TLongLongHashMap;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -41,49 +37,28 @@ import java.io.IOException;
  */
 public class CountHistogramFacetCollector extends AbstractFacetCollector {
 
-    private final String indexFieldName;
+    private final IndexNumericFieldData indexFieldData;
 
     private final HistogramFacet.ComparatorType comparatorType;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType fieldDataType;
-
-    private NumericFieldData fieldData;
-
+    private DoubleValues values;
     private final HistogramProc histoProc;
 
-    public CountHistogramFacetCollector(String facetName, String fieldName, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
+    public CountHistogramFacetCollector(String facetName, IndexNumericFieldData indexFieldData, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
         super(facetName);
         this.comparatorType = comparatorType;
-        this.fieldDataCache = context.fieldDataCache();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        FieldMapper mapper = smartMappers.mapper();
-
-        indexFieldName = mapper.names().indexName();
-        fieldDataType = mapper.fieldDataType();
-
+        this.indexFieldData = indexFieldData;
         histoProc = new HistogramProc(interval);
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, histoProc);
+        values.forEachValueInDoc(doc, histoProc);
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        values = indexFieldData.load(context).getDoubleValues();
     }
 
     @Override
@@ -95,7 +70,7 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
         return (((long) (value / interval)) * interval);
     }
 
-    public static class HistogramProc implements NumericFieldData.DoubleValueInDocProc {
+    public static class HistogramProc implements DoubleValues.ValueInDocProc {
 
         private final long interval;
 
@@ -103,6 +78,10 @@ public class CountHistogramFacetCollector extends AbstractFacetCollector {
 
         public HistogramProc(long interval) {
             this.interval = interval;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override

@@ -88,7 +88,7 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             writer.mergeInit(merge);
 
             int totalNumDocs = merge.totalNumDocs();
-            long totalSizeInBytes = merge.totalBytesSize();
+            long totalSizeInBytes = merge.estimatedMergeBytes;
             long time = System.currentTimeMillis();
             currentMerges.inc();
             currentMergesNumDocs.inc(totalNumDocs);
@@ -96,13 +96,11 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
 
             // sadly, segment name is not available since mergeInit is called from merge itself...
             if (logger.isTraceEnabled()) {
-                logger.trace("merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size", merge.info == null ? "_na_" : merge.info.name, merge.segments.size(), totalNumDocs, new ByteSizeValue(totalSizeInBytes), new ByteSizeValue(merge.estimatedMergeBytes));
+                logger.trace("merge [{}] starting..., merging [{}] segments, [{}] docs, [{}] size, into [{}] estimated_size", merge.info == null ? "_na_" : merge.info.info.name, merge.segments.size(), totalNumDocs, new ByteSizeValue(totalSizeInBytes), new ByteSizeValue(merge.estimatedMergeBytes));
             }
             try {
-                TrackingMergeScheduler.setCurrentMerge(merge);
                 writer.merge(merge);
             } finally {
-                TrackingMergeScheduler.removeCurrentMerge();
                 long took = System.currentTimeMillis() - time;
 
                 currentMerges.dec();
@@ -113,9 +111,9 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
                 totalMergesSizeInBytes.inc(totalSizeInBytes);
                 totalMerges.inc(took);
                 if (took > 20000) { // if more than 20 seconds, DEBUG log it
-                    logger.debug("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.name, TimeValue.timeValueMillis(took));
+                    logger.debug("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.info.name, TimeValue.timeValueMillis(took));
                 } else if (logger.isTraceEnabled()) {
-                    logger.trace("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.name, TimeValue.timeValueMillis(took));
+                    logger.trace("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.info.name, TimeValue.timeValueMillis(took));
                 }
             }
         }

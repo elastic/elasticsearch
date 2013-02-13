@@ -20,11 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DeletionAwareConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
@@ -99,7 +99,7 @@ public class ConstantScoreQueryParser implements QueryParser {
                 filter = parseContext.cacheFilter(filter, cacheKey);
             }
 
-            Query query1 = new DeletionAwareConstantScoreQuery(filter);
+            Query query1 = new XConstantScoreQuery(filter);
             query1.setBoost(boost);
             return query1;
         }

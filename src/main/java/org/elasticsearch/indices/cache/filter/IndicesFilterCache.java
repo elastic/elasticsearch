@@ -24,14 +24,12 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
-import com.google.common.collect.ImmutableMap;
 import gnu.trove.set.hash.THashSet;
+import org.apache.lucene.search.DocIdSet;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.docset.DocSet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,15 +40,14 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-public class IndicesFilterCache extends AbstractComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> {
+public class IndicesFilterCache extends AbstractComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> {
 
     private final ThreadPool threadPool;
 
-    private Cache<WeightedFilterCache.FilterCacheKey, DocSet> cache;
+    private Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> cache;
 
     private volatile String size;
     private volatile long sizeInBytes;
@@ -61,9 +58,6 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     private final Set<Object> readersKeysToClean = ConcurrentCollections.newConcurrentSet();
 
     private volatile boolean closed;
-
-    private volatile Map<String, RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet>> removalListeners =
-            ImmutableMap.of();
 
 
     static {
@@ -90,7 +84,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                 replace = true;
             }
             if (replace) {
-                Cache<WeightedFilterCache.FilterCacheKey, DocSet> oldCache = IndicesFilterCache.this.cache;
+                Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> oldCache = IndicesFilterCache.this.cache;
                 computeSizeInBytes();
                 buildCache();
                 oldCache.invalidateAll();
@@ -116,7 +110,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     }
 
     private void buildCache() {
-        CacheBuilder<WeightedFilterCache.FilterCacheKey, DocSet> cacheBuilder = CacheBuilder.newBuilder()
+        CacheBuilder<WeightedFilterCache.FilterCacheKey, DocIdSet> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this)
                 .maximumWeight(sizeInBytes).weigher(new WeightedFilterCache.FilterCacheValueWeigher());
 
@@ -139,14 +133,6 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         }
     }
 
-    public synchronized void addRemovalListener(String index, RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> listener) {
-        removalListeners = MapBuilder.newMapBuilder(removalListeners).put(index, listener).immutableMap();
-    }
-
-    public synchronized void removeRemovalListener(String index) {
-        removalListeners = MapBuilder.newMapBuilder(removalListeners).remove(index).immutableMap();
-    }
-
     public void addReaderKeyToClean(Object readerKey) {
         readersKeysToClean.add(readerKey);
     }
@@ -156,20 +142,17 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         cache.invalidateAll();
     }
 
-    public Cache<WeightedFilterCache.FilterCacheKey, DocSet> cache() {
+    public Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> cache() {
         return this.cache;
     }
 
     @Override
-    public void onRemoval(RemovalNotification<WeightedFilterCache.FilterCacheKey, DocSet> removalNotification) {
+    public void onRemoval(RemovalNotification<WeightedFilterCache.FilterCacheKey, DocIdSet> removalNotification) {
         WeightedFilterCache.FilterCacheKey key = removalNotification.getKey();
         if (key == null) {
             return;
         }
-        RemovalListener<WeightedFilterCache.FilterCacheKey, DocSet> listener = removalListeners.get(key.index());
-        if (listener != null) {
-            listener.onRemoval(removalNotification);
-        }
+        key.removalListener().onRemoval(removalNotification);
     }
 
     /**

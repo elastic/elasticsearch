@@ -21,13 +21,13 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.XTermsFilter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.common.lucene.search.OrFilter;
-import org.elasticsearch.common.lucene.search.TermFilter;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -58,14 +58,14 @@ public class TermsFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = null;
+        MapperService.SmartNameFieldMappers smartNameFieldMappers;
         Boolean cache = null;
         String filterName = null;
         String currentFieldName = null;
         CacheKeyFilter.Key cacheKey = null;
         XContentParser.Token token;
         String execution = "plain";
-        List<String> terms = Lists.newArrayList();
+        List<Object> terms = Lists.newArrayList();
         String fieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -74,7 +74,7 @@ public class TermsFilterParser implements FilterParser {
                 fieldName = currentFieldName;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    String value = parser.text();
+                    Object value = parser.objectBytes();
                     if (value == null) {
                         throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
                     }
@@ -116,17 +116,15 @@ public class TermsFilterParser implements FilterParser {
         try {
             Filter filter;
             if ("plain".equals(execution)) {
-                Term[] filterTerms = new Term[terms.size()];
                 if (fieldMapper != null) {
-                    for (int i = 0; i < filterTerms.length; i++) {
-                        filterTerms[i] = fieldMapper.names().createIndexNameTerm(fieldMapper.indexedValue(terms.get(i)));
-                    }
+                    filter = fieldMapper.termsFilter(terms, parseContext);
                 } else {
-                    for (int i = 0; i < filterTerms.length; i++) {
-                        filterTerms[i] = new Term(fieldName, terms.get(i));
+                    BytesRef[] filterValues = new BytesRef[terms.size()];
+                    for (int i = 0; i < filterValues.length; i++) {
+                        filterValues[i] = BytesRefs.toBytesRef(terms.get(i));
                     }
+                    filter = new TermsFilter(fieldName, filterValues);
                 }
-                filter = new XTermsFilter(filterTerms);
                 // cache the whole filter by default, or if explicitly told to
                 if (cache == null || cache) {
                     filter = parseContext.cacheFilter(filter, cacheKey);
@@ -134,12 +132,12 @@ public class TermsFilterParser implements FilterParser {
             } else if ("bool".equals(execution)) {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
-                    for (String term : terms) {
-                        boolFiler.addShould(parseContext.cacheFilter(fieldMapper.fieldFilter(term, parseContext), null));
+                    for (Object term : terms) {
+                        boolFiler.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null), BooleanClause.Occur.SHOULD);
                     }
                 } else {
-                    for (String term : terms) {
-                        boolFiler.addShould(parseContext.cacheFilter(new TermFilter(new Term(fieldName, term)), null));
+                    for (Object term : terms) {
+                        boolFiler.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), null), BooleanClause.Occur.SHOULD);
                     }
                 }
                 filter = boolFiler;
@@ -150,12 +148,12 @@ public class TermsFilterParser implements FilterParser {
             } else if ("bool_nocache".equals(execution)) {
                 XBooleanFilter boolFiler = new XBooleanFilter();
                 if (fieldMapper != null) {
-                    for (String term : terms) {
-                        boolFiler.addShould(fieldMapper.fieldFilter(term, parseContext));
+                    for (Object term : terms) {
+                        boolFiler.add(fieldMapper.termFilter(term, parseContext), BooleanClause.Occur.SHOULD);
                     }
                 } else {
-                    for (String term : terms) {
-                        boolFiler.addShould(new TermFilter(new Term(fieldName, term)));
+                    for (Object term : terms) {
+                        boolFiler.add(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), BooleanClause.Occur.SHOULD);
                     }
                 }
                 filter = boolFiler;
@@ -166,12 +164,12 @@ public class TermsFilterParser implements FilterParser {
             } else if ("and".equals(execution)) {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
-                    for (String term : terms) {
-                        filters.add(parseContext.cacheFilter(fieldMapper.fieldFilter(term, parseContext), null));
+                    for (Object term : terms) {
+                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null));
                     }
                 } else {
-                    for (String term : terms) {
-                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, term)), null));
+                    for (Object term : terms) {
+                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), null));
                     }
                 }
                 filter = new AndFilter(filters);
@@ -182,12 +180,12 @@ public class TermsFilterParser implements FilterParser {
             } else if ("and_nocache".equals(execution)) {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
-                    for (String term : terms) {
-                        filters.add(fieldMapper.fieldFilter(term, parseContext));
+                    for (Object term : terms) {
+                        filters.add(fieldMapper.termFilter(term, parseContext));
                     }
                 } else {
-                    for (String term : terms) {
-                        filters.add(new TermFilter(new Term(fieldName, term)));
+                    for (Object term : terms) {
+                        filters.add(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))));
                     }
                 }
                 filter = new AndFilter(filters);
@@ -198,12 +196,12 @@ public class TermsFilterParser implements FilterParser {
             } else if ("or".equals(execution)) {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
-                    for (String term : terms) {
-                        filters.add(parseContext.cacheFilter(fieldMapper.fieldFilter(term, parseContext), null));
+                    for (Object term : terms) {
+                        filters.add(parseContext.cacheFilter(fieldMapper.termFilter(term, parseContext), null));
                     }
                 } else {
-                    for (String term : terms) {
-                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, term)), null));
+                    for (Object term : terms) {
+                        filters.add(parseContext.cacheFilter(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))), null));
                     }
                 }
                 filter = new OrFilter(filters);
@@ -214,12 +212,12 @@ public class TermsFilterParser implements FilterParser {
             } else if ("or_nocache".equals(execution)) {
                 List<Filter> filters = Lists.newArrayList();
                 if (fieldMapper != null) {
-                    for (String term : terms) {
-                        filters.add(fieldMapper.fieldFilter(term, parseContext));
+                    for (Object term : terms) {
+                        filters.add(fieldMapper.termFilter(term, parseContext));
                     }
                 } else {
-                    for (String term : terms) {
-                        filters.add(new TermFilter(new Term(fieldName, term)));
+                    for (Object term : terms) {
+                        filters.add(new TermFilter(new Term(fieldName, BytesRefs.toBytesRef(term))));
                     }
                 }
                 filter = new OrFilter(filters);

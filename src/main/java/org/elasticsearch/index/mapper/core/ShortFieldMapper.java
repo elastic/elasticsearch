@@ -19,28 +19,34 @@
 
 package org.elasticsearch.index.mapper.core;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -57,6 +63,12 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     public static final String CONTENT_TYPE = "short";
 
     public static class Defaults extends NumberFieldMapper.Defaults {
+        public static final FieldType FIELD_TYPE = new FieldType(NumberFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.freeze();
+        }
+
         public static final Short NULL_VALUE = null;
     }
 
@@ -65,7 +77,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
         protected Short nullValue = Defaults.NULL_VALUE;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -76,9 +88,10 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
 
         @Override
         public ShortFieldMapper build(BuilderContext context) {
+            fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ShortFieldMapper fieldMapper = new ShortFieldMapper(buildNames(context),
-                    precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions, nullValue,
-                    ignoreMalformed(context));
+                    precisionStep, boost, fieldType, nullValue,
+                    ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -104,14 +117,24 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
 
     private String nullValueAsString;
 
-    protected ShortFieldMapper(Names names, int precisionStep, String fuzzyFactor, Field.Index index, Field.Store store,
-                               float boost, boolean omitNorms, IndexOptions indexOptions,
-                               Short nullValue, Explicit<Boolean> ignoreMalformed) {
-        super(names, precisionStep, fuzzyFactor, index, store, boost, omitNorms, indexOptions,
+    protected ShortFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
+                               Short nullValue, Explicit<Boolean> ignoreMalformed,
+                               PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+        super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_short/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
-                new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)));
+                new NamedAnalyzer("_short/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("short");
     }
 
     @Override
@@ -120,26 +143,42 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     }
 
     @Override
-    public Short value(Fieldable field) {
-        byte[] value = field.getBinaryValue();
+    public Short value(Object value) {
         if (value == null) {
             return null;
         }
-        return Numbers.bytesToShort(value);
+        if (value instanceof Number) {
+            return ((Number) value).shortValue();
+        }
+        if (value instanceof BytesRef) {
+            return Numbers.bytesToShort((BytesRef) value);
+        }
+        return Short.parseShort(value.toString());
     }
 
     @Override
-    public Short valueFromString(String value) {
-        return Short.valueOf(value);
+    public BytesRef indexedValueForSearch(Object value) {
+        BytesRef bytesRef = new BytesRef();
+        NumericUtils.intToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
+        return bytesRef;
+    }
+
+    private short parseValue(Object value) {
+        if (value instanceof Number) {
+            return ((Number) value).shortValue();
+        }
+        if (value instanceof BytesRef) {
+            return Short.parseShort(((BytesRef) value).utf8ToString());
+        }
+        return Short.parseShort(value.toString());
+    }
+
+    private int parseValueAsInt(Object value) {
+        return parseValue(value);
     }
 
     @Override
-    public String indexedValue(String value) {
-        return NumericUtils.intToPrefixCoded(Short.parseShort(value));
-    }
-
-    @Override
-    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions) {
+    public Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions) {
         short iValue = Short.parseShort(value);
         short iSim;
         try {
@@ -154,50 +193,40 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     }
 
     @Override
-    public Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions) {
-        short iValue = Short.parseShort(value);
-        short iSim = (short) (minSim * dFuzzyFactor);
-        return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                iValue - iSim,
-                iValue + iSim,
-                true, true);
-    }
-
-    @Override
-    public Query fieldQuery(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValueAsInt(value);
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeQuery.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+                lowerTerm == null ? null : parseValueAsInt(lowerTerm),
+                upperTerm == null ? null : parseValueAsInt(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter fieldFilter(String value, @Nullable QueryParseContext context) {
-        int iValue = Integer.parseInt(value);
+    public Filter termFilter(Object value, @Nullable QueryParseContext context) {
+        int iValue = parseValueAsInt(value);
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
                 iValue, iValue, true, true);
     }
 
     @Override
-    public Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+    public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
         return NumericRangeFilter.newIntRange(names.indexName(), precisionStep,
-                lowerTerm == null ? null : Integer.parseInt(lowerTerm),
-                upperTerm == null ? null : Integer.parseInt(upperTerm),
+                lowerTerm == null ? null : parseValueAsInt(lowerTerm),
+                upperTerm == null ? null : parseValueAsInt(upperTerm),
                 includeLower, includeUpper);
     }
 
     @Override
-    public Filter rangeFilter(FieldDataCache fieldDataCache, String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFieldDataFilter.newShortRange(fieldDataCache, names.indexName(),
-                lowerTerm == null ? null : Short.parseShort(lowerTerm),
-                upperTerm == null ? null : Short.parseShort(upperTerm),
+    public Filter rangeFilter(IndexFieldDataService fieldData, Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
+        return NumericRangeFieldDataFilter.newShortRange((IndexNumericFieldData) fieldData.getForField(this),
+                lowerTerm == null ? null : parseValue(lowerTerm),
+                upperTerm == null ? null : parseValue(upperTerm),
                 includeLower, includeUpper);
     }
 
@@ -218,7 +247,7 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         short value;
         float boost = this.boost;
         if (context.externalValueSet()) {
@@ -269,6 +298,8 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                             }
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
+                        } else {
+                            throw new ElasticSearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -284,14 +315,9 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
                 }
             }
         }
-        CustomShortNumericField field = new CustomShortNumericField(this, value);
+        CustomShortNumericField field = new CustomShortNumericField(this, value, fieldType);
         field.setBoost(boost);
         return field;
-    }
-
-    @Override
-    public FieldDataType fieldDataType() {
-        return FieldDataType.DefaultTypes.SHORT;
     }
 
     @Override
@@ -314,26 +340,8 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
-        }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
-        }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
-        }
-        if (omitNorms != Defaults.OMIT_NORMS) {
-            builder.field("omit_norms", omitNorms);
-        }
-        if (indexOptions != Defaults.INDEX_OPTIONS) {
-            builder.field("index_options", indexOptionToString(indexOptions));
-        }
         if (precisionStep != Defaults.PRECISION_STEP) {
             builder.field("precision_step", precisionStep);
-        }
-        if (fuzzyFactor != Defaults.FUZZY_FACTOR) {
-            builder.field("fuzzy_factor", fuzzyFactor);
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
@@ -349,15 +357,15 @@ public class ShortFieldMapper extends NumberFieldMapper<Short> {
 
         private final NumberFieldMapper mapper;
 
-        public CustomShortNumericField(NumberFieldMapper mapper, short number) {
-            super(mapper, mapper.stored() ? Numbers.shortToBytes(number) : null);
+        public CustomShortNumericField(NumberFieldMapper mapper, short number, FieldType fieldType) {
+            super(mapper, mapper.fieldType().stored() ? number : null, fieldType);
             this.mapper = mapper;
             this.number = number;
         }
 
         @Override
-        public TokenStream tokenStreamValue() {
-            if (isIndexed) {
+        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+            if (fieldType().indexed()) {
                 return mapper.popCachedStream().setIntValue(number);
             }
             return null;

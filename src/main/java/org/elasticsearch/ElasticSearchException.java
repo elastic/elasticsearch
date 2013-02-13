@@ -23,8 +23,6 @@ import org.elasticsearch.rest.RestStatus;
 
 /**
  * A base class for all elasticsearch exceptions.
- *
- *
  */
 public class ElasticSearchException extends RuntimeException {
 
@@ -52,21 +50,15 @@ public class ElasticSearchException extends RuntimeException {
      * Returns the rest status code associated with this exception.
      */
     public RestStatus status() {
-        ElasticSearchException current = this;
-        while (current instanceof ElasticSearchWrapperException) {
-            if (getCause() == null) {
-                break;
-            }
-            if (getCause() instanceof ElasticSearchException) {
-                current = (ElasticSearchException) getCause();
-            } else {
-                break;
-            }
-        }
-        if (current == this) {
+        Throwable cause = unwrapCause();
+        if (cause == this) {
             return RestStatus.INTERNAL_SERVER_ERROR;
+        } else if (cause instanceof ElasticSearchException) {
+            return ((ElasticSearchException) cause).status();
+        } else if (cause instanceof IllegalArgumentException) {
+            return RestStatus.BAD_REQUEST;
         } else {
-            return current.status();
+            return RestStatus.INTERNAL_SERVER_ERROR;
         }
     }
 

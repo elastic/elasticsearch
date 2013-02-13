@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.StopAnalyzer;
+import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.miscellaneous.PatternAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -30,7 +31,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -46,7 +46,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Patte
 
         boolean lowercase = settings.getAsBoolean("lowercase", true);
 
-        Set<?> stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version);
+        CharArraySet stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version);
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);
         if (sPattern == null) {

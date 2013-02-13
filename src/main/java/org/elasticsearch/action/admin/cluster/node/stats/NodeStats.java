@@ -254,7 +254,7 @@ public class NodeStats extends NodeOperationResponse {
         super.readFrom(in);
         timestamp = in.readVLong();
         if (in.readBoolean()) {
-            hostname = in.readUTF();
+            hostname = in.readString();
         }
         if (in.readBoolean()) {
             indices = NodeIndicesStats.readIndicesStats(in);
@@ -293,7 +293,7 @@ public class NodeStats extends NodeOperationResponse {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeUTF(hostname);
+            out.writeString(hostname);
         }
         if (indices == null) {
             out.writeBoolean(false);

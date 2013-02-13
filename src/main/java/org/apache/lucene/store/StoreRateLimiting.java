@@ -2,7 +2,6 @@ package org.apache.lucene.store;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.RateLimiter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 /**
@@ -36,8 +35,8 @@ public class StoreRateLimiting {
         }
     }
 
-    private final RateLimiter rateLimiter = new RateLimiter(0);
-    private volatile RateLimiter actualRateLimiter;
+    private final RateLimiter.SimpleRateLimiter rateLimiter = new RateLimiter.SimpleRateLimiter(0);
+    private volatile RateLimiter.SimpleRateLimiter actualRateLimiter;
 
     private volatile Type type;
 
@@ -55,10 +54,10 @@ public class StoreRateLimiting {
             actualRateLimiter = null;
         } else if (actualRateLimiter == null) {
             actualRateLimiter = rateLimiter;
-            actualRateLimiter.setMaxRate(rate.mbFrac());
+            actualRateLimiter.setMbPerSec(rate.mbFrac());
         } else {
             assert rateLimiter == actualRateLimiter;
-            rateLimiter.setMaxRate(rate.mbFrac());
+            rateLimiter.setMbPerSec(rate.mbFrac());
         }
     }
 

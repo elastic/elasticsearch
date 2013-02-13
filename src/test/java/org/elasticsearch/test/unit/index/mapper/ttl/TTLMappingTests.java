@@ -20,7 +20,6 @@
 
 package org.elasticsearch.test.unit.index.mapper.ttl;
 
-import org.apache.lucene.document.Field;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -46,7 +45,7 @@ public class TTLMappingTests {
                 .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").ttl(Long.MAX_VALUE));
 
-        assertThat(doc.rootDoc().getFieldable("_ttl"), equalTo(null));
+        assertThat(doc.rootDoc().getField("_ttl"), equalTo(null));
     }
 
     @Test
@@ -62,9 +61,9 @@ public class TTLMappingTests {
                 .bytes();
         ParsedDocument doc = docMapper.parse(SourceToParse.source(source).type("type").id("1").ttl(Long.MAX_VALUE));
 
-        assertThat(doc.rootDoc().getFieldable("_ttl").isStored(), equalTo(true));
-        assertThat(doc.rootDoc().getFieldable("_ttl").isIndexed(), equalTo(true));
-        assertThat(doc.rootDoc().getFieldable("_ttl").tokenStreamValue(), notNullValue());
+        assertThat(doc.rootDoc().getField("_ttl").fieldType().stored(), equalTo(true));
+        assertThat(doc.rootDoc().getField("_ttl").fieldType().indexed(), equalTo(true));
+        assertThat(doc.rootDoc().getField("_ttl").tokenStream(docMapper.indexAnalyzer()), notNullValue());
     }
 
     @Test
@@ -72,8 +71,8 @@ public class TTLMappingTests {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(TTLFieldMapper.Defaults.ENABLED));
-        assertThat(docMapper.TTLFieldMapper().store(), equalTo(TTLFieldMapper.Defaults.STORE));
-        assertThat(docMapper.TTLFieldMapper().index(), equalTo(TTLFieldMapper.Defaults.INDEX));
+        assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.stored()));
+        assertThat(docMapper.TTLFieldMapper().fieldType().indexed(), equalTo(TTLFieldMapper.Defaults.TTL_FIELD_TYPE.indexed()));
     }
 
 
@@ -86,7 +85,7 @@ public class TTLMappingTests {
                 .endObject().endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
         assertThat(docMapper.TTLFieldMapper().enabled(), equalTo(true));
-        assertThat(docMapper.TTLFieldMapper().store(), equalTo(Field.Store.NO));
-        assertThat(docMapper.TTLFieldMapper().index(), equalTo(Field.Index.NO));
+        assertThat(docMapper.TTLFieldMapper().fieldType().stored(), equalTo(false));
+        assertThat(docMapper.TTLFieldMapper().fieldType().indexed(), equalTo(false));
     }
 }

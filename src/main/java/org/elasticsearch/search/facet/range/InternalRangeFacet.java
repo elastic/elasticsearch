@@ -101,6 +101,35 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
         return entries().iterator();
     }
 
+    @Override
+    public Facet reduce(List<Facet> facets) {
+        if (facets.size() == 1) {
+            return facets.get(0);
+        }
+        InternalRangeFacet agg = null;
+        for (Facet facet : facets) {
+            InternalRangeFacet geoDistanceFacet = (InternalRangeFacet) facet;
+            if (agg == null) {
+                agg = geoDistanceFacet;
+            } else {
+                for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
+                    RangeFacet.Entry aggEntry = agg.entries[i];
+                    RangeFacet.Entry currentEntry = geoDistanceFacet.entries[i];
+                    aggEntry.count += currentEntry.count;
+                    aggEntry.totalCount += currentEntry.totalCount;
+                    aggEntry.total += currentEntry.total;
+                    if (currentEntry.min < aggEntry.min) {
+                        aggEntry.min = currentEntry.min;
+                    }
+                    if (currentEntry.max > aggEntry.max) {
+                        aggEntry.max = currentEntry.max;
+                    }
+                }
+            }
+        }
+        return agg;
+    }
+
     public static InternalRangeFacet readRangeFacet(StreamInput in) throws IOException {
         InternalRangeFacet facet = new InternalRangeFacet();
         facet.readFrom(in);
@@ -109,17 +138,17 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             Entry entry = new Entry();
             entry.from = in.readDouble();
             entry.to = in.readDouble();
             if (in.readBoolean()) {
-                entry.fromAsString = in.readUTF();
+                entry.fromAsString = in.readString();
             }
             if (in.readBoolean()) {
-                entry.toAsString = in.readUTF();
+                entry.toAsString = in.readString();
             }
             entry.count = in.readVLong();
             entry.totalCount = in.readVLong();
@@ -132,7 +161,7 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeVInt(entries.length);
         for (Entry entry : entries) {
             out.writeDouble(entry.from);
@@ -141,13 +170,13 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(entry.fromAsString);
+                out.writeString(entry.fromAsString);
             }
             if (entry.toAsString == null) {
                 out.writeBoolean(false);
             } else {
                 out.writeBoolean(true);
-                out.writeUTF(entry.toAsString);
+                out.writeString(entry.toAsString);
             }
             out.writeVLong(entry.count);
             out.writeVLong(entry.totalCount);

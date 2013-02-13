@@ -20,19 +20,27 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NamedCustomAnalyzer;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper.Defaults;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.Map;
@@ -48,6 +56,12 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     public static final String CONTENT_TYPE = "string";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.freeze();
+        }
+
         // NOTE, when adding defaults here, make sure you add them in the builder
         public static final String NULL_VALUE = null;
         public static final int POSITION_OFFSET_GAP = 0;
@@ -65,7 +79,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
 
         public Builder(String name) {
-            super(name);
+            super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
         }
 
@@ -111,9 +125,20 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                 searchAnalyzer = new NamedCustomAnalyzer(searchAnalyzer, positionOffsetGap);
                 searchQuotedAnalyzer = new NamedCustomAnalyzer(searchQuotedAnalyzer, positionOffsetGap);
             }
+            // if the field is not analyzed, then by default, we should omit norms and have docs only
+            // index options, as probably what the user really wants
+            // if they are set explicitly, we will use those values
+            if (fieldType.indexed() && !fieldType.tokenized()) {
+                if (!omitNormsSet && boost == Defaults.BOOST) {
+                    fieldType.setOmitNorms(true);
+                }
+                if (!indexOptionsSet) {
+                    fieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
+                }
+            }
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
-                    index, store, termVector, boost, omitNorms, indexOptions, nullValue,
-                    indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer, positionOffsetGap, ignoreAbove);
+                    boost, fieldType, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
+                    positionOffsetGap, ignoreAbove, provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -166,22 +191,25 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     private int ignoreAbove;
 
-    protected StringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                float boost, boolean omitNorms, IndexOptions indexOptions,
-                                String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer) {
-        this(names, index, store, termVector, boost, omitNorms, indexOptions, nullValue, indexAnalyzer,
-                searchAnalyzer, searchAnalyzer, Defaults.POSITION_OFFSET_GAP, Defaults.IGNORE_ABOVE);
-    }
-
-    protected StringFieldMapper(Names names, Field.Index index, Field.Store store, Field.TermVector termVector,
-                                float boost, boolean omitNorms, IndexOptions indexOptions,
+    protected StringFieldMapper(Names names, float boost, FieldType fieldType,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                                NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove) {
-        super(names, index, store, termVector, boost, omitNorms, indexOptions, indexAnalyzer, searchAnalyzer);
+                                NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
+                                PostingsFormatProvider postingsFormat, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, postingsFormat, similarity, fieldDataSettings);
         this.nullValue = nullValue;
         this.positionOffsetGap = positionOffsetGap;
         this.searchQuotedAnalyzer = searchQuotedAnalyzer != null ? searchQuotedAnalyzer : this.searchAnalyzer;
         this.ignoreAbove = ignoreAbove;
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("string");
     }
 
     @Override
@@ -199,23 +227,11 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     }
 
     @Override
-    public String value(Fieldable field) {
-        return field.stringValue();
-    }
-
-    @Override
-    public String valueFromString(String value) {
-        return value;
-    }
-
-    @Override
-    public String valueAsString(Fieldable field) {
-        return value(field);
-    }
-
-    @Override
-    public String indexedValue(String value) {
-        return value;
+    public String value(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return value.toString();
     }
 
     @Override
@@ -237,7 +253,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         if (nullValue == null) {
             return null;
         }
-        return fieldFilter(nullValue, null);
+        return termFilter(nullValue, null);
     }
 
     @Override
@@ -261,6 +277,8 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                             value = parser.textOrNull();
                         } else if ("boost".equals(currentFieldName) || "_boost".equals(currentFieldName)) {
                             boost = parser.floatValue();
+                        } else {
+                            throw new ElasticSearchIllegalArgumentException("unknown property [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -277,11 +295,11 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         if (context.includeInAll(includeInAll, this)) {
             context.allEntries().addText(names.fullName(), value, boost);
         }
-        if (!indexed() && !stored()) {
+        if (!fieldType().indexed() && !fieldType().stored()) {
             context.ignoredValue(names.indexName(), value);
             return null;
         }
-        Field field = new Field(names.indexName(), false, value, store, index, termVector);
+        Field field = new StringField(names.indexName(), value, fieldType);
         field.setBoost(boost);
         return field;
     }
@@ -307,21 +325,6 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     @Override
     protected void doXContentBody(XContentBuilder builder) throws IOException {
         super.doXContentBody(builder);
-        if (index != Defaults.INDEX) {
-            builder.field("index", index.name().toLowerCase());
-        }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
-        }
-        if (termVector != Defaults.TERM_VECTOR) {
-            builder.field("term_vector", termVector.name().toLowerCase());
-        }
-        if (omitNorms != Defaults.OMIT_NORMS) {
-            builder.field("omit_norms", omitNorms);
-        }
-        if (indexOptions != Defaults.INDEX_OPTIONS) {
-            builder.field("index_options", indexOptionToString(indexOptions));
-        }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
         }
@@ -336,6 +339,89 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         }
         if (ignoreAbove != Defaults.IGNORE_ABOVE) {
             builder.field("ignore_above", ignoreAbove);
+        }
+    }
+
+    /**
+     * Extension of {@link Field} supporting reuse of a cached TokenStream for not-tokenized values.
+     */
+    static class StringField extends Field {
+
+        public StringField(String name, String value, FieldType fieldType) {
+            super(name, value, fieldType);
+        }
+
+        @Override
+        public TokenStream tokenStream(Analyzer analyzer) throws IOException {
+            if (!fieldType().indexed()) {
+                return null;
+            }
+            // Only use the cached TokenStream if the value is indexed and not-tokenized
+            if (fieldType().tokenized()) {
+                return super.tokenStream(analyzer);
+            }
+            return NOT_ANALYZED_TOKENSTREAM.get().setValue((String) fieldsData);
+        }
+    }
+
+    private static final ThreadLocal<StringTokenStream> NOT_ANALYZED_TOKENSTREAM = new ThreadLocal<StringTokenStream>() {
+        @Override
+        protected StringTokenStream initialValue() {
+            return new StringTokenStream();
+        }
+    };
+
+
+    // Copied from Field.java
+    static final class StringTokenStream extends TokenStream {
+        private final CharTermAttribute termAttribute = addAttribute(CharTermAttribute.class);
+        private final OffsetAttribute offsetAttribute = addAttribute(OffsetAttribute.class);
+        private boolean used = false;
+        private String value = null;
+
+        /**
+         * Creates a new TokenStream that returns a String as single token.
+         * <p>Warning: Does not initialize the value, you must call
+         * {@link #setValue(String)} afterwards!
+         */
+        StringTokenStream() {
+        }
+
+        /**
+         * Sets the string value.
+         */
+        StringTokenStream setValue(String value) {
+            this.value = value;
+            return this;
+        }
+
+        @Override
+        public boolean incrementToken() {
+            if (used) {
+                return false;
+            }
+            clearAttributes();
+            termAttribute.append(value);
+            offsetAttribute.setOffset(0, value.length());
+            used = true;
+            return true;
+        }
+
+        @Override
+        public void end() {
+            final int finalOffset = value.length();
+            offsetAttribute.setOffset(finalOffset, finalOffset);
+            value = null;
+        }
+
+        @Override
+        public void reset() {
+            used = false;
+        }
+
+        @Override
+        public void close() {
+            value = null;
         }
     }
 }

@@ -19,16 +19,20 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.search.nested.BlockJoinQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -54,7 +58,7 @@ public class NestedFilterParser implements FilterParser {
         Filter filter = null;
         boolean filterFound = false;
         float boost = 1.0f;
-        String scope = null;
+        boolean join = true;
         String path = null;
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
@@ -83,12 +87,14 @@ public class NestedFilterParser implements FilterParser {
                         throw new QueryParsingException(parseContext.index(), "[nested] filter does not support [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
-                    if ("path".equals(currentFieldName)) {
+                    if ("join".equals(currentFieldName)) {
+                        join = parser.booleanValue();
+                    } else if ("path".equals(currentFieldName)) {
                         path = parser.text();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("_scope".equals(currentFieldName)) {
-                        scope = parser.text();
+                        throw new QueryParsingException(parseContext.index(), "the [_scope] support in [nested] filter has been removed, use nested filter as a facet_filter in the relevant facet");
                     } else if ("_name".equals(currentFieldName)) {
                         filterName = parser.text();
                     } else if ("_cache".equals(currentFieldName)) {
@@ -112,7 +118,7 @@ public class NestedFilterParser implements FilterParser {
             }
 
             if (filter != null) {
-                query = new DeletionAwareConstantScoreQuery(filter);
+                query = new XConstantScoreQuery(filter);
             }
 
             query.setBoost(boost);
@@ -132,7 +138,7 @@ public class NestedFilterParser implements FilterParser {
             Filter childFilter = parseContext.cacheFilter(objectMapper.nestedTypeFilter(), null);
             usAsParentFilter.filter = childFilter;
             // wrap the child query to only work on the nested path type
-            query = new FilteredQuery(query, childFilter);
+            query = new XFilteredQuery(query, childFilter);
 
             Filter parentFilter = currentParentFilterContext;
             if (parentFilter == null) {
@@ -145,21 +151,21 @@ public class NestedFilterParser implements FilterParser {
                 parentFilter = parseContext.cacheFilter(parentFilter, null);
             }
 
-            BlockJoinQuery joinQuery = new BlockJoinQuery(query, parentFilter, BlockJoinQuery.ScoreMode.None);
-
-            if (scope != null) {
-                SearchContext.current().addNestedQuery(scope, joinQuery);
+            Filter nestedFilter;
+            if (join) {
+                ToParentBlockJoinQuery joinQuery = new ToParentBlockJoinQuery(query, parentFilter, ScoreMode.None);
+                nestedFilter = new QueryWrapperFilter(joinQuery);
+            } else {
+                nestedFilter = new QueryWrapperFilter(query);
             }
 
-            Filter joinFilter = new QueryWrapperFilter(joinQuery);
             if (cache) {
-                joinFilter = parseContext.cacheFilter(joinFilter, cacheKey);
+                nestedFilter = parseContext.cacheFilter(nestedFilter, cacheKey);
             }
             if (filterName != null) {
-                parseContext.addNamedFilter(filterName, joinFilter);
+                parseContext.addNamedFilter(filterName, nestedFilter);
             }
-            return joinFilter;
-
+            return nestedFilter;
         } finally {
             // restore the thread local one...
             NestedQueryParser.parentFilterContext.set(currentParentFilterContext);

@@ -20,13 +20,16 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -47,8 +50,16 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     public static class Defaults extends LongFieldMapper.Defaults {
         public static final String NAME = TTLFieldMapper.CONTENT_TYPE;
-        public static final Field.Store STORE = Field.Store.YES;
-        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
+
+        public static final FieldType TTL_FIELD_TYPE = new FieldType(LongFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            TTL_FIELD_TYPE.setStored(true);
+            TTL_FIELD_TYPE.setIndexed(true);
+            TTL_FIELD_TYPE.setTokenized(false);
+            TTL_FIELD_TYPE.freeze();
+        }
+
         public static final boolean ENABLED = false;
         public static final long DEFAULT = -1;
     }
@@ -59,9 +70,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         private long defaultTTL = Defaults.DEFAULT;
 
         public Builder() {
-            super(Defaults.NAME);
-            store = Defaults.STORE;
-            index = Defaults.INDEX;
+            super(Defaults.NAME, new FieldType(Defaults.TTL_FIELD_TYPE));
         }
 
         public Builder enabled(boolean enabled) {
@@ -76,7 +85,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
         @Override
         public TTLFieldMapper build(BuilderContext context) {
-            return new TTLFieldMapper(store, index, enabled, defaultTTL, ignoreMalformed(context));
+            return new TTLFieldMapper(fieldType, enabled, defaultTTL, ignoreMalformed(context), provider, fieldDataSettings);
         }
     }
 
@@ -105,13 +114,14 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     private long defaultTTL;
 
     public TTLFieldMapper() {
-        this(Defaults.STORE, Defaults.INDEX, Defaults.ENABLED, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED);
+        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, null, null);
     }
 
-    protected TTLFieldMapper(Field.Store store, Field.Index index, boolean enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed) {
+    protected TTLFieldMapper(FieldType fieldType, boolean enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
+                             PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
-                Defaults.FUZZY_FACTOR, index, store, Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS,
-                Defaults.NULL_VALUE, ignoreMalformed);
+                Defaults.BOOST, fieldType, Defaults.NULL_VALUE, ignoreMalformed,
+                provider, null, fieldDataSettings);
         this.enabled = enabled;
         this.defaultTTL = defaultTTL;
     }
@@ -126,7 +136,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     // Overrides valueForSearch to display live value of remaining ttl
     @Override
-    public Object valueForSearch(Fieldable field) {
+    public Object valueForSearch(Object value) {
         long now;
         SearchContext searchContext = SearchContext.current();
         if (searchContext != null) {
@@ -134,8 +144,8 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         } else {
             now = System.currentTimeMillis();
         }
-        long value = value(field);
-        return value - now;
+        long val = value(value);
+        return val - now;
     }
 
     // Other implementation for realtime get display
@@ -178,7 +188,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException, AlreadyExpiredException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException, AlreadyExpiredException {
         if (enabled) {
             long ttl = context.sourceToParse().ttl();
             if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
@@ -194,7 +204,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
                     throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
                 }
                 // the expiration timestamp (timestamp + ttl) is set as field
-                return new CustomLongNumericField(this, expire);
+                return new CustomLongNumericField(this, expire, fieldType);
             }
         }
         return null;

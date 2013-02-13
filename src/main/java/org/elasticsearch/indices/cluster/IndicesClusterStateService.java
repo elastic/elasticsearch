@@ -385,7 +385,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}] adding mapping [{}], source [{}]", index, mappingType, mappingSource.string());
                 }
-                mapperService.add(mappingType, mappingSource.string());
+                // we don't apply default, since it has been applied when the mappings were parsed initially
+                mapperService.merge(mappingType, mappingSource.string(), false);
                 if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
                     // this might happen when upgrading from 0.15 to 0.16
                     logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}", index, mappingType, mappingSource, mapperService.documentMapper(mappingType).mappingSource());
@@ -399,7 +400,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] updating mapping [{}], source [{}]", index, mappingType, mappingSource.string());
                     }
-                    mapperService.add(mappingType, mappingSource.string());
+                    // we don't apply default, since it has been applied when the mappings were parsed initially
+                    mapperService.merge(mappingType, mappingSource.string(), false);
                     if (!mapperService.documentMapper(mappingType).mappingSource().equals(mappingSource)) {
                         requiresRefresh = true;
                         // this might happen when upgrading from 0.15 to 0.16

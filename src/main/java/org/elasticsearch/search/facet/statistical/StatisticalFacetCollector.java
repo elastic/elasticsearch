@@ -19,14 +19,11 @@
 
 package org.elasticsearch.search.facet.statistical;
 
-import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.MapperService;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,42 +33,25 @@ import java.io.IOException;
  */
 public class StatisticalFacetCollector extends AbstractFacetCollector {
 
-    private final String indexFieldName;
+    private final IndexNumericFieldData indexFieldData;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType fieldDataType;
-
-    private NumericFieldData fieldData;
+    private DoubleValues values;
 
     private final StatsProc statsProc = new StatsProc();
 
-    public StatisticalFacetCollector(String facetName, String fieldName, SearchContext context) {
+    public StatisticalFacetCollector(String facetName, IndexNumericFieldData indexFieldData, SearchContext context) {
         super(facetName);
-        this.fieldDataCache = context.fieldDataCache();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        indexFieldName = smartMappers.mapper().names().indexName();
-        fieldDataType = smartMappers.mapper().fieldDataType();
+        this.indexFieldData = indexFieldData;
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, statsProc);
+        values.forEachValueInDoc(doc, statsProc);
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        values = indexFieldData.load(context).getDoubleValues();
     }
 
     @Override
@@ -79,7 +59,7 @@ public class StatisticalFacetCollector extends AbstractFacetCollector {
         return new InternalStatisticalFacet(facetName, statsProc.min(), statsProc.max(), statsProc.total(), statsProc.sumOfSquares(), statsProc.count());
     }
 
-    public static class StatsProc implements NumericFieldData.MissingDoubleValueInDocProc {
+    public static class StatsProc implements DoubleValues.ValueInDocProc {
 
         double min = Double.POSITIVE_INFINITY;
 

@@ -46,8 +46,8 @@ public class BytesStreamsTests {
         out.writeVLong(4);
         out.writeFloat(1.1f);
         out.writeDouble(2.2);
-        out.writeUTF("hello");
-        out.writeUTF("goodbye");
+        out.writeString("hello");
+        out.writeString("goodbye");
 
         BytesStreamInput in = new BytesStreamInput(out.bytes().toBytes(), false);
         assertThat(in.readBoolean(), equalTo(false));
@@ -59,7 +59,7 @@ public class BytesStreamsTests {
         assertThat(in.readVLong(), equalTo((long) 4));
         assertThat((double) in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
-        assertThat(in.readUTF(), equalTo("hello"));
-        assertThat(in.readUTF(), equalTo("goodbye"));
+        assertThat(in.readString(), equalTo("hello"));
+        assertThat(in.readString(), equalTo("goodbye"));
     }
 }

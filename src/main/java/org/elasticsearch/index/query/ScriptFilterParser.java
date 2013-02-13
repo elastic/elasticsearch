@@ -20,13 +20,16 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.docset.GetDocSet;
+import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.script.ScriptService;
@@ -160,36 +163,28 @@ public class ScriptFilterParser implements FilterParser {
         }
 
         @Override
-        public DocIdSet getDocIdSet(final IndexReader reader) throws IOException {
-            searchScript.setNextReader(reader);
-            return new ScriptDocSet(reader, searchScript);
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+            searchScript.setNextReader(context);
+            // LUCENE 4 UPGRADE: we can simply wrap this here since it is not cacheable and if we are not top level we will get a null passed anyway 
+            return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader().maxDoc(), acceptDocs, searchScript), acceptDocs);
         }
 
-        static class ScriptDocSet extends GetDocSet {
+        static class ScriptDocSet extends MatchDocIdSet {
 
             private final SearchScript searchScript;
 
-            public ScriptDocSet(IndexReader reader, SearchScript searchScript) {
-                super(reader.maxDoc());
+            public ScriptDocSet(int maxDoc, @Nullable Bits acceptDocs, SearchScript searchScript) {
+                super(maxDoc, acceptDocs);
                 this.searchScript = searchScript;
             }
 
             @Override
-            public long sizeInBytes() {
-                return 0;
-            }
-
-            @Override
             public boolean isCacheable() {
-                // not cacheable for several reasons:
-                // 1. The script service is shared and holds the current reader executing against, and it
-                //    gets changed on each getDocIdSet (which is fine for sequential reader search)
-                // 2. If its really going to be cached (the _cache setting), its better to just load it into in memory bitset
-                return false;
+                return true;
             }
 
             @Override
-            public boolean get(int doc) {
+            protected boolean matchDoc(int doc) {
                 searchScript.setNextDocId(doc);
                 Object val = searchScript.run();
                 if (val == null) {

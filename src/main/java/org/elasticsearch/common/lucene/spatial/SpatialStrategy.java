@@ -5,7 +5,6 @@ import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoShapeConstants;
@@ -56,12 +55,13 @@ public abstract class SpatialStrategy {
      * @param shape Shape to convert ints its indexable format
      * @return Fieldable for indexing the Shape
      */
-    public Fieldable createField(Shape shape) {
+    public Field createField(Shape shape) {
         int detailLevel = prefixTree.getLevelForDistance(
                 calcDistanceFromErrPct(shape, distanceErrorPct, GeoShapeConstants.SPATIAL_CONTEXT));
         List<Node> nodes = prefixTree.getNodes(shape, detailLevel, true);
         NodeTokenStream tokenStream = nodeTokenStream.get();
         tokenStream.setNodes(nodes);
+        // LUCENE 4 Upgrade: We should pass in the FieldType and use it here
         return new Field(fieldName.indexName(), tokenStream);
     }
 
@@ -77,8 +77,8 @@ public abstract class SpatialStrategy {
         switch (relation) {
             case INTERSECTS:
                 return createIntersectsFilter(shape);
-            case CONTAINS:
-                return createContainsFilter(shape);
+            case WITHIN:
+                return createWithinFilter(shape);
             case DISJOINT:
                 return createDisjointFilter(shape);
             default:
@@ -98,8 +98,8 @@ public abstract class SpatialStrategy {
         switch (relation) {
             case INTERSECTS:
                 return createIntersectsQuery(shape);
-            case CONTAINS:
-                return createContainsQuery(shape);
+            case WITHIN:
+                return createWithinQuery(shape);
             case DISJOINT:
                 return createDisjointQuery(shape);
             default:
@@ -151,7 +151,7 @@ public abstract class SpatialStrategy {
      * @param shape Shape to find the contained Shapes of
      * @return Filter for finding the contained indexed Shapes
      */
-    public abstract Filter createContainsFilter(Shape shape);
+    public abstract Filter createWithinFilter(Shape shape);
 
     /**
      * Creates a Query that will find all indexed Shapes that are properly
@@ -161,7 +161,7 @@ public abstract class SpatialStrategy {
      * @param shape Shape to find the contained Shapes of
      * @return Query for finding the contained indexed Shapes
      */
-    public abstract Query createContainsQuery(Shape shape);
+    public abstract Query createWithinQuery(Shape shape);
 
     /**
      * Returns the name of the field this Strategy applies to

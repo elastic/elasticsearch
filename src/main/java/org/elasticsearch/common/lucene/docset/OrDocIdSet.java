@@ -21,42 +21,74 @@ package org.elasticsearch.common.lucene.docset;
 
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.util.Bits;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  *
  */
 public class OrDocIdSet extends DocIdSet {
 
-    private final List<DocIdSet> sets;
+    private final DocIdSet[] sets;
 
-    public OrDocIdSet(List<DocIdSet> sets) {
+    public OrDocIdSet(DocIdSet[] sets) {
         this.sets = sets;
     }
 
     @Override
     public boolean isCacheable() {
-        // not cacheable, the reason is that by default, when constructing the filter, it is not cacheable,
-        // so if someone wants it to be cacheable, we might as well construct a cached version of the result
-        return false;
-//        for (DocIdSet set : sets) {
-//            if (!set.isCacheable()) {
-//                return false;
-//            }
-//        }
-//        return true;
+        for (DocIdSet set : sets) {
+            if (!set.isCacheable()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public Bits bits() throws IOException {
+        Bits[] bits = new Bits[sets.length];
+        for (int i = 0; i < sets.length; i++) {
+            bits[i] = sets[i].bits();
+            if (bits[i] == null) {
+                return null;
+            }
+        }
+        return new OrBits(bits);
     }
 
     @Override
     public DocIdSetIterator iterator() throws IOException {
-        return new OrDocIdSetIterator();
+        return new IteratorBasedIterator(sets);
     }
 
-    public class OrDocIdSetIterator extends DocIdSetIterator {
+    static class OrBits implements Bits {
+        private final Bits[] bits;
 
-        private final class Item {
+        OrBits(Bits[] bits) {
+            this.bits = bits;
+        }
+
+        @Override
+        public boolean get(int index) {
+            for (Bits bit : bits) {
+                if (bit.get(index)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public int length() {
+            return bits[0].length();
+        }
+    }
+
+    static class IteratorBasedIterator extends DocIdSetIterator {
+
+        final class Item {
             public final DocIdSetIterator iter;
             public int doc;
 
@@ -70,9 +102,9 @@ public class OrDocIdSet extends DocIdSet {
         private final Item[] _heap;
         private int _size;
 
-        OrDocIdSetIterator() throws IOException {
+        IteratorBasedIterator(DocIdSet[] sets) throws IOException {
             _curDoc = -1;
-            _heap = new Item[sets.size()];
+            _heap = new Item[sets.length];
             _size = 0;
             for (DocIdSet set : sets) {
                 DocIdSetIterator iterator = set.iterator();

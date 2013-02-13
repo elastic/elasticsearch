@@ -19,9 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharStream;
-import org.apache.lucene.analysis.MappingCharFilter;
-import org.apache.lucene.analysis.NormalizeCharMap;
+import org.apache.lucene.analysis.charfilter.MappingCharFilter;
+import org.apache.lucene.analysis.charfilter.NormalizeCharMap;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -30,6 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
+import java.io.Reader;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -48,12 +48,13 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory {
             throw new ElasticSearchIllegalArgumentException("mapping requires either `mappings` or `mappings_path` to be configured");
         }
 
-        normMap = new NormalizeCharMap();
-        parseRules(rules, normMap);
+        NormalizeCharMap.Builder normMapBuilder = new NormalizeCharMap.Builder();
+        parseRules(rules, normMapBuilder);
+        normMap = normMapBuilder.build();
     }
 
     @Override
-    public CharStream create(CharStream tokenStream) {
+    public Reader create(Reader tokenStream) {
         return new MappingCharFilter(normMap, tokenStream);
     }
 
@@ -63,7 +64,7 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory {
     /**
      * parses a list of MappingCharFilter style rules into a normalize char map
      */
-    private void parseRules(List<String> rules, NormalizeCharMap map) {
+    private void parseRules(List<String> rules, NormalizeCharMap.Builder map) {
         for (String rule : rules) {
             Matcher m = rulePattern.matcher(rule);
             if (!m.find())

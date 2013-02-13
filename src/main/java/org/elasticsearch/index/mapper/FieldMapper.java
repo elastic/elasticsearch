@@ -20,16 +20,19 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.field.data.FieldDataType;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.similarity.SimilarityProvider;
+
+import java.util.List;
 
 /**
  *
@@ -48,8 +51,6 @@ public interface FieldMapper<T> {
 
         private final String sourcePath;
 
-        private final Term indexNameTermFactory;
-
         public Names(String name) {
             this(name, name, name, name);
         }
@@ -64,7 +65,6 @@ public interface FieldMapper<T> {
             this.indexNameClean = indexNameClean.intern();
             this.fullName = fullName.intern();
             this.sourcePath = sourcePath == null ? this.fullName : sourcePath.intern();
-            this.indexNameTermFactory = new Term(indexName, "");
         }
 
         /**
@@ -104,39 +104,25 @@ public interface FieldMapper<T> {
         }
 
         /**
-         * The index name term that can be used as a factory.
+         * Creates a new index term based on the provided value.
          */
-        public Term indexNameTerm() {
-            return this.indexNameTermFactory;
+        public Term createIndexNameTerm(String value) {
+            return new Term(indexName, value);
         }
 
         /**
          * Creates a new index term based on the provided value.
          */
-        public Term createIndexNameTerm(String value) {
-            return indexNameTermFactory.createTerm(value);
+        public Term createIndexNameTerm(BytesRef value) {
+            return new Term(indexName, value);
         }
     }
 
     Names names();
 
-    Field.Index index();
-
-    boolean indexed();
-
-    boolean analyzed();
-
-    Field.Store store();
-
-    boolean stored();
-
-    Field.TermVector termVector();
+    FieldType fieldType();
 
     float boost();
-
-    boolean omitNorms();
-
-    IndexOptions indexOptions();
 
     /**
      * The analyzer that will be used to index the field.
@@ -154,62 +140,56 @@ public interface FieldMapper<T> {
     Analyzer searchQuoteAnalyzer();
 
     /**
-     * Returns the value that will be used as a result for search. Can be only of specific types... .
+     * Similarity used for scoring queries on the field
      */
-    Object valueForSearch(Fieldable field);
+    SimilarityProvider similarity();
 
     /**
      * Returns the actual value of the field.
      */
-    T value(Fieldable field);
-
-    T valueFromString(String value);
+    T value(Object value);
 
     /**
-     * Returns the actual value of the field as string.
+     * Returns the value that will be used as a result for search. Can be only of specific types... .
      */
-    String valueAsString(Fieldable field);
+    Object valueForSearch(Object value);
 
     /**
-     * Returns the indexed value.
+     * Returns the indexed value used to construct search "values".
      */
-    String indexedValue(String value);
+    BytesRef indexedValueForSearch(Object value);
 
     /**
-     * Should the field query {@link #fieldQuery(String, org.elasticsearch.index.query.QueryParseContext)}  be used when detecting this
+     * Should the field query {@link #termQuery(Object, org.elasticsearch.index.query.QueryParseContext)}  be used when detecting this
      * field in query string.
      */
-    boolean useFieldQueryWithQueryString();
+    boolean useTermQueryWithQueryString();
 
-    /**
-     * A field query for the specified value.
-     */
-    Query fieldQuery(String value, @Nullable QueryParseContext context);
+    Query termQuery(Object value, @Nullable QueryParseContext context);
 
-    Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions);
+    Filter termFilter(Object value, @Nullable QueryParseContext context);
 
-    Query fuzzyQuery(String value, double minSim, int prefixLength, int maxExpansions);
+    Filter termsFilter(List<Object> values, @Nullable QueryParseContext context);
 
-    Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
+    Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
-    Filter prefixFilter(String value, @Nullable QueryParseContext context);
+    Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
+
+    Query fuzzyQuery(String value, String minSim, int prefixLength, int maxExpansions, boolean transpositions);
+
+    Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
+
+    Filter prefixFilter(Object value, @Nullable QueryParseContext context);
+
+    Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
+
+    Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext parseContext);
 
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.
      */
+    @Nullable
     Query queryStringTermQuery(Term term);
-
-    Filter fieldFilter(String value, @Nullable QueryParseContext context);
-
-    /**
-     * Constructs a range query based on the mapper.
-     */
-    Query rangeQuery(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
-
-    /**
-     * Constructs a range query filter based on the mapper.
-     */
-    Filter rangeFilter(String lowerTerm, String upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context);
 
     /**
      * Null value filter, returns <tt>null</tt> if there is no null value associated with the field.
@@ -218,4 +198,6 @@ public interface FieldMapper<T> {
     Filter nullValueFilter();
 
     FieldDataType fieldDataType();
+
+    PostingsFormatProvider postingsFormatProvider();
 }

@@ -28,12 +28,15 @@ import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- *
+ * The {@link AllocationModule} manages several
+ * modules related to the allocation process. To do so
+ * it manages a {@link ShardsAllocatorModule} and an {@link AllocationDecidersModule}.
  */
 public class AllocationModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
 
+    //TODO: Documentation
     public AllocationModule(Settings settings) {
         this.settings = settings;
     }

@@ -22,7 +22,8 @@ package org.elasticsearch.cluster.routing.operation.hash.djb;
 import org.elasticsearch.cluster.routing.operation.hash.HashFunction;
 
 /**
- *
+ * This class implements the efficient hash function
+ * developed by <i>Daniel J. Bernstein</i>.
  */
 public class DjbHashFunction implements HashFunction {
 

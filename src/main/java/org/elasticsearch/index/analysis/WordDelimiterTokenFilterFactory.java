@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.lucene.Lucene;
@@ -35,18 +35,12 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter.*;
+
 public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final byte[] charTypeTable;
-    private final boolean generateWordParts;
-    private final boolean generateNumberParts;
-    private final boolean catenateWords;
-    private final boolean catenateNumbers;
-    private final boolean catenateAll;
-    private final boolean splitOnCaseChange;
-    private final boolean preserveOriginal;
-    private final boolean splitOnNumerics;
-    private final boolean stemEnglishPossessive;
+    private final int flags;
     private final CharArraySet protoWords;
 
     @Inject
@@ -65,44 +59,44 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         } else {
             this.charTypeTable = parseTypes(charTypeTableValues);
         }
-
-        // If 1, causes parts of words to be generated: "PowerShot" => "Power" "Shot"
-        this.generateWordParts = settings.getAsBoolean("generate_word_parts", true);
-        // If 1, causes number subwords to be generated: "500-42" => "500" "42"
-        this.generateNumberParts = settings.getAsBoolean("generate_number_parts", true);
+        int flags = 0;
+        // If set, causes parts of words to be generated: "PowerShot" => "Power" "Shot"
+        flags |= getFlag(GENERATE_WORD_PARTS, settings, "generate_word_parts", true);
+        // If set, causes number subwords to be generated: "500-42" => "500" "42"
+        flags |= getFlag(GENERATE_NUMBER_PARTS, settings, "generate_number_parts", true);
         // 1, causes maximum runs of word parts to be catenated: "wi-fi" => "wifi"
-        this.catenateWords = settings.getAsBoolean("catenate_words", false);
-        // If 1, causes maximum runs of number parts to be catenated: "500-42" => "50042"
-        this.catenateNumbers = settings.getAsBoolean("catenate_numbers", false);
-        // If 1, causes all subword parts to be catenated: "wi-fi-4000" => "wifi4000"
-        this.catenateAll = settings.getAsBoolean("catenate_all", false);
+        flags |= getFlag(CATENATE_WORDS, settings, "catenate_words", false);
+        // If set, causes maximum runs of number parts to be catenated: "500-42" => "50042"
+        flags |= getFlag(CATENATE_NUMBERS, settings, "catenate_numbers", false);
+        // If set, causes all subword parts to be catenated: "wi-fi-4000" => "wifi4000"
+        flags |= getFlag(CATENATE_ALL, settings, "catenate_all", false);
         // 1, causes "PowerShot" to be two tokens; ("Power-Shot" remains two parts regards)
-        this.splitOnCaseChange = settings.getAsBoolean("split_on_case_change", true);
-        // If 1, includes original words in subwords: "500-42" => "500" "42" "500-42"
-        this.preserveOriginal = settings.getAsBoolean("preserve_original", false);
+        flags |= getFlag(SPLIT_ON_CASE_CHANGE, settings, "split_on_case_change", true);
+        // If set, includes original words in subwords: "500-42" => "500" "42" "500-42"
+        flags |= getFlag(PRESERVE_ORIGINAL, settings, "preserve_original", false);
         // 1, causes "j2se" to be three tokens; "j" "2" "se"
-        this.splitOnNumerics = settings.getAsBoolean("split_on_numerics", true);
-        // If 1, causes trailing "'s" to be removed for each subword: "O'Neil's" => "O", "Neil"
-        this.stemEnglishPossessive = settings.getAsBoolean("stem_english_possessive", true);
+        flags |= getFlag(SPLIT_ON_NUMERICS, settings, "split_on_numerics", true);
+        // If set, causes trailing "'s" to be removed for each subword: "O'Neil's" => "O", "Neil"
+        flags |= getFlag(STEM_ENGLISH_POSSESSIVE, settings, "stem_english_possessive", true);
         // If not null is the set of tokens to protect from being delimited
         Set<?> protectedWords = Analysis.getWordSet(env, settings, "protected_words", version);
         this.protoWords = protectedWords == null ? null : CharArraySet.copy(Lucene.VERSION, protectedWords);
+        this.flags = flags;
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new WordDelimiterFilter(tokenStream,
                 charTypeTable,
-                generateWordParts ? 1 : 0,
-                generateNumberParts ? 1 : 0,
-                catenateWords ? 1 : 0,
-                catenateNumbers ? 1 : 0,
-                catenateAll ? 1 : 0,
-                splitOnCaseChange ? 1 : 0,
-                preserveOriginal ? 1 : 0,
-                splitOnNumerics ? 1 : 0,
-                stemEnglishPossessive ? 1 : 0,
+                flags,
                 protoWords);
+    }
+
+    public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
+        if (settings.getAsBoolean(key, defaultValue)) {
+            return flag;
+        }
+        return 0;
     }
 
     // source => type

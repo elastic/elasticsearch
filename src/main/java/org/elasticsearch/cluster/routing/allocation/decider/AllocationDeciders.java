@@ -30,12 +30,18 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import java.util.Set;
 
 /**
- * Holds several {@link AllocationDecider}s and combines them into a single allocation decision.
+ * A composite {@link AllocationDecider} combining the "decision" of multiple
+ * {@link AllocationDecider} implementations into a single allocation decision.
  */
 public class AllocationDeciders extends AllocationDecider {
 
     private final AllocationDecider[] allocations;
 
+    /**
+     * Create a new {@link AllocationDeciders} instance
+     * @param settings  settings to use
+     * @param nodeSettingsService per-node settings to use
+     */
     public AllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService) {
         this(settings, ImmutableSet.<AllocationDecider>builder()
                 .add(new SameShardAllocationDecider(settings))
@@ -59,44 +65,46 @@ public class AllocationDeciders extends AllocationDecider {
     }
 
     @Override
-    public boolean canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        for (AllocationDecider allocation1 : allocations) {
-            if (!allocation1.canRebalance(shardRouting, allocation)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    @Override
-    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        Decision ret = Decision.YES;
-        // first, check if its in the ignored, if so, return NO
-        if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            return Decision.NO;
-        }
-        // now, go over the registered allocations
-        for (AllocationDecider allocation1 : allocations) {
-            Decision decision = allocation1.canAllocate(shardRouting, node, allocation);
-            if (decision == Decision.NO) {
-                return Decision.NO;
-            } else if (decision == Decision.THROTTLE) {
-                ret = Decision.THROTTLE;
+    public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canRebalance(shardRouting, allocation);
+            if (decision != Decision.ALWAYS) {
+                ret.add(decision);
             }
         }
         return ret;
     }
 
     @Override
-    public boolean canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+    public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
-            return false;
+            return Decision.NO;
         }
-        for (AllocationDecider allocation1 : allocations) {
-            if (!allocation1.canRemain(shardRouting, node, allocation)) {
-                return false;
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
+            // the assumption is that a decider that returns the static instance Decision#ALWAYS
+            // does not really implements canAllocate
+            if (decision != Decision.ALWAYS) {
+                ret.add(decision);
             }
         }
-        return true;
+        return ret;
+    }
+
+    @Override
+    public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
+            return Decision.NO;
+        }
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canRemain(shardRouting, node, allocation);
+            if (decision != Decision.ALWAYS) {
+                ret.add(decision);
+            }
+        }
+        return ret;
     }
 }

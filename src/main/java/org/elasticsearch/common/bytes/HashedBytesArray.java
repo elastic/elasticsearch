@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import com.google.common.base.Charsets;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -124,14 +125,24 @@ public class HashedBytesArray implements BytesReference {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        HashedBytesArray bytesWrap = (HashedBytesArray) o;
-        return Arrays.equals(bytes, bytesWrap.bytes);
+    public BytesRef toBytesRef() {
+        return new BytesRef(bytes);
+    }
+
+    @Override
+    public BytesRef copyBytesRef() {
+        byte[] copy = new byte[bytes.length];
+        System.arraycopy(bytes, 0, copy, 0, bytes.length);
+        return new BytesRef(copy);
     }
 
     @Override
     public int hashCode() {
-        return hashCode;
+        return Helper.bytesHashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return Helper.bytesEqual(this, (BytesReference) obj);
     }
 }

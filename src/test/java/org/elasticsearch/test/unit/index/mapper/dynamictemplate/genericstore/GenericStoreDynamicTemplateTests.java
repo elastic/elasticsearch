@@ -20,7 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.dynamictemplate.genericstore;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -44,21 +44,21 @@ public class GenericStoreDynamicTemplateTests {
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/genericstore/test-data.json");
         Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
 
-        Fieldable f = doc.getFieldable("name");
+        IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
         assertThat(f.stringValue(), equalTo("some name"));
-        assertThat(f.isStored(), equalTo(true));
+        assertThat(f.fieldType().stored(), equalTo(true));
 
         FieldMappers fieldMappers = docMapper.mappers().fullName("name");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
-        assertThat(fieldMappers.mapper().stored(), equalTo(true));
+        assertThat(fieldMappers.mapper().fieldType().stored(), equalTo(true));
 
-        f = doc.getFieldable("age");
+        f = doc.getField("age");
         assertThat(f.name(), equalTo("age"));
-        assertThat(f.isStored(), equalTo(true));
+        assertThat(f.fieldType().stored(), equalTo(true));
 
         fieldMappers = docMapper.mappers().fullName("age");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
-        assertThat(fieldMappers.mapper().stored(), equalTo(true));
+        assertThat(fieldMappers.mapper().fieldType().stored(), equalTo(true));
     }
 }

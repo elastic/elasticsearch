@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.cache.filter.support;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.Unicode;
 
 import java.io.IOException;
@@ -85,9 +86,13 @@ public interface CacheKeyFilter {
             return key;
         }
 
+        public Filter wrappedFilter() {
+            return filter;
+        }
+
         @Override
-        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            return filter.getDocIdSet(reader);
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+            return filter.getDocIdSet(context, acceptDocs);
         }
 
         @Override

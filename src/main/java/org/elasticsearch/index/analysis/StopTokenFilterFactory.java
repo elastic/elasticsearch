@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.StopAnalyzer;
-import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.StopAnalyzer;
+import org.apache.lucene.analysis.core.StopFilter;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -37,7 +38,7 @@ import java.util.Set;
  */
 public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final Set<?> stopWords;
+    private final CharArraySet stopWords;
 
     private final boolean ignoreCase;
 
@@ -46,14 +47,15 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
     @Inject
     public StopTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
-        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", version.onOrAfter(Version.LUCENE_29));
+        this.stopWords = Analysis.parseStopWords(env, settings, StopAnalyzer.ENGLISH_STOP_WORDS_SET, version, ignoreCase);
+        // LUCENE 4 UPGRADE: LUCENE_29 constant is no longer defined
+        this.enablePositionIncrements = settings.getAsBoolean("enable_position_increments", version.onOrAfter(Version.LUCENE_30));
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        StopFilter filter = new StopFilter(version, tokenStream, stopWords, ignoreCase);
+        StopFilter filter = new StopFilter(version, tokenStream, stopWords);
         filter.setEnablePositionIncrements(enablePositionIncrements);
         return filter;
     }

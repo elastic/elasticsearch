@@ -20,11 +20,15 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -40,16 +44,20 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     public static class Defaults extends IntegerFieldMapper.Defaults {
         public static final String NAME = CONTENT_TYPE;
         public static final boolean ENABLED = false;
+
+        public static final FieldType SIZE_FIELD_TYPE = new FieldType(IntegerFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            SIZE_FIELD_TYPE.freeze();
+        }
     }
 
-    public static class Builder extends Mapper.Builder<Builder, IntegerFieldMapper> {
+    public static class Builder extends NumberFieldMapper.Builder<Builder, IntegerFieldMapper> {
 
         protected boolean enabled = Defaults.ENABLED;
 
-        protected Field.Store store = Defaults.STORE;
-
         public Builder() {
-            super(Defaults.NAME);
+            super(Defaults.NAME, new FieldType(Defaults.SIZE_FIELD_TYPE));
             builder = this;
         }
 
@@ -58,14 +66,14 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
             return builder;
         }
 
-        public Builder store(Field.Store store) {
-            this.store = store;
+        public Builder store(boolean store) {
+            this.fieldType.setStored(store);
             return builder;
         }
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabled, store);
+            return new SizeFieldMapper(enabled, fieldType, provider, fieldDataSettings);
         }
     }
 
@@ -89,13 +97,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     private final boolean enabled;
 
     public SizeFieldMapper() {
-        this(Defaults.ENABLED, Defaults.STORE);
+        this(Defaults.ENABLED, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null);
     }
 
-    public SizeFieldMapper(boolean enabled, Field.Store store) {
-        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP, Defaults.FUZZY_FACTOR, Defaults.INDEX, store,
-                Defaults.BOOST, Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Defaults.NULL_VALUE,
-                Defaults.IGNORE_MALFORMED);
+    public SizeFieldMapper(boolean enabled, FieldType fieldType, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
+        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP,
+                Defaults.BOOST, fieldType, Defaults.NULL_VALUE, Defaults.IGNORE_MALFORMED, provider, null, fieldDataSettings);
         this.enabled = enabled;
     }
 
@@ -133,25 +140,28 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     @Override
-    protected Fieldable innerParseCreateField(ParseContext context) throws IOException {
+    protected Field innerParseCreateField(ParseContext context) throws IOException {
         if (!enabled) {
             return null;
         }
-        return new CustomIntegerNumericField(this, context.source().length());
+        if (context.flyweight()) {
+            return null;
+        }
+        return new CustomIntegerNumericField(this, context.source().length(), fieldType);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && store == Defaults.STORE) {
+        if (enabled == Defaults.ENABLED && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
             return builder;
         }
         builder.startObject(contentType());
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
-        if (store != Defaults.STORE) {
-            builder.field("store", store.name().toLowerCase());
+        if (fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
+            builder.field("store", fieldType().stored());
         }
         builder.endObject();
         return builder;

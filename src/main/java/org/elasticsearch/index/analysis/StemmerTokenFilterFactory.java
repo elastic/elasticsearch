@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.PorterStemFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
 import org.apache.lucene.analysis.bg.BulgarianStemFilter;
@@ -31,6 +30,7 @@ import org.apache.lucene.analysis.el.GreekStemFilter;
 import org.apache.lucene.analysis.en.EnglishMinimalStemFilter;
 import org.apache.lucene.analysis.en.EnglishPossessiveFilter;
 import org.apache.lucene.analysis.en.KStemFilter;
+import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.es.SpanishLightStemFilter;
 import org.apache.lucene.analysis.fi.FinnishLightStemFilter;
 import org.apache.lucene.analysis.fr.FrenchLightStemFilter;
@@ -40,6 +40,7 @@ import org.apache.lucene.analysis.hu.HungarianLightStemFilter;
 import org.apache.lucene.analysis.id.IndonesianStemFilter;
 import org.apache.lucene.analysis.it.ItalianLightStemFilter;
 import org.apache.lucene.analysis.lv.LatvianStemFilter;
+import org.apache.lucene.analysis.no.NorwegianMinimalStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseLightStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseMinimalStemFilter;
 import org.apache.lucene.analysis.pt.PortugueseStemFilter;
@@ -110,6 +111,8 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             return new LatvianStemFilter(tokenStream);
         } else if ("norwegian".equalsIgnoreCase(language)) {
             return new SnowballFilter(tokenStream, new NorwegianStemmer());
+        } else if ("minimal_norwegian".equalsIgnoreCase(language) || "minimalNorwegian".equals(language)) {
+            return new NorwegianMinimalStemFilter(tokenStream);
         } else if ("porter".equalsIgnoreCase(language)) {
             return new PorterStemFilter(tokenStream);
         } else if ("porter2".equalsIgnoreCase(language)) {

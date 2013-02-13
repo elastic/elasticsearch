@@ -44,6 +44,7 @@ public class StringAndBytesText implements Text {
 
     private BytesReference bytes;
     private String text;
+    private int hash;
 
     public StringAndBytesText(BytesReference bytes) {
         this.bytes = bytes;
@@ -86,5 +87,23 @@ public class StringAndBytesText implements Text {
     @Override
     public String toString() {
         return string();
+    }
+
+    @Override
+    public int hashCode() {
+        if (hash == 0) {
+            hash = bytes().hashCode();
+        }
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return bytes().equals(((Text) obj).bytes());
+    }
+
+    @Override
+    public int compareTo(Text text) {
+        return UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder.compare(bytes(), text.bytes());
     }
 }

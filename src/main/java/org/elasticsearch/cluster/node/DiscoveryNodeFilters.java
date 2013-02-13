@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -32,13 +31,16 @@ import java.util.Map;
  */
 public class DiscoveryNodeFilters {
 
-    public static final DiscoveryNodeFilters NO_FILTERS = new DiscoveryNodeFilters(ImmutableMap.<String, String[]>of());
+    public static enum OpType {
+        AND,
+        OR
+    };
 
-    public static DiscoveryNodeFilters buildFromSettings(String prefix, Settings settings) {
-        return buildFromKeyValue(settings.getByPrefix(prefix).getAsMap());
+    public static DiscoveryNodeFilters buildFromSettings(OpType opType, String prefix, Settings settings) {
+        return buildFromKeyValue(opType, settings.getByPrefix(prefix).getAsMap());
     }
 
-    public static DiscoveryNodeFilters buildFromKeyValue(Map<String, String> filters) {
+    public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
         Map<String, String[]> bFilters = new HashMap<String, String[]>();
         for (Map.Entry<String, String> entry : filters.entrySet()) {
             String[] values = Strings.splitStringByCommaToArray(entry.getValue());
@@ -47,76 +49,123 @@ public class DiscoveryNodeFilters {
             }
         }
         if (bFilters.isEmpty()) {
-            return NO_FILTERS;
+            return null;
         }
-        return new DiscoveryNodeFilters(bFilters);
+        return new DiscoveryNodeFilters(opType, bFilters);
     }
 
     private final Map<String, String[]> filters;
 
-    DiscoveryNodeFilters(Map<String, String[]> filters) {
+    private final OpType opType;
+
+    DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
+        this.opType = opType;
         this.filters = filters;
     }
 
     public boolean match(DiscoveryNode node) {
-        if (filters.isEmpty()) {
-            return true;
-        }
         for (Map.Entry<String, String[]> entry : filters.entrySet()) {
             String attr = entry.getKey();
             String[] values = entry.getValue();
             if ("_ip".equals(attr)) {
                 if (!(node.address() instanceof InetSocketTransportAddress)) {
-                    return false;
+                    if (opType == OpType.AND) {
+                        return false;
+                    } else {
+                        continue;
+                    }
                 }
                 InetSocketTransportAddress inetAddress = (InetSocketTransportAddress) node.address();
                 for (String value : values) {
                     if (Regex.simpleMatch(value, inetAddress.address().getAddress().getHostAddress())) {
-                        return true;
+                        if (opType == OpType.OR) {
+                            return true;
+                        }
+                    } else {
+                        if (opType == OpType.AND) {
+                            return false;
+                        }
                     }
                 }
-                return false;
             } else if ("_host".equals(attr)) {
                 if (!(node.address() instanceof InetSocketTransportAddress)) {
-                    return false;
+                    if (opType == OpType.AND) {
+                        return false;
+                    } else {
+                        continue;
+                    }
                 }
                 InetSocketTransportAddress inetAddress = (InetSocketTransportAddress) node.address();
                 for (String value : values) {
                     if (Regex.simpleMatch(value, inetAddress.address().getHostName())) {
-                        return true;
+                        if (opType == OpType.OR) {
+                            return true;
+                        }
+                    } else {
+                        if (opType == OpType.AND) {
+                            return false;
+                        }
                     }
                     if (Regex.simpleMatch(value, inetAddress.address().getAddress().getHostAddress())) {
-                        return true;
+                        if (opType == OpType.OR) {
+                            return true;
+                        }
+                    } else {
+                        if (opType == OpType.AND) {
+                            return false;
+                        }
                     }
                 }
-                return false;
             } else if ("_id".equals(attr)) {
                 for (String value : values) {
                     if (node.id().equals(value)) {
-                        return true;
+                        if (opType == OpType.OR) {
+                            return true;
+                        }
+                    } else {
+                        if (opType == OpType.AND) {
+                            return false;
+                        }
                     }
                 }
-                return false;
             } else if ("_name".equals(attr) || "name".equals(attr)) {
                 for (String value : values) {
                     if (Regex.simpleMatch(value, node.name())) {
-                        return true;
+                        if (opType == OpType.OR) {
+                            return true;
+                        }
+                    } else {
+                        if (opType == OpType.AND) {
+                            return false;
+                        }
                     }
                 }
-                return false;
             } else {
                 String nodeAttributeValue = node.attributes().get(attr);
                 if (nodeAttributeValue == null) {
-                    return false;
+                    if (opType == OpType.AND) {
+                        return false;
+                    } else {
+                        continue;
+                    }
                 }
                 for (String value : values) {
                     if (Regex.simpleMatch(value, nodeAttributeValue)) {
-                        return true;
+                        if (opType == OpType.OR) {
+                            return true;
+                        }
+                    } else {
+                        if (opType == OpType.AND) {
+                            return false;
+                        }
                     }
                 }
-                return false;
             }
         }
-        return true;
+        if (opType == OpType.OR) {
+            return false;
+        } else {
+            return true;
+        }
     }
 }

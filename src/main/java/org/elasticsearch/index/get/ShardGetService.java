@@ -19,21 +19,22 @@
 
 package org.elasticsearch.index.get;
 
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Fieldable;
+import com.google.common.collect.Sets;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.document.ResetFieldSelector;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.*;
-import org.elasticsearch.index.mapper.selector.FieldMappersFieldSelector;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,6 +47,8 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -59,7 +62,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
     private final MapperService mapperService;
 
-    private final IndexCache indexCache;
+    private final IndexFieldDataService fieldDataService;
 
     private IndexShard indexShard;
 
@@ -69,11 +72,11 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
     @Inject
     public ShardGetService(ShardId shardId, @IndexSettings Settings indexSettings, ScriptService scriptService,
-                           MapperService mapperService, IndexCache indexCache) {
+                           MapperService mapperService, IndexFieldDataService fieldDataService) {
         super(shardId, indexSettings);
         this.scriptService = scriptService;
         this.mapperService = mapperService;
-        this.indexCache = indexCache;
+        this.fieldDataService = fieldDataService;
     }
 
     public GetStats stats() {
@@ -106,7 +109,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
      * Returns {@link GetResult} based on the specified {@link Engine.GetResult} argument.
      * This method basically loads specified fields for the associated document in the engineGetResult.
      * This method load the fields from the Lucene index and not from transaction log and therefore isn't realtime.
-     * <p>
+     * <p/>
      * Note: Call <b>must</b> release engine searcher associated with engineGetResult!
      */
     public GetResult get(Engine.GetResult engineGetResult, String id, String type, String[] fields) {
@@ -140,7 +143,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         Engine.GetResult get = null;
         if (type == null || type.equals("_all")) {
             for (String typeX : mapperService.types()) {
-                get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(typeX, id))).loadSource(loadSource));
+                get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(typeX, id))).loadSource(loadSource));
                 if (get.exists()) {
                     type = typeX;
                     break;
@@ -156,7 +159,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
             }
         } else {
-            get = indexShard.get(new Engine.Get(realtime, UidFieldMapper.TERM_FACTORY.createTerm(Uid.createUid(type, id))).loadSource(loadSource));
+            get = indexShard.get(new Engine.Get(realtime, new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id))).loadSource(loadSource));
             if (!get.exists()) {
                 get.release();
                 return new GetResult(shardId.index().name(), type, id, -1, false, null, null);
@@ -194,23 +197,23 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             continue;
                         }
                         Object value = null;
-                        if (field.equals(RoutingFieldMapper.NAME) && docMapper.routingFieldMapper().stored()) {
+                        if (field.equals(RoutingFieldMapper.NAME) && docMapper.routingFieldMapper().fieldType().stored()) {
                             value = source.routing;
-                        } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper() != null && docMapper.parentFieldMapper().stored()) {
+                        } else if (field.equals(ParentFieldMapper.NAME) && docMapper.parentFieldMapper() != null && docMapper.parentFieldMapper().fieldType().stored()) {
                             value = source.parent;
-                        } else if (field.equals(TimestampFieldMapper.NAME) && docMapper.timestampFieldMapper().stored()) {
+                        } else if (field.equals(TimestampFieldMapper.NAME) && docMapper.timestampFieldMapper().fieldType().stored()) {
                             value = source.timestamp;
-                        } else if (field.equals(TTLFieldMapper.NAME) && docMapper.TTLFieldMapper().stored()) {
+                        } else if (field.equals(TTLFieldMapper.NAME) && docMapper.TTLFieldMapper().fieldType().stored()) {
                             // Call value for search with timestamp + ttl here to display the live remaining ttl value and be consistent with the search result display
                             if (source.ttl > 0) {
                                 value = docMapper.TTLFieldMapper().valueForSearch(source.timestamp + source.ttl);
                             }
-                        } else if (field.equals(SizeFieldMapper.NAME) && docMapper.rootMapper(SizeFieldMapper.class).stored()) {
+                        } else if (field.equals(SizeFieldMapper.NAME) && docMapper.rootMapper(SizeFieldMapper.class).fieldType().stored()) {
                             value = source.source.length();
                         } else {
                             if (field.contains("_source.")) {
                                 if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                                    searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                                 }
                                 if (sourceAsMap == null) {
                                     sourceAsMap = SourceLookup.sourceAsMap(source.source);
@@ -233,16 +236,17 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 }
                             } else {
                                 if (searchLookup == null) {
-                                    searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                                    searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                                     searchLookup.source().setNextSource(source.source);
                                 }
 
                                 FieldMapper<?> x = docMapper.mappers().smartNameFieldMapper(field);
                                 // only if the field is stored or source is enabled we should add it..
-                                if (docMapper.sourceMapper().enabled() || x == null || x.stored()) {
+                                if (docMapper.sourceMapper().enabled() || x == null || x.fieldType().stored()) {
                                     value = searchLookup.source().extractValue(field);
-                                    if (x != null && value instanceof String) {
-                                        value = x.valueFromString((String) value);
+                                    // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
+                                    if (value != null && x != null) {
+                                        value = x.valueForSearch(value);
                                     }
                                 }
                             }
@@ -275,49 +279,23 @@ public class ShardGetService extends AbstractIndexShardComponent {
 
     private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, Engine.GetResult get, DocumentMapper docMapper) {
         Map<String, GetField> fields = null;
-        byte[] source = null;
+        BytesReference source = null;
         UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
-        ResetFieldSelector fieldSelector = buildFieldSelectors(docMapper, gFields);
-        if (fieldSelector != null) {
-            fieldSelector.reset();
-            Document doc;
+        FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields);
+        if (fieldVisitor != null) {
             try {
-                doc = docIdAndVersion.reader.document(docIdAndVersion.docId, fieldSelector);
+                docIdAndVersion.reader.reader().document(docIdAndVersion.docId, fieldVisitor);
             } catch (IOException e) {
                 throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "]", e);
             }
-            source = extractSource(doc, docMapper);
+            source = fieldVisitor.source();
 
-            for (Object oField : doc.getFields()) {
-                Fieldable field = (Fieldable) oField;
-                String name = field.name();
-                Object value = null;
-                FieldMappers fieldMappers = docMapper.mappers().indexName(field.name());
-                if (fieldMappers != null) {
-                    FieldMapper mapper = fieldMappers.mapper();
-                    if (mapper != null) {
-                        name = mapper.names().fullName();
-                        value = mapper.valueForSearch(field);
-                    }
+            if (fieldVisitor.fields() != null) {
+                fieldVisitor.postProcess(docMapper);
+                fields = new HashMap<String, GetField>(fieldVisitor.fields().size());
+                for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
+                    fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue()));
                 }
-                if (value == null) {
-                    if (field.isBinary()) {
-                        value = new BytesArray(field.getBinaryValue(), field.getBinaryOffset(), field.getBinaryLength());
-                    } else {
-                        value = field.stringValue();
-                    }
-                }
-
-                if (fields == null) {
-                    fields = newHashMapWithExpectedSize(2);
-                }
-
-                GetField getField = fields.get(name);
-                if (getField == null) {
-                    getField = new GetField(name, new ArrayList<Object>(2));
-                    fields.put(name, getField);
-                }
-                getField.values().add(value);
             }
         }
 
@@ -328,7 +306,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 Object value = null;
                 if (field.contains("_source.") || field.contains("doc[")) {
                     if (searchLookup == null) {
-                        searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                        searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                     }
                     SearchScript searchScript = scriptService.search(searchLookup, "mvel", field, null);
                     searchScript.setNextReader(docIdAndVersion.reader);
@@ -344,13 +322,17 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     }
                 } else {
                     FieldMappers x = docMapper.mappers().smartName(field);
-                    if (x == null || !x.mapper().stored()) {
+                    if (x == null || !x.mapper().fieldType().stored()) {
                         if (searchLookup == null) {
-                            searchLookup = new SearchLookup(mapperService, indexCache.fieldData(), new String[]{type});
+                            searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
                             searchLookup.setNextReader(docIdAndVersion.reader);
                             searchLookup.setNextDocId(docIdAndVersion.docId);
                         }
                         value = searchLookup.source().extractValue(field);
+                        // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
+                        if (value != null && x != null) {
+                            value = x.mapper().valueForSearch(value);
+                        }
                     }
                 }
 
@@ -368,12 +350,12 @@ public class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source == null ? null : new BytesArray(source), fields);
+        return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), source, fields);
     }
 
-    private static ResetFieldSelector buildFieldSelectors(DocumentMapper docMapper, String... fields) {
+    private static FieldsVisitor buildFieldsVisitors(String... fields) {
         if (fields == null) {
-            return docMapper.sourceMapper().fieldSelector();
+            return new JustSourceFieldsVisitor();
         }
 
         // don't load anything
@@ -381,27 +363,6 @@ public class ShardGetService extends AbstractIndexShardComponent {
             return null;
         }
 
-        FieldMappersFieldSelector fieldSelector = null;
-        for (String fieldName : fields) {
-            FieldMappers x = docMapper.mappers().smartName(fieldName);
-            if (x != null && x.mapper().stored()) {
-                if (fieldSelector == null) {
-                    fieldSelector = new FieldMappersFieldSelector();
-                }
-                fieldSelector.add(x);
-            }
-        }
-
-        return fieldSelector;
-    }
-
-    private static byte[] extractSource(Document doc, DocumentMapper documentMapper) {
-        byte[] source = null;
-        Fieldable sourceField = doc.getFieldable(documentMapper.sourceMapper().names().indexName());
-        if (sourceField != null) {
-            source = documentMapper.sourceMapper().nativeValue(sourceField);
-            doc.removeField(documentMapper.sourceMapper().names().indexName());
-        }
-        return source;
+        return new CustomFieldsVisitor(Sets.newHashSet(fields), false);
     }
 }

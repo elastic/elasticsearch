@@ -20,18 +20,27 @@
 package org.elasticsearch.cluster.routing;
 
 /**
- *
+ * Convenience class that provides access to {@link RoutingTable.Builder} and
+ * {@link IndexRoutingTable.Builder}. These builder classes should be used to
+ * build {@link RoutingTable} and {@link IndexRoutingTable} instances,
+ * repectively.
  */
 public final class RoutingBuilders {
 
     private RoutingBuilders() {
-
+        //no instance
     }
 
+    /**
+     * Returns a new {@link RoutingTable.Builder} instance
+     */
     public static RoutingTable.Builder routingTable() {
         return new RoutingTable.Builder();
     }
-
+    
+    /**
+     * Returns a new {@link IndexRoutingTable.Builder} instance
+     */
     public static IndexRoutingTable.Builder indexRoutingTable(String index) {
         return new IndexRoutingTable.Builder(index);
     }

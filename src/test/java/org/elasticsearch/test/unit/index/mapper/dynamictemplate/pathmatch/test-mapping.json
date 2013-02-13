@@ -16,6 +16,14 @@
                         "store":"yes"
                     }
                 }
+            },
+            {
+                "template_3":{
+                    "path_match":"*.obj4.*",
+                    "mapping":{
+                        "type":"string"
+                    }
+                }
             }
         ]
     }

@@ -19,14 +19,21 @@
 
 package org.elasticsearch.common.lucene.all;
 
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermPositions;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.similarities.Similarity;
+import org.apache.lucene.search.similarities.Similarity.SloppySimScorer;
 import org.apache.lucene.search.spans.SpanScorer;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.search.spans.SpanWeight;
 import org.apache.lucene.search.spans.TermSpans;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
@@ -51,32 +58,34 @@ public class AllTermQuery extends SpanTermQuery {
     }
 
     @Override
-    public Weight createWeight(Searcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher) throws IOException {
         return new AllTermWeight(this, searcher);
     }
 
     protected class AllTermWeight extends SpanWeight {
 
-        public AllTermWeight(AllTermQuery query, Searcher searcher) throws IOException {
+        public AllTermWeight(AllTermQuery query, IndexSearcher searcher) throws IOException {
             super(query, searcher);
         }
 
         @Override
-        public Scorer scorer(IndexReader reader, boolean scoreDocsInOrder,
-                             boolean topScorer) throws IOException {
-            return new AllTermSpanScorer((TermSpans) query.getSpans(reader), this, similarity, reader.norms(query.getField()));
+        public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder,
+                boolean topScorer, Bits acceptDocs) throws IOException {
+            if (this.stats == null) {
+                return null;
+            }
+            SloppySimScorer sloppySimScorer = similarity.sloppySimScorer(stats, context);
+            return new AllTermSpanScorer((TermSpans) query.getSpans(context, acceptDocs, termContexts), this, sloppySimScorer);
         }
 
         protected class AllTermSpanScorer extends SpanScorer {
-            // TODO: is this the best way to allocate this?
-            protected byte[] payload = new byte[4];
-            protected TermPositions positions;
+            protected DocsAndPositionsEnum positions;
             protected float payloadScore;
             protected int payloadsSeen;
 
-            public AllTermSpanScorer(TermSpans spans, Weight weight, Similarity similarity, byte[] norms) throws IOException {
-                super(spans, weight, similarity, norms);
-                positions = spans.getPositions();
+            public AllTermSpanScorer(TermSpans spans, Weight weight, Similarity.SloppySimScorer docScorer) throws IOException {
+                super(spans, weight, docScorer);
+                positions = spans.getPostings();
             }
 
             @Override
@@ -88,12 +97,11 @@ public class AllTermQuery extends SpanTermQuery {
                 freq = 0.0f;
                 payloadScore = 0;
                 payloadsSeen = 0;
-                Similarity similarity1 = getSimilarity();
                 while (more && doc == spans.doc()) {
                     int matchLength = spans.end() - spans.start();
 
-                    freq += similarity1.sloppyFreq(matchLength);
-                    processPayload(similarity1);
+                    freq += docScorer.computeSlopFactor(matchLength);
+                    processPayload();
 
                     more = spans.next();// this moves positions to the next match in this
                     // document
@@ -101,10 +109,10 @@ public class AllTermQuery extends SpanTermQuery {
                 return more || (freq != 0);
             }
 
-            protected void processPayload(Similarity similarity) throws IOException {
-                if (positions.isPayloadAvailable()) {
-                    payload = positions.getPayload(payload, 0);
-                    payloadScore += decodeFloat(payload);
+            protected void processPayload() throws IOException {
+                final BytesRef payload;
+                if ((payload = positions.getPayload()) != null) {
+                    payloadScore += decodeFloat(payload.bytes, payload.offset);
                     payloadsSeen++;
 
                 } else {
@@ -141,27 +149,40 @@ public class AllTermQuery extends SpanTermQuery {
                 return payloadsSeen > 0 ? (payloadScore / payloadsSeen) : 1;
             }
 
-            @Override
-            protected Explanation explain(final int doc) throws IOException {
+        }
+        
+        @Override
+        public Explanation explain(AtomicReaderContext context, int doc) throws IOException{
+            AllTermSpanScorer scorer = (AllTermSpanScorer) scorer(context, true, false, context.reader().getLiveDocs());
+            if (scorer != null) {
+              int newDoc = scorer.advance(doc);
+              if (newDoc == doc) {
+                float freq = scorer.freq();
+                SloppySimScorer docScorer = similarity.sloppySimScorer(stats, context);
+                ComplexExplanation inner = new ComplexExplanation();
+                inner.setDescription("weight("+getQuery()+" in "+doc+") [" + similarity.getClass().getSimpleName() + "], result of:");
+                Explanation scoreExplanation = docScorer.explain(doc, new Explanation(freq, "phraseFreq=" + freq));
+                inner.addDetail(scoreExplanation);
+                inner.setValue(scoreExplanation.getValue());
+                inner.setMatch(true);
                 ComplexExplanation result = new ComplexExplanation();
-                Explanation nonPayloadExpl = super.explain(doc);
-                result.addDetail(nonPayloadExpl);
-                // QUESTION: Is there a way to avoid this skipTo call? We need to know
-                // whether to load the payload or not
+                result.addDetail(inner);
                 Explanation payloadBoost = new Explanation();
                 result.addDetail(payloadBoost);
-
-                float payloadScore = getPayloadScore();
+                final float payloadScore = scorer.getPayloadScore();
                 payloadBoost.setValue(payloadScore);
                 // GSI: I suppose we could toString the payload, but I don't think that
                 // would be a good idea
                 payloadBoost.setDescription("allPayload(...)");
-                result.setValue(nonPayloadExpl.getValue() * payloadScore);
+                result.setValue(inner.getValue() * payloadScore);
                 result.setDescription("btq, product of:");
-                result.setMatch(nonPayloadExpl.getValue() == 0 ? Boolean.FALSE : Boolean.TRUE); // LUCENE-1303
                 return result;
+              }
             }
-
+            
+            return new ComplexExplanation(false, 0.0f, "no matching term");
+            
+            
         }
     }
 

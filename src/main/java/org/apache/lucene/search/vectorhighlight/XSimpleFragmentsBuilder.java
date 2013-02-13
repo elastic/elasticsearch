@@ -24,13 +24,14 @@ import java.util.List;
 /**
  * A simple implementation of FragmentsBuilder.
  */
-public class XSimpleFragmentsBuilder extends AbstractFragmentsBuilder {
+public class XSimpleFragmentsBuilder extends BaseFragmentsBuilder {
 
     /**
      * a constructor.
      */
     public XSimpleFragmentsBuilder() {
         super();
+        setDiscreteMultiValueHighlighting(true);
     }
 
     /**
@@ -41,14 +42,17 @@ public class XSimpleFragmentsBuilder extends AbstractFragmentsBuilder {
      */
     public XSimpleFragmentsBuilder(String[] preTags, String[] postTags) {
         super(preTags, postTags);
+        setDiscreteMultiValueHighlighting(true);
     }
 
     public XSimpleFragmentsBuilder(BoundaryScanner bs) {
         super(bs);
+        setDiscreteMultiValueHighlighting(true);
     }
 
     public XSimpleFragmentsBuilder(String[] preTags, String[] postTags, BoundaryScanner bs) {
         super(preTags, postTags, bs);
+        setDiscreteMultiValueHighlighting(true);
     }
 
     /**

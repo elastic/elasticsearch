@@ -19,18 +19,21 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.search.UidFilter;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 
 /**
  *
@@ -52,7 +55,7 @@ public class IdsQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        List<String> ids = new ArrayList<String>();
+        List<BytesRef> ids = new ArrayList<BytesRef>();
         Collection<String> types = null;
         String currentFieldName = null;
         float boost = 1.0f;
@@ -63,7 +66,7 @@ public class IdsQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("values".equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        String value = parser.textOrNull();
+                        BytesRef value = parser.bytesOrNull();
                         if (value == null) {
                             throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
                         }
@@ -102,7 +105,7 @@ public class IdsQueryParser implements QueryParser {
             types = parseContext.mapperService().types();
         }
 
-        UidFilter filter = new UidFilter(types, ids, parseContext.indexCache().bloomCache());
+        TermsFilter filter = new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(types, ids));
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
         ConstantScoreQuery query = new ConstantScoreQuery(filter);
         query.setBoost(boost);

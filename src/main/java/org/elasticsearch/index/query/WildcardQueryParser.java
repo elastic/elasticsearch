@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.WildcardQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
@@ -90,13 +91,16 @@ public class WildcardQueryParser implements QueryParser {
             throw new QueryParsingException(parseContext.index(), "No value specified for prefix query");
         }
 
+        BytesRef valueBytes;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
             fieldName = smartNameFieldMappers.mapper().names().indexName();
-            value = smartNameFieldMappers.mapper().indexedValue(value);
+            valueBytes = smartNameFieldMappers.mapper().indexedValueForSearch(value);
+        } else {
+            valueBytes = new BytesRef(value);
         }
 
-        WildcardQuery query = new WildcardQuery(new Term(fieldName, value));
+        WildcardQuery query = new WildcardQuery(new Term(fieldName, valueBytes));
         QueryParsers.setRewriteMethod(query, rewriteMethod);
         query.setRewriteMethod(QueryParsers.parseRewriteMethod(rewriteMethod));
         query.setBoost(boost);

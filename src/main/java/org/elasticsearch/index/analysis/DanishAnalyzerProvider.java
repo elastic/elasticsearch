@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.da.DanishAnalyzer;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -40,7 +40,7 @@ public class DanishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Danish
         super(index, indexSettings, name, settings);
         analyzer = new DanishAnalyzer(version,
                 Analysis.parseStopWords(env, settings, DanishAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
     }
 
     @Override

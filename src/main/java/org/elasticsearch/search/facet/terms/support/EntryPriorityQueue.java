@@ -31,7 +31,7 @@ public class EntryPriorityQueue extends PriorityQueue<TermsFacet.Entry> {
     private final Comparator<TermsFacet.Entry> comparator;
 
     public EntryPriorityQueue(int size, Comparator<TermsFacet.Entry> comparator) {
-        initialize(size);
+        super(size);
         this.comparator = comparator;
     }
 

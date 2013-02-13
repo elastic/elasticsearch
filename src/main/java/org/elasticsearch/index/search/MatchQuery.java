@@ -25,13 +25,18 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.CommonTermsQuery;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -51,6 +56,11 @@ public class MatchQuery {
         PHRASE_PREFIX
     }
 
+    public static enum ZeroTermsQuery {
+        NONE,
+        ALL
+    }
+
     protected final QueryParseContext parseContext;
 
     protected String analyzer;
@@ -62,14 +72,24 @@ public class MatchQuery {
     protected int phraseSlop = 0;
 
     protected String fuzziness = null;
+    
     protected int fuzzyPrefixLength = FuzzyQuery.defaultPrefixLength;
+    
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
+    
+    //LUCENE 4 UPGRADE we need a default value for this!
+    protected boolean transpositions = false;
 
     protected MultiTermQuery.RewriteMethod rewriteMethod;
+
     protected MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
     protected boolean lenient;
 
+    protected ZeroTermsQuery zeroTermsQuery = ZeroTermsQuery.NONE;
+    
+    protected Float commonTermsCutoff = null;
+    
     public MatchQuery(QueryParseContext parseContext) {
         this.parseContext = parseContext;
     }
@@ -80,6 +100,10 @@ public class MatchQuery {
 
     public void setOccur(BooleanClause.Occur occur) {
         this.occur = occur;
+    }
+    
+    public void setCommonTermsCutoff(float cutoff) {
+        this.commonTermsCutoff = Float.valueOf(cutoff);
     }
 
     public void setEnablePositionIncrements(boolean enablePositionIncrements) {
@@ -102,6 +126,10 @@ public class MatchQuery {
         this.maxExpansions = maxExpansions;
     }
 
+    public void setTranspositions(boolean transpositions) {
+        this.transpositions = transpositions;
+    }
+
     public void setRewriteMethod(MultiTermQuery.RewriteMethod rewriteMethod) {
         this.rewriteMethod = rewriteMethod;
     }
@@ -114,22 +142,26 @@ public class MatchQuery {
         this.lenient = lenient;
     }
 
-    public Query parse(Type type, String fieldName, String text) {
+    public void setZeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+        this.zeroTermsQuery = zeroTermsQuery;
+    }
+
+    public Query parse(Type type, String fieldName, Object value) throws IOException {
         FieldMapper mapper = null;
-        Term fieldTerm;
+        final String field;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
         if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
             mapper = smartNameFieldMappers.mapper();
-            fieldTerm = mapper.names().indexNameTerm();
+            field = mapper.names().indexName();
         } else {
-            fieldTerm = new Term(fieldName);
+            field = fieldName;
         }
 
-        if (mapper != null && mapper.useFieldQueryWithQueryString()) {
+        if (mapper != null && mapper.useTermQueryWithQueryString()) {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 String[] previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
                 try {
-                    return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                    return wrapSmartNameQuery(mapper.termQuery(value, parseContext), smartNameFieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (lenient) {
                         return null;
@@ -140,7 +172,7 @@ public class MatchQuery {
                 }
             } else {
                 try {
-                    return wrapSmartNameQuery(mapper.fieldQuery(text, parseContext), smartNameFieldMappers, parseContext);
+                    return wrapSmartNameQuery(mapper.termQuery(value, parseContext), smartNameFieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (lenient) {
                         return null;
@@ -169,115 +201,69 @@ public class MatchQuery {
         }
 
         // Logic similar to QueryParser#getFieldQuery
-
-        TokenStream source;
-        try {
-            source = analyzer.reusableTokenStream(fieldTerm.field(), new FastStringReader(text));
-            source.reset();
-        } catch (IOException e) {
-            source = analyzer.tokenStream(fieldTerm.field(), new FastStringReader(text));
-        }
-        CachingTokenFilter buffer = new CachingTokenFilter(source);
-        CharTermAttribute termAtt = null;
-        PositionIncrementAttribute posIncrAtt = null;
+        final TokenStream source = analyzer.tokenStream(field, new FastStringReader(value.toString()));
+        source.reset();
         int numTokens = 0;
-
-        boolean success = false;
-        try {
-            buffer.reset();
-            success = true;
-        } catch (IOException e) {
-            // success==false if we hit an exception
-        }
-        if (success) {
-            if (buffer.hasAttribute(CharTermAttribute.class)) {
-                termAtt = buffer.getAttribute(CharTermAttribute.class);
-            }
-            if (buffer.hasAttribute(PositionIncrementAttribute.class)) {
-                posIncrAtt = buffer.getAttribute(PositionIncrementAttribute.class);
-            }
-        }
-
         int positionCount = 0;
         boolean severalTokensAtSamePosition = false;
-
-        boolean hasMoreTokens = false;
-        if (termAtt != null) {
-            try {
-                hasMoreTokens = buffer.incrementToken();
-                while (hasMoreTokens) {
-                    numTokens++;
-                    int positionIncrement = (posIncrAtt != null) ? posIncrAtt.getPositionIncrement() : 1;
-                    if (positionIncrement != 0) {
-                        positionCount += positionIncrement;
-                    } else {
-                        severalTokensAtSamePosition = true;
-                    }
-                    hasMoreTokens = buffer.incrementToken();
-                }
-            } catch (IOException e) {
-                // ignore
+        
+        final CachingTokenFilter buffer = new CachingTokenFilter(source);
+        buffer.reset();
+        final CharTermAttribute termAtt = buffer.addAttribute(CharTermAttribute.class);
+        final PositionIncrementAttribute posIncrAtt = buffer.addAttribute(PositionIncrementAttribute.class);
+        boolean hasMoreTokens =  buffer.incrementToken();
+        while (hasMoreTokens) {
+            numTokens++;
+            int positionIncrement = posIncrAtt.getPositionIncrement();
+            if (positionIncrement != 0) {
+                positionCount += positionIncrement;
+            } else {
+                severalTokensAtSamePosition = true;
             }
+            hasMoreTokens = buffer.incrementToken();
         }
-        try {
-            // rewind the buffer stream
-            buffer.reset();
-
-            // close original stream - all tokens buffered
-            source.close();
-        } catch (IOException e) {
-            // ignore
-        }
+        // rewind the buffer stream
+        buffer.reset();
+        source.close();
 
         if (numTokens == 0) {
-            return MatchNoDocsQuery.INSTANCE;
+            return zeroTermsQuery();
         } else if (type == Type.BOOLEAN) {
             if (numTokens == 1) {
-                String term = null;
-                try {
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                    term = termAtt.toString();
-                } catch (IOException e) {
-                    // safe to ignore, because we know the number of tokens
-                }
-                Query q = newTermQuery(mapper, fieldTerm.createTerm(term));
+                boolean hasNext = buffer.incrementToken();
+                assert hasNext == true;
+                final Query q = newTermQuery(mapper, new Term(field, termToByteRef(termAtt)));
                 return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             }
-            BooleanQuery q = new BooleanQuery(positionCount == 1);
-            for (int i = 0; i < numTokens; i++) {
-                String term = null;
-                try {
+            if (commonTermsCutoff != null) {
+                ExtendedCommonTermsQuery q = new ExtendedCommonTermsQuery(occur, occur, commonTermsCutoff, positionCount == 1);
+                for (int i = 0; i < numTokens; i++) {
                     boolean hasNext = buffer.incrementToken();
                     assert hasNext == true;
-                    term = termAtt.toString();
-                } catch (IOException e) {
-                    // safe to ignore, because we know the number of tokens
+                    q.add(new Term(field, termToByteRef(termAtt)));
                 }
-
-                Query currentQuery = newTermQuery(mapper, fieldTerm.createTerm(term));
-                q.add(currentQuery, occur);
+                return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
+            } else {
+                BooleanQuery q = new BooleanQuery(positionCount == 1);
+                for (int i = 0; i < numTokens; i++) {
+                    boolean hasNext = buffer.incrementToken();
+                    assert hasNext == true;
+                    final Query currentQuery = newTermQuery(mapper, new Term(field, termToByteRef(termAtt)));
+                    q.add(currentQuery, occur);
+                }
+                return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
             }
-            return wrapSmartNameQuery(q, smartNameFieldMappers, parseContext);
         } else if (type == Type.PHRASE) {
             if (severalTokensAtSamePosition) {
-                MultiPhraseQuery mpq = new MultiPhraseQuery();
+                final MultiPhraseQuery mpq = new MultiPhraseQuery();
                 mpq.setSlop(phraseSlop);
-                List<Term> multiTerms = new ArrayList<Term>();
+                final List<Term> multiTerms = new ArrayList<Term>();
                 int position = -1;
                 for (int i = 0; i < numTokens; i++) {
-                    String term = null;
                     int positionIncrement = 1;
-                    try {
-                        boolean hasNext = buffer.incrementToken();
-                        assert hasNext == true;
-                        term = termAtt.toString();
-                        if (posIncrAtt != null) {
-                            positionIncrement = posIncrAtt.getPositionIncrement();
-                        }
-                    } catch (IOException e) {
-                        // safe to ignore, because we know the number of tokens
-                    }
+                    boolean hasNext = buffer.incrementToken();
+                    assert hasNext == true;
+                    positionIncrement = posIncrAtt.getPositionIncrement();
 
                     if (positionIncrement > 0 && multiTerms.size() > 0) {
                         if (enablePositionIncrements) {
@@ -288,7 +274,8 @@ public class MatchQuery {
                         multiTerms.clear();
                     }
                     position += positionIncrement;
-                    multiTerms.add(fieldTerm.createTerm(term));
+                    //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8 
+                    multiTerms.add(new Term(field, termToByteRef(termAtt)));
                 }
                 if (enablePositionIncrements) {
                     mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
@@ -300,28 +287,18 @@ public class MatchQuery {
                 PhraseQuery pq = new PhraseQuery();
                 pq.setSlop(phraseSlop);
                 int position = -1;
-
-
                 for (int i = 0; i < numTokens; i++) {
-                    String term = null;
                     int positionIncrement = 1;
-
-                    try {
-                        boolean hasNext = buffer.incrementToken();
-                        assert hasNext == true;
-                        term = termAtt.toString();
-                        if (posIncrAtt != null) {
-                            positionIncrement = posIncrAtt.getPositionIncrement();
-                        }
-                    } catch (IOException e) {
-                        // safe to ignore, because we know the number of tokens
-                    }
+                    boolean hasNext = buffer.incrementToken();
+                    assert hasNext == true;
+                    positionIncrement = posIncrAtt.getPositionIncrement();
 
                     if (enablePositionIncrements) {
                         position += positionIncrement;
-                        pq.add(fieldTerm.createTerm(term), position);
+                        //LUCENE 4 UPGRADE instead of string term we can convert directly from utf-16 to utf-8
+                        pq.add(new Term(field, termToByteRef(termAtt)), position);
                     } else {
-                        pq.add(fieldTerm.createTerm(term));
+                        pq.add(new Term(field, termToByteRef(termAtt)));
                     }
                 }
                 return wrapSmartNameQuery(pq, smartNameFieldMappers, parseContext);
@@ -333,18 +310,10 @@ public class MatchQuery {
             List<Term> multiTerms = new ArrayList<Term>();
             int position = -1;
             for (int i = 0; i < numTokens; i++) {
-                String term = null;
                 int positionIncrement = 1;
-                try {
-                    boolean hasNext = buffer.incrementToken();
-                    assert hasNext == true;
-                    term = termAtt.toString();
-                    if (posIncrAtt != null) {
-                        positionIncrement = posIncrAtt.getPositionIncrement();
-                    }
-                } catch (IOException e) {
-                    // safe to ignore, because we know the number of tokens
-                }
+                boolean hasNext = buffer.incrementToken();
+                assert hasNext == true;
+                positionIncrement = posIncrAtt.getPositionIncrement();
 
                 if (positionIncrement > 0 && multiTerms.size() > 0) {
                     if (enablePositionIncrements) {
@@ -355,7 +324,7 @@ public class MatchQuery {
                     multiTerms.clear();
                 }
                 position += positionIncrement;
-                multiTerms.add(fieldTerm.createTerm(term));
+                multiTerms.add(new Term(field, termToByteRef(termAtt)));
             }
             if (enablePositionIncrements) {
                 mpq.add(multiTerms.toArray(new Term[multiTerms.size()]), position);
@@ -371,12 +340,16 @@ public class MatchQuery {
     private Query newTermQuery(@Nullable FieldMapper mapper, Term term) {
         if (fuzziness != null) {
             if (mapper != null) {
-                Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions);
+                Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
                 if (query instanceof FuzzyQuery) {
                     QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                 }
             }
-            FuzzyQuery query = new FuzzyQuery(term, Float.parseFloat(fuzziness), fuzzyPrefixLength, maxExpansions);
+            String text = term.text();
+            //LUCENE 4 UPGRADE we need to document that this should now be an int rather than a float
+            int edits = FuzzyQuery.floatToEdits(Float.parseFloat(fuzziness),
+                    text.codePointCount(0, text.length()));
+            FuzzyQuery query = new FuzzyQuery(term, edits, fuzzyPrefixLength, maxExpansions, transpositions);
             QueryParsers.setRewriteMethod(query, rewriteMethod);
             return query;
         }
@@ -387,5 +360,15 @@ public class MatchQuery {
             }
         }
         return new TermQuery(term);
+    }
+    
+    private static BytesRef termToByteRef(CharTermAttribute attr) {
+        final BytesRef ref = new BytesRef();
+        UnicodeUtil.UTF16toUTF8(attr.buffer(), 0, attr.length(), ref);
+        return ref;
+    }
+
+    protected Query zeroTermsQuery() {
+        return zeroTermsQuery == ZeroTermsQuery.NONE ? MatchNoDocsQuery.INSTANCE : Queries.MATCH_ALL_QUERY;
     }
 }

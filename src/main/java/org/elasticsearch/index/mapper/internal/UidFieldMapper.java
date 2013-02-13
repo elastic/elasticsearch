@@ -20,12 +20,15 @@
 package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.Fieldable;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Term;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
@@ -41,20 +44,36 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     public static final String NAME = "_uid".intern();
 
-    public static final Term TERM_FACTORY = new Term(NAME, "");
-
     public static final String CONTENT_TYPE = "_uid";
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = UidFieldMapper.NAME;
-        public static final Field.Index INDEX = Field.Index.NOT_ANALYZED;
-        public static final boolean OMIT_NORMS = true;
-        public static final FieldInfo.IndexOptions INDEX_OPTIONS = FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS; // we store payload (otherwise, we really need just docs)
+
+        public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType NESTED_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+
+        static {
+            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setTokenized(false);
+            FIELD_TYPE.setStored(true);
+            FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS); // we store payload (otherwise, we really need just docs)
+            FIELD_TYPE.freeze();
+
+            NESTED_FIELD_TYPE.setIndexed(true);
+            NESTED_FIELD_TYPE.setTokenized(false);
+            NESTED_FIELD_TYPE.setStored(false);
+            NESTED_FIELD_TYPE.setOmitNorms(true);
+            // we can set this to another index option when we move away from storing payload..
+            //NESTED_FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
+            NESTED_FIELD_TYPE.freeze();
+        }
     }
 
     public static class Builder extends Mapper.Builder<Builder, UidFieldMapper> {
 
         protected String indexName;
+        protected PostingsFormatProvider postingsFormat;
 
         public Builder() {
             super(Defaults.NAME);
@@ -63,14 +82,23 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
-            return new UidFieldMapper(name, indexName);
+            return new UidFieldMapper(name, indexName, postingsFormat);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            return uid();
+            Builder builder = uid();
+            for (Map.Entry<String, Object> entry : node.entrySet()) {
+                String fieldName = Strings.toUnderscoreCase(entry.getKey());
+                Object fieldNode = entry.getValue();
+                if (fieldName.equals("postings_format")) {
+                    String postingFormatName = fieldNode.toString();
+                    builder.postingsFormat = parserContext.postingFormatService().get(postingFormatName);
+                }
+            }
+            return builder;
         }
     }
 
@@ -86,12 +114,27 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     protected UidFieldMapper(String name) {
-        this(name, name);
+        this(name, name, null);
     }
 
-    protected UidFieldMapper(String name, String indexName) {
-        super(new Names(name, indexName, indexName, name), Defaults.INDEX, Field.Store.YES, Defaults.TERM_VECTOR, Defaults.BOOST,
-                Defaults.OMIT_NORMS, Defaults.INDEX_OPTIONS, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+    protected UidFieldMapper(String name, String indexName, PostingsFormatProvider postingsFormat) {
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null);
+    }
+
+    @Override
+    public FieldType defaultFieldType() {
+        return Defaults.FIELD_TYPE;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("string");
+    }
+
+    @Override
+    protected String defaultPostingFormat() {
+        return "bloom_default";
     }
 
     @Override
@@ -115,12 +158,12 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
             // since we did not have the uid in the pre phase, we did not add it automatically to the nested docs
             // as they were created we need to make sure we add it to all the nested docs...
             if (context.docs().size() > 1) {
-                UidField uidField = (UidField) context.rootDoc().getFieldable(UidFieldMapper.NAME);
+                UidField uidField = (UidField) context.rootDoc().getField(UidFieldMapper.NAME);
                 assert uidField != null;
                 // we need to go over the docs and add it...
                 for (int i = 1; i < context.docs().size(); i++) {
                     // we don't need to add it as a full uid field in nested docs, since we don't need versioning
-                    context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.uid(), Field.Store.NO, Field.Index.NOT_ANALYZED));
+                    context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.uid(), Defaults.NESTED_FIELD_TYPE));
                 }
             }
         }
@@ -141,34 +184,22 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     @Override
-    protected Fieldable parseCreateField(ParseContext context) throws IOException {
-        context.uid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
+    protected Field parseCreateField(ParseContext context) throws IOException {
         // so, caching uid stream and field is fine
         // since we don't do any mapping parsing without immediate indexing
         // and, when percolating, we don't index the uid
         UidField field = fieldCache.get();
-        field.setUid(context.uid());
+        field.setUid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
+        context.uid(field);
         return field; // version get updated by the engine
     }
 
     @Override
-    public Uid value(Fieldable field) {
-        return Uid.createUid(field.stringValue());
-    }
-
-    @Override
-    public Uid valueFromString(String value) {
-        return Uid.createUid(value);
-    }
-
-    @Override
-    public String valueAsString(Fieldable field) {
-        return field.stringValue();
-    }
-
-    @Override
-    public String indexedValue(String value) {
-        return value;
+    public Uid value(Object value) {
+        if (value == null) {
+            return null;
+        }
+        return Uid.createUid(value.toString());
     }
 
     public Term term(String type, String id) {
@@ -191,12 +222,32 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // for now, don't output it at all
+        // if defaults, don't output
+        if ((postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))) {
+            return builder;
+        }
+
+        builder.startObject(CONTENT_TYPE);
+
+        if (postingsFormat != null) {
+            if (!postingsFormat.name().equals(defaultPostingFormat())) {
+                builder.field("postings_format", postingsFormat.name());
+            }
+        }
+
+        builder.endObject();
         return builder;
     }
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
+        AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
         // do nothing here, no merging, but also no exception
+        if (!mergeContext.mergeFlags().simulate()) {
+            // apply changeable values
+            if (fieldMergeWith.postingsFormatProvider() != null) {
+                this.postingsFormat = fieldMergeWith.postingsFormatProvider();
+            }
+        }
     }
 }

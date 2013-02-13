@@ -21,8 +21,12 @@ package org.elasticsearch.search.facet.termsstats.strings;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.text.BytesText;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -57,14 +61,18 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
     public static class StringEntry implements Entry {
 
-        String term;
+        Text term;
         long count;
         long totalCount;
         double total;
         double min;
         double max;
 
-        public StringEntry(String term, long count, long totalCount, double total, double min, double max) {
+        public StringEntry(HashedBytesRef term, long count, long totalCount, double total, double min, double max) {
+            this(new BytesText(new BytesArray(term.bytes)), count, totalCount, total, min, max);
+        }
+
+        public StringEntry(Text term, long count, long totalCount, double total, double min, double max) {
             this.term = term;
             this.count = count;
             this.totalCount = totalCount;
@@ -74,18 +82,18 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         }
 
         @Override
-        public String term() {
+        public Text term() {
             return term;
         }
 
         @Override
-        public String getTerm() {
+        public Text getTerm() {
             return term();
         }
 
         @Override
         public Number termAsNumber() {
-            return Double.parseDouble(term);
+            return Double.parseDouble(term.string());
         }
 
         @Override
@@ -157,8 +165,8 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         }
 
         @Override
-        public int compareTo(Entry o) {
-            return term.compareTo(o.term());
+        public int compareTo(Entry other) {
+            return term.compareTo(other.term());
         }
     }
 
@@ -237,7 +245,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
     }
 
     @Override
-    public Facet reduce(String name, List<Facet> facets) {
+    public Facet reduce(List<Facet> facets) {
         if (facets.size() == 1) {
             if (requiredSize == 0) {
                 // we need to sort it here!
@@ -250,7 +258,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTHashMap<String, StringEntry> map = CacheRecycler.popHashMap();
+        ExtTHashMap<Text, StringEntry> map = CacheRecycler.popHashMap();
         for (Facet facet : facets) {
             InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facet;
             missing += tsFacet.missing;
@@ -338,7 +346,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readUTF();
+        name = in.readString();
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
@@ -346,20 +354,20 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         int size = in.readVInt();
         entries = new ArrayList<StringEntry>(size);
         for (int i = 0; i < size; i++) {
-            entries.add(new StringEntry(in.readUTF(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble()));
+            entries.add(new StringEntry(in.readText(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble()));
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeUTF(name);
+        out.writeString(name);
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);
 
         out.writeVInt(entries.size());
         for (Entry entry : entries) {
-            out.writeUTF(entry.term());
+            out.writeText(entry.term());
             out.writeVLong(entry.count());
             out.writeVLong(entry.totalCount());
             out.writeDouble(entry.total());

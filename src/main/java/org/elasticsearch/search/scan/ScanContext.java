@@ -1,9 +1,29 @@
 package org.elasticsearch.search.scan;
-
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 import com.google.common.collect.Maps;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
-import org.elasticsearch.common.lucene.docset.AllDocSet;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.docset.AllDocIdSet;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -25,7 +45,7 @@ public class ScanContext {
 
     public TopDocs execute(SearchContext context) throws IOException {
         ScanCollector collector = new ScanCollector(readerStates, context.from(), context.size(), context.trackScores());
-        Query query = new FilteredQuery(context.query(), new ScanFilter(readerStates, collector));
+        Query query = new XFilteredQuery(context.query(), new ScanFilter(readerStates, collector));
         try {
             context.searcher().search(query, collector);
         } catch (ScanCollector.StopCollectingException e) {
@@ -89,7 +109,7 @@ public class ScanContext {
         }
 
         @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
+        public void setNextReader(AtomicReaderContext context) throws IOException {
             // if we have a reader state, and we haven't registered one already, register it
             // we need to check in readersState since even when the filter return null, setNextReader is still
             // called for that reader (before)
@@ -98,8 +118,8 @@ public class ScanContext {
                 readerState.done = true;
                 readerStates.put(currentReader, readerState);
             }
-            this.currentReader = reader;
-            this.docBase = docBase;
+            this.currentReader = context.reader();
+            this.docBase = context.docBase;
             this.readerState = new ReaderState();
         }
 
@@ -130,13 +150,13 @@ public class ScanContext {
         }
 
         @Override
-        public DocIdSet getDocIdSet(IndexReader reader) throws IOException {
-            ReaderState readerState = readerStates.get(reader);
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
+            ReaderState readerState = readerStates.get(context.reader());
             if (readerState != null && readerState.done) {
                 scanCollector.incCounter(readerState.count);
                 return null;
             }
-            return new AllDocSet(reader.maxDoc());
+            return new AllDocIdSet(context.reader().maxDoc());
         }
     }
 

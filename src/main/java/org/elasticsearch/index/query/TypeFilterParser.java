@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -57,14 +59,15 @@ public class TypeFilterParser implements FilterParser {
         if (token != XContentParser.Token.VALUE_STRING) {
             throw new QueryParsingException(parseContext.index(), "[type] filter should have a value field, and the type name");
         }
-        String type = parser.text();
+        BytesRef type = parser.bytes();
         // move to the next token
         parser.nextToken();
 
         Filter filter;
-        DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type);
+        //LUCENE 4 UPGRADE document mapper should use bytesref aswell? 
+        DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type.utf8ToString());
         if (documentMapper == null) {
-            filter = new TermFilter(TypeFieldMapper.TERM_FACTORY.createTerm(type));
+            filter = new TermFilter(new Term(TypeFieldMapper.NAME, type));
         } else {
             filter = documentMapper.typeFilter();
         }

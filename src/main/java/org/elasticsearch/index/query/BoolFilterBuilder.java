@@ -56,6 +56,36 @@ public class BoolFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
+     * Adds multiple <i>should</i> filters.
+     */
+    public BoolFilterBuilder should(FilterBuilder... filterBuilders) {
+        for (FilterBuilder filterBuilder : filterBuilders) {
+            clauses.add(new Clause(filterBuilder, BooleanClause.Occur.SHOULD));
+        }
+        return this;
+    }
+
+    /**
+     * Adds multiple <i>must</i> filters.
+     */
+    public BoolFilterBuilder must(FilterBuilder... filterBuilders) {
+        for (FilterBuilder filterBuilder : filterBuilders) {
+            clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST));
+        }
+        return this;
+    }
+
+    /**
+     * Adds multiple <i>must not</i> filters.
+     */
+    public BoolFilterBuilder mustNot(FilterBuilder... filterBuilders) {
+        for (FilterBuilder filterBuilder : filterBuilders) {
+            clauses.add(new Clause(filterBuilder, BooleanClause.Occur.MUST_NOT));
+        }
+        return this;
+    }
+
+    /**
      * Adds a filter that <i>should</i> appear in the matching documents. For a boolean filter
      * with no <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
      * for the BooleanQuery to match.

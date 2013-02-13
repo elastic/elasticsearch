@@ -42,6 +42,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -80,10 +81,12 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
          */
         CREATE((byte) 1);
 
-        private byte id;
+        private final byte id;
+        private final String lowercase;
 
         OpType(byte id) {
             this.id = id;
+            this.lowercase = this.toString().toLowerCase(Locale.ENGLISH);
         }
 
         /**
@@ -91,6 +94,10 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
          */
         public byte id() {
             return id;
+        }
+
+        public String lowercase() {
+            return this.lowercase;
         }
 
         /**
@@ -133,11 +140,20 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     }
 
     /**
-     * Constructs a new index request against the specific index. The {@link #type(String)},
-     * {@link #id(String)} and {@link #source(byte[])} must be set.
+     * Constructs a new index request against the specific index. The {@link #type(String)}
+     * {@link #source(byte[])} must be set.
      */
     public IndexRequest(String index) {
         this.index = index;
+    }
+
+    /**
+     * Constructs a new index request against the specific index and type. The
+     * {@link #source(byte[])} must be set.
+     */
+    public IndexRequest(String index, String type) {
+        this.index = index;
+        this.type = type;
     }
 
     /**

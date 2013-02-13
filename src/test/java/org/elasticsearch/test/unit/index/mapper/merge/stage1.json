@@ -1,9 +1,0 @@
-{
-    "person":{
-        "properties":{
-            "name":{
-                "type":"string"
-            }
-        }
-    }
-}

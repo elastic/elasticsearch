@@ -21,9 +21,8 @@ package org.elasticsearch.index.shard.service;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticSearchException;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -53,7 +53,6 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.search.nested.IncludeAllChildrenQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchService;
@@ -296,7 +295,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Create(docMapper, docMapper.uidMapper().term(doc.uid()), doc).startTime(startTime);
+        return new Engine.Create(docMapper, docMapper.uidMapper().term(doc.uid().uid()), doc).startTime(startTime);
     }
 
     @Override
@@ -317,7 +316,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Index(docMapper, docMapper.uidMapper().term(doc.uid()), doc).startTime(startTime);
+        return new Engine.Index(docMapper, docMapper.uidMapper().term(doc.uid().uid()), doc).startTime(startTime);
     }
 
     @Override
@@ -372,18 +371,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         query = filterQueryIfNeeded(query, types);
 
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-
-        return new Engine.DeleteByQuery(query, querySource, filteringAliases, aliasFilter, types).startTime(startTime);
+        Filter parentFilter = mapperService.hasNested() ? indexCache.filter().cache(NonNestedDocsFilter.INSTANCE) : null;
+        return new Engine.DeleteByQuery(query, querySource, filteringAliases, aliasFilter, parentFilter, types).startTime(startTime);
     }
 
     @Override
     public void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticSearchException {
         writeAllowed();
-        if (mapperService.hasNested()) {
-            // we need to wrap it to delete nested docs as well...
-            IncludeAllChildrenQuery nestedQuery = new IncludeAllChildrenQuery(deleteByQuery.query(), indexCache.filter().cache(NonNestedDocsFilter.INSTANCE));
-            deleteByQuery = new Engine.DeleteByQuery(nestedQuery, deleteByQuery.source(), deleteByQuery.filteringAliases(), deleteByQuery.aliasFilter(), deleteByQuery.types());
-        }
         if (logger.isTraceEnabled()) {
             logger.trace("delete_by_query [{}]", deleteByQuery.query());
         }
@@ -687,7 +681,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private Query filterQueryIfNeeded(Query query, String[] types) {
         Filter searchFilter = mapperService.searchFilter(types);
         if (searchFilter != null) {
-            query = new FilteredQuery(query, indexCache.filter().cache(searchFilter));
+            query = new XFilteredQuery(query, indexCache.filter().cache(searchFilter));
         }
         return query;
     }
@@ -814,11 +808,13 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         }
     }
 
+    //LUCENE 4 UPGRADE: currently passing 'null' codec to fixIndex, when we have proper support for a codec service
+    // we'll us that to figure out the codec that should be used
     private void checkIndex(boolean throwException) throws IndexShardException {
         try {
             checkIndexTook = 0;
             long time = System.currentTimeMillis();
-            if (!IndexReader.indexExists(store.directory())) {
+            if (!DirectoryReader.indexExists(store.directory())) {
                 return;
             }
             CheckIndex checkIndex = new CheckIndex(store.directory());
@@ -837,7 +833,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                     if (logger.isDebugEnabled()) {
                         logger.debug("fixing index, writing new segments file ...");
                     }
-                    checkIndex.fixIndex(status);
+                    checkIndex.fixIndex(status, null);
                     if (logger.isDebugEnabled()) {
                         logger.debug("index fixed, wrote new segments file \"{}\"", status.segmentsFileName);
                     }

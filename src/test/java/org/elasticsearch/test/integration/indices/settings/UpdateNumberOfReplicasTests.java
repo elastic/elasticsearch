@@ -148,7 +148,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
     @Test
     public void testAutoExpandNumberOfReplicas0ToData() {
         logger.info("--> creating index test with auto expand replicas");
-        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 2).put("auto_expand_replicas", "0-all")).execute().actionGet();
+        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2).put("auto_expand_replicas", "0-all")).execute().actionGet();
 
         logger.info("--> running cluster health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
@@ -199,7 +199,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
     @Test
     public void testAutoExpandNumberReplicas1ToData() {
         logger.info("--> creating index test with auto expand replicas");
-        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 2).put("auto_expand_replicas", "1-all")).execute().actionGet();
+        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2).put("auto_expand_replicas", "1-all")).execute().actionGet();
 
         logger.info("--> running cluster health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
@@ -252,7 +252,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         logger.info("--> add another node");
         startNode("node3");
         logger.info("--> creating index test with auto expand replicas set to 0-2");
-        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 2).put("auto_expand_replicas", "0-2")).execute().actionGet();
+        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2).put("auto_expand_replicas", "0-2")).execute().actionGet();
 
         logger.info("--> running cluster health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(6).execute().actionGet();

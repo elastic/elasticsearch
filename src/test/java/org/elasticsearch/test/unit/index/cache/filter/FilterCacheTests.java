@@ -19,15 +19,20 @@
 
 package org.elasticsearch.test.unit.index.cache.filter;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TermFilter;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
@@ -35,8 +40,6 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.lucene.DocumentBuilder.doc;
-import static org.elasticsearch.common.lucene.DocumentBuilder.field;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,18 +58,18 @@ public class FilterCacheTests {
     private void verifyCache(FilterCache filterCache) throws Exception {
         Directory dir = new RAMDirectory();
         IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
-        IndexReader reader = IndexReader.open(indexWriter, true);
+        DirectoryReader reader = IndexReader.open(indexWriter, true);
 
         for (int i = 0; i < 100; i++) {
-            indexWriter.addDocument(doc()
-                    .add(field("id", Integer.toString(i)))
-                    .boost(i).build());
+            Document document = new Document();
+            document.add(new TextField("id", Integer.toString(i), Field.Store.YES));
+            indexWriter.addDocument(document);
         }
 
         reader = refreshReader(reader);
         IndexSearcher searcher = new IndexSearcher(reader);
         assertThat(Lucene.count(searcher, new ConstantScoreQuery(filterCache.cache(new TermFilter(new Term("id", "1"))))), equalTo(1l));
-        assertThat(Lucene.count(searcher, new FilteredQuery(new MatchAllDocsQuery(), filterCache.cache(new TermFilter(new Term("id", "1"))))), equalTo(1l));
+        assertThat(Lucene.count(searcher, new XFilteredQuery(new MatchAllDocsQuery(), filterCache.cache(new TermFilter(new Term("id", "1"))))), equalTo(1l));
 
         indexWriter.deleteDocuments(new Term("id", "1"));
         reader = refreshReader(reader);
@@ -76,15 +79,15 @@ public class FilterCacheTests {
         long constantScoreCount = filter == cachedFilter ? 0 : 1;
         // sadly, when caching based on cacheKey with NRT, this fails, that's why we have DeletionAware one
         assertThat(Lucene.count(searcher, new ConstantScoreQuery(cachedFilter)), equalTo(constantScoreCount));
-        assertThat(Lucene.count(searcher, new DeletionAwareConstantScoreQuery(cachedFilter)), equalTo(0l));
-        assertThat(Lucene.count(searcher, new FilteredQuery(new MatchAllDocsQuery(), cachedFilter)), equalTo(0l));
+        assertThat(Lucene.count(searcher, new XConstantScoreQuery(cachedFilter)), equalTo(0l));
+        assertThat(Lucene.count(searcher, new XFilteredQuery(new MatchAllDocsQuery(), cachedFilter)), equalTo(0l));
 
         indexWriter.close();
     }
 
-    private IndexReader refreshReader(IndexReader reader) throws IOException {
+    private DirectoryReader refreshReader(DirectoryReader reader) throws IOException {
         IndexReader oldReader = reader;
-        reader = reader.reopen();
+        reader = DirectoryReader.openIfChanged(reader);
         if (reader != oldReader) {
             oldReader.close();
         }

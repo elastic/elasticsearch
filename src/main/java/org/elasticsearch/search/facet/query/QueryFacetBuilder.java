@@ -47,15 +47,6 @@ public class QueryFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    /**
-     * Marks the facet to run in a specific scope.
-     */
-    @Override
-    public QueryFacetBuilder scope(String scope) {
-        super.scope(scope);
-        return this;
-    }
-
     public QueryFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;

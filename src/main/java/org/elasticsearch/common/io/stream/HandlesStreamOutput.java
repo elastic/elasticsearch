@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import gnu.trove.impl.Constants;
 import gnu.trove.map.hash.TObjectIntHashMap;
+import org.elasticsearch.common.text.Text;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -36,8 +37,9 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     private final int identityThreshold;
 
     private final TObjectIntHashMap<String> handles = new TObjectIntHashMap<String>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
-
     private final HandleTable identityHandles = new HandleTable(10, (float) 3.00);
+
+    private final TObjectIntHashMap<Text> handlesText = new TObjectIntHashMap<Text>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR, -1);
 
     public HandlesStreamOutput(StreamOutput out) {
         this(out, DEFAULT_IDENTITY_THRESHOLD);
@@ -49,35 +51,6 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     }
 
     @Override
-    @Deprecated
-    public void writeUTF(String s) throws IOException {
-        if (s.length() < identityThreshold) {
-            int handle = handles.get(s);
-            if (handle == -1) {
-                handle = handles.size();
-                handles.put(s, handle);
-                out.writeByte((byte) 0);
-                out.writeVInt(handle);
-                out.writeUTF(s);
-            } else {
-                out.writeByte((byte) 1);
-                out.writeVInt(handle);
-            }
-        } else {
-            int handle = identityHandles.lookup(s);
-            if (handle == -1) {
-                handle = identityHandles.assign(s);
-                out.writeByte((byte) 2);
-                out.writeVInt(handle);
-                out.writeUTF(s);
-            } else {
-                out.writeByte((byte) 3);
-                out.writeVInt(handle);
-            }
-        }
-    }
-
-    @Override
     public void writeString(String s) throws IOException {
         if (s.length() < identityThreshold) {
             int handle = handles.get(s);
@@ -86,7 +59,7 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
                 handles.put(s, handle);
                 out.writeByte((byte) 0);
                 out.writeVInt(handle);
-                out.writeUTF(s);
+                out.writeString(s);
             } else {
                 out.writeByte((byte) 1);
                 out.writeVInt(handle);
@@ -97,7 +70,7 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
                 handle = identityHandles.assign(s);
                 out.writeByte((byte) 2);
                 out.writeVInt(handle);
-                out.writeUTF(s);
+                out.writeString(s);
             } else {
                 out.writeByte((byte) 3);
                 out.writeVInt(handle);
@@ -106,9 +79,36 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     }
 
     @Override
+    public void writeSharedText(Text text) throws IOException {
+        int length;
+        if (text.hasBytes()) {
+            length = text.bytes().length();
+        } else {
+            length = text.string().length();
+        }
+        if (length < identityThreshold) {
+            int handle = handlesText.get(text);
+            if (handle == -1) {
+                handle = handlesText.size();
+                handlesText.put(text, handle);
+                out.writeByte((byte) 0);
+                out.writeVInt(handle);
+                out.writeText(text);
+            } else {
+                out.writeByte((byte) 1);
+                out.writeVInt(handle);
+            }
+        } else {
+            out.writeByte((byte) 2);
+            out.writeText(text);
+        }
+    }
+
+    @Override
     public void reset() throws IOException {
         handles.clear();
         identityHandles.clear();
+        handlesText.clear();
         if (out != null) {
             out.reset();
         }
@@ -117,6 +117,7 @@ public class HandlesStreamOutput extends AdapterStreamOutput {
     public void clear() {
         handles.clear();
         identityHandles.clear();
+        handlesText.clear();
     }
 
     /**

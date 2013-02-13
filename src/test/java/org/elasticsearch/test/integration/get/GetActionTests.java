@@ -26,18 +26,23 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.util.List;
+
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class GetActionTests extends AbstractNodesTests {
 
@@ -222,4 +227,158 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(getResponse.exists(), equalTo(true));
         assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo(fieldValue));
     }
+
+    @Test
+    public void getFieldsWithDifferentTypes() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type").startObject("_source").field("enabled", true).endObject().endObject().endObject())
+                .addMapping("type2", jsonBuilder().startObject().startObject("type")
+                        .startObject("_source").field("enabled", false).endObject()
+                        .startObject("properties")
+                        .startObject("str").field("type", "string").field("store", "yes").endObject()
+                        .startObject("int").field("type", "integer").field("store", "yes").endObject()
+                        .startObject("date").field("type", "date").field("store", "yes").endObject()
+                        .startObject("binary").field("type", "binary").field("store", "yes").endObject()
+                        .endObject()
+                        .endObject().endObject())
+                .execute().actionGet();
+
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        client.prepareIndex("test", "type1", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z", "binary", Base64.encodeBytes(new byte[]{1, 2, 3})).execute().actionGet();
+        client.prepareIndex("test", "type2", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z", "binary", Base64.encodeBytes(new byte[]{1, 2, 3})).execute().actionGet();
+
+        // realtime get with stored source
+        logger.info("--> realtime get (from source)");
+        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date", "binary").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+        assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
+        assertThat((Long) getResponse.field("int").getValue(), equalTo(42l));
+        assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+        assertThat(getResponse.field("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
+
+        logger.info("--> realtime get (from stored fields)");
+        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date", "binary").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+        assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
+        assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
+        assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+        assertThat((BytesReference) getResponse.field("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
+
+        logger.info("--> flush the index, so we load it from it");
+        client.admin().indices().prepareFlush().execute().actionGet();
+
+        logger.info("--> non realtime get (from source)");
+        getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date", "binary").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+        assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
+        assertThat((Long) getResponse.field("int").getValue(), equalTo(42l));
+        assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+        assertThat(getResponse.field("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
+
+        logger.info("--> non realtime get (from stored fields)");
+        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date", "binary").execute().actionGet();
+        assertThat(getResponse.exists(), equalTo(true));
+        assertThat((String) getResponse.field("str").getValue(), equalTo("test"));
+        assertThat((Integer) getResponse.field("int").getValue(), equalTo(42));
+        assertThat((String) getResponse.field("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
+        assertThat((BytesReference) getResponse.field("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
+    }
+
+    @Test
+    public void testGetDocWithMultivaluedFields() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // fine
+        }
+        String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties")
+                .startObject("field").field("type", "string").field("store", "yes").endObject()
+                .endObject()
+                .endObject().endObject().string();
+        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2")
+                .startObject("properties")
+                .startObject("field").field("type", "string").field("store", "yes").endObject()
+                .endObject()
+                .startObject("_source").field("enabled", false).endObject()
+                .endObject().endObject().string();
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", mapping1)
+                .addMapping("type2", mapping2)
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .execute().actionGet();
+
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        GetResponse response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        assertThat(response.exists(), equalTo(false));
+        response = client.prepareGet("test", "type2", "1").execute().actionGet();
+        assertThat(response.exists(), equalTo(false));
+
+        client.prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type2", "1")
+                .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject())
+                .execute().actionGet();
+
+        response = client.prepareGet("test", "type1", "1")
+                .setFields("field")
+                .execute().actionGet();
+        assertThat(response.exists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getType(), equalTo("type1"));
+        assertThat(response.fields().size(), equalTo(1));
+        assertThat(response.fields().get("field").values().size(), equalTo(1));
+        assertThat(((List) response.fields().get("field").values().get(0)).size(), equalTo(2));
+        assertThat(((List) response.fields().get("field").values().get(0)).get(0).toString(), equalTo("1"));
+        assertThat(((List) response.fields().get("field").values().get(0)).get(1).toString(), equalTo("2"));
+
+
+        response = client.prepareGet("test", "type2", "1")
+                .setFields("field")
+                .execute().actionGet();
+        assertThat(response.exists(), equalTo(true));
+        assertThat(response.getType(), equalTo("type2"));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.fields().size(), equalTo(1));
+        assertThat(response.fields().get("field").values().size(), equalTo(1));
+        assertThat(((List) response.fields().get("field").values().get(0)).size(), equalTo(2));
+        assertThat(((List) response.fields().get("field").values().get(0)).get(0).toString(), equalTo("1"));
+        assertThat(((List) response.fields().get("field").values().get(0)).get(1).toString(), equalTo("2"));
+
+        // Now test values being fetched from stored fields.
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client.prepareGet("test", "type1", "1")
+                .setFields("field")
+                .execute().actionGet();
+        assertThat(response.exists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.fields().size(), equalTo(1));
+        assertThat(response.fields().get("field").values().size(), equalTo(1));
+        assertThat(((List) response.fields().get("field").values().get(0)).size(), equalTo(2));
+        assertThat(((List) response.fields().get("field").values().get(0)).get(0).toString(), equalTo("1"));
+        assertThat(((List) response.fields().get("field").values().get(0)).get(1).toString(), equalTo("2"));
+
+
+        response = client.prepareGet("test", "type2", "1")
+                .setFields("field")
+                .execute().actionGet();
+        assertThat(response.exists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.fields().size(), equalTo(1));
+        assertThat(response.fields().get("field").values().size(), equalTo(1));
+        assertThat(((List) response.fields().get("field").values().get(0)).size(), equalTo(2));
+        assertThat(((List) response.fields().get("field").values().get(0)).get(0).toString(), equalTo("1"));
+        assertThat(((List) response.fields().get("field").values().get(0)).get(1).toString(), equalTo("2"));
+    }
+
 }

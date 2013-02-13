@@ -20,16 +20,14 @@
 package org.elasticsearch.search.facet.terms.strings;
 
 import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldData;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.strings.StringFieldData;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -48,9 +46,7 @@ import java.util.regex.Pattern;
  */
 public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
-    private final FieldDataCache fieldDataCache;
-
-    private final String indexFieldName;
+    private final IndexFieldData.WithOrdinals indexFieldData;
 
     private final TermsFacet.ComparatorType comparatorType;
 
@@ -60,9 +56,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
     private final int minCount;
 
-    private final FieldDataType fieldDataType;
-
-    private StringFieldData fieldData;
+    private BytesValues.WithOrdinals values;
 
     private final List<ReaderAggregator> aggregators;
 
@@ -71,33 +65,17 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
     long missing;
     long total;
 
-    private final ImmutableSet<String> excluded;
+    private final ImmutableSet<BytesRef> excluded;
 
     private final Matcher matcher;
 
-    public TermsStringOrdinalsFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                             ImmutableSet<String> excluded, Pattern pattern) {
+    public TermsStringOrdinalsFacetCollector(String facetName, IndexFieldData.WithOrdinals indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+                                             ImmutableSet<BytesRef> excluded, Pattern pattern) {
         super(facetName);
-        this.fieldDataCache = context.fieldDataCache();
+        this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] doesn't have a type, can't run terms long facet collector on it");
-        }
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        if (smartMappers.mapper().fieldDataType() != FieldDataType.DefaultTypes.STRING) {
-            throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] is not of string type, can't run terms string facet collector on it");
-        }
-
-        this.indexFieldName = smartMappers.mapper().names().indexName();
-        this.fieldDataType = smartMappers.mapper().fieldDataType();
 
         if (excluded == null || excluded.isEmpty()) {
             this.excluded = null;
@@ -113,25 +91,25 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             minCount = 0;
         }
 
-        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().subReaders().length);
+        this.aggregators = new ArrayList<ReaderAggregator>(context.searcher().getIndexReader().leaves().size());
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
         if (current != null) {
             missing += current.counts[0];
             total += current.total - current.counts[0];
-            if (current.values.length > 1) {
+            if (current.values.ordinals().getNumOrds() > 0) {
                 aggregators.add(current);
             }
         }
-        fieldData = (StringFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
-        current = new ReaderAggregator(fieldData);
+        values = indexFieldData.load(context).getBytesValues();
+        current = new ReaderAggregator(values);
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachOrdinalInDoc(doc, current);
+        values.ordinals().forEachOrdinalInDoc(doc, current);
     }
 
     @Override
@@ -140,7 +118,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             missing += current.counts[0];
             total += current.total - current.counts[0];
             // if we have values for this one, add it
-            if (current.values.length > 1) {
+            if (current.values.ordinals().getNumOrds() > 0) {
                 aggregators.add(current);
             }
         }
@@ -160,7 +138,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
 
             while (queue.size() > 0) {
                 ReaderAggregator agg = queue.top();
-                String value = agg.current;
+                BytesRef value = agg.values.makeSafe(agg.current); // we need to makeSafe it, since we end up pushing it... (can we get around this?)
                 int count = 0;
                 do {
                     count += agg.counts[agg.position];
@@ -177,16 +155,17 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
                     if (excluded != null && excluded.contains(value)) {
                         continue;
                     }
-                    if (matcher != null && !matcher.reset(value).matches()) {
+                    // LUCENE 4 UPGRADE: use Lucene's RegexCapabilities
+                    if (matcher != null && !matcher.reset(value.utf8ToString()).matches()) {
                         continue;
                     }
-                    InternalStringTermsFacet.StringEntry entry = new InternalStringTermsFacet.StringEntry(value, count);
+                    InternalStringTermsFacet.TermEntry entry = new InternalStringTermsFacet.TermEntry(value, count);
                     ordered.insertWithOverflow(entry);
                 }
             }
-            InternalStringTermsFacet.StringEntry[] list = new InternalStringTermsFacet.StringEntry[ordered.size()];
+            InternalStringTermsFacet.TermEntry[] list = new InternalStringTermsFacet.TermEntry[ordered.size()];
             for (int i = ordered.size() - 1; i >= 0; i--) {
-                list[i] = (InternalStringTermsFacet.StringEntry) ordered.pop();
+                list[i] = (InternalStringTermsFacet.TermEntry) ordered.pop();
             }
 
             for (ReaderAggregator aggregator : aggregators) {
@@ -196,11 +175,11 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
             return new InternalStringTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
         }
 
-        BoundedTreeSet<InternalStringTermsFacet.StringEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.StringEntry>(comparatorType.comparator(), size);
+        BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), size);
 
         while (queue.size() > 0) {
             ReaderAggregator agg = queue.top();
-            String value = agg.current;
+            BytesRef value = agg.values.makeSafe(agg.current); // we need to makeSafe it, since we end up pushing it... (can we work around that?)
             int count = 0;
             do {
                 count += agg.counts[agg.position];
@@ -217,10 +196,11 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
                 if (excluded != null && excluded.contains(value)) {
                     continue;
                 }
-                if (matcher != null && !matcher.reset(value).matches()) {
+                // LUCENE 4 UPGRADE: use Lucene's RegexCapabilities
+                if (matcher != null && !matcher.reset(value.utf8ToString()).matches()) {
                     continue;
                 }
-                InternalStringTermsFacet.StringEntry entry = new InternalStringTermsFacet.StringEntry(value, count);
+                InternalStringTermsFacet.TermEntry entry = new InternalStringTermsFacet.TermEntry(value, count);
                 ordered.add(entry);
             }
         }
@@ -233,18 +213,21 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         return new InternalStringTermsFacet(facetName, comparatorType, size, ordered, missing, total);
     }
 
-    public static class ReaderAggregator implements FieldData.OrdinalInDocProc {
+    public static class ReaderAggregator implements Ordinals.Docs.OrdinalInDocProc {
 
-        final String[] values;
+        final BytesValues.WithOrdinals values;
         final int[] counts;
 
         int position = 0;
-        String current;
+        BytesRef current;
         int total;
+        private final int maxOrd;
 
-        public ReaderAggregator(StringFieldData fieldData) {
-            this.values = fieldData.values();
-            this.counts = CacheRecycler.popIntArray(fieldData.values().length);
+        public ReaderAggregator(BytesValues.WithOrdinals values) {
+            this.values = values;
+            this.maxOrd = values.ordinals().getMaxOrd();
+
+            this.counts = CacheRecycler.popIntArray(maxOrd);
         }
 
         @Override
@@ -254,10 +237,10 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
         }
 
         public boolean nextPosition() {
-            if (++position >= values.length) {
+            if (++position >= maxOrd) {
                 return false;
             }
-            current = values[position];
+            current = values.getValueByOrd(position);
             return true;
         }
     }
@@ -265,7 +248,7 @@ public class TermsStringOrdinalsFacetCollector extends AbstractFacetCollector {
     public static class AggregatorPriorityQueue extends PriorityQueue<ReaderAggregator> {
 
         public AggregatorPriorityQueue(int size) {
-            initialize(size);
+            super(size);
         }
 
         @Override

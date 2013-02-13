@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 public class Queries {
 
     // We don't use MatchAllDocsQuery, its slower than the one below ... (much slower)
-    public final static Query MATCH_ALL_QUERY = new DeletionAwareConstantScoreQuery(new MatchAllDocsFilter());
+    public final static Query MATCH_ALL_QUERY = new XConstantScoreQuery(new MatchAllDocsFilter());
     public final static Query NO_MATCH_QUERY = MatchNoDocsQuery.INSTANCE;
 
     /**
@@ -113,8 +113,8 @@ public class Queries {
         if (query == Queries.MATCH_ALL_QUERY) {
             return true;
         }
-        if (query instanceof DeletionAwareConstantScoreQuery) {
-            DeletionAwareConstantScoreQuery scoreQuery = (DeletionAwareConstantScoreQuery) query;
+        if (query instanceof XConstantScoreQuery) {
+            XConstantScoreQuery scoreQuery = (XConstantScoreQuery) query;
             if (scoreQuery.getFilter() instanceof MatchAllDocsFilter) {
                 return true;
             }
@@ -143,7 +143,7 @@ public class Queries {
     private static Pattern spacePattern = Pattern.compile(" ");
     private static Pattern lessThanPattern = Pattern.compile("<");
 
-    static int calculateMinShouldMatch(int optionalClauseCount, String spec) {
+    public static int calculateMinShouldMatch(int optionalClauseCount, String spec) {
         int result = optionalClauseCount;
         spec = spec.trim();
 

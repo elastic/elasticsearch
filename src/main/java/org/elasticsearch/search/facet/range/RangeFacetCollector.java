@@ -19,14 +19,11 @@
 
 package org.elasticsearch.search.facet.range;
 
-import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.NumericFieldData;
-import org.elasticsearch.index.mapper.MapperService;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -36,42 +33,22 @@ import java.io.IOException;
  */
 public class RangeFacetCollector extends AbstractFacetCollector {
 
-    private final String indexFieldName;
+    private final IndexNumericFieldData indexFieldData;
 
-    private final FieldDataCache fieldDataCache;
-
-    private final FieldDataType fieldDataType;
-
-    private NumericFieldData fieldData;
-
+    private DoubleValues values;
     private final RangeFacet.Entry[] entries;
-
     private final RangeProc rangeProc;
 
-    public RangeFacetCollector(String facetName, String fieldName, RangeFacet.Entry[] entries, SearchContext context) {
+    public RangeFacetCollector(String facetName, IndexNumericFieldData indexFieldData, RangeFacet.Entry[] entries, SearchContext context) {
         super(facetName);
-        this.fieldDataCache = context.fieldDataCache();
+        this.indexFieldData = indexFieldData;
         this.entries = entries;
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldName + "]");
-        }
-
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        indexFieldName = smartMappers.mapper().names().indexName();
-        fieldDataType = smartMappers.mapper().fieldDataType();
-
         rangeProc = new RangeProc(entries);
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (NumericFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        values = indexFieldData.load(context).getDoubleValues();
     }
 
     @Override
@@ -79,7 +56,7 @@ public class RangeFacetCollector extends AbstractFacetCollector {
         for (RangeFacet.Entry entry : entries) {
             entry.foundInDoc = false;
         }
-        fieldData.forEachValueInDoc(doc, rangeProc);
+        values.forEachValueInDoc(doc, rangeProc);
     }
 
     @Override
@@ -87,12 +64,16 @@ public class RangeFacetCollector extends AbstractFacetCollector {
         return new InternalRangeFacet(facetName, entries);
     }
 
-    public static class RangeProc implements NumericFieldData.DoubleValueInDocProc {
+    public static class RangeProc implements DoubleValues.ValueInDocProc {
 
         private final RangeFacet.Entry[] entries;
 
         public RangeProc(RangeFacet.Entry[] entries) {
             this.entries = entries;
+        }
+
+        @Override
+        public void onMissing(int docId) {
         }
 
         @Override

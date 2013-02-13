@@ -26,7 +26,9 @@ import java.io.EOFException;
 import java.io.IOException;
 
 /**
+ * @deprecated Used only for backward comp. to read old compressed files, since we now use codec based compression
  */
+@Deprecated
 public abstract class CompressedIndexInput<T extends CompressorContext> extends IndexInput {
 
     private IndexInput in;
@@ -203,7 +205,7 @@ public abstract class CompressedIndexInput<T extends CompressorContext> extends 
     protected abstract int uncompress(IndexInput in, byte[] out) throws IOException;
 
     @Override
-    public Object clone() {
+    public IndexInput clone() {
         // we clone and we need to make sure we keep the same positions!
         CompressedIndexInput cloned = (CompressedIndexInput) super.clone();
         cloned.uncompressed = new byte[uncompressedLength];

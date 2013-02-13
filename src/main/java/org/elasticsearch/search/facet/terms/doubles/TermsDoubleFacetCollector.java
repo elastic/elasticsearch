@@ -24,26 +24,22 @@ import com.google.common.collect.ImmutableSet;
 import gnu.trove.iterator.TDoubleIntIterator;
 import gnu.trove.map.hash.TDoubleIntHashMap;
 import gnu.trove.set.hash.TDoubleHashSet;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
-import org.elasticsearch.index.cache.field.data.FieldDataCache;
-import org.elasticsearch.index.field.data.FieldDataType;
-import org.elasticsearch.index.field.data.doubles.DoubleFieldData;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.AbstractFacetCollector;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -51,9 +47,7 @@ import java.util.Set;
  */
 public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
-    private final FieldDataCache fieldDataCache;
-
-    private final String indexFieldName;
+    private final IndexNumericFieldData indexFieldData;
 
     private final TermsFacet.ComparatorType comparatorType;
 
@@ -61,43 +55,20 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
     private final int numberOfShards;
 
-    private final FieldDataType fieldDataType;
-
-    private DoubleFieldData fieldData;
+    private DoubleValues values;
 
     private final StaticAggregatorValueProc aggregator;
 
     private final SearchScript script;
 
-    public TermsDoubleFacetCollector(String facetName, String fieldName, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                     ImmutableSet<String> excluded, String scriptLang, String script, Map<String, Object> params) {
+    public TermsDoubleFacetCollector(String facetName, IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+                                     ImmutableSet<BytesRef> excluded, SearchScript script) {
         super(facetName);
-        this.fieldDataCache = context.fieldDataCache();
+        this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-
-        MapperService.SmartNameFieldMappers smartMappers = context.smartFieldMappers(fieldName);
-        if (smartMappers == null || !smartMappers.hasMapper()) {
-            throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] doesn't have a type, can't run terms double facet collector on it");
-        }
-        // add type filter if there is exact doc mapper associated with it
-        if (smartMappers.explicitTypeInNameWithDocMapper()) {
-            setFilter(context.filterCache().cache(smartMappers.docMapper().typeFilter()));
-        }
-
-        if (smartMappers.mapper().fieldDataType() != FieldDataType.DefaultTypes.DOUBLE) {
-            throw new ElasticSearchIllegalArgumentException("Field [" + fieldName + "] is not of double type, can't run terms double facet collector on it");
-        }
-
-        this.indexFieldName = smartMappers.mapper().names().indexName();
-        this.fieldDataType = smartMappers.mapper().fieldDataType();
-
-        if (script != null) {
-            this.script = context.scriptService().search(context.lookup(), scriptLang, script, params);
-        } else {
-            this.script = null;
-        }
+        this.script = script;
 
         if (this.script == null && excluded.isEmpty()) {
             aggregator = new StaticAggregatorValueProc(CacheRecycler.popDoubleIntMap());
@@ -105,16 +76,17 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
             aggregator = new AggregatorValueProc(CacheRecycler.popDoubleIntMap(), excluded, this.script);
         }
 
-        if (allTerms) {
-            try {
-                for (IndexReader reader : context.searcher().subReaders()) {
-                    DoubleFieldData fieldData = (DoubleFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
-                    fieldData.forEachValue(aggregator);
-                }
-            } catch (Exception e) {
-                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
-            }
-        }
+        // TODO: we need to support this with the new field data....
+//        if (allTerms) {
+//            try {
+//                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+//                    DoubleFieldData fieldData = (DoubleFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
+//                    fieldData.forEachValue(aggregator);
+//                }
+//            } catch (Exception e) {
+//                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
+//            }
+//        }
     }
 
     @Override
@@ -125,16 +97,16 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
     }
 
     @Override
-    protected void doSetNextReader(IndexReader reader, int docBase) throws IOException {
-        fieldData = (DoubleFieldData) fieldDataCache.cache(fieldDataType, reader, indexFieldName);
+    protected void doSetNextReader(AtomicReaderContext context) throws IOException {
+        values = indexFieldData.load(context).getDoubleValues();
         if (script != null) {
-            script.setNextReader(reader);
+            script.setNextReader(context);
         }
     }
 
     @Override
     protected void doCollect(int doc) throws IOException {
-        fieldData.forEachValueInDoc(doc, aggregator);
+        values.forEachValueInDoc(doc, aggregator);
     }
 
     @Override
@@ -174,15 +146,15 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
         private final TDoubleHashSet excluded;
 
-        public AggregatorValueProc(TDoubleIntHashMap facets, Set<String> excluded, SearchScript script) {
+        public AggregatorValueProc(TDoubleIntHashMap facets, Set<BytesRef> excluded, SearchScript script) {
             super(facets);
             this.script = script;
             if (excluded == null || excluded.isEmpty()) {
                 this.excluded = null;
             } else {
                 this.excluded = new TDoubleHashSet(excluded.size());
-                for (String s : excluded) {
-                    this.excluded.add(Double.parseDouble(s));
+                for (BytesRef s : excluded) {
+                    this.excluded.add(Double.parseDouble(s.utf8ToString()));
                 }
             }
         }
@@ -211,7 +183,7 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
         }
     }
 
-    public static class StaticAggregatorValueProc implements DoubleFieldData.ValueInDocProc, DoubleFieldData.ValueProc {
+    public static class StaticAggregatorValueProc implements DoubleValues.ValueInDocProc {
 
         private final TDoubleIntHashMap facets;
 
@@ -220,11 +192,6 @@ public class TermsDoubleFacetCollector extends AbstractFacetCollector {
 
         public StaticAggregatorValueProc(TDoubleIntHashMap facets) {
             this.facets = facets;
-        }
-
-        @Override
-        public void onValue(double value) {
-            facets.putIfAbsent(value, 0);
         }
 
         @Override

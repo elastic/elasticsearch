@@ -20,7 +20,6 @@
 package org.elasticsearch.common.compress;
 
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,7 +58,8 @@ public interface Compressor {
 
     CompressedStreamOutput streamOutput(StreamOutput out) throws IOException;
 
+    /**
+     * @deprecated Used for backward comp. since we now use Lucene compressed codec.
+     */
     CompressedIndexInput indexInput(IndexInput in) throws IOException;
-
-    CompressedIndexOutput indexOutput(IndexOutput out) throws IOException;
 }

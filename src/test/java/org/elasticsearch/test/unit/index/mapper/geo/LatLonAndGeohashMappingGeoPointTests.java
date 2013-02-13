@@ -19,10 +19,10 @@
 
 package org.elasticsearch.test.unit.index.mapper.geo;
 
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
@@ -49,8 +49,8 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
@@ -68,8 +68,8 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 
@@ -87,8 +87,8 @@ public class LatLonAndGeohashMappingGeoPointTests {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().getFieldable("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getFieldable("point.lon"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
     }
 }

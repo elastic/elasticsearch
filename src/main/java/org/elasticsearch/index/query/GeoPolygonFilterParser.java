@@ -21,17 +21,17 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldDataType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
-import org.elasticsearch.index.search.geo.GeoUtils;
-import org.elasticsearch.index.search.geo.Point;
 
 import java.io.IOException;
 import java.util.List;
@@ -70,7 +70,7 @@ public class GeoPolygonFilterParser implements FilterParser {
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
         String fieldName = null;
-        List<Point> points = Lists.newArrayList();
+        List<GeoPoint> points = Lists.newArrayList();
 
         boolean normalizeLon = true;
         boolean normalizeLat = true;
@@ -94,46 +94,32 @@ public class GeoPolygonFilterParser implements FilterParser {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
                                 } else if (token == XContentParser.Token.START_ARRAY) {
-                                    Point point = new Point();
                                     token = parser.nextToken();
-                                    point.lon = parser.doubleValue();
+                                    double lon = parser.doubleValue();
                                     token = parser.nextToken();
-                                    point.lat = parser.doubleValue();
+                                    double lat = parser.doubleValue();
                                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                                     }
-                                    points.add(point);
+                                    points.add(new GeoPoint(lat, lon));
                                 } else if (token == XContentParser.Token.START_OBJECT) {
-                                    Point point = new Point();
+                                    GeoPoint point = new GeoPoint();
                                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                         if (token == XContentParser.Token.FIELD_NAME) {
                                             currentFieldName = parser.currentName();
                                         } else if (token.isValue()) {
                                             if (currentFieldName.equals(GeoPointFieldMapper.Names.LAT)) {
-                                                point.lat = parser.doubleValue();
+                                                point.resetLat(parser.doubleValue());
                                             } else if (currentFieldName.equals(GeoPointFieldMapper.Names.LON)) {
-                                                point.lon = parser.doubleValue();
+                                                point.resetLon(parser.doubleValue());
                                             } else if (currentFieldName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                                                double[] values = GeoHashUtils.decode(parser.text());
-                                                point.lat = values[0];
-                                                point.lon = values[1];
+                                                GeoHashUtils.decode(parser.text(), point);
                                             }
                                         }
                                     }
                                     points.add(point);
                                 } else if (token.isValue()) {
-                                    Point point = new Point();
-                                    String value = parser.text();
-                                    int comma = value.indexOf(',');
-                                    if (comma != -1) {
-                                        point.lat = Double.parseDouble(value.substring(0, comma).trim());
-                                        point.lon = Double.parseDouble(value.substring(comma + 1).trim());
-                                    } else {
-                                        double[] values = GeoHashUtils.decode(value);
-                                        point.lat = values[0];
-                                        point.lon = values[1];
-                                    }
-                                    points.add(point);
+                                    points.add(new GeoPoint().resetFromString(parser.text()));
                                 }
                             }
                         } else {
@@ -162,7 +148,7 @@ public class GeoPolygonFilterParser implements FilterParser {
         }
 
         if (normalizeLat || normalizeLon) {
-            for (Point point : points) {
+            for (GeoPoint point : points) {
                 GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
             }
         }
@@ -172,12 +158,12 @@ public class GeoPolygonFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
         FieldMapper mapper = smartMappers.mapper();
-        if (mapper.fieldDataType() != GeoPointFieldDataType.TYPE) {
+        if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
-        fieldName = mapper.names().indexName();
 
-        Filter filter = new GeoPolygonFilter(points.toArray(new Point[points.size()]), fieldName, parseContext.indexCache().fieldData());
+        IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
+        Filter filter = new GeoPolygonFilter(points.toArray(new GeoPoint[points.size()]), indexFieldData);
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);
         }

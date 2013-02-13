@@ -37,6 +37,8 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
     long refreshInterval;
 
+    int availableProcessors;
+
     Cpu cpu = null;
 
     Mem mem = null;
@@ -52,6 +54,14 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
     public long getRefreshInterval() {
         return this.refreshInterval;
+    }
+
+    public int availableProcessors() {
+        return this.availableProcessors;
+    }
+
+    public int getAvailableProcessors() {
+        return this.availableProcessors;
     }
 
     public Cpu cpu() {
@@ -81,6 +91,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
     static final class Fields {
         static final XContentBuilderString OS = new XContentBuilderString("os");
         static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
+        static final XContentBuilderString AVAILABLE_PROCESSORS = new XContentBuilderString("available_processors");
         static final XContentBuilderString CPU = new XContentBuilderString("cpu");
         static final XContentBuilderString VENDOR = new XContentBuilderString("vendor");
         static final XContentBuilderString MODEL = new XContentBuilderString("model");
@@ -101,6 +112,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.OS);
         builder.field(Fields.REFRESH_INTERVAL, refreshInterval);
+        builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
         if (cpu != null) {
             builder.startObject(Fields.CPU);
             builder.field(Fields.VENDOR, cpu.vendor());
@@ -138,6 +150,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         refreshInterval = in.readLong();
+        availableProcessors = in.readInt();
         if (in.readBoolean()) {
             cpu = Cpu.readCpu(in);
         }
@@ -152,6 +165,7 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(refreshInterval);
+        out.writeInt(availableProcessors);
         if (cpu == null) {
             out.writeBoolean(false);
         } else {
@@ -318,8 +332,8 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            vendor = in.readUTF();
-            model = in.readUTF();
+            vendor = in.readString();
+            model = in.readString();
             mhz = in.readInt();
             totalCores = in.readInt();
             totalSockets = in.readInt();
@@ -329,8 +343,8 @@ public class OsInfo implements Streamable, Serializable, ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeUTF(vendor);
-            out.writeUTF(model);
+            out.writeString(vendor);
+            out.writeString(model);
             out.writeInt(mhz);
             out.writeInt(totalCores);
             out.writeInt(totalSockets);

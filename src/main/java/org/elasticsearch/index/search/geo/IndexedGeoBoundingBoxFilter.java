@@ -19,12 +19,14 @@
 
 package org.elasticsearch.index.search.geo;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.lucene.docset.DocSets;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
@@ -33,12 +35,12 @@ import java.io.IOException;
  */
 public class IndexedGeoBoundingBoxFilter {
 
-    public static Filter create(Point topLeft, Point bottomRight, GeoPointFieldMapper fieldMapper) {
+    public static Filter create(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
         if (!fieldMapper.isEnableLatLon()) {
             throw new ElasticSearchIllegalArgumentException("lat/lon is not enabled (indexed) for field [" + fieldMapper.name() + "], can't use indexed filter on it");
         }
         //checks to see if bounding box crosses 180 degrees
-        if (topLeft.lon > bottomRight.lon) {
+        if (topLeft.lon() > bottomRight.lon()) {
             return new LeftGeoBoundingBoxFilter(topLeft, bottomRight, fieldMapper);
         } else {
             return new RightGeoBoundingBoxFilter(topLeft, bottomRight, fieldMapper);
@@ -51,24 +53,24 @@ public class IndexedGeoBoundingBoxFilter {
         final Filter lonFilter2;
         final Filter latFilter;
 
-        public LeftGeoBoundingBoxFilter(Point topLeft, Point bottomRight, GeoPointFieldMapper fieldMapper) {
-            lonFilter1 = fieldMapper.lonMapper().rangeFilter(null, bottomRight.lon, true, true);
-            lonFilter2 = fieldMapper.lonMapper().rangeFilter(topLeft.lon, null, true, true);
-            latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat, topLeft.lat, true, true);
+        public LeftGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
+            lonFilter1 = fieldMapper.lonMapper().rangeFilter(null, bottomRight.lon(), true, true);
+            lonFilter2 = fieldMapper.lonMapper().rangeFilter(topLeft.lon(), null, true, true);
+            latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat(), topLeft.lat(), true, true);
         }
 
         @Override
-        public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
+        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
             FixedBitSet main;
-            DocIdSet set = lonFilter1.getDocIdSet(reader);
-            if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
+            DocIdSet set = lonFilter1.getDocIdSet(context, acceptedDocs);
+            if (DocIdSets.isEmpty(set)) {
                 main = null;
             } else {
                 main = (FixedBitSet) set;
             }
 
-            set = lonFilter2.getDocIdSet(reader);
-            if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
+            set = lonFilter2.getDocIdSet(context, acceptedDocs);
+            if (DocIdSets.isEmpty(set)) {
                 if (main == null) {
                     return null;
                 } else {
@@ -82,11 +84,11 @@ public class IndexedGeoBoundingBoxFilter {
                 }
             }
 
-            set = latFilter.getDocIdSet(reader);
-            if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
+            set = latFilter.getDocIdSet(context, acceptedDocs);
+            if (DocIdSets.isEmpty(set)) {
                 return null;
             }
-            DocSets.and(main, set);
+            main.and(set.iterator());
             return main;
         }
 
@@ -118,24 +120,24 @@ public class IndexedGeoBoundingBoxFilter {
         final Filter lonFilter;
         final Filter latFilter;
 
-        public RightGeoBoundingBoxFilter(Point topLeft, Point bottomRight, GeoPointFieldMapper fieldMapper) {
-            lonFilter = fieldMapper.lonMapper().rangeFilter(topLeft.lon, bottomRight.lon, true, true);
-            latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat, topLeft.lat, true, true);
+        public RightGeoBoundingBoxFilter(GeoPoint topLeft, GeoPoint bottomRight, GeoPointFieldMapper fieldMapper) {
+            lonFilter = fieldMapper.lonMapper().rangeFilter(topLeft.lon(), bottomRight.lon(), true, true);
+            latFilter = fieldMapper.latMapper().rangeFilter(bottomRight.lat(), topLeft.lat(), true, true);
         }
 
         @Override
-        public FixedBitSet getDocIdSet(IndexReader reader) throws IOException {
+        public FixedBitSet getDocIdSet(AtomicReaderContext context, Bits acceptedDocs) throws IOException {
             FixedBitSet main;
-            DocIdSet set = lonFilter.getDocIdSet(reader);
-            if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
+            DocIdSet set = lonFilter.getDocIdSet(context, acceptedDocs);
+            if (DocIdSets.isEmpty(set)) {
                 return null;
             }
             main = (FixedBitSet) set;
-            set = latFilter.getDocIdSet(reader);
-            if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
+            set = latFilter.getDocIdSet(context, acceptedDocs);
+            if (DocIdSets.isEmpty(set)) {
                 return null;
             }
-            DocSets.and(main, set);
+            main.and(set.iterator());
             return main;
         }
 

@@ -21,11 +21,11 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import org.apache.lucene.queryParser.MapperQueryParser;
-import org.apache.lucene.queryParser.QueryParserSettings;
+import org.apache.lucene.queryparser.classic.MapperQueryParser;
+import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.Similarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -33,6 +33,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.engine.IndexEngine;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -122,11 +123,15 @@ public class QueryParseContext {
     }
 
     public Similarity searchSimilarity() {
-        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.defaultSearchSimilarity() : null;
+        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.similarity() : null;
     }
 
     public IndexCache indexCache() {
         return indexQueryParser.indexCache;
+    }
+
+    public IndexFieldDataService fieldData() {
+        return indexQueryParser.fieldDataService;
     }
 
     public String defaultField() {
@@ -264,6 +269,10 @@ public class QueryParseContext {
         return indexQueryParser.mapperService.smartName(name, getTypes());
     }
 
+    public FieldMapper smartNameFieldMapper(String name) {
+        return indexQueryParser.mapperService.smartNameFieldMapper(name, getTypes());
+    }
+
     public MapperService.SmartNameObjectMapper smartObjectMapper(String name) {
         return indexQueryParser.mapperService.smartNameObjectMapper(name, getTypes());
     }
@@ -290,7 +299,7 @@ public class QueryParseContext {
             return current.lookup();
         }
         if (lookup == null) {
-            lookup = new SearchLookup(mapperService(), indexCache().fieldData(), null);
+            lookup = new SearchLookup(mapperService(), fieldData(), null);
         }
         return lookup;
     }

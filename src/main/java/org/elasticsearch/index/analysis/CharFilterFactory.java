@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.lucene.analysis.CharStream;
+import java.io.Reader;
 
 /**
  *
@@ -28,5 +28,5 @@ public interface CharFilterFactory {
 
     String name();
 
-    CharStream create(CharStream tokenStream);
+    Reader create(Reader tokenStream);
 }

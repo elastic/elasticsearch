@@ -48,15 +48,6 @@ public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
         return this;
     }
 
-    /**
-     * Marks the facet to run in a specific scope.
-     */
-    @Override
-    public AbstractFacetBuilder scope(String scope) {
-        super.scope(scope);
-        return this;
-    }
-
     public StatisticalScriptFacetBuilder facetFilter(FilterBuilder filter) {
         this.facetFilter = filter;
         return this;

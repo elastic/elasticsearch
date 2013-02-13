@@ -191,6 +191,52 @@ public class UpdateTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testUpsertFields() throws Exception {
+        createIndex();
+        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+
+        UpdateResponse updateResponse = client.prepareUpdate("test", "type1", "1")
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setScript("ctx._source.extra = \"foo\"")
+                .setFields("_source")
+                .execute().actionGet();
+
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("extra"), nullValue());
+
+        updateResponse = client.prepareUpdate("test", "type1", "1")
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setScript("ctx._source.extra = \"foo\"")
+                .setFields("_source")
+                .execute().actionGet();
+
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("extra").toString(), equalTo("foo"));
+    }
+
+    @Test
+    public void testIndexAutoCreation() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        UpdateResponse updateResponse = client.prepareUpdate("test", "type1", "1")
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setScript("ctx._source.extra = \"foo\"")
+                .setFields("_source")
+                .execute().actionGet();
+
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("extra"), nullValue());
+    }
+    @Test
     public void testUpdate() throws Exception {
         createIndex();
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();

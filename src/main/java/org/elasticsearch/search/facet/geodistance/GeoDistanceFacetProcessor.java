@@ -21,16 +21,18 @@ package org.elasticsearch.search.facet.geodistance;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoDistance;
-import org.elasticsearch.index.search.geo.GeoHashUtils;
-import org.elasticsearch.index.search.geo.GeoUtils;
-import org.elasticsearch.index.search.geo.Point;
-import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetCollector;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.FacetProcessor;
@@ -63,8 +65,7 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
         String valueScript = null;
         String scriptLang = null;
         Map<String, Object> params = null;
-        double lat = Double.NaN;
-        double lon = Double.NaN;
+        GeoPoint point = new GeoPoint();
         DistanceUnit unit = DistanceUnit.KILOMETERS;
         GeoDistance geoDistance = GeoDistance.ARC;
         List<GeoDistanceFacet.Entry> entries = Lists.newArrayList();
@@ -102,9 +103,9 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
                     }
                 } else {
                     token = parser.nextToken();
-                    lon = parser.doubleValue();
+                    point.resetLon(parser.doubleValue());
                     token = parser.nextToken();
-                    lat = parser.doubleValue();
+                    point.resetLat(parser.doubleValue());
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
 
                     }
@@ -121,13 +122,11 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
                             currentName = parser.currentName();
                         } else if (token.isValue()) {
                             if (currentName.equals(GeoPointFieldMapper.Names.LAT)) {
-                                lat = parser.doubleValue();
+                                point.resetLat(parser.doubleValue());
                             } else if (currentName.equals(GeoPointFieldMapper.Names.LON)) {
-                                lon = parser.doubleValue();
+                                point.resetLon(parser.doubleValue());
                             } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                                double[] values = GeoHashUtils.decode(parser.text());
-                                lat = values[0];
-                                lon = values[1];
+                                GeoHashUtils.decode(parser.text(), point);
                             }
                         }
                     }
@@ -148,24 +147,11 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
                     normalizeLon = parser.booleanValue();
                 } else {
                     // assume the value is the actual value
-                    String value = parser.text();
-                    int comma = value.indexOf(',');
-                    if (comma != -1) {
-                        lat = Double.parseDouble(value.substring(0, comma).trim());
-                        lon = Double.parseDouble(value.substring(comma + 1).trim());
-                    } else {
-                        double[] values = GeoHashUtils.decode(value);
-                        lat = values[0];
-                        lon = values[1];
-                    }
+                    point.resetFromString(parser.text());
 
                     fieldName = currentName;
                 }
             }
-        }
-
-        if (Double.isNaN(lat) || Double.isNaN(lon)) {
-            throw new FacetPhaseExecutionException(facetName, "lat/lon not set for geo_distance facet");
         }
 
         if (entries.isEmpty()) {
@@ -173,49 +159,31 @@ public class GeoDistanceFacetProcessor extends AbstractComponent implements Face
         }
 
         if (normalizeLat || normalizeLon) {
-            Point point = new Point(lat, lon);
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
-            lat = point.lat;
-            lon = point.lon;
         }
 
+        FieldMapper keyFieldMapper = context.smartNameFieldMapper(fieldName);
+        if (keyFieldMapper == null) {
+            throw new FacetPhaseExecutionException(facetName, "failed to find mapping for [" + fieldName + "]");
+        }
+        IndexGeoPointFieldData keyIndexFieldData = context.fieldData().getForField(keyFieldMapper);
+
         if (valueFieldName != null) {
-            return new ValueGeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
-                    context, valueFieldName);
+            FieldMapper valueFieldMapper = context.smartNameFieldMapper(valueFieldName);
+            if (valueFieldMapper == null) {
+                throw new FacetPhaseExecutionException(facetName, "failed to find mapping for [" + valueFieldName + "]");
+            }
+            IndexNumericFieldData valueIndexFieldData = context.fieldData().getForField(valueFieldMapper);
+            return new ValueGeoDistanceFacetCollector(facetName, keyIndexFieldData, point.lat(), point.lon(), unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
+                    context, valueIndexFieldData);
         }
 
         if (valueScript != null) {
-            return new ScriptGeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
+            return new ScriptGeoDistanceFacetCollector(facetName, keyIndexFieldData, point.lat(), point.lon(), unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
                     context, scriptLang, valueScript, params);
         }
 
-        return new GeoDistanceFacetCollector(facetName, fieldName, lat, lon, unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
+        return new GeoDistanceFacetCollector(facetName, keyIndexFieldData, point.lat(), point.lon(), unit, geoDistance, entries.toArray(new GeoDistanceFacet.Entry[entries.size()]),
                 context);
-    }
-
-    @Override
-    public Facet reduce(String name, List<Facet> facets) {
-        InternalGeoDistanceFacet agg = null;
-        for (Facet facet : facets) {
-            InternalGeoDistanceFacet geoDistanceFacet = (InternalGeoDistanceFacet) facet;
-            if (agg == null) {
-                agg = geoDistanceFacet;
-            } else {
-                for (int i = 0; i < geoDistanceFacet.entries.length; i++) {
-                    GeoDistanceFacet.Entry aggEntry = agg.entries[i];
-                    GeoDistanceFacet.Entry currentEntry = geoDistanceFacet.entries[i];
-                    aggEntry.count += currentEntry.count;
-                    aggEntry.totalCount += currentEntry.totalCount;
-                    aggEntry.total += currentEntry.total;
-                    if (currentEntry.min < aggEntry.min) {
-                        aggEntry.min = currentEntry.min;
-                    }
-                    if (currentEntry.max > aggEntry.max) {
-                        aggEntry.max = currentEntry.max;
-                    }
-                }
-            }
-        }
-        return agg;
     }
 }

@@ -27,6 +27,10 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.List;
 
 /**
+ * This module configures several {@link AllocationDecider}s
+ * that make configuration specific decisions if shards can be allocated on certain nodes.
+ * @see Decision
+ * @see AllocationDecider
  */
 public class AllocationDecidersModule extends AbstractModule {
 

@@ -477,6 +477,7 @@ public class AnalysisModule extends AbstractModule {
         public void processTokenFilters(TokenFiltersBindings tokenFiltersBindings) {
             tokenFiltersBindings.processTokenFilter("snowball", SnowballTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("stemmer", StemmerTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("class_token_filter", ClassTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("word_delimiter", WordDelimiterTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("synonym", SynonymTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("elision", ElisionTokenFilterFactory.class);

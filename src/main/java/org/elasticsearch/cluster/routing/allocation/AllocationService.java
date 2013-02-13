@@ -76,6 +76,10 @@ public class AllocationService extends AbstractComponent {
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
     public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards) {
+        return applyStartedShards(clusterState, startedShards, true);
+    }
+
+    public RoutingAllocation.Result applyStartedShards(ClusterState clusterState, List<? extends ShardRouting> startedShards, boolean withReroute) {
         RoutingNodes routingNodes = clusterState.routingNodes();
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         Collections.shuffle(routingNodes.unassigned());
@@ -85,7 +89,9 @@ public class AllocationService extends AbstractComponent {
             return new RoutingAllocation.Result(false, clusterState.routingTable(), allocation.explanation());
         }
         shardsAllocators.applyStartedShards(allocation);
-        reroute(allocation);
+        if (withReroute) {
+            reroute(allocation);
+        }
         return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), allocation.explanation());
     }
 

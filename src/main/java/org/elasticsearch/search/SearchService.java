@@ -639,7 +639,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 SearchContext context = null;
                 try {
                     long now = System.nanoTime();
-                    ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(), SearchType.COUNT)
+                    ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(),
+                            SearchType.QUERY_THEN_FETCH /* we don't use COUNT so sorting will also kick in whatever warming logic*/)
                             .source(entry.source())
                             .types(entry.types());
                     context = createContext(request, warmerContext.newSearcher());

@@ -142,10 +142,6 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                 clearedAtLeastOne = true;
                 service.cache().idCache().clear();
             }
-            if (request.bloomCache()) {
-                clearedAtLeastOne = true;
-                service.cache().bloomCache().clear();
-            }
             if (!clearedAtLeastOne) {
                 if (request.fields() != null && request.fields().length > 0) {
                     // only clear caches relating to the specified fields

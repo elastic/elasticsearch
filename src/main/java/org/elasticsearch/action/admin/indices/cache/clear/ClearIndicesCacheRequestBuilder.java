@@ -58,11 +58,6 @@ public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBu
         return this;
     }
 
-    public ClearIndicesCacheRequestBuilder setBloomCache(boolean bloomCache) {
-        request.bloomCache(bloomCache);
-        return this;
-    }
-
     @Override
     protected void doExecute(ActionListener<ClearIndicesCacheResponse> listener) {
         ((IndicesAdminClient) client).clearCache(request, listener);

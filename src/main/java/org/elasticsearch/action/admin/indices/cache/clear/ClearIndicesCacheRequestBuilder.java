@@ -48,6 +48,11 @@ public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBu
         return this;
     }
 
+    public ClearIndicesCacheRequestBuilder setFilterKeys(String... filterKeys) {
+        request.filterKeys(filterKeys);
+        return this;
+    }
+
     public ClearIndicesCacheRequestBuilder setIdCache(boolean idCache) {
         request.idCache(idCache);
         return this;

@@ -33,8 +33,8 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     private boolean filterCache = false;
     private boolean fieldDataCache = false;
     private boolean idCache = false;
-    private boolean bloomCache = false;
     private String[] fields = null;
+    private String[] filterKeys = null;
 
     ShardClearIndicesCacheRequest() {
     }
@@ -44,8 +44,8 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         filterCache = request.filterCache();
         fieldDataCache = request.fieldDataCache();
         idCache = request.idCache();
-        bloomCache = request.bloomCache();
         fields = request.fields();
+        filterKeys = request.filterKeys();
     }
 
     public boolean filterCache() {
@@ -60,12 +60,12 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         return this.idCache;
     }
 
-    public boolean bloomCache() {
-        return this.bloomCache;
-    }
-
     public String[] fields() {
         return this.fields;
+    }
+
+    public String[] filterKeys() {
+        return this.filterKeys;
     }
 
     public ShardClearIndicesCacheRequest waitForOperations(boolean waitForOperations) {
@@ -79,14 +79,8 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         filterCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
         idCache = in.readBoolean();
-        bloomCache = in.readBoolean();
-        int size = in.readVInt();
-        if (size > 0) {
-            fields = new String[size];
-            for (int i = 0; i < size; i++) {
-                fields[i] = in.readUTF();
-            }
-        }
+        fields = in.readStringArray();
+        filterKeys = in.readStringArray();
     }
 
     @Override
@@ -95,14 +89,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         out.writeBoolean(filterCache);
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(idCache);
-        out.writeBoolean(bloomCache);
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(fields.length);
-            for (String field : fields) {
-                out.writeUTF(field);
-            }
-        }
+        out.writeStringArrayNullable(fields);
+        out.writeStringArrayNullable(filterKeys);
     }
 }

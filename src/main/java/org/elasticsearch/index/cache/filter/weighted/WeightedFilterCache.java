@@ -86,6 +86,16 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     @Override
+    public void clear(String reason, String[] keys) {
+        logger.debug("clear keys [], reason [{}]", reason, keys);
+        for (String key : keys) {
+            for (Object readerKey : seenReaders.keySet()) {
+                indicesFilterCache.cache().invalidate(new FilterCacheKey(this, readerKey, new CacheKeyFilter.Key(key)));
+            }
+        }
+    }
+
+    @Override
     public void onClose(SegmentReader owner) {
         clear(owner);
     }

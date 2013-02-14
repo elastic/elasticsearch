@@ -124,6 +124,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                 clearedAtLeastOne = true;
                 service.cache().filter().clear("api");
             }
+            if (request.filterKeys() != null && request.filterKeys().length > 0) {
+                clearedAtLeastOne = true;
+                service.cache().filter().clear("api", request.filterKeys());
+            }
             if (request.fieldDataCache()) {
                 clearedAtLeastOne = true;
                 if (request.fields() == null || request.fields().length == 0) {

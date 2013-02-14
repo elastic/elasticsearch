@@ -30,11 +30,12 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -68,6 +69,11 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testCustomScriptBoost() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception ex) {
+            //
+        }
         client.admin().indices().prepareCreate("test").execute().actionGet();
         client.prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())
@@ -120,5 +126,66 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
         assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
         assertThat(response.hits().getAt(2).id(), equalTo("3"));
         assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+    }
+
+    private static AtomicInteger scriptCounter = new AtomicInteger(0);
+
+    public static int incrementScriptCounter() {
+        return scriptCounter.incrementAndGet();
+    }
+
+    @Test
+    public void testCustomScriptCache() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception ex) {
+            //
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("test", "1").field("num", 1.0f).endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("test", "2").field("num", 2.0f).endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("test", "3").field("num", 3.0f).endObject()).execute().actionGet();
+        client.admin().indices().prepareFlush().execute().actionGet();
+        client.admin().indices().refresh(refreshRequest()).actionGet();
+
+        String script = "org.elasticsearch.test.integration.search.scriptfilter.ScriptFilterSearchTests.incrementScriptCounter() > 0";
+
+        scriptCounter.set(0);
+        logger.info("running script filter the first time");
+        SearchResponse response = client.prepareSearch()
+                .setQuery(filteredQuery(termQuery("test", "1"), scriptFilter(script).cache(true)))
+                .execute().actionGet();
+
+        assertThat(response.hits().totalHits(), equalTo(1l));
+        assertThat(scriptCounter.get(), equalTo(3));
+
+        scriptCounter.set(0);
+        logger.info("running script filter the second time");
+        response = client.prepareSearch()
+                .setQuery(filteredQuery(termQuery("test", "2"), scriptFilter(script).cache(true)))
+                .execute().actionGet();
+
+        assertThat(response.hits().totalHits(), equalTo(1l));
+        assertThat(scriptCounter.get(), equalTo(0));
+
+        scriptCounter.set(0);
+        logger.info("running script filter with new parameters");
+        response = client.prepareSearch()
+                .setQuery(filteredQuery(termQuery("test", "1"), scriptFilter(script).addParam("param1", "1").cache(true)))
+                .execute().actionGet();
+
+        assertThat(response.hits().totalHits(), equalTo(1l));
+        assertThat(scriptCounter.get(), equalTo(3));
+
+        scriptCounter.set(0);
+        logger.info("running script filter with same parameters");
+        response = client.prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(), scriptFilter(script).addParam("param1", "1").cache(true)))
+                .execute().actionGet();
+
+        assertThat(response.hits().totalHits(), equalTo(3l));
+        assertThat(scriptCounter.get(), equalTo(0));
     }
 }

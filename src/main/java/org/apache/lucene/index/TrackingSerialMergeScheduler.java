@@ -88,6 +88,7 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             writer.mergeInit(merge);
 
             int totalNumDocs = merge.totalNumDocs();
+            // don't used #totalBytesSize() since need to be executed under IW lock, might be fixed in future Lucene version
             long totalSizeInBytes = merge.estimatedMergeBytes;
             long time = System.currentTimeMillis();
             currentMerges.inc();

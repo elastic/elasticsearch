@@ -1,7 +1,14 @@
 package org.elasticsearch.test.unit.common.lucene.spatial.prefix;
 
-import com.spatial4j.core.shape.Rectangle;
-import com.spatial4j.core.shape.Shape;
+import static org.elasticsearch.common.geo.ShapeBuilder.newPoint;
+import static org.elasticsearch.common.geo.ShapeBuilder.newPolygon;
+import static org.elasticsearch.common.geo.ShapeBuilder.newRectangle;
+import static org.testng.Assert.assertTrue;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -9,27 +16,29 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
+import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
+import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
+import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.geo.GeoShapeConstants;
-import org.elasticsearch.common.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
-import org.elasticsearch.common.lucene.spatial.prefix.tree.GeohashPrefixTree;
-import org.elasticsearch.common.lucene.spatial.prefix.tree.QuadPrefixTree;
-import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.common.lucene.spatial.XTermQueryPrefixTreeStategy;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
-
-import static org.elasticsearch.common.geo.ShapeBuilder.*;
-import static org.testng.Assert.assertTrue;
+import com.spatial4j.core.shape.Rectangle;
+import com.spatial4j.core.shape.Shape;
 
 /**
  * Tests for {@link TermQueryPrefixTreeStrategy}
@@ -43,8 +52,7 @@ public class TermQueryPrefixTreeStrategyTests {
     private static final SpatialPrefixTree GEOHASH_PREFIX_TREE
             = new GeohashPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, GeohashPrefixTree.getMaxLevelsPossible());
 
-    private static final TermQueryPrefixTreeStrategy STRATEGY = new TermQueryPrefixTreeStrategy(new FieldMapper.Names("shape"), GEOHASH_PREFIX_TREE, 0.025);
-
+    private static final XTermQueryPrefixTreeStategy STRATEGY = new XTermQueryPrefixTreeStategy(GEOHASH_PREFIX_TREE, new FieldMapper.Names("shape"));
     private Directory directory;
     private IndexReader indexReader;
     private IndexSearcher indexSearcher;
@@ -66,7 +74,10 @@ public class TermQueryPrefixTreeStrategyTests {
     private Document newDocument(String id, Shape shape) {
         Document document = new Document();
         document.add(new Field("id", id, StringField.TYPE_STORED));
-        document.add(STRATEGY.createField(shape));
+        Field[] createIndexableFields = STRATEGY.createIndexableFields(shape);
+        for (Field field : createIndexableFields) {
+            document.add(field);
+        }
         return document;
     }
 

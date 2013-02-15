@@ -189,6 +189,23 @@ public class MapperQueryParser extends QueryParser {
     }
 
     private Query getFieldQuerySingle(String field, String queryText, boolean quoted) throws ParseException {
+        if (!quoted && queryText.length() > 1) {
+            if (queryText.charAt(0) == '>') {
+                if (queryText.length() > 2) {
+                    if (queryText.charAt(1) == '=') {
+                        return getRangeQuerySingle(field, queryText.substring(2), null, true, true);
+                    }
+                }
+                return getRangeQuerySingle(field, queryText.substring(1), null, false, true);
+            } else if (queryText.charAt(0) == '<') {
+                if (queryText.length() > 2) {
+                    if (queryText.charAt(1) == '=') {
+                        return getRangeQuerySingle(field, null, queryText.substring(2), true, true);
+                    }
+                }
+                return getRangeQuerySingle(field, null, queryText.substring(1), true, false);
+            }
+        }
         currentMapper = null;
         Analyzer oldAnalyzer = analyzer;
         try {
@@ -297,13 +314,13 @@ public class MapperQueryParser extends QueryParser {
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {
-                return getRangeQuerySingle(fields.iterator().next(), part1, part2, inclusive);
+                return getRangeQuerySingle(fields.iterator().next(), part1, part2, inclusive, inclusive);
             }
             if (settings.useDisMax()) {
                 DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(settings.tieBreaker());
                 boolean added = false;
                 for (String mField : fields) {
-                    Query q = getRangeQuerySingle(mField, part1, part2, inclusive);
+                    Query q = getRangeQuerySingle(mField, part1, part2, inclusive, inclusive);
                     if (q != null) {
                         added = true;
                         applyBoost(mField, q);
@@ -317,7 +334,7 @@ public class MapperQueryParser extends QueryParser {
             } else {
                 List<BooleanClause> clauses = new ArrayList<BooleanClause>();
                 for (String mField : fields) {
-                    Query q = getRangeQuerySingle(mField, part1, part2, inclusive);
+                    Query q = getRangeQuerySingle(mField, part1, part2, inclusive, inclusive);
                     if (q != null) {
                         applyBoost(mField, q);
                         clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
@@ -328,18 +345,18 @@ public class MapperQueryParser extends QueryParser {
                 return getBooleanQuery(clauses, true);
             }
         } else {
-            return getRangeQuerySingle(field, part1, part2, inclusive);
+            return getRangeQuerySingle(field, part1, part2, inclusive, inclusive);
         }
     }
 
-    private Query getRangeQuerySingle(String field, String part1, String part2, boolean inclusive) {
+    private Query getRangeQuerySingle(String field, String part1, String part2, boolean startInclusive, boolean endInclusive) {
         currentMapper = null;
         MapperService.SmartNameFieldMappers fieldMappers = parseContext.smartFieldMappers(field);
         if (fieldMappers != null) {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
                 try {
-                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, inclusive, inclusive, parseContext);
+                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
                     return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {
@@ -349,7 +366,7 @@ public class MapperQueryParser extends QueryParser {
                 }
             }
         }
-        return newRangeQuery(field, part1, part2, inclusive);
+        return newRangeQuery(field, part1, part2, startInclusive || endInclusive);
     }
 
     @Override

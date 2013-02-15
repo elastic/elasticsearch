@@ -231,6 +231,23 @@ public class MapperQueryParser extends QueryParser {
     }
 
     private Query getFieldQuerySingle(String field, String queryText, boolean quoted) throws ParseException {
+        if (!quoted && queryText.length() > 1) {
+            if (queryText.charAt(0) == '>') {
+                if (queryText.length() > 2) {
+                    if (queryText.charAt(1) == '=') {
+                        return getRangeQuerySingle(field, queryText.substring(2), null, true, true);
+                    }
+                }
+                return getRangeQuerySingle(field, queryText.substring(1), null, false, true);
+            } else if (queryText.charAt(0) == '<') {
+                if (queryText.length() > 2) {
+                    if (queryText.charAt(1) == '=') {
+                        return getRangeQuerySingle(field, null, queryText.substring(2), true, true);
+                    }
+                }
+                return getRangeQuerySingle(field, null, queryText.substring(1), true, false);
+            }
+        }
         currentMapper = null;
         Analyzer oldAnalyzer = analyzer;
         try {
@@ -385,7 +402,7 @@ public class MapperQueryParser extends QueryParser {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
                 try {
-                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, startInclusive, parseContext);
+                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
                     return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {

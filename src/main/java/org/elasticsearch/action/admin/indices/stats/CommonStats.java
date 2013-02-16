@@ -70,82 +70,77 @@ public class CommonStats implements Streamable, ToXContent {
 
     public void add(CommonStats stats) {
         if (docs == null) {
-            if (stats.docs() != null) {
+            if (stats.getDocs() != null) {
                 docs = new DocsStats();
-                docs.add(stats.docs());
+                docs.add(stats.getDocs());
             }
         } else {
-            docs.add(stats.docs());
+            docs.add(stats.getDocs());
         }
         if (store == null) {
-            if (stats.store() != null) {
+            if (stats.getStore() != null) {
                 store = new StoreStats();
-                store.add(stats.store());
+                store.add(stats.getStore());
             }
         } else {
-            store.add(stats.store());
+            store.add(stats.getStore());
         }
         if (indexing == null) {
-            if (stats.indexing() != null) {
+            if (stats.getIndexing() != null) {
                 indexing = new IndexingStats();
-                indexing.add(stats.indexing());
+                indexing.add(stats.getIndexing());
             }
         } else {
-            indexing.add(stats.indexing());
+            indexing.add(stats.getIndexing());
         }
         if (get == null) {
-            if (stats.get() != null) {
+            if (stats.getGet() != null) {
                 get = new GetStats();
-                get.add(stats.get());
+                get.add(stats.getGet());
             }
         } else {
-            get.add(stats.get());
+            get.add(stats.getGet());
         }
         if (search == null) {
-            if (stats.search() != null) {
+            if (stats.getSearch() != null) {
                 search = new SearchStats();
-                search.add(stats.search());
+                search.add(stats.getSearch());
             }
         } else {
-            search.add(stats.search());
+            search.add(stats.getSearch());
         }
         if (merge == null) {
-            if (stats.merge() != null) {
+            if (stats.getMerge() != null) {
                 merge = new MergeStats();
-                merge.add(stats.merge());
+                merge.add(stats.getMerge());
             }
         } else {
-            merge.add(stats.merge());
+            merge.add(stats.getMerge());
         }
         if (refresh == null) {
-            if (stats.refresh() != null) {
+            if (stats.getRefresh() != null) {
                 refresh = new RefreshStats();
-                refresh.add(stats.refresh());
+                refresh.add(stats.getRefresh());
             }
         } else {
-            refresh.add(stats.refresh());
+            refresh.add(stats.getRefresh());
         }
         if (flush == null) {
-            if (stats.flush() != null) {
+            if (stats.getFlush() != null) {
                 flush = new FlushStats();
-                flush.add(stats.flush());
+                flush.add(stats.getFlush());
             }
         } else {
-            flush.add(stats.flush());
+            flush.add(stats.getFlush());
         }
         if (warmer == null) {
-            if (stats.warmer() != null) {
+            if (stats.getWarmer() != null) {
                 warmer = new WarmerStats();
-                warmer.add(stats.warmer());
+                warmer.add(stats.getWarmer());
             }
         } else {
-            warmer.add(stats.warmer());
+            warmer.add(stats.getWarmer());
         }
-    }
-
-    @Nullable
-    public DocsStats docs() {
-        return this.docs;
     }
 
     @Nullable
@@ -154,18 +149,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public StoreStats store() {
-        return store;
-    }
-
-    @Nullable
     public StoreStats getStore() {
         return store;
-    }
-
-    @Nullable
-    public IndexingStats indexing() {
-        return indexing;
     }
 
     @Nullable
@@ -174,18 +159,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public GetStats get() {
-        return get;
-    }
-
-    @Nullable
     public GetStats getGet() {
         return get;
-    }
-
-    @Nullable
-    public SearchStats search() {
-        return search;
     }
 
     @Nullable
@@ -194,18 +169,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public MergeStats merge() {
-        return merge;
-    }
-
-    @Nullable
     public MergeStats getMerge() {
         return merge;
-    }
-
-    @Nullable
-    public RefreshStats refresh() {
-        return refresh;
     }
 
     @Nullable
@@ -214,18 +179,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public FlushStats flush() {
-        return flush;
-    }
-
-    @Nullable
     public FlushStats getFlush() {
         return flush;
-    }
-
-    @Nullable
-    public WarmerStats warmer() {
-        return this.warmer;
     }
 
     @Nullable

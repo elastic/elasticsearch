@@ -158,7 +158,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
             stats.stats.get = indexShard.getStats();
         }
         if (request.request.search()) {
-            stats.stats().search = indexShard.searchStats(request.request.groups());
+            stats.getStats().search = indexShard.searchStats(request.request.groups());
         }
         if (request.request.merge()) {
             stats.stats.merge = indexShard.mergeStats();

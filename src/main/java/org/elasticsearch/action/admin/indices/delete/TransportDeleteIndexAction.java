@@ -86,15 +86,15 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
     @Override
     protected void doExecute(DeleteIndexRequest request, ActionListener<DeleteIndexResponse> listener) {
         ClusterState state = clusterService.state();
-        String[] indicesOrAliases = request.indices();
-        request.indices(state.metaData().concreteIndices(request.indices()));
+        String[] indicesOrAliases = request.getIndices();
+        request.setIndices(state.metaData().concreteIndices(request.getIndices()));
         if (disableDeleteAllIndices) {
             // simple check on the original indices with "all" default parameter
             if (indicesOrAliases == null || indicesOrAliases.length == 0 || (indicesOrAliases.length == 1 && indicesOrAliases[0].equals("_all"))) {
                 throw new ElasticSearchIllegalArgumentException("deleting all indices is disabled");
             }
             // if we end up matching on all indices, check, if its a wildcard parameter, or a "-something" structure
-            if (request.indices().length == state.metaData().concreteAllIndices().length && indicesOrAliases.length > 0) {
+            if (request.getIndices().length == state.metaData().concreteAllIndices().length && indicesOrAliases.length > 0) {
                 boolean hasRegex = false;
                 for (String indexOrAlias : indicesOrAliases) {
                     if (Regex.isSimpleMatchPattern(indexOrAlias)) {
@@ -111,19 +111,19 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.getIndices());
     }
 
     @Override
     protected DeleteIndexResponse masterOperation(DeleteIndexRequest request, final ClusterState state) throws ElasticSearchException {
-        if (request.indices().length == 0) {
+        if (request.getIndices().length == 0) {
             return new DeleteIndexResponse(true);
         }
         final AtomicReference<DeleteIndexResponse> responseRef = new AtomicReference<DeleteIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
-        final CountDownLatch latch = new CountDownLatch(request.indices().length);
-        for (final String index : request.indices()) {
-            deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.timeout()), new MetaDataDeleteIndexService.Listener() {
+        final CountDownLatch latch = new CountDownLatch(request.getIndices().length);
+        for (final String index : request.getIndices()) {
+            deleteIndexService.deleteIndex(new MetaDataDeleteIndexService.Request(index).timeout(request.getTimeout()), new MetaDataDeleteIndexService.Listener() {
                 @Override
                 public void onResponse(MetaDataDeleteIndexService.Response response) {
                     responseRef.set(new DeleteIndexResponse(response.acknowledged()));

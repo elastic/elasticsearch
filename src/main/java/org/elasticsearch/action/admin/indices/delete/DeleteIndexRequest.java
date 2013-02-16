@@ -63,7 +63,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
         return validationException;
     }
 
-    public DeleteIndexRequest indices(String... indices) {
+    public DeleteIndexRequest setIndices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -71,7 +71,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
     /**
      * The index to delete.
      */
-    String[] indices() {
+    String[] getIndices() {
         return indices;
     }
 
@@ -79,7 +79,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    TimeValue timeout() {
+    TimeValue getTimeout() {
         return timeout;
     }
 
@@ -87,7 +87,7 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    public DeleteIndexRequest timeout(TimeValue timeout) {
+    public DeleteIndexRequest setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
@@ -96,8 +96,8 @@ public class DeleteIndexRequest extends MasterNodeOperationRequest<DeleteIndexRe
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    public DeleteIndexRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
+    public DeleteIndexRequest setTimeout(String timeout) {
+        return setTimeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override

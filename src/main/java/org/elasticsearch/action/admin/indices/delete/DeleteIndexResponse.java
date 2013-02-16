@@ -41,7 +41,7 @@ public class DeleteIndexResponse extends ActionResponse {
 
     /**
      * Has the index deletion been acknowledged by all current cluster nodes within the
-     * provided {@link DeleteIndexRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
+     * provided {@link DeleteIndexRequest#setTimeout(org.elasticsearch.common.unit.TimeValue)}.
      */
     public boolean isAcknowledged() {
         return acknowledged;

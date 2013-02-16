@@ -79,7 +79,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         state = client("node1").admin().cluster().prepareReroute()
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), "node1", true))
                 .setDryRun(true)
-                .execute().actionGet().state();
+                .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
@@ -90,7 +90,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client("node1").admin().cluster().prepareReroute()
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), "node1", true))
-                .execute().actionGet().state();
+                .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
@@ -105,7 +105,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         logger.info("--> move shard 1 primary from node1 to node2");
         state = client("node1").admin().cluster().prepareReroute()
                 .add(new MoveAllocationCommand(new ShardId("test", 0), "node1", "node2"))
-                .execute().actionGet().state();
+                .execute().actionGet().getState();
 
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.RELOCATING));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node2").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
@@ -149,7 +149,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client("node1").admin().cluster().prepareReroute()
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), "node1", true))
-                .execute().actionGet().state();
+                .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 

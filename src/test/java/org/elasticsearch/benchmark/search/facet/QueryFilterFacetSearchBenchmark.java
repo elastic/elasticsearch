@@ -123,7 +123,7 @@ public class QueryFilterFacetSearchBenchmark {
                     .setSearchType(SearchType.COUNT)
                     .setQuery(termQuery("l_value", lValues[0]))
                     .execute().actionGet();
-            totalQueryTime += searchResponse.tookInMillis();
+            totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("-->  Simple Query on first l_value " + (totalQueryTime / QUERY_COUNT) + "ms");
 
@@ -134,7 +134,7 @@ public class QueryFilterFacetSearchBenchmark {
                     .setQuery(termQuery("l_value", lValues[0]))
                     .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", lValues[0])))
                     .execute().actionGet();
-            totalQueryTime += searchResponse.tookInMillis();
+            totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("-->  Query facet first l_value " + (totalQueryTime / QUERY_COUNT) + "ms");
 
@@ -145,7 +145,7 @@ public class QueryFilterFacetSearchBenchmark {
                     .setQuery(termQuery("l_value", lValues[0]))
                     .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", lValues[0])).global(true).mode(FacetBuilder.Mode.COLLECTOR))
                     .execute().actionGet();
-            totalQueryTime += searchResponse.tookInMillis();
+            totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("-->  Query facet first l_value (global) (mode/collector) " + (totalQueryTime / QUERY_COUNT) + "ms");
 
@@ -156,7 +156,7 @@ public class QueryFilterFacetSearchBenchmark {
                     .setQuery(termQuery("l_value", lValues[0]))
                     .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", lValues[0])).global(true).mode(FacetBuilder.Mode.POST))
                     .execute().actionGet();
-            totalQueryTime += searchResponse.tookInMillis();
+            totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("-->  Query facet first l_value (global) (mode/post) " + (totalQueryTime / QUERY_COUNT) + "ms");
     }

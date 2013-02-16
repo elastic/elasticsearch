@@ -28,10 +28,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.numericRangeFilter;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -91,12 +88,12 @@ public class SimilarityTests extends AbstractNodesTests {
                 .setRefresh(true).execute().actionGet();
 
         SearchResponse bm25SearchResponse = client.prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).execute().actionGet();
-        assertThat(bm25SearchResponse.hits().totalHits(), equalTo(1l));
-        float bm25Score = bm25SearchResponse.hits().hits()[0].score();
+        assertThat(bm25SearchResponse.getHits().totalHits(), equalTo(1l));
+        float bm25Score = bm25SearchResponse.getHits().hits()[0].score();
 
         SearchResponse defaultSearchResponse = client.prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).execute().actionGet();
-        assertThat(defaultSearchResponse.hits().totalHits(), equalTo(1l));
-        float defaultScore = defaultSearchResponse.hits().hits()[0].score();
+        assertThat(defaultSearchResponse.getHits().totalHits(), equalTo(1l));
+        float defaultScore = defaultSearchResponse.getHits().hits()[0].score();
 
         assertThat(bm25Score, not(equalTo(defaultScore)));
     }

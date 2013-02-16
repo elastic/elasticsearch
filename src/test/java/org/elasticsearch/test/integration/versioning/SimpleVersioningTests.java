@@ -185,13 +185,13 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         // search with versioning
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
-            assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
+            assertThat(searchResponse.getHits().getAt(0).version(), equalTo(2l));
         }
 
         // search without versioning
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(searchResponse.hits().getAt(0).version(), equalTo(-1l));
+            assertThat(searchResponse.getHits().getAt(0).version(), equalTo(-1l));
         }
 
         DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
@@ -272,7 +272,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
-            assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
+            assertThat(searchResponse.getHits().getAt(0).version(), equalTo(2l));
         }
     }
 

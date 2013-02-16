@@ -135,8 +135,8 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(7l));
-        GeoDistanceFacet facet = searchResponse.facets().facet("geo1");
+        assertThat(searchResponse.getHits().totalHits(), equalTo(7l));
+        GeoDistanceFacet facet = searchResponse.getFacets().facet("geo1");
         assertThat(facet.getEntries().size(), equalTo(4));
 
         assertThat(facet.getEntries().get(0).getTo(), closeTo(2, 0.000001));
@@ -168,8 +168,8 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(7l));
-        facet = searchResponse.facets().facet("geo1");
+        assertThat(searchResponse.getHits().totalHits(), equalTo(7l));
+        facet = searchResponse.getFacets().facet("geo1");
         assertThat(facet.getEntries().size(), equalTo(4));
 
         assertThat(facet.getEntries().get(0).getTo(), closeTo(2, 0.000001));
@@ -200,8 +200,8 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(7l));
-        facet = searchResponse.facets().facet("geo1");
+        assertThat(searchResponse.getHits().totalHits(), equalTo(7l));
+        facet = searchResponse.getFacets().facet("geo1");
         assertThat(facet.getEntries().size(), equalTo(4));
 
         assertThat(facet.getEntries().get(0).getTo(), closeTo(2, 0.000001));
@@ -267,10 +267,10 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
-        GeoDistanceFacet facet = searchResponse.facets().facet("geo1");
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        GeoDistanceFacet facet = searchResponse.getFacets().facet("geo1");
         assertThat(facet.getEntries().size(), equalTo(2));
 
         assertThat(facet.getEntries().get(0).getFrom(), closeTo(0, 0.000001));

@@ -200,9 +200,9 @@ public class TermsFacetSearchBenchmark {
                     .addFacet(termsFacet(field).field(field).executionHint(executionHint))
                     .execute().actionGet();
             if (j == 0) {
-                System.out.println("--> Loading (" + field + "): took: " + searchResponse.took());
+                System.out.println("--> Loading (" + field + "): took: " + searchResponse.getTook());
             }
-            if (searchResponse.hits().totalHits() != COUNT) {
+            if (searchResponse.getHits().totalHits() != COUNT) {
                 System.err.println("--> mismatch on hits");
             }
         }
@@ -217,10 +217,10 @@ public class TermsFacetSearchBenchmark {
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet(field).field(field).executionHint(executionHint))
                     .execute().actionGet();
-            if (searchResponse.hits().totalHits() != COUNT) {
+            if (searchResponse.getHits().totalHits() != COUNT) {
                 System.err.println("--> mismatch on hits");
             }
-            totalQueryTime += searchResponse.tookInMillis();
+            totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> Terms Facet (" + field + "), hint(" + executionHint + "): " + (totalQueryTime / QUERY_COUNT) + "ms");
         return new StatsResult(name, totalQueryTime);
@@ -240,9 +240,9 @@ public class TermsFacetSearchBenchmark {
                     .addFacet(termsStatsFacet(name).keyField(keyField).valueField(valueField))
                     .execute().actionGet();
             if (j == 0) {
-                System.out.println("--> Loading (" + name + "): took: " + searchResponse.took());
+                System.out.println("--> Loading (" + name + "): took: " + searchResponse.getTook());
             }
-            if (searchResponse.hits().totalHits() != COUNT) {
+            if (searchResponse.getHits().totalHits() != COUNT) {
                 System.err.println("--> mismatch on hits");
             }
         }
@@ -257,10 +257,10 @@ public class TermsFacetSearchBenchmark {
                     .setQuery(matchAllQuery())
                     .addFacet(termsStatsFacet(name).keyField(keyField).valueField(valueField))
                     .execute().actionGet();
-            if (searchResponse.hits().totalHits() != COUNT) {
+            if (searchResponse.getHits().totalHits() != COUNT) {
                 System.err.println("--> mismatch on hits");
             }
-            totalQueryTime += searchResponse.tookInMillis();
+            totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("--> Terms Facet (" + name + "), hint(" + executionHint + "): " + (totalQueryTime / QUERY_COUNT) + "ms");
         return new StatsResult(name, totalQueryTime);

@@ -120,7 +120,7 @@ public class SuggestSearchBenchMark {
                     .setQuery(prefixQuery("field", term))
                     .addSuggestion(new SuggestBuilder.FuzzySuggestion("field").setField("field").setText(term).setSuggestMode("always"))
                     .execute().actionGet();
-            if (response.hits().totalHits() == 0) {
+            if (response.getHits().totalHits() == 0) {
                 System.err.println("No hits");
                 continue;
             }
@@ -137,12 +137,12 @@ public class SuggestSearchBenchMark {
                     .setQuery(matchQuery("field", term))
                     .addSuggestion(new SuggestBuilder.FuzzySuggestion("field").setText(term).setField("field").setSuggestMode("always"))
                     .execute().actionGet();
-            timeTaken += response.tookInMillis();
-            if (response.suggest() == null) {
+            timeTaken += response.getTookInMillis();
+            if (response.getSuggest() == null) {
                 System.err.println("No suggestions");
                 continue;
             }
-            List<Suggest.Suggestion.Entry.Option> options = response.suggest().getSuggestions().get(0).getEntries().get(0).getOptions();
+            List<Suggest.Suggestion.Entry.Option> options = response.getSuggest().getSuggestions().get(0).getEntries().get(0).getOptions();
             if (options == null || options.isEmpty()) {
                 System.err.println("No suggestions");
             }

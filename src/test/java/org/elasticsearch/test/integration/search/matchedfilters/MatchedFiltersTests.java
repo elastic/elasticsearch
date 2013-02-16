@@ -93,8 +93,8 @@ public class MatchedFiltersTests extends AbstractNodesTests {
                 .setQuery(filteredQuery(matchAllQuery(), orFilter(rangeFilter("number").lte(2).filterName("test1"), rangeFilter("number").gt(2).filterName("test2"))))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
-        for (SearchHit hit : searchResponse.hits()) {
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        for (SearchHit hit : searchResponse.getHits()) {
             if (hit.id().equals("1") || hit.id().equals("2")) {
                 assertThat(hit.matchedFilters().length, equalTo(1));
                 assertThat(hit.matchedFilters(), hasItemInArray("test1"));

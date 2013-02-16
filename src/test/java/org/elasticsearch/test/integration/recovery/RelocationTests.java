@@ -243,7 +243,7 @@ public class RelocationTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             try {
                 logger.info("--> START search test round {}", i + 1);
-                SearchHits hits = client("node1").prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().hits();
+                SearchHits hits = client("node1").prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().getHits();
                 ranOnce = true;
                 if (hits.totalHits() != indexCounter.get()) {
                     int[] hitIds = new int[(int) indexCounter.get()];
@@ -419,7 +419,7 @@ public class RelocationTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             try {
                 logger.info("--> START search test round {}", i + 1);
-                SearchHits hits = client("node1").prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().hits();
+                SearchHits hits = client("node1").prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().getHits();
                 ranOnce = true;
                 if (hits.totalHits() != indexCounter.get()) {
                     int[] hitIds = new int[(int) indexCounter.get()];

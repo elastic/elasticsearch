@@ -95,11 +95,11 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
                 .addScriptField("sNum1", "doc['num1'].value")
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        assertThat(response.hits().getAt(0).id(), equalTo("2"));
-        assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.hits().getAt(1).id(), equalTo("3"));
-        assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(1).id(), equalTo("3"));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(3.0));
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
@@ -108,9 +108,9 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
                 .addScriptField("sNum1", "doc['num1'].value")
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(1l));
-        assertThat(response.hits().getAt(0).id(), equalTo("3"));
-        assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(3.0));
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
@@ -119,13 +119,13 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
                 .addScriptField("sNum1", "doc['num1'].value")
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(3l));
-        assertThat(response.hits().getAt(0).id(), equalTo("1"));
-        assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
-        assertThat(response.hits().getAt(1).id(), equalTo("2"));
-        assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.hits().getAt(2).id(), equalTo("3"));
-        assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
+        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(2).id(), equalTo("3"));
+        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
     }
 
     private static AtomicInteger scriptCounter = new AtomicInteger(0);
@@ -158,7 +158,7 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
                 .setQuery(filteredQuery(termQuery("test", "1"), scriptFilter(script).cache(true)))
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(scriptCounter.get(), equalTo(3));
 
         scriptCounter.set(0);
@@ -167,7 +167,7 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
                 .setQuery(filteredQuery(termQuery("test", "2"), scriptFilter(script).cache(true)))
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(scriptCounter.get(), equalTo(0));
 
         scriptCounter.set(0);
@@ -176,7 +176,7 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
                 .setQuery(filteredQuery(termQuery("test", "1"), scriptFilter(script).addParam("param1", "1").cache(true)))
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(scriptCounter.get(), equalTo(3));
 
         scriptCounter.set(0);
@@ -185,7 +185,7 @@ public class ScriptFilterSearchTests extends AbstractNodesTests {
                 .setQuery(filteredQuery(matchAllQuery(), scriptFilter(script).addParam("param1", "1").cache(true)))
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(scriptCounter.get(), equalTo(0));
     }
 }

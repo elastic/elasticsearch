@@ -64,7 +64,7 @@ public class ConcurrentSearchSerializationTests {
                                 .setQuery(QueryBuilders.matchAllQuery())
                                 .setSize(i % 100)
                                 .execute().actionGet();
-                        for (SearchHit hit : searchResponse.hits()) {
+                        for (SearchHit hit : searchResponse.getHits()) {
                             try {
                                 if (!hit.sourceAsMap().get("field").equals(data)) {
                                     System.err.println("Field not equal!");

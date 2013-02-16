@@ -68,7 +68,7 @@ public class ClearCacheTests extends AbstractNodesTests {
         assertThat(nodesStats.nodes()[0].indices().getCache().filterSizeInBytes(), equalTo(0l));
 
         SearchResponse searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), FilterBuilders.termFilter("field", "value").cacheKey("test_key"))).execute().actionGet();
-        assertThat(searchResponse.hits().getHits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
         assertThat(nodesStats.nodes()[0].indices().getCache().filterSizeInBytes(), greaterThan(0l));
 

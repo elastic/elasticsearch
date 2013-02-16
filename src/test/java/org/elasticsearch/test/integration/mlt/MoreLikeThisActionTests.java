@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.integration.mlt;
 
-import java.util.Collections;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
@@ -93,9 +91,9 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
 
         logger.info("Running moreLikeThis");
         SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
-        assertThat(mltResponse.successfulShards(), equalTo(5));
-        assertThat(mltResponse.failedShards(), equalTo(0));
-        assertThat(mltResponse.hits().totalHits(), equalTo(1l));
+        assertThat(mltResponse.getSuccessfulShards(), equalTo(5));
+        assertThat(mltResponse.getFailedShards(), equalTo(0));
+        assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
     }
 
 
@@ -127,17 +125,17 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
 
         logger.info("Running moreLikeThis on index");
         SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
-        assertThat(mltResponse.hits().totalHits(), equalTo(2l));
+        assertThat(mltResponse.getHits().totalHits(), equalTo(2l));
 
         logger.info("Running moreLikeThis on beta shard");
         mltResponse = client1.moreLikeThis(moreLikeThisRequest("beta").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
-        assertThat(mltResponse.hits().totalHits(), equalTo(1l));
-        assertThat(mltResponse.hits().getAt(0).id(), equalTo("3"));
+        assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(mltResponse.getHits().getAt(0).id(), equalTo("3"));
 
         logger.info("Running moreLikeThis on release shard");
         mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).searchIndices("release")).actionGet();
-        assertThat(mltResponse.hits().totalHits(), equalTo(1l));
-        assertThat(mltResponse.hits().getAt(0).id(), equalTo("2"));
+        assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(mltResponse.getHits().getAt(0).id(), equalTo("2"));
     }
 
     @Test

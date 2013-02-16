@@ -100,11 +100,11 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
                 .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        logger.info("Hit[0] {} Explanation {}", response.hits().getAt(0).index(), response.hits().getAt(0).explanation());
-        logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).index(), response.hits().getAt(1).explanation());
-        assertThat(response.hits().getAt(0).index(), equalTo("test1"));
-        assertThat(response.hits().getAt(1).index(), equalTo("test2"));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).index(), equalTo("test1"));
+        assertThat(response.getHits().getAt(1).index(), equalTo("test2"));
 
         logger.info("Query with test2 boosted");
         response = client.search(searchRequest()
@@ -112,11 +112,11 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
                 .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        logger.info("Hit[0] {} Explanation {}", response.hits().getAt(0).index(), response.hits().getAt(0).explanation());
-        logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).index(), response.hits().getAt(1).explanation());
-        assertThat(response.hits().getAt(0).index(), equalTo("test2"));
-        assertThat(response.hits().getAt(1).index(), equalTo("test1"));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).index(), equalTo("test2"));
+        assertThat(response.getHits().getAt(1).index(), equalTo("test1"));
 
         logger.info("--- DFS_QUERY_THEN_FETCH");
 
@@ -126,11 +126,11 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
                 .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        logger.info("Hit[0] {} Explanation {}", response.hits().getAt(0).index(), response.hits().getAt(0).explanation());
-        logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).index(), response.hits().getAt(1).explanation());
-        assertThat(response.hits().getAt(0).index(), equalTo("test1"));
-        assertThat(response.hits().getAt(1).index(), equalTo("test2"));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).index(), equalTo("test1"));
+        assertThat(response.getHits().getAt(1).index(), equalTo("test2"));
 
         logger.info("Query with test2 boosted");
         response = client.search(searchRequest()
@@ -138,10 +138,10 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
                 .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        logger.info("Hit[0] {} Explanation {}", response.hits().getAt(0).index(), response.hits().getAt(0).explanation());
-        logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).index(), response.hits().getAt(1).explanation());
-        assertThat(response.hits().getAt(0).index(), equalTo("test2"));
-        assertThat(response.hits().getAt(1).index(), equalTo("test1"));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).index(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).index(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).index(), equalTo("test2"));
+        assertThat(response.getHits().getAt(1).index(), equalTo("test1"));
     }
 }

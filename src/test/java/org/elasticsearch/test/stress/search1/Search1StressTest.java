@@ -194,17 +194,17 @@ public class Search1StressTest {
                     builder.setQuery(termQuery("field", value));
                     searchCounter.incrementAndGet();
                     SearchResponse searchResponse = builder.execute().actionGet();
-                    if (searchResponse.failedShards() > 0) {
-                        logger.warn("failed search " + Arrays.toString(searchResponse.shardFailures()));
+                    if (searchResponse.getFailedShards() > 0) {
+                        logger.warn("failed search " + Arrays.toString(searchResponse.getShardFailures()));
                     }
                     // verify that all come from the requested index
-                    for (SearchHit hit : searchResponse.hits()) {
+                    for (SearchHit hit : searchResponse.getHits()) {
                         if (!hit.shard().index().equals(indexName)) {
                             logger.warn("got wrong index, asked for [{}], got [{}]", indexName, hit.shard().index());
                         }
                     }
                     // verify that all has the relevant value
-                    for (SearchHit hit : searchResponse.hits()) {
+                    for (SearchHit hit : searchResponse.getHits()) {
                         if (!value.equals(hit.sourceAsMap().get("field"))) {
                             logger.warn("got wrong field, asked for [{}], got [{}]", value, hit.sourceAsMap().get("field"));
                         }

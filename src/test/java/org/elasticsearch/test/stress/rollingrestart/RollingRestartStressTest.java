@@ -255,14 +255,14 @@ public class RollingRestartStressTest {
                 .setSize(50)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
-        logger.info("Verifying versions for {} hits...", searchResponse.hits().totalHits());
+        logger.info("Verifying versions for {} hits...", searchResponse.getHits().totalHits());
 
         while (true) {
-            searchResponse = client.client().prepareSearchScroll(searchResponse.scrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
-            if (searchResponse.failedShards() > 0) {
-                logger.warn("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+            searchResponse = client.client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+            if (searchResponse.getFailedShards() > 0) {
+                logger.warn("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
             }
-            for (SearchHit hit : searchResponse.hits()) {
+            for (SearchHit hit : searchResponse.getHits()) {
                 long version = -1;
                 for (int i = 0; i < (numberOfReplicas + 1); i++) {
                     GetResponse getResponse = client.client().prepareGet(hit.index(), hit.type(), hit.id()).execute().actionGet();
@@ -275,7 +275,7 @@ public class RollingRestartStressTest {
                     }
                 }
             }
-            if (searchResponse.hits().hits().length == 0) {
+            if (searchResponse.getHits().hits().length == 0) {
                 break;
             }
         }

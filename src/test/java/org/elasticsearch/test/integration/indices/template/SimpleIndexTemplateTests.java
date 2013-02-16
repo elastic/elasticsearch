@@ -106,14 +106,14 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
                 .setQuery(termQuery("field1", "value1"))
                 .addField("field1").addField("field2")
                 .execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("failed search " + Arrays.toString(searchResponse.shardFailures()));
+        if (searchResponse.getFailedShards() > 0) {
+            logger.warn("failed search " + Arrays.toString(searchResponse.getShardFailures()));
         }
-        assertThat(searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).field("field1").value().toString(), equalTo("value1"));
-        assertThat(searchResponse.hits().getAt(0).field("field2").value().toString(), equalTo("value 2")); // this will still be loaded because of the source feature
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2")); // this will still be loaded because of the source feature
 
         client.prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 
@@ -124,14 +124,14 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
                 .setQuery(termQuery("field1", "value1"))
                 .addField("field1").addField("field2")
                 .execute().actionGet();
-        if (searchResponse.failedShards() > 0) {
-            logger.warn("failed search " + Arrays.toString(searchResponse.shardFailures()));
+        if (searchResponse.getFailedShards() > 0) {
+            logger.warn("failed search " + Arrays.toString(searchResponse.getShardFailures()));
         }
-        assertThat(searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).field("field1").value().toString(), equalTo("value1"));
-        assertThat(searchResponse.hits().getAt(0).field("field2").value().toString(), equalTo("value 2"));
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2"));
     }
 
     private void clean() {

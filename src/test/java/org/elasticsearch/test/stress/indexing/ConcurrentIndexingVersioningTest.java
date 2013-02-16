@@ -84,8 +84,8 @@ public class ConcurrentIndexingVersioningTest {
             String id = Integer.toString(i);
             for (int j = 0; j < 5; j++) {
                 SearchResponse response = client.client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", id)).execute().actionGet();
-                if (response.hits().totalHits() > 1) {
-                    System.err.println("[" + i + "] FAIL, HITS [" + response.hits().totalHits() + "]");
+                if (response.getHits().totalHits() > 1) {
+                    System.err.println("[" + i + "] FAIL, HITS [" + response.getHits().totalHits() + "]");
                 }
             }
             GetResponse getResponse = client.client().prepareGet("test", "type1", id).execute().actionGet();

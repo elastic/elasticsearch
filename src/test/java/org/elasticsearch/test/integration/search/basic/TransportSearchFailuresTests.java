@@ -73,9 +73,9 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         for (int i = 0; i < 5; i++) {
             try {
                 SearchResponse searchResponse = client("server1").search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
-                assertThat(searchResponse.totalShards(), equalTo(3));
-                assertThat(searchResponse.successfulShards(), equalTo(0));
-                assertThat(searchResponse.failedShards(), equalTo(3));
+                assertThat(searchResponse.getTotalShards(), equalTo(3));
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
+                assertThat(searchResponse.getFailedShards(), equalTo(3));
                 assert false : "search should fail";
             } catch (ElasticSearchException e) {
                 assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));
@@ -102,9 +102,9 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         for (int i = 0; i < 5; i++) {
             try {
                 SearchResponse searchResponse = client("server1").search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
-                assertThat(searchResponse.totalShards(), equalTo(3));
-                assertThat(searchResponse.successfulShards(), equalTo(0));
-                assertThat(searchResponse.failedShards(), equalTo(3));
+                assertThat(searchResponse.getTotalShards(), equalTo(3));
+                assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
+                assertThat(searchResponse.getFailedShards(), equalTo(3));
                 assert false : "search should fail";
             } catch (ElasticSearchException e) {
                 assertThat(e.unwrapCause(), instanceOf(SearchPhaseExecutionException.class));

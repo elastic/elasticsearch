@@ -38,7 +38,7 @@ public class NodesRestartRequestBuilder extends NodesOperationRequestBuilder<Nod
      * The delay for the restart to occur. Defaults to <tt>1s</tt>.
      */
     public NodesRestartRequestBuilder setDelay(TimeValue delay) {
-        request.delay(delay);
+        request.setDelay(delay);
         return this;
     }
 
@@ -46,7 +46,7 @@ public class NodesRestartRequestBuilder extends NodesOperationRequestBuilder<Nod
      * The delay for the restart to occur. Defaults to <tt>1s</tt>.
      */
     public NodesRestartRequestBuilder setDelay(String delay) {
-        request.delay(delay);
+        request.setDelay(delay);
         return this;
     }
 

@@ -48,11 +48,11 @@ public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
         operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
-    public boolean waitForOperations() {
+    public boolean isWaitForOperations() {
         return waitForOperations;
     }
 
-    public RefreshRequest waitForOperations(boolean waitForOperations) {
+    public RefreshRequest setWaitForOperations(boolean waitForOperations) {
         this.waitForOperations = waitForOperations;
         return this;
     }

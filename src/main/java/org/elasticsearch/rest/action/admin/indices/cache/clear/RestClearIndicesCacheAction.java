@@ -63,11 +63,11 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             clearIndicesCacheRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         try {
-            clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.filterCache()));
-            clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.fieldDataCache()));
-            clearIndicesCacheRequest.idCache(request.paramAsBoolean("id", clearIndicesCacheRequest.idCache()));
-            clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
-            clearIndicesCacheRequest.filterKeys(request.paramAsStringArray("filter_keys", clearIndicesCacheRequest.filterKeys()));
+            clearIndicesCacheRequest.setFilterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.isFilterCache()));
+            clearIndicesCacheRequest.setFieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.isFieldDataCache()));
+            clearIndicesCacheRequest.setIdCache(request.paramAsBoolean("id", clearIndicesCacheRequest.isIdCache()));
+            clearIndicesCacheRequest.setFields(request.paramAsStringArray("fields", clearIndicesCacheRequest.getFields()));
+            clearIndicesCacheRequest.setFilterKeys(request.paramAsStringArray("filter_keys", clearIndicesCacheRequest.getFilterKeys()));
 
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {

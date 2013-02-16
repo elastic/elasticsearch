@@ -49,23 +49,23 @@ public class TypesExistsTests extends AbstractNodesTests {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         TypesExistsResponse response = client.admin().indices().prepareTypesExists("test1").setTypes("type1").execute().actionGet();
-        assertThat(response.exists(), equalTo(true));
+        assertThat(response.isExists(), equalTo(true));
         response = client.admin().indices().prepareTypesExists("test1").setTypes("type2").execute().actionGet();
-        assertThat(response.exists(), equalTo(true));
+        assertThat(response.isExists(), equalTo(true));
         response = client.admin().indices().prepareTypesExists("test1").setTypes("type3").execute().actionGet();
-        assertThat(response.exists(), equalTo(false));
+        assertThat(response.isExists(), equalTo(false));
         response = client.admin().indices().prepareTypesExists("notExist").setTypes("type1").setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
-        assertThat(response.exists(), equalTo(false));
+        assertThat(response.isExists(), equalTo(false));
         response = client.admin().indices().prepareTypesExists("notExist").setTypes("type0").setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
-        assertThat(response.exists(), equalTo(false));
+        assertThat(response.isExists(), equalTo(false));
         response = client.admin().indices().prepareTypesExists("alias1").setTypes("type1").execute().actionGet();
-        assertThat(response.exists(), equalTo(true));
+        assertThat(response.isExists(), equalTo(true));
         response = client.admin().indices().prepareTypesExists("*").setTypes("type1").execute().actionGet();
-        assertThat(response.exists(), equalTo(true));
+        assertThat(response.isExists(), equalTo(true));
         response = client.admin().indices().prepareTypesExists("test1", "test2").setTypes("type1").execute().actionGet();
-        assertThat(response.exists(), equalTo(true));
+        assertThat(response.isExists(), equalTo(true));
         response = client.admin().indices().prepareTypesExists("test1", "test2").setTypes("type2").execute().actionGet();
-        assertThat(response.exists(), equalTo(false));
+        assertThat(response.isExists(), equalTo(false));
 
         client.close();
         closeAllNodes();

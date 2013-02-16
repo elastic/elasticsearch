@@ -481,7 +481,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
-        client1.admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
+        client1.admin().indices().create(createIndexRequest("test").setSettings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
 
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();

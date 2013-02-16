@@ -74,7 +74,7 @@ public class IndicesStoreTests extends AbstractNodesTests {
 
         logger.info("--> creating index [test] with one shard and on replica");
         client1.admin().indices().create(createIndexRequest("test")
-                .settings(settingsBuilder().put("index.numberOfReplicas", 1).put("index.numberOfShards", 1))).actionGet();
+                .setSettings(settingsBuilder().put("index.numberOfReplicas", 1).put("index.numberOfShards", 1))).actionGet();
 
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();

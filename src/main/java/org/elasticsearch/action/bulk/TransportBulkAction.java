@@ -108,7 +108,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             ClusterState state = clusterService.state();
             for (String index : indices) {
                 if (autoCreateIndex.shouldAutoCreate(index, state)) {
-                    createIndexAction.execute(new CreateIndexRequest(index).cause("auto(bulk api)"), new ActionListener<CreateIndexResponse>() {
+                    createIndexAction.execute(new CreateIndexRequest(index).setCause("auto(bulk api)"), new ActionListener<CreateIndexResponse>() {
                         @Override
                         public void onResponse(CreateIndexResponse result) {
                             if (counter.decrementAndGet() == 0) {

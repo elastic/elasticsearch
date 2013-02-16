@@ -41,7 +41,7 @@ public class CreateIndexResponse extends ActionResponse {
 
     /**
      * Has the index creation been acknowledged by all current cluster nodes within the
-     * provided {@link CreateIndexRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
+     * provided {@link CreateIndexRequest#setTimeout(org.elasticsearch.common.unit.TimeValue)}.
      */
     public boolean isAcknowledged() {
         return acknowledged;

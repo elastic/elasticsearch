@@ -76,7 +76,7 @@ public class HistogramFacetSearchBenchmark {
 
         Thread.sleep(10000);
         try {
-            client.admin().indices().create(createIndexRequest("test").settings(
+            client.admin().indices().create(createIndexRequest("test").setSettings(
                     settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)))
                     .actionGet();
 

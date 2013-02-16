@@ -58,7 +58,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         logger.info("Start Testing failed search with wrong query");
         startNode("server1");
         client("server1").admin().indices().create(createIndexRequest("test")
-                .settings(settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 2).put("routing.hash.type", "simple")))
+                .setSettings(settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 2).put("routing.hash.type", "simple")))
                 .actionGet();
 
         client("server1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();

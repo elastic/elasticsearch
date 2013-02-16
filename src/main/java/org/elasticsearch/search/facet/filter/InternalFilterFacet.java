@@ -32,7 +32,7 @@ import java.util.List;
 /**
  *
  */
-public class InternalFilterFacet implements FilterFacet, InternalFacet {
+public class InternalFilterFacet extends InternalFacet implements FilterFacet {
 
     private static final String STREAM_TYPE = "filter";
 
@@ -52,46 +52,19 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         return STREAM_TYPE;
     }
 
-    private String name;
-
     private long count;
 
-    private InternalFilterFacet() {
-
+    InternalFilterFacet() {
     }
 
     public InternalFilterFacet(String name, long count) {
-        this.name = name;
+        super(name);
         this.count = count;
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
     }
 
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    /**
-     * The "logical" name of the facet.
-     */
-    public String name() {
-        return name;
-    }
-
-    @Override
-    public String getName() {
-        return name();
-    }
-
-    /**
-     * The count of the facet.
-     */
-    public long count() {
-        return count;
     }
 
     /**
@@ -108,9 +81,9 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
         }
         int count = 0;
         for (Facet facet : facets) {
-            count += ((FilterFacet) facet).count();
+            count += ((FilterFacet) facet).getCount();
         }
-        return new InternalFilterFacet(name, count);
+        return new InternalFilterFacet(getName(), count);
     }
 
     static final class Fields {
@@ -120,7 +93,7 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
         builder.field(Fields._TYPE, FilterFacet.TYPE);
         builder.field(Fields.COUNT, count);
         builder.endObject();
@@ -135,13 +108,13 @@ public class InternalFilterFacet implements FilterFacet, InternalFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+        super.readFrom(in);
         count = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        super.writeTo(out);
         out.writeVLong(count);
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
+import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
@@ -53,10 +54,19 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     private Stage currentState = Stage.NA;
 
+    private boolean enableMainDocIdSetCollector;
+    private DocIdSetCollector mainDocIdSetCollector;
+
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
         this.searchContext = searchContext;
         setSimilarity(searcher.searcher().getSimilarity());
+    }
+
+    public void release() {
+        if (mainDocIdSetCollector != null) {
+            mainDocIdSetCollector.release();
+        }
     }
 
     public void dfSource(CachedDfSource dfSource) {
@@ -64,13 +74,23 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     /**
-     * Adds a query level collector that runs at {@link Stage#MAIN_QUERY}
+     * Adds a query level collector that runs at {@link Stage#MAIN_QUERY}. Note, supports
+     * {@link org.elasticsearch.common.lucene.search.XCollector} allowing for a callback
+     * when collection is done.
      */
     public void addMainQueryCollector(Collector collector) {
         if (queryCollectors == null) {
             queryCollectors = new ArrayList<Collector>();
         }
         queryCollectors.add(collector);
+    }
+
+    public DocIdSetCollector mainDocIdSetCollector() {
+        return this.mainDocIdSetCollector;
+    }
+
+    public void enableMainDocIdSetCollector() {
+        this.enableMainDocIdSetCollector = true;
     }
 
     public void inStage(Stage stage) {
@@ -137,17 +157,21 @@ public class ContextIndexSearcher extends IndexSearcher {
 
     @Override
     public void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        if (searchContext.parsedFilter() != null && currentState == Stage.MAIN_QUERY) {
-            // this will only get applied to the actual search collector and not
-            // to any scoped collectors, also, it will only be applied to the main collector
-            // since that is where the filter should only work
-            collector = new FilteredCollector(collector, searchContext.parsedFilter());
-        }
         if (searchContext.timeoutInMillis() != -1) {
             // TODO: change to use our own counter that uses the scheduler in ThreadPool
             collector = new TimeLimitingCollector(collector, TimeLimitingCollector.getGlobalCounter(), searchContext.timeoutInMillis());
         }
         if (currentState == Stage.MAIN_QUERY) {
+            if (enableMainDocIdSetCollector) {
+                // TODO should we create a cache of segment->docIdSets so we won't create one each time?
+                collector = this.mainDocIdSetCollector = new DocIdSetCollector(searchContext.docSetCache(), collector);
+            }
+            if (searchContext.parsedFilter() != null) {
+                // this will only get applied to the actual search collector and not
+                // to any scoped collectors, also, it will only be applied to the main collector
+                // since that is where the filter should only work
+                collector = new FilteredCollector(collector, searchContext.parsedFilter());
+            }
             if (queryCollectors != null && !queryCollectors.isEmpty()) {
                 collector = new MultiCollector(collector, queryCollectors.toArray(new Collector[queryCollectors.size()]));
             }
@@ -166,6 +190,19 @@ public class ContextIndexSearcher extends IndexSearcher {
             }
         } else {
             super.search(leaves, weight, collector);
+        }
+        if (currentState == Stage.MAIN_QUERY) {
+            if (enableMainDocIdSetCollector) {
+                enableMainDocIdSetCollector = false;
+                mainDocIdSetCollector.postCollection();
+            }
+            if (queryCollectors != null && !queryCollectors.isEmpty()) {
+                for (Collector queryCollector : queryCollectors) {
+                    if (queryCollector instanceof XCollector) {
+                        ((XCollector) queryCollector).postCollection();
+                    }
+                }
+            }
         }
     }
 

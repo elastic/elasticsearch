@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 
@@ -31,11 +32,24 @@ import java.util.List;
 /**
  *
  */
-public interface InternalFacet extends Facet, Streamable, ToXContent {
+public abstract class InternalFacet implements Facet, Streamable, ToXContent {
 
-    String streamType();
+    private String facetName;
 
-    Facet reduce(List<Facet> facets);
+    /**
+     * Here just for streams...
+     */
+    protected InternalFacet() {
+
+    }
+
+    protected InternalFacet(String facetName) {
+        this.facetName = facetName;
+    }
+
+    public abstract String streamType();
+
+    public abstract Facet reduce(List<Facet> facets);
 
     public static interface Stream {
         Facet readFacet(String type, StreamInput in) throws IOException;
@@ -56,5 +70,20 @@ public interface InternalFacet extends Facet, Streamable, ToXContent {
         public static Stream stream(String type) {
             return streams.get(type);
         }
+    }
+
+    @Override
+    public final String getName() {
+        return facetName;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        facetName = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(facetName);
     }
 }

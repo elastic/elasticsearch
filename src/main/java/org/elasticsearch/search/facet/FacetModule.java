@@ -22,15 +22,15 @@ package org.elasticsearch.search.facet;
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
-import org.elasticsearch.search.facet.datehistogram.DateHistogramFacetProcessor;
-import org.elasticsearch.search.facet.filter.FilterFacetProcessor;
-import org.elasticsearch.search.facet.geodistance.GeoDistanceFacetProcessor;
-import org.elasticsearch.search.facet.histogram.HistogramFacetProcessor;
-import org.elasticsearch.search.facet.query.QueryFacetProcessor;
-import org.elasticsearch.search.facet.range.RangeFacetProcessor;
-import org.elasticsearch.search.facet.statistical.StatisticalFacetProcessor;
-import org.elasticsearch.search.facet.terms.TermsFacetProcessor;
-import org.elasticsearch.search.facet.termsstats.TermsStatsFacetProcessor;
+import org.elasticsearch.search.facet.datehistogram.DateHistogramFacetParser;
+import org.elasticsearch.search.facet.filter.FilterFacetParser;
+import org.elasticsearch.search.facet.geodistance.GeoDistanceFacetParser;
+import org.elasticsearch.search.facet.histogram.HistogramFacetParser;
+import org.elasticsearch.search.facet.query.QueryFacetParser;
+import org.elasticsearch.search.facet.range.RangeFacetParser;
+import org.elasticsearch.search.facet.statistical.StatisticalFacetParser;
+import org.elasticsearch.search.facet.terms.TermsFacetParser;
+import org.elasticsearch.search.facet.termsstats.TermsStatsFacetParser;
 
 import java.util.List;
 
@@ -39,31 +39,31 @@ import java.util.List;
  */
 public class FacetModule extends AbstractModule {
 
-    private List<Class<? extends FacetProcessor>> processors = Lists.newArrayList();
+    private List<Class<? extends FacetParser>> processors = Lists.newArrayList();
 
     public FacetModule() {
-        processors.add(FilterFacetProcessor.class);
-        processors.add(QueryFacetProcessor.class);
-        processors.add(GeoDistanceFacetProcessor.class);
-        processors.add(HistogramFacetProcessor.class);
-        processors.add(DateHistogramFacetProcessor.class);
-        processors.add(RangeFacetProcessor.class);
-        processors.add(StatisticalFacetProcessor.class);
-        processors.add(TermsFacetProcessor.class);
-        processors.add(TermsStatsFacetProcessor.class);
+        processors.add(FilterFacetParser.class);
+        processors.add(QueryFacetParser.class);
+        processors.add(GeoDistanceFacetParser.class);
+        processors.add(HistogramFacetParser.class);
+        processors.add(DateHistogramFacetParser.class);
+        processors.add(RangeFacetParser.class);
+        processors.add(StatisticalFacetParser.class);
+        processors.add(TermsFacetParser.class);
+        processors.add(TermsStatsFacetParser.class);
     }
 
-    public void addFacetProcessor(Class<? extends FacetProcessor> facetProcessor) {
+    public void addFacetProcessor(Class<? extends FacetParser> facetProcessor) {
         processors.add(facetProcessor);
     }
 
     @Override
     protected void configure() {
-        Multibinder<FacetProcessor> multibinder = Multibinder.newSetBinder(binder(), FacetProcessor.class);
-        for (Class<? extends FacetProcessor> processor : processors) {
+        Multibinder<FacetParser> multibinder = Multibinder.newSetBinder(binder(), FacetParser.class);
+        for (Class<? extends FacetParser> processor : processors) {
             multibinder.addBinding().to(processor);
         }
-        bind(FacetProcessors.class).asEagerSingleton();
+        bind(FacetParsers.class).asEagerSingleton();
         bind(FacetParseElement.class).asEagerSingleton();
         bind(FacetPhase.class).asEagerSingleton();
     }

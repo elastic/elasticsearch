@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
@@ -167,7 +168,7 @@ public class SearchContext implements Releasable {
     private SearchContextHighlight highlight;
 
     private SuggestionSearchContext suggest;
-    
+
     private RescoreSearchContext rescore;
 
     private SearchLookup searchLookup;
@@ -212,6 +213,7 @@ public class SearchContext implements Releasable {
                 rewrite.contextClear();
             }
         }
+        searcher.release();
         engineSearcher.release();
         return true;
     }
@@ -317,11 +319,11 @@ public class SearchContext implements Releasable {
     public void suggest(SuggestionSearchContext suggest) {
         this.suggest = suggest;
     }
-    
+
     public RescoreSearchContext rescore() {
         return this.rescore;
     }
-    
+
     public void rescore(RescoreSearchContext rescore) {
         this.rescore = rescore;
     }
@@ -378,6 +380,10 @@ public class SearchContext implements Releasable {
 
     public FilterCache filterCache() {
         return indexService.cache().filter();
+    }
+
+    public DocSetCache docSetCache() {
+        return indexService.cache().docSet();
     }
 
     public IndexFieldDataService fieldData() {

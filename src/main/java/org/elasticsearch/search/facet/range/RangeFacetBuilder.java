@@ -23,7 +23,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -31,7 +31,7 @@ import java.util.List;
 /**
  * A facet builder of range facets.
  */
-public class RangeFacetBuilder extends AbstractFacetBuilder {
+public class RangeFacetBuilder extends FacetBuilder {
 
     private String keyFieldName;
     private String valueFieldName;

@@ -30,8 +30,8 @@ import org.elasticsearch.search.internal.SearchContext;
 public class FacetBinaryParseElement extends FacetParseElement {
 
     @Inject
-    public FacetBinaryParseElement(FacetProcessors facetProcessors) {
-        super(facetProcessors);
+    public FacetBinaryParseElement(FacetParsers facetParsers) {
+        super(facetParsers);
     }
 
     @Override

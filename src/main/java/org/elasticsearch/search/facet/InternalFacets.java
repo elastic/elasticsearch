@@ -87,7 +87,7 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         }
         Map<String, Facet> facetsAsMap = newHashMap();
         for (Facet facet : facets) {
-            facetsAsMap.put(facet.name(), facet);
+            facetsAsMap.put(facet.getName(), facet);
         }
         this.facetsAsMap = facetsAsMap;
         return facetsAsMap;

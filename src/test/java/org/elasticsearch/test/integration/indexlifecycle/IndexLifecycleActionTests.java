@@ -87,7 +87,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
         RoutingNode routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
 
-        clusterState1 = client("server1").admin().cluster().state(clusterStateRequest()).actionGet().state();
+        clusterState1 = client("server1").admin().cluster().state(clusterStateRequest()).actionGet().getState();
         routingNodeEntry1 = clusterState1.readOnlyRoutingNodes().nodesToShards().get(clusterState1.nodes().localNodeId());
         assertThat(routingNodeEntry1.numberOfShardsWithState(STARTED), equalTo(11));
 

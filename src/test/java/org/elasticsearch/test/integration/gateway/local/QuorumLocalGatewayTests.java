@@ -94,7 +94,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
 
         Thread.sleep(300);
         ClusterStateResponse clusterStateResponse = client("node1").admin().cluster().prepareState().setMasterNodeTimeout("500ms").execute().actionGet();
-        assertThat(clusterStateResponse.state().routingTable().index("test").allPrimaryShardsActive(), equalTo(false));
+        assertThat(clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive(), equalTo(false));
 
         logger.info("--> change the recovery.initial_shards setting, and make sure its recovered");
         client("node1").admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).execute().actionGet();

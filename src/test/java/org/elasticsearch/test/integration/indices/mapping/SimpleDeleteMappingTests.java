@@ -89,7 +89,7 @@ public class SimpleDeleteMappingTests extends AbstractNodesTests {
             assertThat(countResponse.count(), equalTo(10l));
         }
 
-        ClusterState clusterState = client1.admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client1.admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(true));
 
         client1.admin().indices().prepareDeleteMapping().setType("type1").execute().actionGet();
@@ -100,7 +100,7 @@ public class SimpleDeleteMappingTests extends AbstractNodesTests {
             assertThat(countResponse.count(), equalTo(0l));
         }
 
-        clusterState = client1.admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client1.admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(false));
     }
 }

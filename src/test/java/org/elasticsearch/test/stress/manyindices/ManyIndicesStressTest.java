@@ -79,7 +79,7 @@ public class ManyIndicesStressTest {
             logger.error("Timed out on health...");
         }
 
-        ClusterState clusterState = node.client().admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = node.client().admin().cluster().prepareState().execute().actionGet().getState();
         for (int i = 0; i < numberOfIndices; i++) {
             if (clusterState.blocks().indices().containsKey("index_" + i)) {
                 logger.error("index [{}] has blocks: {}", i, clusterState.blocks().indices().get("index_" + i));

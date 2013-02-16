@@ -81,7 +81,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify all are allocated on node1 now");
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
@@ -129,7 +129,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify all shards are allocated on node2 now");
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
         for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
             for (ShardRouting shardRouting : indexShardRoutingTable) {
@@ -151,7 +151,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify that there are shards allocated on both nodes now");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.routingTable().index("test").numberOfNodesShardsAreAllocatedOn(), equalTo(2));
     }
 }

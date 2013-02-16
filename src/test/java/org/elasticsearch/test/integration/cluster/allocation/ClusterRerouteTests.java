@@ -72,7 +72,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
 
-        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, *under dry_run*");
@@ -84,7 +84,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         logger.info("--> get the state, verify nothing changed because of the dry run");
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
@@ -98,7 +98,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary allocated");
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
 
@@ -115,7 +115,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary moved from node1 to node2");
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node2").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
     }
@@ -143,7 +143,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
 
-        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
@@ -157,7 +157,7 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary allocated");
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
     }

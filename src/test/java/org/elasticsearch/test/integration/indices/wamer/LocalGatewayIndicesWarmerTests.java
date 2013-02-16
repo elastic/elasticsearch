@@ -101,7 +101,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
 
 
         logger.info("--> verify warmers are registered in cluster state");
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(2));
@@ -120,7 +120,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify warmers are recovered");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData recoveredWarmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(recoveredWarmersMetaData.entries().size(), equalTo(warmersMetaData.entries().size()));
         for (int i = 0; i < warmersMetaData.entries().size(); i++) {
@@ -141,7 +141,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareDeleteWarmer().setIndices("test").setName("warmer_1").execute().actionGet();
 
         logger.info("--> verify warmers (delete) are registered in cluster state");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(1));
@@ -156,7 +156,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify warmers are recovered");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         recoveredWarmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(recoveredWarmersMetaData.entries().size(), equalTo(warmersMetaData.entries().size()));
         for (int i = 0; i < warmersMetaData.entries().size(); i++) {

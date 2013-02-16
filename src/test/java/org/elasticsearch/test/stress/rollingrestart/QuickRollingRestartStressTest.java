@@ -90,7 +90,7 @@ public class QuickRollingRestartStressTest {
             ClusterHealthResponse clusterHealthResponse = client.client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForRelocatingShards(0).setTimeout("10m").execute().actionGet();
             if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> timed out waiting for green state...");
-                ClusterState state = client.client().admin().cluster().prepareState().execute().actionGet().state();
+                ClusterState state = client.client().admin().cluster().prepareState().execute().actionGet().getState();
                 System.out.println(state.nodes().prettyPrint());
                 System.out.println(state.routingTable().prettyPrint());
                 System.out.println(state.routingNodes().prettyPrint());

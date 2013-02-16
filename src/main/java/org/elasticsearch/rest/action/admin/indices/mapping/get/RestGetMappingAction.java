@@ -77,7 +77,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                 try {
                     boolean foundAny = false;
 
-                    MetaData metaData = response.state().metaData();
+                    MetaData metaData = response.getState().metaData();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 

@@ -89,7 +89,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         // verify that mapping is there
         ClusterStateResponse clusterState = client("server1").admin().cluster().state(clusterStateRequest()).actionGet();
-        assertThat(clusterState.state().metaData().index("test").mapping("type1"), notNullValue());
+        assertThat(clusterState.getState().metaData().index("test").mapping("type1"), notNullValue());
 
         // create two and delete the first
         logger.info("Indexing #1");
@@ -124,7 +124,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         // verify that mapping is there
         clusterState = client("server1").admin().cluster().state(clusterStateRequest()).actionGet();
-        assertThat(clusterState.state().metaData().index("test").mapping("type1"), notNullValue());
+        assertThat(clusterState.getState().metaData().index("test").mapping("type1"), notNullValue());
 
         logger.info("Getting #1, should not exists");
         GetResponse getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();

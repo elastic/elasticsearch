@@ -65,9 +65,9 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.state().routingTable().index("test").shards().size(), equalTo(5));
-        assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(5));
+        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
 
         logger.info("--> indexing a simple document");
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
@@ -76,8 +76,8 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareClose("test").execute().actionGet();
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> testing indices status api...");
         IndicesStatusResponse indicesStatusResponse = client("node1").admin().indices().prepareStatus().execute().actionGet();
@@ -98,9 +98,9 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.state().routingTable().index("test").shards().size(), equalTo(5));
-        assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(5));
+        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(10));
 
         logger.info("--> indexing a simple document");
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();

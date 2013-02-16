@@ -43,20 +43,12 @@ public class ClusterStateResponse extends ActionResponse {
         this.clusterState = clusterState;
     }
 
-    public ClusterState state() {
+    public ClusterState getState() {
         return this.clusterState;
     }
 
-    public ClusterState getState() {
-        return state();
-    }
-
-    public ClusterName clusterName() {
-        return this.clusterName;
-    }
-
     public ClusterName getClusterName() {
-        return clusterName();
+        return this.clusterName;
     }
 
     @Override

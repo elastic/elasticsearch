@@ -320,7 +320,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
             assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
         }
 
-        ClusterState state = node1.client().admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState state = node1.client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.metaData().index("test").mapping("type2"), notNullValue());
         assertThat(state.metaData().templates().get("template_1").template(), equalTo("te*"));
         assertThat(state.metaData().index("test").aliases().get("test_alias"), notNullValue());

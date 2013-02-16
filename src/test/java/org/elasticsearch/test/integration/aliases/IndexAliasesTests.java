@@ -189,7 +189,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
         // For now just making sure that filter was stored with the alias
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
-        ClusterState clusterState = client1.admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client1.admin().cluster().prepareState().execute().actionGet().getState();
         IndexMetaData indexMd = clusterState.metaData().index("test");
         assertThat(indexMd.aliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
 

@@ -89,7 +89,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify meta _routing required exists");
-        MappingMetaData mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().state().metaData().index("test").mapping("type1");
+        MappingMetaData mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").mapping("type1");
         assertThat(mappingMd.routing().required(), equalTo(true));
 
         logger.info("--> close node");
@@ -107,7 +107,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().state().metaData().index("test").mapping("type1");
+        mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").mapping("type1");
         assertThat(mappingMd.routing().required(), equalTo(true));
     }
 
@@ -130,9 +130,9 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.state().routingTable().index("test").shards().size(), equalTo(2));
-        assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(2));
+        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> indexing a simple document");
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
@@ -141,8 +141,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareClose("test").execute().actionGet();
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> verifying that the state is green");
         health = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
@@ -173,9 +173,9 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.state().routingTable().index("test").shards().size(), equalTo(2));
-        assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(2));
+        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> trying to get the indexed document on the first index");
         GetResponse getResponse = client("node1").prepareGet("test", "type1", "1").execute().actionGet();
@@ -184,8 +184,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         logger.info("--> closing test index...");
         client("node1").admin().indices().prepareClose("test").execute().actionGet();
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> closing nodes...");
         closeNode("node2");
@@ -200,8 +200,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> trying to index into a closed index ...");
         try {
@@ -219,9 +219,9 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.state().routingTable().index("test").shards().size(), equalTo(2));
-        assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(2));
+        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> trying to get the indexed document on the first round (before close and shutdown)");
         getResponse = client("node1").prepareGet("test", "type1", "1").execute().actionGet();
@@ -256,7 +256,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
 
         logger.info("--> verify we have an index");
         ClusterStateResponse clusterStateResponse = client("node1").admin().cluster().prepareState().setFilterIndices("test").execute().actionGet();
-        assertThat(clusterStateResponse.state().metaData().hasIndex("test"), equalTo(true));
+        assertThat(clusterStateResponse.getState().metaData().hasIndex("test"), equalTo(true));
     }
 
     @Test
@@ -308,8 +308,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
 
 
         ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> opening the index...");
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
@@ -436,7 +436,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify the index state is closed");
-        assertThat(client("node1").admin().cluster().prepareState().execute().actionGet().state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(client("node1").admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
         logger.info("--> open the index");
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
         logger.info("--> waiting for green status");

@@ -59,7 +59,7 @@ public class RestMainAction extends BaseRestHandler {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 RestStatus status = RestStatus.OK;
-                if (response.state().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+                if (response.getState().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
                     status = RestStatus.SERVICE_UNAVAILABLE;
                 }
                 if (request.method() == RestRequest.Method.HEAD) {

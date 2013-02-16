@@ -37,7 +37,7 @@ public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuil
     }
 
     public UpdateSettingsRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
+        request.setIndices(indices);
         return this;
     }
 
@@ -45,7 +45,7 @@ public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuil
      * The settings update.
      */
     public UpdateSettingsRequestBuilder setSettings(Settings settings) {
-        request.settings(settings);
+        request.setSettings(settings);
         return this;
     }
 
@@ -53,7 +53,7 @@ public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuil
      * The settings to update.
      */
     public UpdateSettingsRequestBuilder setSettings(Settings.Builder settings) {
-        request.settings(settings);
+        request.setSettings(settings);
         return this;
     }
 
@@ -61,7 +61,7 @@ public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuil
      * The settings to update (either json/yaml/properties format)
      */
     public UpdateSettingsRequestBuilder setSettings(String source) {
-        request.settings(source);
+        request.setSettings(source);
         return this;
     }
 
@@ -69,7 +69,7 @@ public class UpdateSettingsRequestBuilder extends MasterNodeOperationRequestBuil
      * The settings to update (either json/yaml/properties format)
      */
     public UpdateSettingsRequestBuilder setSettings(Map<String, Object> source) {
-        request.settings(source);
+        request.setSettings(source);
         return this;
     }
 

@@ -86,7 +86,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
             }
             updateSettings.put(entry.getKey(), entry.getValue());
         }
-        updateSettingsRequest.settings(updateSettings);
+        updateSettingsRequest.setSettings(updateSettings);
 
         client.admin().indices().updateSettings(updateSettingsRequest, new ActionListener<UpdateSettingsResponse>() {
             @Override

@@ -53,7 +53,7 @@ public class ClusterRerouteRequestBuilder extends MasterNodeOperationRequestBuil
     }
 
     public ClusterRerouteRequestBuilder setSource(BytesReference source) throws Exception {
-        request.source(source);
+        request.setSource(source);
         return this;
     }
 

@@ -54,7 +54,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
         if (request.hasContent()) {
             try {
-                clusterRerouteRequest.source(request.content());
+                clusterRerouteRequest.setSource(request.content());
             } catch (Exception e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));

@@ -58,7 +58,7 @@ public class BroadcastActionsTests extends AbstractNodesTests {
         client("server1").admin().indices().prepareCreate("test").execute().actionGet(5000);
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));

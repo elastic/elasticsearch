@@ -35,42 +35,42 @@ public class ClusterHealthRequestBuilder extends MasterNodeOperationRequestBuild
     }
 
     public ClusterHealthRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
+        request.setIndices(indices);
         return this;
     }
 
     public ClusterHealthRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return this;
     }
 
     public ClusterHealthRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return this;
     }
 
     public ClusterHealthRequestBuilder setWaitForStatus(ClusterHealthStatus waitForStatus) {
-        request.waitForStatus(waitForStatus);
+        request.setWaitForStatus(waitForStatus);
         return this;
     }
 
     public ClusterHealthRequestBuilder setWaitForGreenStatus() {
-        request.waitForGreenStatus();
+        request.setWaitForGreenStatus();
         return this;
     }
 
     public ClusterHealthRequestBuilder setWaitForYellowStatus() {
-        request.waitForYellowStatus();
+        request.setWaitForYellowStatus();
         return this;
     }
 
     public ClusterHealthRequestBuilder setWaitForRelocatingShards(int waitForRelocatingShards) {
-        request.waitForRelocatingShards(waitForRelocatingShards);
+        request.setWaitForRelocatingShards(waitForRelocatingShards);
         return this;
     }
 
     public ClusterHealthRequestBuilder setWaitForActiveShards(int waitForActiveShards) {
-        request.waitForActiveShards(waitForActiveShards);
+        request.setWaitForActiveShards(waitForActiveShards);
         return this;
     }
 
@@ -78,7 +78,7 @@ public class ClusterHealthRequestBuilder extends MasterNodeOperationRequestBuild
      * Waits for N number of nodes. Use "12" for exact mapping, ">12" and "<12" for range.
      */
     public ClusterHealthRequestBuilder setWaitForNodes(String waitForNodes) {
-        request.waitForNodes(waitForNodes);
+        request.setWaitForNodes(waitForNodes);
         return this;
     }
 

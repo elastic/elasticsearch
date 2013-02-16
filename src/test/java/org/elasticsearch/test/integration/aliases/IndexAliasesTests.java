@@ -108,7 +108,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -132,7 +132,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test_x")).actionGet();
 
         logger.info("--> running cluster_health");
-        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -155,7 +155,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -178,7 +178,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -204,7 +204,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -257,7 +257,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test2")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -327,7 +327,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test3")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -397,7 +397,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test2")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -463,7 +463,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -484,7 +484,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -505,7 +505,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -538,7 +538,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

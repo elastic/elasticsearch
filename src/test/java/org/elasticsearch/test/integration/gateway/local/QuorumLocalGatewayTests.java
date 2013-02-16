@@ -75,7 +75,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(6)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -100,7 +100,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).execute().actionGet();
 
         logger.info("--> running cluster_health (wait for the shards to startup), 4 shards since we only have 2 nodes");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(4)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(4)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -131,7 +131,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(6)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -144,7 +144,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         closeNode("node1");
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        clusterHealth = client("node2").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(4)).actionGet();
+        clusterHealth = client("node2").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForNodes("2").setWaitForActiveShards(4)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -167,7 +167,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         node2 = startNode("node3", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(6)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

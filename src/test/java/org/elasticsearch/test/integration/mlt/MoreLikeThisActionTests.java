@@ -79,7 +79,7 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -111,7 +111,7 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         client1.admin().indices().aliases(indexAliasesRequest().addAlias("test", "beta", termFilter("text", "beta"))).actionGet();
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

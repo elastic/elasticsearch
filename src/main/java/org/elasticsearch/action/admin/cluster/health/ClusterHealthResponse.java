@@ -76,7 +76,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     public List<String> getAllValidationFailures() {
         List<String> allFailures = newArrayList(getValidationFailures());
         for (ClusterIndexHealth indexHealth : indices.values()) {
-            allFailures.addAll(indexHealth.validationFailures());
+            allFailures.addAll(indexHealth.getValidationFailures());
         }
         return allFailures;
     }
@@ -144,7 +144,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             ClusterIndexHealth indexHealth = readClusterIndexHealth(in);
-            indices.put(indexHealth.index(), indexHealth);
+            indices.put(indexHealth.getIndex(), indexHealth);
         }
         timedOut = in.readBoolean();
         size = in.readVInt();

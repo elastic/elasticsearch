@@ -116,7 +116,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
     public void testIndexActions() throws Exception {
         createIndex();
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -271,7 +271,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
     public void testBulk() throws Exception {
         createIndex();
         logger.info("-> running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

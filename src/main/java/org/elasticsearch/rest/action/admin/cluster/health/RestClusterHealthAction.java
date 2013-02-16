@@ -51,19 +51,19 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(RestActions.splitIndices(request.param("index")));
-        clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
+        clusterHealthRequest.setLocal(request.paramAsBoolean("local", clusterHealthRequest.getLocal()));
         clusterHealthRequest.listenerThreaded(false);
         int level = 0;
         try {
             clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));
-            clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
+            clusterHealthRequest.setTimeout(request.paramAsTime("timeout", clusterHealthRequest.getTimeout()));
             String waitForStatus = request.param("wait_for_status");
             if (waitForStatus != null) {
-                clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase()));
+                clusterHealthRequest.setWaitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase()));
             }
-            clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
-            clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
-            clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
+            clusterHealthRequest.setWaitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.getWaitForRelocatingShards()));
+            clusterHealthRequest.setWaitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.getWaitForActiveShards()));
+            clusterHealthRequest.setWaitForNodes(request.param("wait_for_nodes", clusterHealthRequest.getWaitForNodes()));
             String sLevel = request.param("level");
             if (sLevel != null) {
                 if ("cluster".equals(sLevel)) {
@@ -117,11 +117,11 @@ public class RestClusterHealthAction extends BaseRestHandler {
                         // so we know why the status is red
                         if (fLevel == 0) {
                             for (ClusterIndexHealth indexHealth : response) {
-                                builder.startObject(indexHealth.index());
+                                builder.startObject(indexHealth.getIndex());
 
-                                if (!indexHealth.validationFailures().isEmpty()) {
+                                if (!indexHealth.getValidationFailures().isEmpty()) {
                                     builder.startArray(Fields.VALIDATION_FAILURES);
-                                    for (String validationFailure : indexHealth.validationFailures()) {
+                                    for (String validationFailure : indexHealth.getValidationFailures()) {
                                         builder.value(validationFailure);
                                     }
                                     builder.endArray();
@@ -136,20 +136,20 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     if (fLevel > 0) {
                         builder.startObject(Fields.INDICES);
                         for (ClusterIndexHealth indexHealth : response) {
-                            builder.startObject(indexHealth.index(), XContentBuilder.FieldCaseConversion.NONE);
+                            builder.startObject(indexHealth.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-                            builder.field(Fields.STATUS, indexHealth.status().name().toLowerCase());
-                            builder.field(Fields.NUMBER_OF_SHARDS, indexHealth.numberOfShards());
-                            builder.field(Fields.NUMBER_OF_REPLICAS, indexHealth.numberOfReplicas());
-                            builder.field(Fields.ACTIVE_PRIMARY_SHARDS, indexHealth.activePrimaryShards());
-                            builder.field(Fields.ACTIVE_SHARDS, indexHealth.activeShards());
-                            builder.field(Fields.RELOCATING_SHARDS, indexHealth.relocatingShards());
-                            builder.field(Fields.INITIALIZING_SHARDS, indexHealth.initializingShards());
-                            builder.field(Fields.UNASSIGNED_SHARDS, indexHealth.unassignedShards());
+                            builder.field(Fields.STATUS, indexHealth.getStatus().name().toLowerCase());
+                            builder.field(Fields.NUMBER_OF_SHARDS, indexHealth.getNumberOfShards());
+                            builder.field(Fields.NUMBER_OF_REPLICAS, indexHealth.getNumberOfReplicas());
+                            builder.field(Fields.ACTIVE_PRIMARY_SHARDS, indexHealth.getActivePrimaryShards());
+                            builder.field(Fields.ACTIVE_SHARDS, indexHealth.getActiveShards());
+                            builder.field(Fields.RELOCATING_SHARDS, indexHealth.getRelocatingShards());
+                            builder.field(Fields.INITIALIZING_SHARDS, indexHealth.getInitializingShards());
+                            builder.field(Fields.UNASSIGNED_SHARDS, indexHealth.getUnassignedShards());
 
-                            if (!indexHealth.validationFailures().isEmpty()) {
+                            if (!indexHealth.getValidationFailures().isEmpty()) {
                                 builder.startArray(Fields.VALIDATION_FAILURES);
-                                for (String validationFailure : indexHealth.validationFailures()) {
+                                for (String validationFailure : indexHealth.getValidationFailures()) {
                                     builder.value(validationFailure);
                                 }
                                 builder.endArray();
@@ -159,14 +159,14 @@ public class RestClusterHealthAction extends BaseRestHandler {
                                 builder.startObject(Fields.SHARDS);
 
                                 for (ClusterShardHealth shardHealth : indexHealth) {
-                                    builder.startObject(Integer.toString(shardHealth.id()));
+                                    builder.startObject(Integer.toString(shardHealth.getId()));
 
-                                    builder.field(Fields.STATUS, shardHealth.status().name().toLowerCase());
-                                    builder.field(Fields.PRIMARY_ACTIVE, shardHealth.primaryActive());
-                                    builder.field(Fields.ACTIVE_SHARDS, shardHealth.activeShards());
-                                    builder.field(Fields.RELOCATING_SHARDS, shardHealth.relocatingShards());
-                                    builder.field(Fields.INITIALIZING_SHARDS, shardHealth.initializingShards());
-                                    builder.field(Fields.UNASSIGNED_SHARDS, shardHealth.unassignedShards());
+                                    builder.field(Fields.STATUS, shardHealth.getStatus().name().toLowerCase());
+                                    builder.field(Fields.PRIMARY_ACTIVE, shardHealth.isPrimaryActive());
+                                    builder.field(Fields.ACTIVE_SHARDS, shardHealth.getActiveShards());
+                                    builder.field(Fields.RELOCATING_SHARDS, shardHealth.getRelocatingShards());
+                                    builder.field(Fields.INITIALIZING_SHARDS, shardHealth.getInitializingShards());
+                                    builder.field(Fields.UNASSIGNED_SHARDS, shardHealth.getUnassignedShards());
 
                                     builder.endObject();
                                 }

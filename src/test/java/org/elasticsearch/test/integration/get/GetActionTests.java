@@ -67,7 +67,7 @@ public class GetActionTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -160,7 +160,7 @@ public class GetActionTests extends AbstractNodesTests {
         }
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -211,7 +211,7 @@ public class GetActionTests extends AbstractNodesTests {
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("_source").field("compress", true).endObject().endObject().endObject())
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -245,7 +245,7 @@ public class GetActionTests extends AbstractNodesTests {
                         .endObject().endObject())
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -313,7 +313,7 @@ public class GetActionTests extends AbstractNodesTests {
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 

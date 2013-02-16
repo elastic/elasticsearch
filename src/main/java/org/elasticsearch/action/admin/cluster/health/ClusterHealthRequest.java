@@ -57,20 +57,20 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest<ClusterHeal
         this.indices = indices;
     }
 
-    public String[] indices() {
+    public String[] getIndices() {
         return indices;
     }
 
-    public ClusterHealthRequest indices(String[] indices) {
+    public ClusterHealthRequest setIndices(String[] indices) {
         this.indices = indices;
         return this;
     }
 
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return timeout;
     }
 
-    public ClusterHealthRequest timeout(TimeValue timeout) {
+    public ClusterHealthRequest setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         if (masterNodeTimeout == DEFAULT_MASTER_NODE_TIMEOUT) {
             masterNodeTimeout = timeout;
@@ -78,63 +78,63 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest<ClusterHeal
         return this;
     }
 
-    public ClusterHealthRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
+    public ClusterHealthRequest setTimeout(String timeout) {
+        return setTimeout(TimeValue.parseTimeValue(timeout, null));
     }
 
-    public ClusterHealthStatus waitForStatus() {
+    public ClusterHealthStatus getWaitForStatus() {
         return waitForStatus;
     }
 
-    public ClusterHealthRequest waitForStatus(ClusterHealthStatus waitForStatus) {
+    public ClusterHealthRequest setWaitForStatus(ClusterHealthStatus waitForStatus) {
         this.waitForStatus = waitForStatus;
         return this;
     }
 
-    public ClusterHealthRequest waitForGreenStatus() {
-        return waitForStatus(ClusterHealthStatus.GREEN);
+    public ClusterHealthRequest setWaitForGreenStatus() {
+        return setWaitForStatus(ClusterHealthStatus.GREEN);
     }
 
-    public ClusterHealthRequest waitForYellowStatus() {
-        return waitForStatus(ClusterHealthStatus.YELLOW);
+    public ClusterHealthRequest setWaitForYellowStatus() {
+        return setWaitForStatus(ClusterHealthStatus.YELLOW);
     }
 
-    public int waitForRelocatingShards() {
+    public int getWaitForRelocatingShards() {
         return waitForRelocatingShards;
     }
 
-    public ClusterHealthRequest waitForRelocatingShards(int waitForRelocatingShards) {
+    public ClusterHealthRequest setWaitForRelocatingShards(int waitForRelocatingShards) {
         this.waitForRelocatingShards = waitForRelocatingShards;
         return this;
     }
 
-    public int waitForActiveShards() {
+    public int getWaitForActiveShards() {
         return waitForActiveShards;
     }
 
-    public ClusterHealthRequest waitForActiveShards(int waitForActiveShards) {
+    public ClusterHealthRequest setWaitForActiveShards(int waitForActiveShards) {
         this.waitForActiveShards = waitForActiveShards;
         return this;
     }
 
-    public String waitForNodes() {
+    public String getWaitForNodes() {
         return waitForNodes;
     }
 
     /**
      * Waits for N number of nodes. Use "12" for exact mapping, ">12" and "<12" for range.
      */
-    public ClusterHealthRequest waitForNodes(String waitForNodes) {
+    public ClusterHealthRequest setWaitForNodes(String waitForNodes) {
         this.waitForNodes = waitForNodes;
         return this;
     }
 
-    public ClusterHealthRequest local(boolean local) {
+    public ClusterHealthRequest setLocal(boolean local) {
         this.local = local;
         return this;
     }
 
-    public boolean local() {
+    public boolean getLocal() {
         return this.local;
     }
 

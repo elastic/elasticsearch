@@ -78,16 +78,16 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes()).execute().actionGet().valid(), equalTo(false));
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().valid(), equalTo(true));
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().valid(), equalTo(false));
+        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes()).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1")).execute().actionGet().valid(), equalTo(true));
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("bar:hey")).execute().actionGet().valid(), equalTo(false));
+        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("bar:hey")).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("nonexistent:hello")).execute().actionGet().valid(), equalTo(true));
+        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
 
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1 AND")).execute().actionGet().valid(), equalTo(false));
+        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
     }
 
     @Test
@@ -121,10 +121,10 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
                 .setQuery("foo".getBytes())
                 .setExplain(true)
                 .execute().actionGet();
-        assertThat(response.valid(), equalTo(false));
-        assertThat(response.queryExplanations().size(), equalTo(1));
-        assertThat(response.queryExplanations().get(0).error(), containsString("Failed to parse"));
-        assertThat(response.queryExplanations().get(0).explanation(), nullValue());
+        assertThat(response.isValid(), equalTo(false));
+        assertThat(response.getQueryExplanation().size(), equalTo(1));
+        assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to parse"));
+        assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
         assertExplanation(QueryBuilders.queryString("_id:1"), equalTo("ConstantScore(_uid:type1#1)"));
 
@@ -227,37 +227,37 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
                 .setQuery("foo".getBytes())
                 .setExplain(true)
                 .execute().actionGet();
-        assertThat(response.valid(), equalTo(false));
-        assertThat(response.queryExplanations().size(), equalTo(1));
-        assertThat(response.queryExplanations().get(0).error(), containsString("Failed to parse"));
-        assertThat(response.queryExplanations().get(0).explanation(), nullValue());
+        assertThat(response.isValid(), equalTo(false));
+        assertThat(response.getQueryExplanation().size(), equalTo(1));
+        assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to parse"));
+        assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
         response = client("node2").admin().indices().prepareValidateQuery("test")
                 .setQuery("foo".getBytes())
                 .setExplain(true)
                 .execute().actionGet();
-        assertThat(response.valid(), equalTo(false));
-        assertThat(response.queryExplanations().size(), equalTo(1));
-        assertThat(response.queryExplanations().get(0).error(), containsString("Failed to parse"));
-        assertThat(response.queryExplanations().get(0).explanation(), nullValue());
+        assertThat(response.isValid(), equalTo(false));
+        assertThat(response.getQueryExplanation().size(), equalTo(1));
+        assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to parse"));
+        assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
         response = client("node1").admin().indices().prepareValidateQuery("test")
                 .setQuery(QueryBuilders.queryString("foo"))
                 .setExplain(true)
                 .execute().actionGet();
-        assertThat(response.valid(), equalTo(true));
-        assertThat(response.queryExplanations().size(), equalTo(1));
-        assertThat(response.queryExplanations().get(0).explanation(), equalTo("_all:foo"));
-        assertThat(response.queryExplanations().get(0).error(), nullValue());
+        assertThat(response.isValid(), equalTo(true));
+        assertThat(response.getQueryExplanation().size(), equalTo(1));
+        assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("_all:foo"));
+        assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
 
         response = client("node2").admin().indices().prepareValidateQuery("test")
                 .setQuery(QueryBuilders.queryString("foo"))
                 .setExplain(true)
                 .execute().actionGet();
-        assertThat(response.valid(), equalTo(true));
-        assertThat(response.queryExplanations().size(), equalTo(1));
-        assertThat(response.queryExplanations().get(0).explanation(), equalTo("_all:foo"));
-        assertThat(response.queryExplanations().get(0).error(), nullValue());
+        assertThat(response.isValid(), equalTo(true));
+        assertThat(response.getQueryExplanation().size(), equalTo(1));
+        assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("_all:foo"));
+        assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
     }
 
 
@@ -267,10 +267,10 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
                 .setQuery(queryBuilder)
                 .setExplain(true)
                 .execute().actionGet();
-        assertThat(response.queryExplanations().size(), equalTo(1));
-        assertThat(response.queryExplanations().get(0).error(), nullValue());
-        assertThat(response.queryExplanations().get(0).explanation(), matcher);
-        assertThat(response.valid(), equalTo(true));
+        assertThat(response.getQueryExplanation().size(), equalTo(1));
+        assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
+        assertThat(response.getQueryExplanation().get(0).getExplanation(), matcher);
+        assertThat(response.isValid(), equalTo(true));
     }
 
 }

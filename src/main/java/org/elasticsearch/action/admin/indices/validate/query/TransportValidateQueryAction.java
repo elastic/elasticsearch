@@ -135,16 +135,16 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
                 ShardValidateQueryResponse validateQueryResponse = (ShardValidateQueryResponse) shardResponse;
-                valid = valid && validateQueryResponse.valid();
+                valid = valid && validateQueryResponse.isValid();
                 if (request.explain()) {
                     if (queryExplanations == null) {
                         queryExplanations = newArrayList();
                     }
                     queryExplanations.add(new QueryExplanation(
                             validateQueryResponse.index(),
-                            validateQueryResponse.valid(),
-                            validateQueryResponse.explanation(),
-                            validateQueryResponse.error()
+                            validateQueryResponse.isValid(),
+                            validateQueryResponse.getExplanation(),
+                            validateQueryResponse.getError()
                     ));
                 }
                 successfulShards++;

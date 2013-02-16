@@ -64,7 +64,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             //         { remove : { index : "test1", alias : "alias1" } }
             //     ]
             // }
-            indicesAliasesRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+            indicesAliasesRequest.setTimeout(request.paramAsTime("timeout", timeValueSeconds(10)));
             parser = XContentFactory.xContent(request.content()).createParser(request.content());
             XContentParser.Token token = parser.nextToken();
             if (token == null) {

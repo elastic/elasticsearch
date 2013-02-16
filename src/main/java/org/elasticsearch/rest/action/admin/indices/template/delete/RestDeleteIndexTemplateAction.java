@@ -58,7 +58,7 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields.ACKNOWLEDGED, response.acknowledged())
+                            .field(Fields.ACKNOWLEDGED, response.isAcknowledged())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {

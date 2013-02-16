@@ -34,7 +34,7 @@ public class DeleteMappingRequestBuilder extends MasterNodeOperationRequestBuild
     }
 
     public DeleteMappingRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
+        request.setIndices(indices);
         return this;
     }
 
@@ -42,7 +42,7 @@ public class DeleteMappingRequestBuilder extends MasterNodeOperationRequestBuild
      * The type of the mapping to remove.
      */
     public DeleteMappingRequestBuilder setType(String type) {
-        request.type(type);
+        request.setType(type);
         return this;
     }
 

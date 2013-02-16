@@ -130,7 +130,7 @@ public class TransportDeleteIndexAction extends TransportMasterNodeOperationActi
                     // YACK, but here we go: If this index is also percolated, make sure to delete all percolated queries from the _percolator index
                     IndexMetaData percolatorMetaData = state.metaData().index(PercolatorService.INDEX_NAME);
                     if (percolatorMetaData != null && percolatorMetaData.mappings().containsKey(index)) {
-                        deleteMappingAction.execute(new DeleteMappingRequest(PercolatorService.INDEX_NAME).type(index), new ActionListener<DeleteMappingResponse>() {
+                        deleteMappingAction.execute(new DeleteMappingRequest(PercolatorService.INDEX_NAME).setType(index), new ActionListener<DeleteMappingResponse>() {
                             @Override
                             public void onResponse(DeleteMappingResponse deleteMappingResponse) {
                                 latch.countDown();

@@ -66,7 +66,7 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
         for (String index : indices) {
             List<ShardSegments> shards = Lists.newArrayList();
             for (ShardSegments shard : this.shards) {
-                if (shard.shardRouting().index().equals(index)) {
+                if (shard.getShardRouting().index().equals(index)) {
                     shards.add(shard);
                 }
             }
@@ -100,20 +100,20 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
         builder.startObject(Fields.INDICES);
 
         for (IndexSegments indexSegments : getIndices().values()) {
-            builder.startObject(indexSegments.index(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexSegments.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.startObject(Fields.SHARDS);
             for (IndexShardSegments indexSegment : indexSegments) {
-                builder.startArray(Integer.toString(indexSegment.shardId().id()));
+                builder.startArray(Integer.toString(indexSegment.getShardId().id()));
                 for (ShardSegments shardSegments : indexSegment) {
                     builder.startObject();
 
                     builder.startObject(Fields.ROUTING);
-                    builder.field(Fields.STATE, shardSegments.shardRouting().state());
-                    builder.field(Fields.PRIMARY, shardSegments.shardRouting().primary());
-                    builder.field(Fields.NODE, shardSegments.shardRouting().currentNodeId());
-                    if (shardSegments.shardRouting().relocatingNodeId() != null) {
-                        builder.field(Fields.RELOCATING_NODE, shardSegments.shardRouting().relocatingNodeId());
+                    builder.field(Fields.STATE, shardSegments.getShardRouting().state());
+                    builder.field(Fields.PRIMARY, shardSegments.getShardRouting().primary());
+                    builder.field(Fields.NODE, shardSegments.getShardRouting().currentNodeId());
+                    if (shardSegments.getShardRouting().relocatingNodeId() != null) {
+                        builder.field(Fields.RELOCATING_NODE, shardSegments.getShardRouting().relocatingNodeId());
                     }
                     builder.endObject();
 

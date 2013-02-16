@@ -53,20 +53,12 @@ public class ShardSegments extends BroadcastShardOperationResponse implements It
         return segments.iterator();
     }
 
-    public ShardRouting shardRouting() {
-        return this.shardRouting;
-    }
-
     public ShardRouting getShardRouting() {
         return this.shardRouting;
     }
 
-    public List<Segment> segments() {
-        return this.segments;
-    }
-
     public List<Segment> getSegments() {
-        return segments;
+        return this.segments;
     }
 
     public int numberOfCommitted() {

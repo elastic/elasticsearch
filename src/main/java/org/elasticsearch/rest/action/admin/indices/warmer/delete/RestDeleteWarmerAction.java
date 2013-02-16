@@ -50,7 +50,7 @@ public class RestDeleteWarmerAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteWarmerRequest deleteWarmerRequest = new DeleteWarmerRequest(request.param("name"))
-                .indices(RestActions.splitIndices(request.param("index")));
+                .setIndices(RestActions.splitIndices(request.param("index")));
         deleteWarmerRequest.listenerThreaded(false);
         client.admin().indices().deleteWarmer(deleteWarmerRequest, new ActionListener<DeleteWarmerResponse>() {
             @Override

@@ -53,7 +53,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node indices stats be returned.
      */
     public NodesStatsRequestBuilder setIndices(boolean indices) {
-        request.indices(indices);
+        request.setIndices(indices);
         return this;
     }
 
@@ -61,7 +61,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node OS stats be returned.
      */
     public NodesStatsRequestBuilder setOs(boolean os) {
-        request.os(os);
+        request.setOs(os);
         return this;
     }
 
@@ -69,7 +69,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node OS stats be returned.
      */
     public NodesStatsRequestBuilder setProcess(boolean process) {
-        request.process(process);
+        request.setProcess(process);
         return this;
     }
 
@@ -77,7 +77,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node JVM stats be returned.
      */
     public NodesStatsRequestBuilder setJvm(boolean jvm) {
-        request.jvm(jvm);
+        request.setJvm(jvm);
         return this;
     }
 
@@ -85,7 +85,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node thread pool stats be returned.
      */
     public NodesStatsRequestBuilder setThreadPool(boolean threadPool) {
-        request.threadPool(threadPool);
+        request.setThreadPool(threadPool);
         return this;
     }
 
@@ -93,7 +93,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node Network stats be returned.
      */
     public NodesStatsRequestBuilder setNetwork(boolean network) {
-        request.network(network);
+        request.setNetwork(network);
         return this;
     }
 
@@ -101,7 +101,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node file system stats be returned.
      */
     public NodesStatsRequestBuilder setFs(boolean fs) {
-        request.fs(fs);
+        request.setFs(fs);
         return this;
     }
 
@@ -109,7 +109,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node Transport stats be returned.
      */
     public NodesStatsRequestBuilder setTransport(boolean transport) {
-        request.transport(transport);
+        request.setTransport(transport);
         return this;
     }
 
@@ -117,7 +117,7 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node HTTP stats be returned.
      */
     public NodesStatsRequestBuilder setHttp(boolean http) {
-        request.http(http);
+        request.setHttp(http);
         return this;
     }
 

@@ -67,12 +67,12 @@ public class NodesStatsResponse extends NodesOperationResponse<NodeStats> implem
         for (NodeStats nodeStats : this) {
             builder.startObject(nodeStats.node().id(), XContentBuilder.FieldCaseConversion.NONE);
 
-            builder.field("timestamp", nodeStats.timestamp());
+            builder.field("timestamp", nodeStats.getTimestamp());
             builder.field("name", nodeStats.node().name(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("transport_address", nodeStats.node().address().toString());
 
-            if (nodeStats.hostname() != null) {
-                builder.field("hostname", nodeStats.hostname(), XContentBuilder.FieldCaseConversion.NONE);
+            if (nodeStats.getHostname() != null) {
+                builder.field("hostname", nodeStats.getHostname(), XContentBuilder.FieldCaseConversion.NONE);
             }
 
             if (!nodeStats.node().attributes().isEmpty()) {
@@ -83,33 +83,33 @@ public class NodesStatsResponse extends NodesOperationResponse<NodeStats> implem
                 builder.endObject();
             }
 
-            if (nodeStats.indices() != null) {
-                nodeStats.indices().toXContent(builder, params);
+            if (nodeStats.getIndices() != null) {
+                nodeStats.getIndices().toXContent(builder, params);
             }
 
-            if (nodeStats.os() != null) {
-                nodeStats.os().toXContent(builder, params);
+            if (nodeStats.getOs() != null) {
+                nodeStats.getOs().toXContent(builder, params);
             }
-            if (nodeStats.process() != null) {
-                nodeStats.process().toXContent(builder, params);
+            if (nodeStats.getProcess() != null) {
+                nodeStats.getProcess().toXContent(builder, params);
             }
-            if (nodeStats.jvm() != null) {
-                nodeStats.jvm().toXContent(builder, params);
+            if (nodeStats.getJvm() != null) {
+                nodeStats.getJvm().toXContent(builder, params);
             }
-            if (nodeStats.threadPool() != null) {
-                nodeStats.threadPool().toXContent(builder, params);
+            if (nodeStats.getThreadPool() != null) {
+                nodeStats.getThreadPool().toXContent(builder, params);
             }
-            if (nodeStats.network() != null) {
-                nodeStats.network().toXContent(builder, params);
+            if (nodeStats.getNetwork() != null) {
+                nodeStats.getNetwork().toXContent(builder, params);
             }
-            if (nodeStats.fs() != null) {
-                nodeStats.fs().toXContent(builder, params);
+            if (nodeStats.getFs() != null) {
+                nodeStats.getFs().toXContent(builder, params);
             }
-            if (nodeStats.transport() != null) {
-                nodeStats.transport().toXContent(builder, params);
+            if (nodeStats.getTransport() != null) {
+                nodeStats.getTransport().toXContent(builder, params);
             }
-            if (nodeStats.http() != null) {
-                nodeStats.http().toXContent(builder, params);
+            if (nodeStats.getHttp() != null) {
+                nodeStats.getHttp().toXContent(builder, params);
             }
 
             builder.endObject();

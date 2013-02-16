@@ -68,7 +68,7 @@ public class RestPutMappingAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
-                            .field("acknowledged", response.acknowledged());
+                            .field("acknowledged", response.isAcknowledged());
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {

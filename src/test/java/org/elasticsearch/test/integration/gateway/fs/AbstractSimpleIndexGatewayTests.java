@@ -85,7 +85,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         // create a mapping
         PutMappingResponse putMappingResponse = client("server1").admin().indices().preparePutMapping("test").setType("type1").setSource(mappingSource()).execute().actionGet();
-        assertThat(putMappingResponse.acknowledged(), equalTo(true));
+        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         // verify that mapping is there
         ClusterStateResponse clusterState = client("server1").admin().cluster().state(clusterStateRequest()).actionGet();

@@ -56,26 +56,26 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest<NodesShutdo
     /**
      * The delay for the shutdown to occur. Defaults to <tt>1s</tt>.
      */
-    public NodesShutdownRequest delay(TimeValue delay) {
+    public NodesShutdownRequest setDelay(TimeValue delay) {
         this.delay = delay;
         return this;
     }
 
-    public TimeValue delay() {
+    public TimeValue getDelay() {
         return this.delay;
     }
 
     /**
      * The delay for the shutdown to occur. Defaults to <tt>1s</tt>.
      */
-    public NodesShutdownRequest delay(String delay) {
-        return delay(TimeValue.parseTimeValue(delay, null));
+    public NodesShutdownRequest setDelay(String delay) {
+        return setDelay(TimeValue.parseTimeValue(delay, null));
     }
 
     /**
      * Should the JVM be exited as well or not. Defaults to <tt>true</tt>.
      */
-    public NodesShutdownRequest exit(boolean exit) {
+    public NodesShutdownRequest setExit(boolean exit) {
         this.exit = exit;
         return this;
     }
@@ -83,7 +83,7 @@ public class NodesShutdownRequest extends MasterNodeOperationRequest<NodesShutdo
     /**
      * Should the JVM be exited as well or not. Defaults to <tt>true</tt>.
      */
-    public boolean exit() {
+    public boolean isExit() {
         return exit;
     }
 

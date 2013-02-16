@@ -68,10 +68,10 @@ public class RestAnalyzeAction extends BaseRestHandler {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"), text);
         analyzeRequest.listenerThreaded(false);
         analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
-        analyzeRequest.analyzer(request.param("analyzer"));
-        analyzeRequest.field(request.param("field"));
-        analyzeRequest.tokenizer(request.param("tokenizer"));
-        analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", null)));
+        analyzeRequest.setAnalyzer(request.param("analyzer"));
+        analyzeRequest.setField(request.param("field"));
+        analyzeRequest.setTokenizer(request.param("tokenizer"));
+        analyzeRequest.setTokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", null)));
         client.admin().indices().analyze(analyzeRequest, new ActionListener<AnalyzeResponse>() {
             @Override
             public void onResponse(AnalyzeResponse response) {

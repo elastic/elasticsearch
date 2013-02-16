@@ -79,7 +79,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
      */
     public boolean hasFailures() {
         for (BulkItemResponse response : responses) {
-            if (response.failed()) {
+            if (response.isFailed()) {
                 return true;
             }
         }
@@ -91,10 +91,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         sb.append("failure in bulk execution:");
         for (int i = 0; i < responses.length; i++) {
             BulkItemResponse response = responses[i];
-            if (response.failed()) {
+            if (response.isFailed()) {
                 sb.append("\n[").append(i)
-                        .append("]: index [").append(response.index()).append("], type [").append(response.type()).append("], id [").append(response.id())
-                        .append("], message [").append(response.failureMessage()).append("]");
+                        .append("]: index [").append(response.getIndex()).append("], type [").append(response.getType()).append("], id [").append(response.getId())
+                        .append("], message [").append(response.getFailureMessage()).append("]");
             }
         }
         return sb.toString();

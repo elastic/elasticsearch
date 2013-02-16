@@ -103,21 +103,21 @@ public class RestBulkAction extends BaseRestHandler {
                     builder.startArray(Fields.ITEMS);
                     for (BulkItemResponse itemResponse : response) {
                         builder.startObject();
-                        builder.startObject(itemResponse.opType());
-                        builder.field(Fields._INDEX, itemResponse.index());
-                        builder.field(Fields._TYPE, itemResponse.type());
-                        builder.field(Fields._ID, itemResponse.id());
-                        long version = itemResponse.version();
+                        builder.startObject(itemResponse.getOpType());
+                        builder.field(Fields._INDEX, itemResponse.getIndex());
+                        builder.field(Fields._TYPE, itemResponse.getType());
+                        builder.field(Fields._ID, itemResponse.getId());
+                        long version = itemResponse.getVersion();
                         if (version != -1) {
-                            builder.field(Fields._VERSION, itemResponse.version());
+                            builder.field(Fields._VERSION, itemResponse.getVersion());
                         }
-                        if (itemResponse.failed()) {
-                            builder.field(Fields.ERROR, itemResponse.failure().message());
+                        if (itemResponse.isFailed()) {
+                            builder.field(Fields.ERROR, itemResponse.getFailure().getMessage());
                         } else {
                             builder.field(Fields.OK, true);
                         }
-                        if (itemResponse.response() instanceof IndexResponse) {
-                            IndexResponse indexResponse = itemResponse.response();
+                        if (itemResponse.getResponse() instanceof IndexResponse) {
+                            IndexResponse indexResponse = itemResponse.getResponse();
                             if (indexResponse.matches() != null) {
                                 builder.startArray(Fields.MATCHES);
                                 for (String match : indexResponse.matches()) {

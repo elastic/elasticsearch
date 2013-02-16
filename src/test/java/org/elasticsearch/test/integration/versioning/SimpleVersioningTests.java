@@ -289,7 +289,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         BulkResponse bulkResponse = client.prepareBulk().add(client.prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.items().length, equalTo(1));
-        IndexResponse indexResponse = bulkResponse.items()[0].response();
+        IndexResponse indexResponse = bulkResponse.items()[0].getResponse();
         assertThat(indexResponse.version(), equalTo(1l));
     }
 }

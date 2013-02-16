@@ -251,7 +251,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         BulkResponse bulkResponse = bulkRequestBuilder.execute().actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         for (BulkItemResponse bulkItemResponse : bulkResponse) {
-            IndexResponse index = bulkItemResponse.response();
+            IndexResponse index = bulkItemResponse.getResponse();
             assertThat(index.matches().size(), equalTo(1));
             assertThat(index.matches(), hasItem("kuku"));
         }

@@ -288,33 +288,33 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(bulkResponse.items().length, equalTo(5));
 
         assertThat(bulkResponse.items()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[0].opType(), equalTo("index"));
-        assertThat(bulkResponse.items()[0].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[0].type(), equalTo("type1"));
-        assertThat(bulkResponse.items()[0].id(), equalTo("1"));
+        assertThat(bulkResponse.items()[0].getOpType(), equalTo("index"));
+        assertThat(bulkResponse.items()[0].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.items()[0].getType(), equalTo("type1"));
+        assertThat(bulkResponse.items()[0].getId(), equalTo("1"));
 
         assertThat(bulkResponse.items()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[1].opType(), equalTo("create"));
-        assertThat(bulkResponse.items()[1].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[1].type(), equalTo("type1"));
-        assertThat(bulkResponse.items()[1].id(), equalTo("2"));
+        assertThat(bulkResponse.items()[1].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.items()[1].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.items()[1].getType(), equalTo("type1"));
+        assertThat(bulkResponse.items()[1].getId(), equalTo("2"));
 
         assertThat(bulkResponse.items()[2].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[2].opType(), equalTo("create"));
-        assertThat(bulkResponse.items()[2].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[2].type(), equalTo("type1"));
-        String generatedId3 = bulkResponse.items()[2].id();
+        assertThat(bulkResponse.items()[2].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.items()[2].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.items()[2].getType(), equalTo("type1"));
+        String generatedId3 = bulkResponse.items()[2].getId();
 
         assertThat(bulkResponse.items()[3].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[3].opType(), equalTo("delete"));
-        assertThat(bulkResponse.items()[3].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[3].type(), equalTo("type1"));
-        assertThat(bulkResponse.items()[3].id(), equalTo("1"));
+        assertThat(bulkResponse.items()[3].getOpType(), equalTo("delete"));
+        assertThat(bulkResponse.items()[3].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.items()[3].getType(), equalTo("type1"));
+        assertThat(bulkResponse.items()[3].getId(), equalTo("1"));
 
         assertThat(bulkResponse.items()[4].isFailed(), equalTo(true));
-        assertThat(bulkResponse.items()[4].opType(), equalTo("create"));
-        assertThat(bulkResponse.items()[4].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[4].type(), equalTo("type1"));
+        assertThat(bulkResponse.items()[4].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.items()[4].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.items()[4].getType(), equalTo("type1"));
 
         RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
         assertThat(refreshResponse.successfulShards(), equalTo(10));

@@ -221,7 +221,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 public void onResponse(BulkShardResponse bulkShardResponse) {
                     synchronized (responses) {
                         for (BulkItemResponse bulkItemResponse : bulkShardResponse.responses()) {
-                            responses[bulkItemResponse.itemId()] = bulkItemResponse;
+                            responses[bulkItemResponse.getItemId()] = bulkItemResponse;
                         }
                     }
                     if (counter.decrementAndGet() == 0) {

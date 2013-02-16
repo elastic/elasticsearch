@@ -181,10 +181,10 @@ public class RelocationTests extends AbstractNodesTests {
                                 }
                                 BulkResponse bulkResponse = bulkRequest.execute().actionGet();
                                 for (BulkItemResponse bulkItemResponse : bulkResponse) {
-                                    if (!bulkItemResponse.failed()) {
+                                    if (!bulkItemResponse.isFailed()) {
                                         indexCounter.incrementAndGet();
                                     } else {
-                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.failure().getId(), bulkItemResponse.failure().getMessage());
+                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.getFailure().getId(), bulkItemResponse.getFailure().getMessage());
                                     }
                                 }
                             } else {
@@ -357,10 +357,10 @@ public class RelocationTests extends AbstractNodesTests {
                                 }
                                 BulkResponse bulkResponse = bulkRequest.execute().actionGet();
                                 for (BulkItemResponse bulkItemResponse : bulkResponse) {
-                                    if (!bulkItemResponse.failed()) {
+                                    if (!bulkItemResponse.isFailed()) {
                                         indexCounter.incrementAndGet();
                                     } else {
-                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.failure().getId(), bulkItemResponse.failure().getMessage());
+                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.getFailure().getId(), bulkItemResponse.getFailure().getMessage());
                                     }
                                 }
                             } else {

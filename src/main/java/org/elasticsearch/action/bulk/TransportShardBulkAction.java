@@ -266,7 +266,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         for (int i = 0; i < ops.length; i++) {
             BulkItemRequest itemRequest = request.items()[i];
             BulkItemResponse itemResponse = response.response().responses()[i];
-            if (itemResponse.failed()) {
+            if (itemResponse.isFailed()) {
                 // failure, continue
                 continue;
             }
@@ -281,7 +281,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 }
                 try {
                     PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), indexRequest.percolate()));
-                    ((IndexResponse) itemResponse.response()).matches(percolate.matches());
+                    ((IndexResponse) itemResponse.getResponse()).matches(percolate.matches());
                 } catch (Exception e) {
                     logger.warn("failed to percolate [{}]", e, itemRequest.request());
                 }

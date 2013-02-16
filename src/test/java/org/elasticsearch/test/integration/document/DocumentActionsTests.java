@@ -133,11 +133,11 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("--> index exists?");
         IndicesExistsResponse indicesExistsResponse = client1.admin().indices().prepareExists(getConcreteIndexName()).execute().actionGet();
-        assertThat(indicesExistsResponse.exists(), equalTo(true));
+        assertThat(indicesExistsResponse.isExists(), equalTo(true));
 
         logger.info("--> index exists?, fake index");
         indicesExistsResponse = client1.admin().indices().prepareExists("test1234565").execute().actionGet();
-        assertThat(indicesExistsResponse.exists(), equalTo(false));
+        assertThat(indicesExistsResponse.isExists(), equalTo(false));
 
         logger.info("Clearing cache");
         ClearIndicesCacheResponse clearIndicesCacheResponse = client1.admin().indices().clearCache(clearIndicesCacheRequest("test")).actionGet();

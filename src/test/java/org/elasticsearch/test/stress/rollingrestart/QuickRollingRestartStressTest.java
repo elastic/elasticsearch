@@ -49,7 +49,7 @@ public class QuickRollingRestartStressTest {
         Node client = NodeBuilder.nodeBuilder().client(true).node();
 
         long COUNT;
-        if (client.client().admin().indices().prepareExists("test").execute().actionGet().exists()) {
+        if (client.client().admin().indices().prepareExists("test").execute().actionGet().isExists()) {
             ClusterHealthResponse clusterHealthResponse = client.client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
             if (clusterHealthResponse.isTimedOut()) {
                 throw new ElasticSearchException("failed to wait for green state on startup...");

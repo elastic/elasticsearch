@@ -373,7 +373,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         Thread.sleep(500);
 
         logger.info("--> verify that the dangling index exists");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> waiting for green status");
         health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
@@ -430,7 +430,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         Thread.sleep(500);
 
         logger.info("--> verify that the dangling index exists");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> waiting for green status");
         health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
@@ -496,7 +496,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         Thread.sleep(500);
 
         logger.info("--> verify that the dangling index does not exists");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(false));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(false));
 
         logger.info("--> shutdown the nodes");
         closeNode("node1");
@@ -511,7 +511,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify that the dangling index does exists now!");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> verify the doc is there");
         assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
     }
@@ -561,7 +561,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify that the dangling index does not exists");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(false));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(false));
 
         logger.info("--> close the first node, so we remain with the second that has the dangling index");
         closeNode("node1");

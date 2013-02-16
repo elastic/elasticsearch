@@ -426,7 +426,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         health = client("node2").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
-        assertThat(client("node2").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node2").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         assertThat(client("node2").prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
     }
 

@@ -54,7 +54,7 @@ public class GeoDistanceSearchBenchmark {
         final long NUM_WARM = 50;
         final long NUM_RUNS = 100;
 
-        if (client.admin().indices().prepareExists("test").execute().actionGet().exists()) {
+        if (client.admin().indices().prepareExists("test").execute().actionGet().isExists()) {
             System.out.println("Found an index, count: " + client.prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count());
         } else {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")

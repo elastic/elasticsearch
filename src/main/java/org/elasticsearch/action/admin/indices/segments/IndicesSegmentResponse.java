@@ -53,10 +53,6 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
     }
 
     public Map<String, IndexSegments> getIndices() {
-        return this.indices();
-    }
-
-    public Map<String, IndexSegments> indices() {
         if (indicesSegments != null) {
             return indicesSegments;
         }
@@ -103,7 +99,7 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.INDICES);
 
-        for (IndexSegments indexSegments : indices().values()) {
+        for (IndexSegments indexSegments : getIndices().values()) {
             builder.startObject(indexSegments.index(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.startObject(Fields.SHARDS);

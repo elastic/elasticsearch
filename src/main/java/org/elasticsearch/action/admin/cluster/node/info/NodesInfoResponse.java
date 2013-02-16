@@ -79,16 +79,16 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
             builder.field("name", nodeInfo.node().name(), XContentBuilder.FieldCaseConversion.NONE);
             builder.field("transport_address", nodeInfo.node().address().toString());
 
-            if (nodeInfo.hostname() != null) {
-                builder.field("hostname", nodeInfo.hostname(), XContentBuilder.FieldCaseConversion.NONE);
+            if (nodeInfo.getHostname() != null) {
+                builder.field("hostname", nodeInfo.getHostname(), XContentBuilder.FieldCaseConversion.NONE);
             }
 
-            if (nodeInfo.version() != null) {
-                builder.field("version", nodeInfo.version());
+            if (nodeInfo.getVersion() != null) {
+                builder.field("version", nodeInfo.getVersion());
             }
 
-            if (nodeInfo.serviceAttributes() != null) {
-                for (Map.Entry<String, String> nodeAttribute : nodeInfo.serviceAttributes().entrySet()) {
+            if (nodeInfo.getServiceAttributes() != null) {
+                for (Map.Entry<String, String> nodeAttribute : nodeInfo.getServiceAttributes().entrySet()) {
                     builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());
                 }
             }
@@ -102,35 +102,35 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
             }
 
 
-            if (nodeInfo.settings() != null) {
+            if (nodeInfo.getSettings() != null) {
                 builder.startObject("settings");
-                Settings settings = settingsFilter.filterSettings(nodeInfo.settings());
+                Settings settings = settingsFilter.filterSettings(nodeInfo.getSettings());
                 for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
                 }
                 builder.endObject();
             }
 
-            if (nodeInfo.os() != null) {
-                nodeInfo.os().toXContent(builder, params);
+            if (nodeInfo.getOs() != null) {
+                nodeInfo.getOs().toXContent(builder, params);
             }
-            if (nodeInfo.process() != null) {
-                nodeInfo.process().toXContent(builder, params);
+            if (nodeInfo.getProcess() != null) {
+                nodeInfo.getProcess().toXContent(builder, params);
             }
-            if (nodeInfo.jvm() != null) {
-                nodeInfo.jvm().toXContent(builder, params);
+            if (nodeInfo.getJvm() != null) {
+                nodeInfo.getJvm().toXContent(builder, params);
             }
-            if (nodeInfo.threadPool() != null) {
-                nodeInfo.threadPool().toXContent(builder, params);
+            if (nodeInfo.getThreadPool() != null) {
+                nodeInfo.getThreadPool().toXContent(builder, params);
             }
-            if (nodeInfo.network() != null) {
-                nodeInfo.network().toXContent(builder, params);
+            if (nodeInfo.getNetwork() != null) {
+                nodeInfo.getNetwork().toXContent(builder, params);
             }
-            if (nodeInfo.transport() != null) {
-                nodeInfo.transport().toXContent(builder, params);
+            if (nodeInfo.getTransport() != null) {
+                nodeInfo.getTransport().toXContent(builder, params);
             }
-            if (nodeInfo.http() != null) {
-                nodeInfo.http().toXContent(builder, params);
+            if (nodeInfo.getHttp() != null) {
+                nodeInfo.getHttp().toXContent(builder, params);
             }
 
             builder.endObject();

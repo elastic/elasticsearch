@@ -53,7 +53,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node settings be returned.
      */
     public NodesInfoRequestBuilder setSettings(boolean settings) {
-        request.settings(settings);
+        request.setSettings(settings);
         return this;
     }
 
@@ -61,7 +61,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node OS info be returned.
      */
     public NodesInfoRequestBuilder setOs(boolean os) {
-        request.os(os);
+        request.setOs(os);
         return this;
     }
 
@@ -69,7 +69,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node OS process be returned.
      */
     public NodesInfoRequestBuilder setProcess(boolean process) {
-        request.process(process);
+        request.setProcess(process);
         return this;
     }
 
@@ -77,7 +77,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node JVM info be returned.
      */
     public NodesInfoRequestBuilder setJvm(boolean jvm) {
-        request.jvm(jvm);
+        request.setJvm(jvm);
         return this;
     }
 
@@ -85,7 +85,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node thread pool info be returned.
      */
     public NodesInfoRequestBuilder setThreadPool(boolean threadPool) {
-        request.threadPool(threadPool);
+        request.setThreadPool(threadPool);
         return this;
     }
 
@@ -93,7 +93,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node Network info be returned.
      */
     public NodesInfoRequestBuilder setNetwork(boolean network) {
-        request.network(network);
+        request.setNetwork(network);
         return this;
     }
 
@@ -101,7 +101,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node Transport info be returned.
      */
     public NodesInfoRequestBuilder setTransport(boolean transport) {
-        request.transport(transport);
+        request.setTransport(transport);
         return this;
     }
 
@@ -109,7 +109,7 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
      * Should the node HTTP info be returned.
      */
     public NodesInfoRequestBuilder setHttp(boolean http) {
-        request.http(http);
+        request.setHttp(http);
         return this;
     }
 

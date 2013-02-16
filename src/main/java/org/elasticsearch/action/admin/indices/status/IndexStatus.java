@@ -45,16 +45,16 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
 
         Map<Integer, List<ShardStatus>> tmpIndexShards = Maps.newHashMap();
         for (ShardStatus shard : shards) {
-            List<ShardStatus> lst = tmpIndexShards.get(shard.shardRouting().id());
+            List<ShardStatus> lst = tmpIndexShards.get(shard.getShardRouting().id());
             if (lst == null) {
                 lst = newArrayList();
-                tmpIndexShards.put(shard.shardRouting().id(), lst);
+                tmpIndexShards.put(shard.getShardRouting().id(), lst);
             }
             lst.add(shard);
         }
         indexShards = Maps.newHashMap();
         for (Map.Entry<Integer, List<ShardStatus>> entry : tmpIndexShards.entrySet()) {
-            indexShards.put(entry.getKey(), new IndexShardStatus(entry.getValue().get(0).shardRouting().shardId(), entry.getValue().toArray(new ShardStatus[entry.getValue().size()])));
+            indexShards.put(entry.getKey(), new IndexShardStatus(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardStatus[entry.getValue().size()])));
         }
     }
 
@@ -161,9 +161,9 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
             if (docs == null) {
                 docs = new DocsStatus();
             }
-            docs.numDocs += shard.docs().numDocs();
-            docs.maxDoc += shard.docs().maxDoc();
-            docs.deletedDocs += shard.docs().deletedDocs();
+            docs.numDocs += shard.docs().getNumDocs();
+            docs.maxDoc += shard.docs().getMaxDoc();
+            docs.deletedDocs += shard.docs().getDeletedDocs();
         }
         this.docs = docs;
         return docs;

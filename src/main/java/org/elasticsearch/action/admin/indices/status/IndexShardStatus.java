@@ -68,15 +68,15 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
     public ByteSizeValue primaryStoreSize() {
         long bytes = -1;
         for (ShardStatus shard : shards()) {
-            if (!shard.shardRouting().primary()) {
+            if (!shard.getShardRouting().primary()) {
                 // only sum docs for the primaries
                 continue;
             }
-            if (shard.storeSize() != null) {
+            if (shard.getStoreSize() != null) {
                 if (bytes == -1) {
                     bytes = 0;
                 }
-                bytes += shard.storeSize().bytes();
+                bytes += shard.getStoreSize().bytes();
             }
         }
         if (bytes == -1) {
@@ -98,11 +98,11 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
     public ByteSizeValue storeSize() {
         long bytes = -1;
         for (ShardStatus shard : shards()) {
-            if (shard.storeSize() != null) {
+            if (shard.getStoreSize() != null) {
                 if (bytes == -1) {
                     bytes = 0;
                 }
-                bytes += shard.storeSize().bytes();
+                bytes += shard.getStoreSize().bytes();
             }
         }
         if (bytes == -1) {
@@ -121,11 +121,11 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
     public long translogOperations() {
         long translogOperations = -1;
         for (ShardStatus shard : shards()) {
-            if (shard.translogOperations() != -1) {
+            if (shard.getTranslogOperations() != -1) {
                 if (translogOperations == -1) {
                     translogOperations = 0;
                 }
-                translogOperations += shard.translogOperations();
+                translogOperations += shard.getTranslogOperations();
             }
         }
         return translogOperations;
@@ -143,19 +143,19 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         }
         DocsStatus docs = null;
         for (ShardStatus shard : shards()) {
-            if (!shard.shardRouting().primary()) {
+            if (!shard.getShardRouting().primary()) {
                 // only sum docs for the primaries
                 continue;
             }
-            if (shard.docs() == null) {
+            if (shard.getDocs() == null) {
                 continue;
             }
             if (docs == null) {
                 docs = new DocsStatus();
             }
-            docs.numDocs += shard.docs().numDocs();
-            docs.maxDoc += shard.docs().maxDoc();
-            docs.deletedDocs += shard.docs().deletedDocs();
+            docs.numDocs += shard.getDocs().getNumDocs();
+            docs.maxDoc += shard.getDocs().getMaxDoc();
+            docs.deletedDocs += shard.getDocs().getDeletedDocs();
         }
         this.docs = docs;
         return this.docs;
@@ -171,7 +171,7 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
     public MergeStats mergeStats() {
         MergeStats mergeStats = new MergeStats();
         for (ShardStatus shard : shards) {
-            mergeStats.add(shard.mergeStats());
+            mergeStats.add(shard.getMergeStats());
         }
         return mergeStats;
     }
@@ -186,7 +186,7 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
     public RefreshStats refreshStats() {
         RefreshStats refreshStats = new RefreshStats();
         for (ShardStatus shard : shards) {
-            refreshStats.add(shard.refreshStats());
+            refreshStats.add(shard.getRefreshStats());
         }
         return refreshStats;
     }

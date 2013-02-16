@@ -231,10 +231,10 @@ public class RollingRestartStressTest {
         IndicesStatusResponse status = client.client().admin().indices().prepareStatus("test").execute().actionGet();
         for (IndexShardStatus shardStatus : status.index("test")) {
             ShardStatus shard = shardStatus.shards()[0];
-            logger.info("shard [{}], docs [{}]", shard.shardId(), shard.getDocs().numDocs());
+            logger.info("shard [{}], docs [{}]", shard.shardId(), shard.getDocs().getNumDocs());
             for (ShardStatus shardStatu : shardStatus) {
-                if (shard.docs().numDocs() != shardStatu.docs().numDocs()) {
-                    logger.warn("shard doc number does not match!, got {} and {}", shard.docs().numDocs(), shardStatu.docs().numDocs());
+                if (shard.getDocs().getNumDocs() != shardStatu.getDocs().getNumDocs()) {
+                    logger.warn("shard doc number does not match!, got {} and {}", shard.getDocs().getNumDocs(), shardStatu.getDocs().getNumDocs());
                 }
             }
         }

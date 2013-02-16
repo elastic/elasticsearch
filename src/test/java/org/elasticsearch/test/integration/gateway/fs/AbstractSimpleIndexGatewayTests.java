@@ -306,11 +306,11 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         IndicesStatusResponse statusResponse = client("server1").admin().indices().prepareStatus().setRecovery(true).execute().actionGet();
         for (IndexShardStatus indexShardStatus : statusResponse.index("test")) {
             for (ShardStatus shardStatus : indexShardStatus) {
-                if (shardStatus.shardRouting().primary()) {
+                if (shardStatus.getShardRouting().primary()) {
                     if (fullRecovery || !isPersistentStorage()) {
-                        assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), equalTo(0l));
+                        assertThat(shardStatus.getGatewayRecoveryStatus().getReusedIndexSize().bytes(), equalTo(0l));
                     } else {
-                        assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), greaterThan(shardStatus.gatewayRecoveryStatus().indexSize().bytes() - 8196 /* segments file and others */));
+                        assertThat(shardStatus.getGatewayRecoveryStatus().getReusedIndexSize().bytes(), greaterThan(shardStatus.getGatewayRecoveryStatus().getIndexSize().bytes() - 8196 /* segments file and others */));
                     }
                 }
             }

@@ -392,11 +392,11 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         IndicesStatusResponse statusResponse = client("node1").admin().indices().prepareStatus("test").setRecovery(true).execute().actionGet();
         for (IndexShardStatus indexShardStatus : statusResponse.index("test")) {
             for (ShardStatus shardStatus : indexShardStatus) {
-                if (!shardStatus.shardRouting().primary()) {
-                    logger.info("--> shard {}, recovered {}, reuse {}", shardStatus.shardId(), shardStatus.peerRecoveryStatus().recoveredIndexSize(), shardStatus.peerRecoveryStatus().reusedIndexSize());
-                    assertThat(shardStatus.peerRecoveryStatus().recoveredIndexSize().bytes(), greaterThan(0l));
-                    assertThat(shardStatus.peerRecoveryStatus().reusedIndexSize().bytes(), greaterThan(0l));
-                    assertThat(shardStatus.peerRecoveryStatus().reusedIndexSize().bytes(), greaterThan(shardStatus.peerRecoveryStatus().recoveredIndexSize().bytes()));
+                if (!shardStatus.getShardRouting().primary()) {
+                    logger.info("--> shard {}, recovered {}, reuse {}", shardStatus.shardId(), shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize(), shardStatus.getPeerRecoveryStatus().getReusedIndexSize());
+                    assertThat(shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize().bytes(), greaterThan(0l));
+                    assertThat(shardStatus.getPeerRecoveryStatus().getReusedIndexSize().bytes(), greaterThan(0l));
+                    assertThat(shardStatus.getPeerRecoveryStatus().getReusedIndexSize().bytes(), greaterThan(shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize().bytes()));
                 }
             }
         }

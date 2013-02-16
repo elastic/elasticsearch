@@ -136,7 +136,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             } else {
                 ShardValidateQueryResponse validateQueryResponse = (ShardValidateQueryResponse) shardResponse;
                 valid = valid && validateQueryResponse.isValid();
-                if (request.explain()) {
+                if (request.isExplain()) {
                     if (queryExplanations == null) {
                         queryExplanations = newArrayList();
                     }

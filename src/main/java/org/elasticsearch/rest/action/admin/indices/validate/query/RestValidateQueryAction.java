@@ -74,23 +74,23 @@ public class RestValidateQueryAction extends BaseRestHandler {
             }
             validateQueryRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                validateQueryRequest.query(request.content(), request.contentUnsafe());
+                validateQueryRequest.setQuery(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    validateQueryRequest.query(source);
+                    validateQueryRequest.setQuery(source);
                 } else {
                     BytesReference querySource = RestActions.parseQuerySource(request);
                     if (querySource != null) {
-                        validateQueryRequest.query(querySource, false);
+                        validateQueryRequest.setQuery(querySource, false);
                     }
                 }
             }
-            validateQueryRequest.types(splitTypes(request.param("type")));
+            validateQueryRequest.setTypes(splitTypes(request.param("type")));
             if (request.paramAsBoolean("explain", false)) {
-                validateQueryRequest.explain(true);
+                validateQueryRequest.setExplain(true);
             } else {
-                validateQueryRequest.explain(false);
+                validateQueryRequest.setExplain(false);
             }
         } catch (Exception e) {
             try {

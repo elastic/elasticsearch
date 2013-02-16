@@ -145,31 +145,31 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         ShardStats stats = new ShardStats(indexShard.routingEntry());
 
-        if (request.request.docs()) {
+        if (request.request.isDocs()) {
             stats.stats.docs = indexShard.docStats();
         }
-        if (request.request.store()) {
+        if (request.request.isStore()) {
             stats.stats.store = indexShard.storeStats();
         }
-        if (request.request.indexing()) {
-            stats.stats.indexing = indexShard.indexingStats(request.request.types());
+        if (request.request.isIndexing()) {
+            stats.stats.indexing = indexShard.indexingStats(request.request.getTypes());
         }
-        if (request.request.get()) {
+        if (request.request.isGet()) {
             stats.stats.get = indexShard.getStats();
         }
-        if (request.request.search()) {
-            stats.getStats().search = indexShard.searchStats(request.request.groups());
+        if (request.request.isSearch()) {
+            stats.getStats().search = indexShard.searchStats(request.request.getGroups());
         }
-        if (request.request.merge()) {
+        if (request.request.isMerge()) {
             stats.stats.merge = indexShard.mergeStats();
         }
-        if (request.request.refresh()) {
+        if (request.request.isRefresh()) {
             stats.stats.refresh = indexShard.refreshStats();
         }
-        if (request.request.flush()) {
+        if (request.request.isFlush()) {
             stats.stats.flush = indexShard.flushStats();
         }
-        if (request.request.warmer()) {
+        if (request.request.isWarmer()) {
             stats.stats.warmer = indexShard.warmerStats();
         }
 

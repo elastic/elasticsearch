@@ -59,7 +59,7 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
         return shards[position];
     }
 
-    public IndexStats index(String index) {
+    public IndexStats getIndex(String index) {
         return getIndices().get(index);
     }
 

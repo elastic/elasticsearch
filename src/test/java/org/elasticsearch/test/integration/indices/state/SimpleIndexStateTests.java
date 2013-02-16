@@ -128,7 +128,7 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
 
         logger.info("--> creating test index with valid settings ");
         CreateIndexResponse response = client("node1").admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 1)).execute().actionGet();
-        assertThat(response.acknowledged(), equalTo(true));
+        assertThat(response.isAcknowledged(), equalTo(true));
     }
 
 }

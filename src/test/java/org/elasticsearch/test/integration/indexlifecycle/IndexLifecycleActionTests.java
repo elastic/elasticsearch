@@ -71,7 +71,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
-        assertThat(createIndexResponse.acknowledged(), equalTo(true));
+        assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
@@ -205,7 +205,7 @@ public class IndexLifecycleActionTests extends AbstractNodesTests {
 
         logger.info("Creating index [test]");
         CreateIndexResponse createIndexResponse = client("server1").admin().indices().create(createIndexRequest("test")).actionGet();
-        assertThat(createIndexResponse.acknowledged(), equalTo(true));
+        assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();

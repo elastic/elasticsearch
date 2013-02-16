@@ -59,128 +59,69 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         this.validationFailures = validationFailures;
     }
 
-    public String clusterName() {
-        return clusterName;
-    }
-
     public String getClusterName() {
-        return clusterName();
-    }
-
-    /**
-     * The validation failures on the cluster level (without index validation failures).
-     */
-    public List<String> validationFailures() {
-        return this.validationFailures;
+        return clusterName;
     }
 
     /**
      * The validation failures on the cluster level (without index validation failures).
      */
     public List<String> getValidationFailures() {
-        return validationFailures();
-    }
-
-    /**
-     * All the validation failures, including index level validation failures.
-     */
-    public List<String> allValidationFailures() {
-        List<String> allFailures = newArrayList(validationFailures());
-        for (ClusterIndexHealth indexHealth : indices.values()) {
-            allFailures.addAll(indexHealth.validationFailures());
-        }
-        return allFailures;
+        return this.validationFailures;
     }
 
     /**
      * All the validation failures, including index level validation failures.
      */
     public List<String> getAllValidationFailures() {
-        return allValidationFailures();
-    }
-
-
-    public int activeShards() {
-        return activeShards;
+        List<String> allFailures = newArrayList(getValidationFailures());
+        for (ClusterIndexHealth indexHealth : indices.values()) {
+            allFailures.addAll(indexHealth.validationFailures());
+        }
+        return allFailures;
     }
 
     public int getActiveShards() {
-        return activeShards();
-    }
-
-    public int relocatingShards() {
-        return relocatingShards;
+        return activeShards;
     }
 
     public int getRelocatingShards() {
-        return relocatingShards();
-    }
-
-    public int activePrimaryShards() {
-        return activePrimaryShards;
+        return relocatingShards;
     }
 
     public int getActivePrimaryShards() {
-        return activePrimaryShards();
-    }
-
-    public int initializingShards() {
-        return initializingShards;
+        return activePrimaryShards;
     }
 
     public int getInitializingShards() {
-        return initializingShards();
-    }
-
-    public int unassignedShards() {
-        return unassignedShards;
+        return initializingShards;
     }
 
     public int getUnassignedShards() {
-        return unassignedShards();
-    }
-
-    public int numberOfNodes() {
-        return this.numberOfNodes;
+        return unassignedShards;
     }
 
     public int getNumberOfNodes() {
-        return numberOfNodes();
-    }
-
-    public int numberOfDataNodes() {
-        return this.numberOfDataNodes;
+        return this.numberOfNodes;
     }
 
     public int getNumberOfDataNodes() {
-        return numberOfDataNodes();
+        return this.numberOfDataNodes;
     }
 
     /**
      * <tt>true</tt> if the waitForXXX has timeout out and did not match.
      */
-    public boolean timedOut() {
+    public boolean isTimedOut() {
         return this.timedOut;
     }
 
-    public boolean isTimedOut() {
-        return this.timedOut();
-    }
-
-    public ClusterHealthStatus status() {
+    public ClusterHealthStatus getStatus() {
         return status;
     }
 
-    public ClusterHealthStatus getStatus() {
-        return status();
-    }
-
-    public Map<String, ClusterIndexHealth> indices() {
-        return indices;
-    }
-
     public Map<String, ClusterIndexHealth> getIndices() {
-        return indices();
+        return indices;
     }
 
     @Override

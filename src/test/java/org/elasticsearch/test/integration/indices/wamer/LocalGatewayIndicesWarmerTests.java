@@ -117,7 +117,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
         startNode("node1", settingsBuilder().put("gateway.type", "local"));
 
         ClusterHealthResponse healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify warmers are recovered");
         clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
@@ -153,7 +153,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
         startNode("node1", settingsBuilder().put("gateway.type", "local"));
 
         healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify warmers are recovered");
         clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();

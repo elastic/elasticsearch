@@ -72,10 +72,10 @@ public class ManyIndicesStressTest {
         node = NodeBuilder.nodeBuilder().settings(settings).node();
 
         ClusterHealthResponse health = node.client().admin().cluster().prepareHealth().setTimeout("5m").setWaitForYellowStatus().execute().actionGet();
-        logger.info("health: " + health.status());
-        logger.info("active shards: " + health.activeShards());
-        logger.info("active primary shards: " + health.activePrimaryShards());
-        if (health.timedOut()) {
+        logger.info("health: " + health.getStatus());
+        logger.info("active shards: " + health.getActiveShards());
+        logger.info("active primary shards: " + health.getActivePrimaryShards());
+        if (health.isTimedOut()) {
             logger.error("Timed out on health...");
         }
 

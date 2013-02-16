@@ -68,14 +68,14 @@ public class ClientFailover {
             nodes[index].close();
 
             ClusterHealthResponse health = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-            if (health.timedOut()) {
+            if (health.isTimedOut()) {
                 System.err.println("timed out on health");
             }
 
             nodes[index] = NodeBuilder.nodeBuilder().node();
 
             health = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-            if (health.timedOut()) {
+            if (health.isTimedOut()) {
                 System.err.println("timed out on health");
             }
         }

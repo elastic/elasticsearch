@@ -72,7 +72,7 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
         ClusterHealthResponse healthResponse = client.admin().cluster().prepareHealth("test").setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         client.prepareIndex("test", "type", "1").setSource("field", "value1", "color", "red").execute().actionGet();
         client.prepareIndex("test", "type", "2").setSource("field", "value2", "color", "blue").execute().actionGet();

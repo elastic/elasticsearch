@@ -134,7 +134,7 @@ public class FullRestartStressTest {
             logger.info("*** Waiting for GREEN status");
             try {
                 ClusterHealthResponse clusterHealth = client.client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
-                if (clusterHealth.timedOut()) {
+                if (clusterHealth.isTimedOut()) {
                     logger.warn("timed out waiting for green status....");
                 }
             } catch (Exception e) {

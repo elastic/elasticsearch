@@ -97,20 +97,20 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
-                    builder.field(Fields.CLUSTER_NAME, response.clusterName());
-                    builder.field(Fields.STATUS, response.status().name().toLowerCase());
-                    builder.field(Fields.TIMED_OUT, response.timedOut());
-                    builder.field(Fields.NUMBER_OF_NODES, response.numberOfNodes());
-                    builder.field(Fields.NUMBER_OF_DATA_NODES, response.numberOfDataNodes());
-                    builder.field(Fields.ACTIVE_PRIMARY_SHARDS, response.activePrimaryShards());
-                    builder.field(Fields.ACTIVE_SHARDS, response.activeShards());
-                    builder.field(Fields.RELOCATING_SHARDS, response.relocatingShards());
-                    builder.field(Fields.INITIALIZING_SHARDS, response.initializingShards());
-                    builder.field(Fields.UNASSIGNED_SHARDS, response.unassignedShards());
+                    builder.field(Fields.CLUSTER_NAME, response.getClusterName());
+                    builder.field(Fields.STATUS, response.getStatus().name().toLowerCase());
+                    builder.field(Fields.TIMED_OUT, response.isTimedOut());
+                    builder.field(Fields.NUMBER_OF_NODES, response.getNumberOfNodes());
+                    builder.field(Fields.NUMBER_OF_DATA_NODES, response.getNumberOfDataNodes());
+                    builder.field(Fields.ACTIVE_PRIMARY_SHARDS, response.getActivePrimaryShards());
+                    builder.field(Fields.ACTIVE_SHARDS, response.getActiveShards());
+                    builder.field(Fields.RELOCATING_SHARDS, response.getRelocatingShards());
+                    builder.field(Fields.INITIALIZING_SHARDS, response.getInitializingShards());
+                    builder.field(Fields.UNASSIGNED_SHARDS, response.getUnassignedShards());
 
-                    if (!response.validationFailures().isEmpty()) {
+                    if (!response.getValidationFailures().isEmpty()) {
                         builder.startArray(Fields.VALIDATION_FAILURES);
-                        for (String validationFailure : response.validationFailures()) {
+                        for (String validationFailure : response.getValidationFailures()) {
                             builder.value(validationFailure);
                         }
                         // if we don't print index level information, still print the index validation failures

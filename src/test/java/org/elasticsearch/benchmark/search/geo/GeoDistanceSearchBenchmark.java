@@ -45,7 +45,7 @@ public class GeoDistanceSearchBenchmark {
         Client client = node.client();
 
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        if (clusterHealthResponse.timedOut()) {
+        if (clusterHealthResponse.isTimedOut()) {
             System.err.println("Failed to wait for green status, bailing");
             System.exit(1);
         }

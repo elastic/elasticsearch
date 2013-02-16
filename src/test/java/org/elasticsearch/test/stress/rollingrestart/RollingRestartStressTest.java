@@ -179,7 +179,7 @@ public class RollingRestartStressTest {
                         .setWaitForNodes(Integer.toString(numberOfNodes + 0 /* client node*/))
                         .setWaitForRelocatingShards(0)
                         .setTimeout("10m").execute().actionGet();
-                if (clusterHealth.timedOut()) {
+                if (clusterHealth.isTimedOut()) {
                     logger.warn("timed out waiting for green status....");
                 }
             } catch (Exception e) {
@@ -196,7 +196,7 @@ public class RollingRestartStressTest {
                         .setWaitForNodes(Integer.toString(numberOfNodes + 1 /* client node*/))
                         .setWaitForRelocatingShards(0)
                         .setTimeout("10m").execute().actionGet();
-                if (clusterHealth.timedOut()) {
+                if (clusterHealth.isTimedOut()) {
                     logger.warn("timed out waiting for green status....");
                 }
             } catch (Exception e) {

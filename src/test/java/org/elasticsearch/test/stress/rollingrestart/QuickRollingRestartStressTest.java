@@ -51,7 +51,7 @@ public class QuickRollingRestartStressTest {
         long COUNT;
         if (client.client().admin().indices().prepareExists("test").execute().actionGet().exists()) {
             ClusterHealthResponse clusterHealthResponse = client.client().admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
-            if (clusterHealthResponse.timedOut()) {
+            if (clusterHealthResponse.isTimedOut()) {
                 throw new ElasticSearchException("failed to wait for green state on startup...");
             }
             COUNT = client.client().prepareCount().execute().actionGet().count();
@@ -88,7 +88,7 @@ public class QuickRollingRestartStressTest {
 
             System.out.println("--> waiting for green state now...");
             ClusterHealthResponse clusterHealthResponse = client.client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForRelocatingShards(0).setTimeout("10m").execute().actionGet();
-            if (clusterHealthResponse.timedOut()) {
+            if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> timed out waiting for green state...");
                 ClusterState state = client.client().admin().cluster().prepareState().execute().actionGet().state();
                 System.out.println(state.nodes().prettyPrint());

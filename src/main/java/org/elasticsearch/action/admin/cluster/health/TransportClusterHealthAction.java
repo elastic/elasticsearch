@@ -98,13 +98,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             int waitForCounter = 0;
             ClusterState clusterState = clusterService.state();
             ClusterHealthResponse response = clusterHealth(request, clusterState);
-            if (request.waitForStatus() != null && response.status().value() <= request.waitForStatus().value()) {
+            if (request.waitForStatus() != null && response.getStatus().value() <= request.waitForStatus().value()) {
                 waitForCounter++;
             }
-            if (request.waitForRelocatingShards() != -1 && response.relocatingShards() <= request.waitForRelocatingShards()) {
+            if (request.waitForRelocatingShards() != -1 && response.getRelocatingShards() <= request.waitForRelocatingShards()) {
                 waitForCounter++;
             }
-            if (request.waitForActiveShards() != -1 && response.activeShards() >= request.waitForActiveShards()) {
+            if (request.waitForActiveShards() != -1 && response.getActiveShards() >= request.waitForActiveShards()) {
                 waitForCounter++;
             }
             if (request.indices().length > 0) {
@@ -119,47 +119,47 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             if (!request.waitForNodes().isEmpty()) {
                 if (request.waitForNodes().startsWith(">=")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(2));
-                    if (response.numberOfNodes() >= expected) {
+                    if (response.getNumberOfNodes() >= expected) {
                         waitForCounter++;
                     }
                 } else if (request.waitForNodes().startsWith("ge(")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
-                    if (response.numberOfNodes() >= expected) {
+                    if (response.getNumberOfNodes() >= expected) {
                         waitForCounter++;
                     }
                 } else if (request.waitForNodes().startsWith("<=")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(2));
-                    if (response.numberOfNodes() <= expected) {
+                    if (response.getNumberOfNodes() <= expected) {
                         waitForCounter++;
                     }
                 } else if (request.waitForNodes().startsWith("le(")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
-                    if (response.numberOfNodes() <= expected) {
+                    if (response.getNumberOfNodes() <= expected) {
                         waitForCounter++;
                     }
                 } else if (request.waitForNodes().startsWith(">")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(1));
-                    if (response.numberOfNodes() > expected) {
+                    if (response.getNumberOfNodes() > expected) {
                         waitForCounter++;
                     }
                 } else if (request.waitForNodes().startsWith("gt(")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
-                    if (response.numberOfNodes() > expected) {
+                    if (response.getNumberOfNodes() > expected) {
                         waitForCounter++;
                     }
                 } else if (request.waitForNodes().startsWith("<")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(1));
-                    if (response.numberOfNodes() < expected) {
+                    if (response.getNumberOfNodes() < expected) {
                         waitForCounter++;
                     }
                 } else if (request.waitForNodes().startsWith("lt(")) {
                     int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
-                    if (response.numberOfNodes() < expected) {
+                    if (response.getNumberOfNodes() < expected) {
                         waitForCounter++;
                     }
                 } else {
                     int expected = Integer.parseInt(request.waitForNodes());
-                    if (response.numberOfNodes() == expected) {
+                    if (response.getNumberOfNodes() == expected) {
                         waitForCounter++;
                     }
                 }
@@ -264,7 +264,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         }
 
         response.status = ClusterHealthStatus.GREEN;
-        if (!response.validationFailures().isEmpty()) {
+        if (!response.getValidationFailures().isEmpty()) {
             response.status = ClusterHealthStatus.RED;
         } else if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
             response.status = ClusterHealthStatus.RED;

@@ -58,7 +58,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
@@ -78,7 +78,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .setWaitForGreenStatus()
                 .setWaitForRelocatingShards(0)
                 .execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify all are allocated on node1 now");
         ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
@@ -106,7 +106,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
@@ -126,7 +126,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .setWaitForGreenStatus()
                 .setWaitForRelocatingShards(0)
                 .execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify all shards are allocated on node2 now");
         ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
@@ -148,7 +148,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .setWaitForGreenStatus()
                 .setWaitForRelocatingShards(0)
                 .execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify that there are shards allocated on both nodes now");
         clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();

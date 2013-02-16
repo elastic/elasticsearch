@@ -63,7 +63,7 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test2").execute().actionGet();
 
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         client.prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client.prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();

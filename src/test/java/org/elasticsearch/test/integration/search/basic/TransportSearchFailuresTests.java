@@ -84,15 +84,15 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         }
 
         startNode("server2");
-        assertThat(client("server1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().timedOut(), equalTo(false));
+        assertThat(client("server1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().isTimedOut(), equalTo(false));
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest("test")
                 .waitForYellowStatus().waitForRelocatingShards(0).waitForActiveShards(6)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
-        assertThat(clusterHealth.activeShards(), equalTo(6));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
+        assertThat(clusterHealth.getActiveShards(), equalTo(6));
 
         refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
         assertThat(refreshResponse.totalShards(), equalTo(9));

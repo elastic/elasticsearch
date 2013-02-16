@@ -102,7 +102,7 @@ public class ManyNodesManyIndicesRecoveryStressTest {
         while (true) {
             ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
             if (clusterHealth.isTimedOut()) {
-                System.err.println("--> cluster health timed out..., active shards [" + clusterHealth.activeShards() + "]");
+                System.err.println("--> cluster health timed out..., active shards [" + clusterHealth.getActiveShards() + "]");
             } else {
                 break;
             }

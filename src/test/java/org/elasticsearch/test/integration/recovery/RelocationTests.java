@@ -93,7 +93,7 @@ public class RelocationTests extends AbstractNodesTests {
         logger.info("--> start another node");
         startNode("node2");
         ClusterHealthResponse clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
         client("node1").admin().cluster().prepareReroute()
@@ -101,9 +101,9 @@ public class RelocationTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
         clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count again...");
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
@@ -224,9 +224,9 @@ public class RelocationTests extends AbstractNodesTests {
                     .add(new MoveAllocationCommand(new ShardId("test", 0), fromNode, toNode))
                     .execute().actionGet();
             ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
         }
         logger.info("--> done relocations");
@@ -322,13 +322,13 @@ public class RelocationTests extends AbstractNodesTests {
         startNode("node2");
 
         ClusterHealthResponse healthResponse = client("node2").admin().cluster().prepareHealth().setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> starting [node3] ...");
         startNode("node3");
 
         healthResponse = client("node3").admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicLong indexCounter = new AtomicLong();
@@ -400,9 +400,9 @@ public class RelocationTests extends AbstractNodesTests {
                     .add(new MoveAllocationCommand(new ShardId("test", 0), fromNode, toNode))
                     .execute().actionGet();
             ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
         }
         logger.info("--> done relocations");

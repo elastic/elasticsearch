@@ -62,7 +62,7 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
 
         logger.info("--> waiting for green status");
         ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        assertThat(health.isTimedOut(), equalTo(false));
 
         ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
@@ -95,7 +95,7 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
 
         logger.info("--> waiting for green status");
         health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        assertThat(health.isTimedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));

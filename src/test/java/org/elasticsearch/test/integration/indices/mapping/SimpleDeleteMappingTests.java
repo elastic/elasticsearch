@@ -81,7 +81,7 @@ public class SimpleDeleteMappingTests extends AbstractNodesTests {
         }
 
         ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
         client1.admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {

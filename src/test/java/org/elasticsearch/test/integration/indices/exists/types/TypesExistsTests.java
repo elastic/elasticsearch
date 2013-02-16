@@ -46,7 +46,7 @@ public class TypesExistsTests extends AbstractNodesTests {
         client.admin().indices().prepareAliases().addAlias("test1", "alias1").execute().actionGet();
         ClusterHealthResponse healthResponse = client.admin().cluster()
                 .prepareHealth("test1", "test2").setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         TypesExistsResponse response = client.admin().indices().prepareTypesExists("test1").setTypes("type1").execute().actionGet();
         assertThat(response.exists(), equalTo(true));

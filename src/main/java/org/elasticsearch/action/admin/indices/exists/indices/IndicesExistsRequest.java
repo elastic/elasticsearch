@@ -37,11 +37,11 @@ public class IndicesExistsRequest extends MasterNodeOperationRequest<IndicesExis
         this.indices = indices;
     }
 
-    public String[] indices() {
+    public String[] getIndices() {
         return indices;
     }
 
-    public void indices(String[] indices) {
+    public void setIndices(String[] indices) {
         this.indices = indices;
     }
 

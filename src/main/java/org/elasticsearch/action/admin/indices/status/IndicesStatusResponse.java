@@ -68,7 +68,7 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
         return shards[position];
     }
 
-    public IndexStatus index(String index) {
+    public IndexStatus getIndex(String index) {
         return getIndices().get(index);
     }
 
@@ -122,46 +122,46 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable SettingsFilter settingsFilter) throws IOException {
         builder.startObject(Fields.INDICES);
         for (IndexStatus indexStatus : getIndices().values()) {
-            builder.startObject(indexStatus.index(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexStatus.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.startObject(Fields.INDEX);
-            if (indexStatus.storeSize() != null) {
-                builder.field(Fields.PRIMARY_SIZE, indexStatus.primaryStoreSize().toString());
-                builder.field(Fields.PRIMARY_SIZE_IN_BYTES, indexStatus.primaryStoreSize().bytes());
-                builder.field(Fields.SIZE, indexStatus.storeSize().toString());
-                builder.field(Fields.SIZE_IN_BYTES, indexStatus.storeSize().bytes());
+            if (indexStatus.getStoreSize() != null) {
+                builder.field(Fields.PRIMARY_SIZE, indexStatus.getPrimaryStoreSize().toString());
+                builder.field(Fields.PRIMARY_SIZE_IN_BYTES, indexStatus.getPrimaryStoreSize().bytes());
+                builder.field(Fields.SIZE, indexStatus.getStoreSize().toString());
+                builder.field(Fields.SIZE_IN_BYTES, indexStatus.getStoreSize().bytes());
             }
             builder.endObject();
-            if (indexStatus.translogOperations() != -1) {
+            if (indexStatus.getTranslogOperations() != -1) {
                 builder.startObject(Fields.TRANSLOG);
-                builder.field(Fields.OPERATIONS, indexStatus.translogOperations());
+                builder.field(Fields.OPERATIONS, indexStatus.getTranslogOperations());
                 builder.endObject();
             }
 
-            if (indexStatus.docs() != null) {
+            if (indexStatus.getDocs() != null) {
                 builder.startObject(Fields.DOCS);
-                builder.field(Fields.NUM_DOCS, indexStatus.docs().getNumDocs());
-                builder.field(Fields.MAX_DOC, indexStatus.docs().getMaxDoc());
-                builder.field(Fields.DELETED_DOCS, indexStatus.docs().getDeletedDocs());
+                builder.field(Fields.NUM_DOCS, indexStatus.getDocs().getNumDocs());
+                builder.field(Fields.MAX_DOC, indexStatus.getDocs().getMaxDoc());
+                builder.field(Fields.DELETED_DOCS, indexStatus.getDocs().getDeletedDocs());
                 builder.endObject();
             }
 
-            MergeStats mergeStats = indexStatus.mergeStats();
+            MergeStats mergeStats = indexStatus.getMergeStats();
             if (mergeStats != null) {
                 mergeStats.toXContent(builder, params);
             }
-            RefreshStats refreshStats = indexStatus.refreshStats();
+            RefreshStats refreshStats = indexStatus.getRefreshStats();
             if (refreshStats != null) {
                 refreshStats.toXContent(builder, params);
             }
-            FlushStats flushStats = indexStatus.flushStats();
+            FlushStats flushStats = indexStatus.getFlushStats();
             if (flushStats != null) {
                 flushStats.toXContent(builder, params);
             }
 
             builder.startObject(Fields.SHARDS);
             for (IndexShardStatus indexShardStatus : indexStatus) {
-                builder.startArray(Integer.toString(indexShardStatus.shardId().id()));
+                builder.startArray(Integer.toString(indexShardStatus.getShardId().id()));
                 for (ShardStatus shardStatus : indexShardStatus) {
                     builder.startObject();
 

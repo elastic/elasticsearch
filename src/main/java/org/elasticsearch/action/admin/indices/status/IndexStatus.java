@@ -58,63 +58,29 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
         }
     }
 
-    public String index() {
-        return this.index;
-    }
-
     public String getIndex() {
-        return index();
+        return this.index;
     }
 
     /**
      * A shard id to index shard status map (note, index shard status is the replication shard group that maps
      * to the shard id).
      */
-    public Map<Integer, IndexShardStatus> shards() {
-        return this.indexShards;
-    }
-
     public Map<Integer, IndexShardStatus> getShards() {
-        return shards();
-    }
-
-    /**
-     * Returns only the primary shards store size in bytes.
-     */
-    public ByteSizeValue primaryStoreSize() {
-        long bytes = -1;
-        for (IndexShardStatus shard : this) {
-            if (shard.primaryStoreSize() != null) {
-                if (bytes == -1) {
-                    bytes = 0;
-                }
-                bytes += shard.primaryStoreSize().bytes();
-            }
-        }
-        if (bytes == -1) {
-            return null;
-        }
-        return new ByteSizeValue(bytes);
+        return this.indexShards;
     }
 
     /**
      * Returns only the primary shards store size in bytes.
      */
     public ByteSizeValue getPrimaryStoreSize() {
-        return primaryStoreSize();
-    }
-
-    /**
-     * Returns the full store size in bytes, of both primaries and replicas.
-     */
-    public ByteSizeValue storeSize() {
         long bytes = -1;
         for (IndexShardStatus shard : this) {
-            if (shard.storeSize() != null) {
+            if (shard.getPrimaryStoreSize() != null) {
                 if (bytes == -1) {
                     bytes = 0;
                 }
-                bytes += shard.storeSize().bytes();
+                bytes += shard.getPrimaryStoreSize().bytes();
             }
         }
         if (bytes == -1) {
@@ -127,92 +93,81 @@ public class IndexStatus implements Iterable<IndexShardStatus> {
      * Returns the full store size in bytes, of both primaries and replicas.
      */
     public ByteSizeValue getStoreSize() {
-        return storeSize();
+        long bytes = -1;
+        for (IndexShardStatus shard : this) {
+            if (shard.getStoreSize() != null) {
+                if (bytes == -1) {
+                    bytes = 0;
+                }
+                bytes += shard.getStoreSize().bytes();
+            }
+        }
+        if (bytes == -1) {
+            return null;
+        }
+        return new ByteSizeValue(bytes);
     }
 
-    public long translogOperations() {
+    public long getTranslogOperations() {
         long translogOperations = -1;
         for (IndexShardStatus shard : this) {
-            if (shard.translogOperations() != -1) {
+            if (shard.getTranslogOperations() != -1) {
                 if (translogOperations == -1) {
                     translogOperations = 0;
                 }
-                translogOperations += shard.translogOperations();
+                translogOperations += shard.getTranslogOperations();
             }
         }
         return translogOperations;
     }
 
-    public long getTranslogOperations() {
-        return translogOperations();
-    }
-
     private transient DocsStatus docs;
 
-    public DocsStatus docs() {
+    public DocsStatus getDocs() {
         if (docs != null) {
             return docs;
         }
         DocsStatus docs = null;
         for (IndexShardStatus shard : this) {
-            if (shard.docs() == null) {
+            if (shard.getDocs() == null) {
                 continue;
             }
             if (docs == null) {
                 docs = new DocsStatus();
             }
-            docs.numDocs += shard.docs().getNumDocs();
-            docs.maxDoc += shard.docs().getMaxDoc();
-            docs.deletedDocs += shard.docs().getDeletedDocs();
+            docs.numDocs += shard.getDocs().getNumDocs();
+            docs.maxDoc += shard.getDocs().getMaxDoc();
+            docs.deletedDocs += shard.getDocs().getDeletedDocs();
         }
         this.docs = docs;
         return docs;
-    }
-
-    public DocsStatus getDocs() {
-        return docs();
-    }
-
-    /**
-     * Total merges of this index.
-     */
-    public MergeStats mergeStats() {
-        MergeStats mergeStats = new MergeStats();
-        for (IndexShardStatus shard : this) {
-            mergeStats.add(shard.mergeStats());
-        }
-        return mergeStats;
     }
 
     /**
      * Total merges of this index.
      */
     public MergeStats getMergeStats() {
-        return this.mergeStats();
+        MergeStats mergeStats = new MergeStats();
+        for (IndexShardStatus shard : this) {
+            mergeStats.add(shard.getMergeStats());
+        }
+        return mergeStats;
     }
 
-    public RefreshStats refreshStats() {
+    public RefreshStats getRefreshStats() {
         RefreshStats refreshStats = new RefreshStats();
         for (IndexShardStatus shard : this) {
-            refreshStats.add(shard.refreshStats());
+            refreshStats.add(shard.getRefreshStats());
         }
         return refreshStats;
     }
 
-    public RefreshStats getRefreshStats() {
-        return refreshStats();
-    }
-
-    public FlushStats flushStats() {
+    public FlushStats getFlushStats() {
         FlushStats flushStats = new FlushStats();
         for (IndexShardStatus shard : this) {
-            flushStats.add(shard.flushStats());
+            flushStats.add(shard.getFlushStats());
         }
         return flushStats;
-    }
-
-    public FlushStats getFlushStats() {
-        return flushStats();
     }
 
     @Override

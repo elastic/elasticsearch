@@ -278,8 +278,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
         IndexShardStatusRequest(String index, int shardId, IndicesStatusRequest request) {
             super(index, shardId, request);
-            recovery = request.recovery();
-            snapshot = request.snapshot();
+            recovery = request.isRecovery();
+            snapshot = request.isSnapshot();
         }
 
         @Override

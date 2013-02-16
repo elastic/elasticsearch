@@ -229,8 +229,8 @@ public class RollingRestartStressTest {
 
         // check the status
         IndicesStatusResponse status = client.client().admin().indices().prepareStatus("test").execute().actionGet();
-        for (IndexShardStatus shardStatus : status.index("test")) {
-            ShardStatus shard = shardStatus.shards()[0];
+        for (IndexShardStatus shardStatus : status.getIndex("test")) {
+            ShardStatus shard = shardStatus.getShards()[0];
             logger.info("shard [{}], docs [{}]", shard.shardId(), shard.getDocs().getNumDocs());
             for (ShardStatus shardStatu : shardStatus) {
                 if (shard.getDocs().getNumDocs() != shardStatu.getDocs().getNumDocs()) {

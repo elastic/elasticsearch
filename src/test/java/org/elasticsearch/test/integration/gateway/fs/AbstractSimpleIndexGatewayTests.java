@@ -304,7 +304,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("--> checking reuse / recovery status");
         IndicesStatusResponse statusResponse = client("server1").admin().indices().prepareStatus().setRecovery(true).execute().actionGet();
-        for (IndexShardStatus indexShardStatus : statusResponse.index("test")) {
+        for (IndexShardStatus indexShardStatus : statusResponse.getIndex("test")) {
             for (ShardStatus shardStatus : indexShardStatus) {
                 if (shardStatus.getShardRouting().primary()) {
                     if (fullRecovery || !isPersistentStorage()) {

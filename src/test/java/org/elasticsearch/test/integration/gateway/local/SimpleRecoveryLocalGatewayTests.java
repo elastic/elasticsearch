@@ -390,7 +390,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         IndicesStatusResponse statusResponse = client("node1").admin().indices().prepareStatus("test").setRecovery(true).execute().actionGet();
-        for (IndexShardStatus indexShardStatus : statusResponse.index("test")) {
+        for (IndexShardStatus indexShardStatus : statusResponse.getIndex("test")) {
             for (ShardStatus shardStatus : indexShardStatus) {
                 if (!shardStatus.getShardRouting().primary()) {
                     logger.info("--> shard {}, recovered {}, reuse {}", shardStatus.shardId(), shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize(), shardStatus.getPeerRecoveryStatus().getReusedIndexSize());

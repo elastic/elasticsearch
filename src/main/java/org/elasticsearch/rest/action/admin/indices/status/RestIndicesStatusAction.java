@@ -63,8 +63,8 @@ public class RestIndicesStatusAction extends BaseRestHandler {
         if (request.hasParam("ignore_indices")) {
             indicesStatusRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
-        indicesStatusRequest.recovery(request.paramAsBoolean("recovery", indicesStatusRequest.recovery()));
-        indicesStatusRequest.snapshot(request.paramAsBoolean("snapshot", indicesStatusRequest.snapshot()));
+        indicesStatusRequest.setRecovery(request.paramAsBoolean("recovery", indicesStatusRequest.isRecovery()));
+        indicesStatusRequest.setSnapshot(request.paramAsBoolean("snapshot", indicesStatusRequest.isSnapshot()));
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread

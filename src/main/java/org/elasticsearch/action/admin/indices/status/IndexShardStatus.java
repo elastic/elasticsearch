@@ -42,20 +42,12 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         this.shards = shards;
     }
 
-    public ShardId shardId() {
+    public ShardId getShardId() {
         return this.shardId;
     }
 
-    public ShardId getShardId() {
-        return shardId();
-    }
-
-    public ShardStatus[] shards() {
-        return this.shards;
-    }
-
     public ShardStatus[] getShards() {
-        return shards();
+        return this.shards;
     }
 
     public ShardStatus getAt(int position) {
@@ -65,9 +57,9 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
     /**
      * Returns only the primary shards store size in bytes.
      */
-    public ByteSizeValue primaryStoreSize() {
+    public ByteSizeValue getPrimaryStoreSize() {
         long bytes = -1;
-        for (ShardStatus shard : shards()) {
+        for (ShardStatus shard : getShards()) {
             if (!shard.getShardRouting().primary()) {
                 // only sum docs for the primaries
                 continue;
@@ -86,18 +78,11 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
     }
 
     /**
-     * Returns only the primary shards store size in bytes.
-     */
-    public ByteSizeValue getPrimaryStoreSize() {
-        return primaryStoreSize();
-    }
-
-    /**
      * Returns the full store size in bytes, of both primaries and replicas.
      */
-    public ByteSizeValue storeSize() {
+    public ByteSizeValue getStoreSize() {
         long bytes = -1;
-        for (ShardStatus shard : shards()) {
+        for (ShardStatus shard : getShards()) {
             if (shard.getStoreSize() != null) {
                 if (bytes == -1) {
                     bytes = 0;
@@ -111,16 +96,9 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         return new ByteSizeValue(bytes);
     }
 
-    /**
-     * Returns the full store size in bytes, of both primaries and replicas.
-     */
-    public ByteSizeValue getStoreSize() {
-        return storeSize();
-    }
-
-    public long translogOperations() {
+    public long getTranslogOperations() {
         long translogOperations = -1;
-        for (ShardStatus shard : shards()) {
+        for (ShardStatus shard : getShards()) {
             if (shard.getTranslogOperations() != -1) {
                 if (translogOperations == -1) {
                     translogOperations = 0;
@@ -131,18 +109,14 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         return translogOperations;
     }
 
-    public long getTranslogOperations() {
-        return translogOperations();
-    }
-
     private transient DocsStatus docs;
 
-    public DocsStatus docs() {
+    public DocsStatus getDocs() {
         if (docs != null) {
             return docs;
         }
         DocsStatus docs = null;
-        for (ShardStatus shard : shards()) {
+        for (ShardStatus shard : getShards()) {
             if (!shard.getShardRouting().primary()) {
                 // only sum docs for the primaries
                 continue;
@@ -161,14 +135,10 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         return this.docs;
     }
 
-    public DocsStatus getDocs() {
-        return docs();
-    }
-
     /**
      * Total merges of this shard replication group.
      */
-    public MergeStats mergeStats() {
+    public MergeStats getMergeStats() {
         MergeStats mergeStats = new MergeStats();
         for (ShardStatus shard : shards) {
             mergeStats.add(shard.getMergeStats());
@@ -176,14 +146,7 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         return mergeStats;
     }
 
-    /**
-     * Total merges of this shard replication group.
-     */
-    public MergeStats getMergeStats() {
-        return this.mergeStats();
-    }
-
-    public RefreshStats refreshStats() {
+    public RefreshStats getRefreshStats() {
         RefreshStats refreshStats = new RefreshStats();
         for (ShardStatus shard : shards) {
             refreshStats.add(shard.getRefreshStats());
@@ -191,20 +154,12 @@ public class IndexShardStatus implements Iterable<ShardStatus> {
         return refreshStats;
     }
 
-    public RefreshStats getRefreshStats() {
-        return refreshStats();
-    }
-
-    public FlushStats flushStats() {
+    public FlushStats getFlushStats() {
         FlushStats flushStats = new FlushStats();
         for (ShardStatus shard : shards) {
             flushStats.add(shard.flushStats);
         }
         return flushStats;
-    }
-
-    public FlushStats getFlushStats() {
-        return flushStats();
     }
 
     @Override

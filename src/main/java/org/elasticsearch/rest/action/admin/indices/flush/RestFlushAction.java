@@ -67,9 +67,9 @@ public class RestFlushAction extends BaseRestHandler {
             operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
         }
         flushRequest.operationThreading(operationThreading);
-        flushRequest.refresh(request.paramAsBoolean("refresh", flushRequest.refresh()));
-        flushRequest.full(request.paramAsBoolean("full", flushRequest.full()));
-        flushRequest.force(request.paramAsBoolean("force", flushRequest.force()));
+        flushRequest.setRefresh(request.paramAsBoolean("refresh", flushRequest.isRefresh()));
+        flushRequest.setFull(request.paramAsBoolean("full", flushRequest.isFull()));
+        flushRequest.setForce(request.paramAsBoolean("force", flushRequest.isForce()));
         client.admin().indices().flush(flushRequest, new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse response) {

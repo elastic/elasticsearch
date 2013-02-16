@@ -62,14 +62,14 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     /**
      * Should a refresh be performed once the flush is done. Defaults to <tt>false</tt>.
      */
-    public boolean refresh() {
+    public boolean isRefresh() {
         return this.refresh;
     }
 
     /**
      * Should a refresh be performed once the flush is done. Defaults to <tt>false</tt>.
      */
-    public FlushRequest refresh(boolean refresh) {
+    public FlushRequest setRefresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }
@@ -77,14 +77,14 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     /**
      * Should a "full" flush be performed.
      */
-    public boolean full() {
+    public boolean isFull() {
         return this.full;
     }
 
     /**
      * Should a "full" flush be performed.
      */
-    public FlushRequest full(boolean full) {
+    public FlushRequest setFull(boolean full) {
         this.full = full;
         return this;
     }
@@ -92,14 +92,14 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     /**
      * Force flushing, even if one is possibly not needed.
      */
-    public boolean force() {
+    public boolean isForce() {
         return force;
     }
 
     /**
      * Force flushing, even if one is possibly not needed.
      */
-    public FlushRequest force(boolean force) {
+    public FlushRequest setForce(boolean force) {
         this.force = force;
         return this;
     }

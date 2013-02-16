@@ -1352,7 +1352,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             int indexConcurrency = settings.getAsInt("index.index_concurrency", RobinEngine.this.indexConcurrency);
             String codecName = settings.get("index.codec", RobinEngine.this.codecName);
             boolean requiresFlushing = false;
-            if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor) {
+            if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor || indexConcurrency != RobinEngine.this.indexConcurrency || !codecName.equals(RobinEngine.this.codecName)) {
                 rwl.readLock().lock();
                 try {
                     if (termIndexInterval != RobinEngine.this.termIndexInterval) {
@@ -1376,7 +1376,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (!codecName.equals(RobinEngine.this.codecName)) {
                         logger.info("updating index.codec from [{}] to [{}]", RobinEngine.this.codecName, codecName);
                         RobinEngine.this.codecName = codecName;
-                        // TODO: Lucene 4, I think once someones changes codec, it should be reflected immediately
+                        // we want to flush in this case, so the new codec will be reflected right away...
                         requiresFlushing = true;
                     }
                 } finally {

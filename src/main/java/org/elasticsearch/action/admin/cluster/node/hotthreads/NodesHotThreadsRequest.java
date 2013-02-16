@@ -44,38 +44,38 @@ public class NodesHotThreadsRequest extends NodesOperationRequest<NodesHotThread
         super(nodesIds);
     }
 
-    public int threads() {
+    public int getThreads() {
         return this.threads;
     }
 
-    public NodesHotThreadsRequest threads(int threads) {
+    public NodesHotThreadsRequest setThreads(int threads) {
         this.threads = threads;
         return this;
     }
 
-    public NodesHotThreadsRequest type(String type) {
+    public NodesHotThreadsRequest setType(String type) {
         this.type = type;
         return this;
     }
 
-    public String type() {
+    public String getType() {
         return this.type;
     }
 
-    public NodesHotThreadsRequest interval(TimeValue interval) {
+    public NodesHotThreadsRequest setInterval(TimeValue interval) {
         this.interval = interval;
         return this;
     }
 
-    public TimeValue interval() {
+    public TimeValue getInterval() {
         return this.interval;
     }
 
-    public int snapshots() {
+    public int getSnapshots() {
         return this.snapshots;
     }
 
-    public NodesHotThreadsRequest snapshots(int snapshots) {
+    public NodesHotThreadsRequest setSnapshots(int snapshots) {
         this.snapshots = snapshots;
         return this;
     }

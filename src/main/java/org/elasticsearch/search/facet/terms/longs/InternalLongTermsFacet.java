@@ -73,30 +73,19 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
             this.count = count;
         }
 
-        public Text term() {
-            return new StringText(Long.toString(term));
-        }
-
-        public Text getTerm() {
-            return term();
-        }
-
         @Override
-        public Number termAsNumber() {
-            return term;
+        public Text getTerm() {
+            return new StringText(Long.toString(term));
         }
 
         @Override
         public Number getTermAsNumber() {
-            return termAsNumber();
+            return term;
         }
 
-        public int count() {
-            return count;
-        }
-
+        @Override
         public int getCount() {
-            return count();
+            return count;
         }
 
         @Override
@@ -106,7 +95,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
                 return -1;
             }
             if (term == anotherVal) {
-                int i = count - o.count();
+                int i = count - o.getCount();
                 if (i == 0) {
                     i = System.identityHashCode(this) - System.identityHashCode(o);
                 }
@@ -116,22 +105,17 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         }
     }
 
-    private String name;
-
     int requiredSize;
-
     long missing;
     long total;
-
     Collection<LongEntry> entries = ImmutableList.of();
-
     ComparatorType comparatorType;
 
     InternalLongTermsFacet() {
     }
 
     public InternalLongTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<LongEntry> entries, long missing, long total) {
-        this.name = name;
+        super(name);
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
@@ -140,36 +124,11 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public String name() {
-        return this.name;
-    }
-
-    @Override
-    public String getName() {
-        return this.name;
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
-    }
-
-    @Override
-    public String getType() {
-        return type();
-    }
-
-    @Override
-    public List<LongEntry> entries() {
+    public List<LongEntry> getEntries() {
         if (!(entries instanceof List)) {
             entries = ImmutableList.copyOf(entries);
         }
         return (List<LongEntry>) entries;
-    }
-
-    @Override
-    public List<LongEntry> getEntries() {
-        return entries();
     }
 
     @SuppressWarnings({"unchecked"})
@@ -179,37 +138,22 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public long missingCount() {
+    public long getMissingCount() {
         return this.missing;
     }
 
     @Override
-    public long getMissingCount() {
-        return missingCount();
-    }
-
-    @Override
-    public long totalCount() {
+    public long getTotalCount() {
         return this.total;
     }
 
     @Override
-    public long getTotalCount() {
-        return totalCount();
-    }
-
-    @Override
-    public long otherCount() {
+    public long getOtherCount() {
         long other = total;
         for (Entry entry : entries) {
-            other -= entry.count();
+            other -= entry.getCount();
         }
         return other;
-    }
-
-    @Override
-    public long getOtherCount() {
-        return otherCount();
     }
 
     @Override
@@ -223,10 +167,10 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         long total = 0;
         for (Facet facet : facets) {
             InternalLongTermsFacet mFacet = (InternalLongTermsFacet) facet;
-            missing += mFacet.missingCount();
-            total += mFacet.totalCount();
+            missing += mFacet.getMissingCount();
+            total += mFacet.getTotalCount();
             for (LongEntry entry : mFacet.entries) {
-                aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count());
+                aggregated.adjustOrPutValue(entry.term, entry.getCount(), entry.getCount());
             }
         }
 
@@ -256,16 +200,16 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields.MISSING, missing);
         builder.field(Fields.TOTAL, total);
-        builder.field(Fields.OTHER, otherCount());
+        builder.field(Fields.OTHER, getOtherCount());
         builder.startArray(Fields.TERMS);
         for (LongEntry entry : entries) {
             builder.startObject();
             builder.field(Fields.TERM, entry.term);
-            builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.COUNT, entry.getCount());
             builder.endObject();
         }
         builder.endArray();
@@ -281,7 +225,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+        super.readFrom(in);
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
@@ -296,7 +240,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        super.writeTo(out);
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);
@@ -305,7 +249,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         out.writeVInt(entries.size());
         for (LongEntry entry : entries) {
             out.writeLong(entry.term);
-            out.writeVInt(entry.count());
+            out.writeVInt(entry.getCount());
         }
     }
 }

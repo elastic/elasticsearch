@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.facet.termsstats;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.facet.Facet;
 
@@ -36,17 +34,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
     /**
      * The number of docs missing a value.
      */
-    long missingCount();
-
-    /**
-     * The number of docs missing a value.
-     */
     long getMissingCount();
-
-    /**
-     * The terms and counts.
-     */
-    List<? extends TermsStatsFacet.Entry> entries();
 
     /**
      * The terms and counts.
@@ -74,7 +62,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 if (o2 == null) {
                     return -1;
                 }
-                int i = (o2.count() < o1.count() ? -1 : (o1.count() == o2.count() ? 0 : 1));
+                int i = (o2.getCount() < o1.getCount() ? -1 : (o1.getCount() == o2.getCount() ? 0 : 1));
                 if (i == 0) {
                     i = o2.compareTo(o1);
                 }
@@ -162,7 +150,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 if (o2 == null) {
                     return -1;
                 }
-                int i = -Double.compare(o1.total(), o2.total());
+                int i = -Double.compare(o1.getTotal(), o2.getTotal());
                 if (i == 0) {
                     i = COUNT.comparator().compare(o1, o2);
                 }
@@ -206,7 +194,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 if (o2 == null) {
                     return -1;
                 }
-                int i = Double.compare(o1.min(), o2.min());
+                int i = Double.compare(o1.getMin(), o2.getMin());
                 if (i == 0) {
                     i = COUNT.comparator().compare(o1, o2);
                 }
@@ -248,7 +236,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 if (o2 == null) {
                     return -1;
                 }
-                int i =  -Double.compare(o1.max(), o2.max());
+                int i = -Double.compare(o1.getMax(), o2.getMax());
                 if (i == 0) {
                     i = COUNT.comparator().compare(o1, o2);
                 }
@@ -290,7 +278,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
                 if (o2 == null) {
                     return -1;
                 }
-                int i =  -Double.compare(o1.mean(), o2.mean());
+                int i = -Double.compare(o1.getMean(), o2.getMean());
                 if (i == 0) {
                     i = COUNT.comparator().compare(o1, o2);
                 }
@@ -358,7 +346,7 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
             } else if (id == MEAN.id()) {
                 return MEAN;
             } else if (id == REVERSE_MEAN.id()) {
-                return  REVERSE_MEAN;
+                return REVERSE_MEAN;
             }
             throw new ElasticSearchIllegalArgumentException("No type argument match for terms facet comparator [" + id + "]");
         }
@@ -395,35 +383,19 @@ public interface TermsStatsFacet extends Facet, Iterable<TermsStatsFacet.Entry> 
 
     public interface Entry extends Comparable<Entry> {
 
-        Text term();
-
         Text getTerm();
-
-        Number termAsNumber();
 
         Number getTermAsNumber();
 
-        long count();
-
         long getCount();
-
-        long totalCount();
 
         long getTotalCount();
 
-        double min();
-
         double getMin();
-
-        double max();
 
         double getMax();
 
-        double total();
-
         double getTotal();
-
-        double mean();
 
         double getMean();
     }

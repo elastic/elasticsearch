@@ -34,7 +34,7 @@ import java.util.List;
 /**
  *
  */
-public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet {
+public class InternalGeoDistanceFacet extends InternalFacet implements GeoDistanceFacet {
 
     private static final String STREAM_TYPE = "geoDistance";
 
@@ -54,51 +54,29 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
         return STREAM_TYPE;
     }
 
-    private String name;
-
     Entry[] entries;
 
     InternalGeoDistanceFacet() {
     }
 
     public InternalGeoDistanceFacet(String name, Entry[] entries) {
-        this.name = name;
+        super(name);
         this.entries = entries;
     }
 
     @Override
-    public String name() {
-        return this.name;
-    }
-
-    @Override
-    public String getName() {
-        return name();
-    }
-
-    @Override
-    public String type() {
+    public String getType() {
         return TYPE;
     }
 
     @Override
-    public String getType() {
-        return type();
-    }
-
-    @Override
-    public List<Entry> entries() {
+    public List<Entry> getEntries() {
         return ImmutableList.copyOf(entries);
     }
 
     @Override
-    public List<Entry> getEntries() {
-        return entries();
-    }
-
-    @Override
     public Iterator<Entry> iterator() {
-        return entries().iterator();
+        return getEntries().iterator();
     }
 
     @Override
@@ -134,7 +112,7 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+        super.readFrom(in);
         entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             entries[i] = new Entry(in.readDouble(), in.readDouble(), in.readVLong(), in.readVLong(), in.readDouble(), in.readDouble(), in.readDouble());
@@ -143,7 +121,7 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        super.writeTo(out);
         out.writeVInt(entries.length);
         for (Entry entry : entries) {
             out.writeDouble(entry.from);
@@ -172,7 +150,7 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
         builder.field(Fields._TYPE, GeoDistanceFacet.TYPE);
         builder.startArray(Fields.RANGES);
         for (Entry entry : entries) {
@@ -183,11 +161,12 @@ public class InternalGeoDistanceFacet implements GeoDistanceFacet, InternalFacet
             if (!Double.isInfinite(entry.to)) {
                 builder.field(Fields.TO, entry.to);
             }
-            builder.field(Fields.MIN, entry.min());
-            builder.field(Fields.MAX, entry.max());
-            builder.field(Fields.TOTAL_COUNT, entry.totalCount());
-            builder.field(Fields.TOTAL, entry.total());
-            builder.field(Fields.MEAN, entry.mean());
+            builder.field(Fields.COUNT, entry.getCount());
+            builder.field(Fields.MIN, entry.getMin());
+            builder.field(Fields.MAX, entry.getMax());
+            builder.field(Fields.TOTAL_COUNT, entry.getTotalCount());
+            builder.field(Fields.TOTAL, entry.getTotal());
+            builder.field(Fields.MEAN, entry.getMean());
             builder.endObject();
         }
         builder.endArray();

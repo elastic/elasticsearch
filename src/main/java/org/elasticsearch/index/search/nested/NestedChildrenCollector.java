@@ -20,47 +20,39 @@
 package org.elasticsearch.index.search.nested;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
-import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetCollector;
+import org.elasticsearch.common.lucene.search.XCollector;
 
 import java.io.IOException;
 
 /**
  * A collector that accepts parent docs, and calls back the collect on child docs of that parent.
  */
-public class NestedChildrenCollector extends FacetCollector {
+public class NestedChildrenCollector extends XCollector {
 
-    private final FacetCollector collector;
-
+    private final Collector collector;
     private final Filter parentFilter;
-
     private final Filter childFilter;
-
     private Bits childDocs;
-
     private FixedBitSet parentDocs;
 
-    public NestedChildrenCollector(FacetCollector collector, Filter parentFilter, Filter childFilter) {
+    public NestedChildrenCollector(Collector collector, Filter parentFilter, Filter childFilter) {
         this.collector = collector;
         this.parentFilter = parentFilter;
         this.childFilter = childFilter;
     }
 
     @Override
-    public Facet facet() {
-        return collector.facet();
-    }
-
-    @Override
-    public void setFilter(Filter filter) {
-        // delegate the facet_filter to the children
-        collector.setFilter(filter);
+    public void postCollection() {
+        if (collector instanceof XCollector) {
+            ((XCollector) collector).postCollection();
+        }
     }
 
     @Override

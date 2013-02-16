@@ -318,8 +318,8 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(100l));
 
-        assertThat(searchResponse.facets().facet(QueryFacet.class, "test1").count(), equalTo(1l));
-        assertThat(searchResponse.facets().facet(QueryFacet.class, "all").count(), equalTo(100l));
+        assertThat(searchResponse.facets().facet(QueryFacet.class, "test1").getCount(), equalTo(1l));
+        assertThat(searchResponse.facets().facet(QueryFacet.class, "all").getCount(), equalTo(100l));
     }
 
     @Test

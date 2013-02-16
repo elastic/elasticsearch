@@ -599,11 +599,11 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
 
         assertThat(searchResponse.facets().facets().size(), equalTo(1));
         TermsFacet termsFacet = searchResponse.facets().facet("facet1");
-        assertThat(termsFacet.entries().size(), equalTo(2));
-        assertThat(termsFacet.entries().get(0).term().string(), equalTo("red"));
-        assertThat(termsFacet.entries().get(0).count(), equalTo(2));
-        assertThat(termsFacet.entries().get(1).term().string(), equalTo("yellow"));
-        assertThat(termsFacet.entries().get(1).count(), equalTo(1));
+        assertThat(termsFacet.getEntries().size(), equalTo(2));
+        assertThat(termsFacet.getEntries().get(0).getTerm().string(), equalTo("red"));
+        assertThat(termsFacet.getEntries().get(0).getCount(), equalTo(2));
+        assertThat(termsFacet.getEntries().get(1).getTerm().string(), equalTo("yellow"));
+        assertThat(termsFacet.getEntries().get(1).getCount(), equalTo(1));
     }
 
     @Test

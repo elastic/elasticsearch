@@ -54,7 +54,7 @@ public class RestPutWarmerAction extends BaseRestHandler {
         SearchRequest searchRequest = new SearchRequest(RestActions.splitIndices(request.param("index")))
                 .types(RestActions.splitTypes(request.param("type")))
                 .source(request.content(), request.contentUnsafe());
-        putWarmerRequest.searchRequest(searchRequest);
+        putWarmerRequest.setSearchRequest(searchRequest);
         client.admin().indices().putWarmer(putWarmerRequest, new ActionListener<PutWarmerResponse>() {
             @Override
             public void onResponse(PutWarmerResponse response) {

@@ -56,19 +56,19 @@ public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerReques
     /**
      * Sets the name of the warmer.
      */
-    public PutWarmerRequest name(String name) {
+    public PutWarmerRequest setName(String name) {
         this.name = name;
         return this;
     }
 
-    String name() {
+    public String getName() {
         return this.name;
     }
 
     /**
      * Sets the search request to warm.
      */
-    public PutWarmerRequest searchRequest(SearchRequest searchRequest) {
+    public PutWarmerRequest setSearchRequest(SearchRequest searchRequest) {
         this.searchRequest = searchRequest;
         return this;
     }
@@ -76,13 +76,13 @@ public class PutWarmerRequest extends MasterNodeOperationRequest<PutWarmerReques
     /**
      * Sets the search request to warm.
      */
-    public PutWarmerRequest searchRequest(SearchRequestBuilder searchRequest) {
+    public PutWarmerRequest setSearchRequest(SearchRequestBuilder searchRequest) {
         this.searchRequest = searchRequest.request();
         return this;
     }
 
     @Nullable
-    SearchRequest searchRequest() {
+    public SearchRequest getSearchRequest() {
         return this.searchRequest;
     }
 

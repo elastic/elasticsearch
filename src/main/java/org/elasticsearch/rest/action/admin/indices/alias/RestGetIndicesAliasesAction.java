@@ -57,9 +57,9 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
         final String[] indices = splitIndices(request.param("index"));
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .filterRoutingTable(true)
-                .filterNodes(true)
-                .filteredIndices(indices);
+                .setFilterRoutingTable(true)
+                .setFilterNodes(true)
+                .setFilteredIndices(indices);
 
         clusterStateRequest.listenerThreaded(false);
 

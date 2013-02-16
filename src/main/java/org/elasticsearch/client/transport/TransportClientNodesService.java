@@ -374,7 +374,7 @@ public class TransportClientNodesService extends AbstractComponent {
                             }
                             transportService.sendRequest(listedNode, ClusterStateAction.NAME,
                                     Requests.clusterStateRequest()
-                                            .filterAll().filterNodes(false).local(true),
+                                            .filterAll().setFilterNodes(false).setLocal(true),
                                     TransportRequestOptions.options().withHighType().withTimeout(pingTimeout),
                                     new BaseTransportResponseHandler<ClusterStateResponse>() {
 

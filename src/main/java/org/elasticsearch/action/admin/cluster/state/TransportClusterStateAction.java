@@ -71,31 +71,31 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
 
     @Override
     protected boolean localExecute(ClusterStateRequest request) {
-        return request.local();
+        return request.isLocal();
     }
 
     @Override
     protected ClusterStateResponse masterOperation(ClusterStateRequest request, ClusterState state) throws ElasticSearchException {
         ClusterState currentState = clusterService.state();
         ClusterState.Builder builder = newClusterStateBuilder();
-        if (!request.filterNodes()) {
+        if (!request.isFilterNodes()) {
             builder.nodes(currentState.nodes());
         }
-        if (!request.filterRoutingTable()) {
+        if (!request.isFilterRoutingTable()) {
             builder.routingTable(currentState.routingTable());
             builder.allocationExplanation(currentState.allocationExplanation());
         }
-        if (!request.filterBlocks()) {
+        if (!request.isFilterBlocks()) {
             builder.blocks(currentState.blocks());
         }
-        if (!request.filterMetaData()) {
+        if (!request.isFilterMetaData()) {
             MetaData.Builder mdBuilder = newMetaDataBuilder();
-            if (request.filteredIndices().length == 0 && request.filteredIndexTemplates().length == 0) {
+            if (request.getFilteredIndices().length == 0 && request.getFilteredIndexTemplates().length == 0) {
                 mdBuilder.metaData(currentState.metaData());
             }
 
-            if (request.filteredIndices().length > 0) {
-                String[] indices = currentState.metaData().concreteIndicesIgnoreMissing(request.filteredIndices());
+            if (request.getFilteredIndices().length > 0) {
+                String[] indices = currentState.metaData().concreteIndicesIgnoreMissing(request.getFilteredIndices());
                 for (String filteredIndex : indices) {
                     IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
                     if (indexMetaData != null) {
@@ -104,8 +104,8 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
                 }
             }
 
-            if (request.filteredIndexTemplates().length > 0) {
-                for (String templateName : request.filteredIndexTemplates()) {
+            if (request.getFilteredIndexTemplates().length > 0) {
+                for (String templateName : request.getFilteredIndexTemplates()) {
                     IndexTemplateMetaData indexTemplateMetaData = currentState.metaData().templates().get(templateName);
                     if (indexTemplateMetaData != null) {
                         mdBuilder.put(indexTemplateMetaData);

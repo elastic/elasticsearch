@@ -117,8 +117,8 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
                     }
                     builder.endObject();
 
-                    builder.field(Fields.NUM_COMMITTED_SEGMENTS, shardSegments.numberOfCommitted());
-                    builder.field(Fields.NUM_SEARCH_SEGMENTS, shardSegments.numberOfSearch());
+                    builder.field(Fields.NUM_COMMITTED_SEGMENTS, shardSegments.getNumberOfCommitted());
+                    builder.field(Fields.NUM_SEARCH_SEGMENTS, shardSegments.getNumberOfSearch());
 
                     builder.startObject(Fields.SEGMENTS);
                     for (Segment segment : shardSegments) {

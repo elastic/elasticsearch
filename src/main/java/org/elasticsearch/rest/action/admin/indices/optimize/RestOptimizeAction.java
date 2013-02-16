@@ -63,11 +63,11 @@ public class RestOptimizeAction extends BaseRestHandler {
             optimizeRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         try {
-            optimizeRequest.waitForMerge(request.paramAsBoolean("wait_for_merge", optimizeRequest.waitForMerge()));
-            optimizeRequest.maxNumSegments(request.paramAsInt("max_num_segments", optimizeRequest.maxNumSegments()));
-            optimizeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", optimizeRequest.onlyExpungeDeletes()));
-            optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
-            optimizeRequest.refresh(request.paramAsBoolean("refresh", optimizeRequest.refresh()));
+            optimizeRequest.setWaitForMerge(request.paramAsBoolean("wait_for_merge", optimizeRequest.isWaitForMerge()));
+            optimizeRequest.setMaxNumSegments(request.paramAsInt("max_num_segments", optimizeRequest.getMaxNumSegments()));
+            optimizeRequest.setOnlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", optimizeRequest.isOnlyExpungeDeletes()));
+            optimizeRequest.setFlush(request.paramAsBoolean("flush", optimizeRequest.isFlush()));
+            optimizeRequest.setRefresh(request.paramAsBoolean("refresh", optimizeRequest.isRefresh()));
 
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {

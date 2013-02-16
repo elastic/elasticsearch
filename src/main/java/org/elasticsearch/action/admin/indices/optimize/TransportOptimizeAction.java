@@ -121,11 +121,11 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
         synchronized (optimizeMutex) {
             IndexShard indexShard = indicesService.indexServiceSafe(request.index()).shardSafe(request.shardId());
             indexShard.optimize(new Engine.Optimize()
-                    .waitForMerge(request.waitForMerge())
-                    .maxNumSegments(request.maxNumSegments())
-                    .onlyExpungeDeletes(request.onlyExpungeDeletes())
-                    .flush(request.flush())
-                    .refresh(request.refresh())
+                    .waitForMerge(request.isWaitForMerge())
+                    .maxNumSegments(request.getMaxNumSegments())
+                    .onlyExpungeDeletes(request.isOnlyExpungeDeletes())
+                    .flush(request.isFlush())
+                    .refresh(request.isRefresh())
             );
             return new ShardOptimizeResponse(request.index(), request.shardId());
         }

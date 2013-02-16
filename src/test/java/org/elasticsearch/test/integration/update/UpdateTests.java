@@ -304,17 +304,17 @@ public class UpdateTests extends AbstractNodesTests {
         // check TTL is kept after an update without TTL
         client.prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefresh(true).execute().actionGet();
         GetResponse getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
-        long ttl = ((Number) getResponse.field("_ttl").value()).longValue();
+        long ttl = ((Number) getResponse.field("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
         client.prepareUpdate("test", "type1", "2").setScript("ctx._source.field += 1").execute().actionGet();
         getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
-        ttl = ((Number) getResponse.field("_ttl").value()).longValue();
+        ttl = ((Number) getResponse.field("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
 
         // check TTL update
         client.prepareUpdate("test", "type1", "2").setScript("ctx._ttl = 3600000").execute().actionGet();
         getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
-        ttl = ((Number) getResponse.field("_ttl").value()).longValue();
+        ttl = ((Number) getResponse.field("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
         assertThat(ttl, lessThanOrEqualTo(3600000L));
 
@@ -322,7 +322,7 @@ public class UpdateTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "3").setSource("field", 1).setRefresh(true).execute().actionGet();
         client.prepareUpdate("test", "type1", "3").setScript("ctx._timestamp = \"2009-11-15T14:12:12\"").execute().actionGet();
         getResponse = client.prepareGet("test", "type1", "3").setFields("_timestamp").execute().actionGet();
-        long timestamp = ((Number) getResponse.field("_timestamp").value()).longValue();
+        long timestamp = ((Number) getResponse.field("_timestamp").getValue()).longValue();
         assertThat(timestamp, equalTo(1258294332000L));
 
         // check fields parameter
@@ -330,7 +330,7 @@ public class UpdateTests extends AbstractNodesTests {
         updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setFields("_source", "field").execute().actionGet();
         assertThat(updateResponse.getResult(), notNullValue());
         assertThat(updateResponse.getResult().sourceRef(), notNullValue());
-        assertThat(updateResponse.getResult().field("field").value(), notNullValue());
+        assertThat(updateResponse.getResult().field("field").getValue(), notNullValue());
 
         // check updates without script
         // add new field

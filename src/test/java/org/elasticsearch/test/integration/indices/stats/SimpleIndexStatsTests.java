@@ -123,23 +123,23 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         assertThat(stats.primaries().indexing().typeStats().get("type1").indexCurrent(), equalTo(0l));
         assertThat(stats.primaries().indexing().typeStats().get("type1").deleteCurrent(), equalTo(0l));
 
-        assertThat(stats.total().get().count(), equalTo(0l));
+        assertThat(stats.total().get().getCount(), equalTo(0l));
         // check get
         GetResponse getResponse = client.prepareGet("test1", "type1", "1").execute().actionGet();
         assertThat(getResponse.exists(), equalTo(true));
 
         stats = client.admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.total().get().count(), equalTo(1l));
-        assertThat(stats.total().get().existsCount(), equalTo(1l));
-        assertThat(stats.total().get().missingCount(), equalTo(0l));
+        assertThat(stats.total().get().getCount(), equalTo(1l));
+        assertThat(stats.total().get().getExistsCount(), equalTo(1l));
+        assertThat(stats.total().get().getMissingCount(), equalTo(0l));
 
         // missing get
         getResponse = client.prepareGet("test1", "type1", "2").execute().actionGet();
         assertThat(getResponse.exists(), equalTo(false));
 
         stats = client.admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.total().get().count(), equalTo(2l));
-        assertThat(stats.total().get().existsCount(), equalTo(1l));
-        assertThat(stats.total().get().missingCount(), equalTo(1l));
+        assertThat(stats.total().get().getCount(), equalTo(2l));
+        assertThat(stats.total().get().getExistsCount(), equalTo(1l));
+        assertThat(stats.total().get().getMissingCount(), equalTo(1l));
     }
 }

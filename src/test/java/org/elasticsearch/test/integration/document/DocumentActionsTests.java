@@ -168,7 +168,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
             assertThat(getResult.index(), equalTo(getConcreteIndexName()));
             assertThat(getResult.exists(), equalTo(true));
             assertThat(getResult.source(), nullValue());
-            assertThat(getResult.field("_source.type1.name").values().get(0).toString(), equalTo("test"));
+            assertThat(getResult.field("_source.type1.name").getValues().get(0).toString(), equalTo("test"));
         }
 
         logger.info("Get [type1/2] (should be empty)");

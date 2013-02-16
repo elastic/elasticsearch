@@ -46,27 +46,15 @@ public class GetField implements Streamable, Iterable<Object> {
         this.values = values;
     }
 
-    public String name() {
-        return name;
-    }
-
     public String getName() {
         return name;
     }
 
-    public Object value() {
+    public Object getValue() {
         if (values != null && !values.isEmpty()) {
             return values.get(0);
         }
         return null;
-    }
-
-    public Object getValue() {
-        return value();
-    }
-
-    public List<Object> values() {
-        return values;
     }
 
     public List<Object> getValues() {

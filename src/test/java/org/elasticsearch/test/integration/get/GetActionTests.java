@@ -102,7 +102,7 @@ public class GetActionTests extends AbstractNodesTests {
         response = client.prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
         assertThat(response.exists(), equalTo(true));
         assertThat(response.source(), nullValue());
-        assertThat(response.field("field1").values().get(0).toString(), equalTo("value1"));
+        assertThat(response.field("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.field("field2"), nullValue());
 
         logger.info("--> flush the index, so we load it from it");
@@ -124,7 +124,7 @@ public class GetActionTests extends AbstractNodesTests {
         response = client.prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
         assertThat(response.exists(), equalTo(true));
         assertThat(response.source(), nullValue());
-        assertThat(response.field("field1").values().get(0).toString(), equalTo("value1"));
+        assertThat(response.field("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.field("field2"), nullValue());
 
         logger.info("--> update doc 1");
@@ -200,7 +200,7 @@ public class GetActionTests extends AbstractNodesTests {
 
         assertThat(response.responses().length, equalTo(2));
         assertThat(response.responses()[0].response().source(), nullValue());
-        assertThat(response.responses()[0].response().field("field").values().get(0).toString(), equalTo("value1"));
+        assertThat(response.responses()[0].response().field("field").getValues().get(0).toString(), equalTo("value1"));
     }
 
     @Test
@@ -337,10 +337,10 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getType(), equalTo("type1"));
         assertThat(response.fields().size(), equalTo(1));
-        assertThat(response.fields().get("field").values().size(), equalTo(1));
-        assertThat(((List) response.fields().get("field").values().get(0)).size(), equalTo(2));
-        assertThat(((List) response.fields().get("field").values().get(0)).get(0).toString(), equalTo("1"));
-        assertThat(((List) response.fields().get("field").values().get(0)).get(1).toString(), equalTo("2"));
+        assertThat(response.fields().get("field").getValues().size(), equalTo(1));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).size(), equalTo(2));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).get(0).toString(), equalTo("1"));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).get(1).toString(), equalTo("2"));
 
 
         response = client.prepareGet("test", "type2", "1")
@@ -350,10 +350,10 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getType(), equalTo("type2"));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.fields().size(), equalTo(1));
-        assertThat(response.fields().get("field").values().size(), equalTo(1));
-        assertThat(((List) response.fields().get("field").values().get(0)).size(), equalTo(2));
-        assertThat(((List) response.fields().get("field").values().get(0)).get(0).toString(), equalTo("1"));
-        assertThat(((List) response.fields().get("field").values().get(0)).get(1).toString(), equalTo("2"));
+        assertThat(response.fields().get("field").getValues().size(), equalTo(1));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).size(), equalTo(2));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).get(0).toString(), equalTo("1"));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).get(1).toString(), equalTo("2"));
 
         // Now test values being fetched from stored fields.
         client.admin().indices().prepareRefresh("test").execute().actionGet();
@@ -363,10 +363,10 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.exists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.fields().size(), equalTo(1));
-        assertThat(response.fields().get("field").values().size(), equalTo(1));
-        assertThat(((List) response.fields().get("field").values().get(0)).size(), equalTo(2));
-        assertThat(((List) response.fields().get("field").values().get(0)).get(0).toString(), equalTo("1"));
-        assertThat(((List) response.fields().get("field").values().get(0)).get(1).toString(), equalTo("2"));
+        assertThat(response.fields().get("field").getValues().size(), equalTo(1));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).size(), equalTo(2));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).get(0).toString(), equalTo("1"));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).get(1).toString(), equalTo("2"));
 
 
         response = client.prepareGet("test", "type2", "1")
@@ -375,10 +375,10 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.exists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.fields().size(), equalTo(1));
-        assertThat(response.fields().get("field").values().size(), equalTo(1));
-        assertThat(((List) response.fields().get("field").values().get(0)).size(), equalTo(2));
-        assertThat(((List) response.fields().get("field").values().get(0)).get(0).toString(), equalTo("1"));
-        assertThat(((List) response.fields().get("field").values().get(0)).get(1).toString(), equalTo("2"));
+        assertThat(response.fields().get("field").getValues().size(), equalTo(1));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).size(), equalTo(2));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).get(0).toString(), equalTo("1"));
+        assertThat(((List) response.fields().get("field").getValues().get(0)).get(1).toString(), equalTo("2"));
     }
 
 }

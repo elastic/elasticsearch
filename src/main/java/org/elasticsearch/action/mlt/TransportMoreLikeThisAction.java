@@ -158,8 +158,8 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                             String field = it.next();
                             GetField getField = getResponse.field(field);
                             if (getField != null) {
-                                for (Object value : getField.values()) {
-                                    addMoreLikeThis(request, boolBuilder, getField.name(), value.toString());
+                                for (Object value : getField.getValues()) {
+                                    addMoreLikeThis(request, boolBuilder, getField.getName(), value.toString());
                                 }
                                 it.remove();
                             }

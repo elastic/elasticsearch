@@ -93,25 +93,25 @@ public class SimpleTTLTests extends AbstractNodesTests {
         // realtime get check
         long now1 = System.currentTimeMillis();
         GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
-        long ttl0 = ((Number) getResponse.field("_ttl").value()).longValue();
+        long ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
         // verify the ttl is still decreasing when going to the replica
         now1 = System.currentTimeMillis();
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
-        ttl0 = ((Number) getResponse.field("_ttl").value()).longValue();
+        ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
         // non realtime get (stored)
         now1 = System.currentTimeMillis();
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
-        ttl0 = ((Number) getResponse.field("_ttl").value()).longValue();
+        ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
         // non realtime get going the replica
         now1 = System.currentTimeMillis();
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
-        ttl0 = ((Number) getResponse.field("_ttl").value()).longValue();
+        ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
 
@@ -120,7 +120,7 @@ public class SimpleTTLTests extends AbstractNodesTests {
         assertThat(getResponse.field("_ttl"), nullValue());
         // no TTL provided make sure it has default TTL
         getResponse = client.prepareGet("test", "type2", "default_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
-        ttl0 = ((Number) getResponse.field("_ttl").value()).longValue();
+        ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
 
         logger.info("--> checking purger");

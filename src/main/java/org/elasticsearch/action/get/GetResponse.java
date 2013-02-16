@@ -54,7 +54,7 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
      * Does the document exists.
      */
     public boolean exists() {
-        return getResult.exists();
+        return getResult.isExists();
     }
 
     /**
@@ -68,7 +68,7 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
      * The index the document was fetched from.
      */
     public String index() {
-        return getResult.index();
+        return getResult.getIndex();
     }
 
     /**
@@ -82,7 +82,7 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
      * The type of the document.
      */
     public String type() {
-        return getResult.type();
+        return getResult.getType();
     }
 
     /**
@@ -96,7 +96,7 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
      * The id of the document.
      */
     public String id() {
-        return getResult.id();
+        return getResult.getId();
     }
 
     /**
@@ -110,7 +110,7 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
      * The version of the doc.
      */
     public long version() {
-        return getResult.version();
+        return getResult.getVersion();
     }
 
     /**
@@ -179,7 +179,7 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     }
 
     public Map<String, GetField> fields() {
-        return getResult.fields();
+        return getResult.getFields();
     }
 
     public Map<String, GetField> getFields() {

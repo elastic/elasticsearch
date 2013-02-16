@@ -22,7 +22,6 @@ package org.elasticsearch.test.integration.explain;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
@@ -36,9 +35,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.*;
 
 /**
  */
@@ -150,10 +147,10 @@ public class ExplainActionTests extends AbstractNodesTests {
         assertNotNull(response.explanation());
         assertTrue(response.explanation().isMatch());
         assertThat(response.explanation().getValue(), equalTo(1.0f));
-        assertThat(response.getResult().exists(), equalTo(true));
-        assertThat(response.getResult().id(), equalTo("1"));
-        assertThat(response.getResult().fields().size(), equalTo(1));
-        assertThat(response.getResult().fields().get("obj1.field1").getValue().toString(), equalTo("value1"));
+        assertThat(response.getResult().isExists(), equalTo(true));
+        assertThat(response.getResult().getId(), equalTo("1"));
+        assertThat(response.getResult().getFields().size(), equalTo(1));
+        assertThat(response.getResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
 
         response = client.prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
@@ -161,7 +158,7 @@ public class ExplainActionTests extends AbstractNodesTests {
                 .execute().actionGet();
         assertNotNull(response);
         assertTrue(response.match());
-        assertThat(response.getResult().fields().size(), equalTo(1));
+        assertThat(response.getResult().getFields().size(), equalTo(1));
         Map<String, String> fields = (Map<String, String>) response.getResult().field("_source.obj1").getValue();
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get("field1"), equalTo("value1"));

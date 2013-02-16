@@ -220,7 +220,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 new String[]{SourceFieldMapper.NAME, RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME}, true);
 
         // no doc, what to do, what to do...
-        if (!getResult.exists()) {
+        if (!getResult.isExists()) {
             if (request.upsertRequest() == null) {
                 listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
                 return;
@@ -283,8 +283,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         Object fetchedTTL = null;
         final Map<String, Object> updatedSourceAsMap;
         final XContentType updateSourceContentType = sourceAndContent.v1();
-        String routing = getResult.fields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).value().toString() : null;
-        String parent = getResult.fields().containsKey(ParentFieldMapper.NAME) ? getResult.field(ParentFieldMapper.NAME).value().toString() : null;
+        String routing = getResult.getFields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).getValue().toString() : null;
+        String parent = getResult.getFields().containsKey(ParentFieldMapper.NAME) ? getResult.field(ParentFieldMapper.NAME).getValue().toString() : null;
 
         if (request.script() == null && request.doc() != null) {
             IndexRequest indexRequest = request.doc();
@@ -331,7 +331,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // apply script to update the source
         // No TTL has been given in the update script so we keep previous TTL value if there is one
         if (ttl == null) {
-            ttl = getResult.fields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).value() : null;
+            ttl = getResult.getFields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).getValue() : null;
             if (ttl != null) {
                 ttl = ttl - (System.currentTimeMillis() - getDate); // It is an approximation of exact TTL value, could be improved
             }
@@ -342,7 +342,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         if (operation == null || "index".equals(operation)) {
             final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(updatedSourceAsMap, updateSourceContentType)
-                    .version(getResult.version()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
+                    .version(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
                     .percolate(request.percolate())
                     .refresh(request.refresh());
@@ -377,7 +377,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             });
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
-                    .version(getResult.version()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+                    .version(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             deleteRequest.operationThreaded(false);
             deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                 @Override
@@ -405,12 +405,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 }
             });
         } else if ("none".equals(operation)) {
-            UpdateResponse update = new UpdateResponse(getResult.index(), getResult.type(), getResult.id(), getResult.version());
-            update.getResult(extractGetResult(request, getResult.version(), updatedSourceAsMap, updateSourceContentType, null));
+            UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion());
+            update.getResult(extractGetResult(request, getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, null));
             listener.onResponse(update);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script);
-            listener.onResponse(new UpdateResponse(getResult.index(), getResult.type(), getResult.id(), getResult.version()));
+            listener.onResponse(new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion()));
         }
     }
 
@@ -439,7 +439,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         getField = new GetField(field, new ArrayList<Object>(2));
                         fields.put(field, getField);
                     }
-                    getField.values().add(value);
+                    getField.getValues().add(value);
                 }
             }
         }

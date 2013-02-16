@@ -62,11 +62,11 @@ public class CloseIndexRequest extends MasterNodeOperationRequest<CloseIndexRequ
     /**
      * The index to delete.
      */
-    String index() {
+    String getIndex() {
         return index;
     }
 
-    public CloseIndexRequest index(String index) {
+    public CloseIndexRequest setIndex(String index) {
         this.index = index;
         return this;
     }
@@ -75,7 +75,7 @@ public class CloseIndexRequest extends MasterNodeOperationRequest<CloseIndexRequ
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    TimeValue timeout() {
+    TimeValue getTimeout() {
         return timeout;
     }
 
@@ -83,7 +83,7 @@ public class CloseIndexRequest extends MasterNodeOperationRequest<CloseIndexRequ
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    public CloseIndexRequest timeout(TimeValue timeout) {
+    public CloseIndexRequest setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
@@ -92,8 +92,8 @@ public class CloseIndexRequest extends MasterNodeOperationRequest<CloseIndexRequ
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    public CloseIndexRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
+    public CloseIndexRequest setTimeout(String timeout) {
+        return setTimeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override

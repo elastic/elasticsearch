@@ -187,19 +187,19 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         localNodeMasterListeners.remove(listener);
     }
 
-    public void add(TimeValue timeout, final TimeoutClusterStateListener listener) {
+    public void add(final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
             listener.onClose();
             return;
         }
-        NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
-        onGoingTimeouts.add(notifyTimeout);
-        clusterStateListeners.add(listener);
         // call the post added notification on the same event thread
         updateTasksExecutor.execute(new Runnable() {
             @Override
             public void run() {
+                NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
+                notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
+                onGoingTimeouts.add(notifyTimeout);
+                clusterStateListeners.add(listener);
                 listener.postAdded();
             }
         });

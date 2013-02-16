@@ -57,60 +57,60 @@ public class ClusterUpdateSettingsRequest extends MasterNodeOperationRequest<Clu
         return validationException;
     }
 
-    Settings transientSettings() {
+    public Settings getTransientSettings() {
         return transientSettings;
     }
 
-    Settings persistentSettings() {
+    public Settings getPersistentSettings() {
         return persistentSettings;
     }
 
-    public ClusterUpdateSettingsRequest transientSettings(Settings settings) {
+    public ClusterUpdateSettingsRequest setTransientSettings(Settings settings) {
         this.transientSettings = settings;
         return this;
     }
 
-    public ClusterUpdateSettingsRequest transientSettings(Settings.Builder settings) {
+    public ClusterUpdateSettingsRequest setTransientSettings(Settings.Builder settings) {
         this.transientSettings = settings.build();
         return this;
     }
 
-    public ClusterUpdateSettingsRequest transientSettings(String source) {
+    public ClusterUpdateSettingsRequest setTransientSettings(String source) {
         this.transientSettings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
         return this;
     }
 
-    public ClusterUpdateSettingsRequest transientSettings(Map source) {
+    public ClusterUpdateSettingsRequest setTransientSettings(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            transientSettings(builder.string());
+            setTransientSettings(builder.string());
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
         return this;
     }
 
-    public ClusterUpdateSettingsRequest persistentSettings(Settings settings) {
+    public ClusterUpdateSettingsRequest setPersistentSettings(Settings settings) {
         this.persistentSettings = settings;
         return this;
     }
 
-    public ClusterUpdateSettingsRequest persistentSettings(Settings.Builder settings) {
+    public ClusterUpdateSettingsRequest setPersistentSettings(Settings.Builder settings) {
         this.persistentSettings = settings.build();
         return this;
     }
 
-    public ClusterUpdateSettingsRequest persistentSettings(String source) {
+    public ClusterUpdateSettingsRequest setPersistentSettings(String source) {
         this.persistentSettings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
         return this;
     }
 
-    public ClusterUpdateSettingsRequest persistentSettings(Map source) {
+    public ClusterUpdateSettingsRequest setPersistentSettings(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            persistentSettings(builder.string());
+            setPersistentSettings(builder.string());
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }

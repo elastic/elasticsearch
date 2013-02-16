@@ -62,11 +62,11 @@ public class OpenIndexRequest extends MasterNodeOperationRequest<OpenIndexReques
     /**
      * The index to delete.
      */
-    String index() {
+    public String getIndex() {
         return index;
     }
 
-    public OpenIndexRequest index(String index) {
+    public OpenIndexRequest setIndex(String index) {
         this.index = index;
         return this;
     }
@@ -75,7 +75,7 @@ public class OpenIndexRequest extends MasterNodeOperationRequest<OpenIndexReques
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    TimeValue timeout() {
+    public TimeValue getTimeout() {
         return timeout;
     }
 
@@ -83,7 +83,7 @@ public class OpenIndexRequest extends MasterNodeOperationRequest<OpenIndexReques
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    public OpenIndexRequest timeout(TimeValue timeout) {
+    public OpenIndexRequest setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
@@ -92,8 +92,8 @@ public class OpenIndexRequest extends MasterNodeOperationRequest<OpenIndexReques
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    public OpenIndexRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
+    public OpenIndexRequest setTimeout(String timeout) {
+        return setTimeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override

@@ -469,7 +469,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(client1.admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().acknowledged(), equalTo(true));
+            assertThat(client1.admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
             client2.index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
         }
 
@@ -490,7 +490,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(getClient().admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().acknowledged(), equalTo(true));
+            assertThat(getClient().admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
             getClient().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
         }
     }
@@ -516,7 +516,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
             executor.submit(new Runnable() {
                 @Override
                 public void run() {
-                    assertThat(client1.admin().indices().prepareAliases().addAlias("test", aliasName).execute().actionGet().acknowledged(), equalTo(true));
+                    assertThat(client1.admin().indices().prepareAliases().addAlias("test", aliasName).execute().actionGet().isAcknowledged(), equalTo(true));
                     client2.index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
                 }
             });
@@ -544,27 +544,27 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> creating alias1 ");
-        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet().acknowledged(), equalTo(true));
+        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet().isAcknowledged(), equalTo(true));
         TimeValue timeout = TimeValue.timeValueSeconds(2);
         logger.info("--> recreating alias1 ");
         StopWatch stopWatch = new StopWatch();
         stopWatch.start();
-        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1").setTimeout(timeout).execute().actionGet().acknowledged(), equalTo(true));
+        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> modifying alias1 to have a filter");
         stopWatch.start();
-        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "foo")).setTimeout(timeout).execute().actionGet().acknowledged(), equalTo(true));
+        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "foo")).setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> recreating alias1 with the same filter");
         stopWatch.start();
-        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "foo")).setTimeout(timeout).execute().actionGet().acknowledged(), equalTo(true));
+        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "foo")).setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> recreating alias1 with a different filter");
         stopWatch.start();
-        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "bar")).setTimeout(timeout).execute().actionGet().acknowledged(), equalTo(true));
+        assertThat(client2.admin().indices().prepareAliases().addAlias("test", "alias1", termFilter("name", "bar")).setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> verify that filter was updated");
@@ -573,12 +573,12 @@ public class IndexAliasesTests extends AbstractNodesTests {
 
         logger.info("--> deleting alias1");
         stopWatch.start();
-        assertThat(client2.admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().acknowledged(), equalTo(true));
+        assertThat(client2.admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
         logger.info("--> deleting alias1 one more time");
         stopWatch.start();
-        assertThat(client2.admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().acknowledged(), equalTo(true));
+        assertThat(client2.admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
     }
 

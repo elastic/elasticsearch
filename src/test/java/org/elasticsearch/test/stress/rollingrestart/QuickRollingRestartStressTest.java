@@ -54,7 +54,7 @@ public class QuickRollingRestartStressTest {
             if (clusterHealthResponse.isTimedOut()) {
                 throw new ElasticSearchException("failed to wait for green state on startup...");
             }
-            COUNT = client.client().prepareCount().execute().actionGet().count();
+            COUNT = client.client().prepareCount().execute().actionGet().getCount();
             System.out.println("--> existing index, count [" + COUNT + "]");
         } else {
             COUNT = SizeValue.parseSizeValue("100k").singles();
@@ -67,7 +67,7 @@ public class QuickRollingRestartStressTest {
             System.out.println("--> done indexing data [" + COUNT + "]");
             client.client().admin().indices().prepareRefresh().execute().actionGet();
             for (int i = 0; i < 10; i++) {
-                long count = client.client().prepareCount().execute().actionGet().count();
+                long count = client.client().prepareCount().execute().actionGet().getCount();
                 if (COUNT != count) {
                     System.err.println("--> the indexed docs do not match the count..., got [" + count + "], expected [" + COUNT + "]");
                 }
@@ -102,7 +102,7 @@ public class QuickRollingRestartStressTest {
             System.out.println("--> checking data [" + rollingRestart + "]....");
             boolean failed = false;
             for (int i = 0; i < 10; i++) {
-                long count = client.client().prepareCount().execute().actionGet().count();
+                long count = client.client().prepareCount().execute().actionGet().getCount();
                 if (COUNT != count) {
                     failed = true;
                     System.err.println("--> ERROR the indexed docs do not match the count..., got [" + count + "], expected [" + COUNT + "]");

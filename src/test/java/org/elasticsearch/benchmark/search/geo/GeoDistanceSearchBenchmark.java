@@ -55,7 +55,7 @@ public class GeoDistanceSearchBenchmark {
         final long NUM_RUNS = 100;
 
         if (client.admin().indices().prepareExists("test").execute().actionGet().isExists()) {
-            System.out.println("Found an index, count: " + client.prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count());
+            System.out.println("Found an index, count: " + client.prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount());
         } else {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()

@@ -103,7 +103,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, CountRequest request, String[] concreteIndices) {
-        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.getRouting(), request.indices());
         return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, null);
     }
 
@@ -134,7 +134,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
-                count += ((ShardCountResponse) shardResponse).count();
+                count += ((ShardCountResponse) shardResponse).getCount();
                 successfulShards++;
             }
         }
@@ -148,20 +148,20 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
         SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
         SearchContext context = new SearchContext(0,
-                new ShardSearchRequest().types(request.types()).filteringAliases(request.filteringAliases()),
+                new ShardSearchRequest().types(request.getTypes()).filteringAliases(request.getFilteringAliases()),
                 shardTarget, indexShard.searcher(), indexService, indexShard,
                 scriptService);
         SearchContext.setCurrent(context);
 
         try {
             // TODO: min score should move to be "null" as a value that is not initialized...
-            if (request.minScore() != -1) {
-                context.minimumScore(request.minScore());
+            if (request.getMinScore() != -1) {
+                context.minimumScore(request.getMinScore());
             }
-            BytesReference querySource = request.querySource();
+            BytesReference querySource = request.getQuerySource();
             if (querySource != null && querySource.length() > 0) {
                 try {
-                    QueryParseContext.setTypes(request.types());
+                    QueryParseContext.setTypes(request.getTypes());
                     context.parsedQuery(indexService.queryParserService().parse(querySource));
                 } finally {
                     QueryParseContext.removeTypes();

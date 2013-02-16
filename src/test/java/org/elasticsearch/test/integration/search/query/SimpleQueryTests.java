@@ -288,13 +288,13 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(client.prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type1"))).execute().actionGet().count(), equalTo(2l));
-        assertThat(client.prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type2"))).execute().actionGet().count(), equalTo(3l));
+        assertThat(client.prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type1"))).execute().actionGet().getCount(), equalTo(2l));
+        assertThat(client.prepareCount().setQuery(filteredQuery(matchAllQuery(), typeFilter("type2"))).execute().actionGet().getCount(), equalTo(3l));
 
-        assertThat(client.prepareCount().setTypes("type1").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
-        assertThat(client.prepareCount().setTypes("type2").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
+        assertThat(client.prepareCount().setTypes("type1").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+        assertThat(client.prepareCount().setTypes("type2").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(3l));
 
-        assertThat(client.prepareCount().setTypes("type1", "type2").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(5l));
+        assertThat(client.prepareCount().setTypes("type1", "type2").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(5l));
     }
 
     @Test

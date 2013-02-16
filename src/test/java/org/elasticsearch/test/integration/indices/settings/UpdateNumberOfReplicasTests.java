@@ -91,7 +91,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(countResponse.count(), equalTo(10l));
+            assertThat(countResponse.getCount(), equalTo(10l));
         }
 
         logger.info("Increasing the number of replicas from 1 to 2");
@@ -122,7 +122,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(countResponse.count(), equalTo(10l));
+            assertThat(countResponse.getCount(), equalTo(10l));
         }
 
         logger.info("Decreasing number of replicas from 2 to 0");
@@ -141,7 +141,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(countResponse.shardFailures().toString(), countResponse.failedShards(), equalTo(0));
-            assertThat(countResponse.count(), equalTo(10l));
+            assertThat(countResponse.getCount(), equalTo(10l));
         }
     }
 

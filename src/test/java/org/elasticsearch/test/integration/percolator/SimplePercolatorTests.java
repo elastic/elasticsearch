@@ -193,7 +193,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         }
 
         logger.info("--> make sure percoalted queries for it have been deleted as well");
-        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(0l));
+        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
     }
 
     @Test

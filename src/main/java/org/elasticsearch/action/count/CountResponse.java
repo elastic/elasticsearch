@@ -48,13 +48,6 @@ public class CountResponse extends BroadcastOperationResponse {
     /**
      * The count of documents matching the query provided.
      */
-    public long count() {
-        return count;
-    }
-
-    /**
-     * The count of documents matching the query provided.
-     */
     public long getCount() {
         return count;
     }

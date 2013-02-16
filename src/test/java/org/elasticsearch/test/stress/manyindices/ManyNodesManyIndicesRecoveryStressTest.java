@@ -112,8 +112,8 @@ public class ManyNodesManyIndicesRecoveryStressTest {
         for (int index = 0; index < NUM_INDICES; index++) {
             String indexName = "index_" + index;
             CountResponse count = client.prepareCount(indexName).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-            if (count.count() != NUM_DOCS) {
-                System.err.println("Wrong count value, expected [" + NUM_DOCS + "], got [" + count.count() + "] for index [" + indexName + "]");
+            if (count.getCount() != NUM_DOCS) {
+                System.err.println("Wrong count value, expected [" + NUM_DOCS + "], got [" + count.getCount() + "] for index [" + indexName + "]");
             }
         }
 

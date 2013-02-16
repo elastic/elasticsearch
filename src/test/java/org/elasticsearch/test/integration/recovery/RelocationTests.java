@@ -88,7 +88,7 @@ public class RelocationTests extends AbstractNodesTests {
 
         logger.info("--> verifying count");
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount("test").execute().actionGet().count(), equalTo(20l));
+        assertThat(client("node1").prepareCount("test").execute().actionGet().getCount(), equalTo(20l));
 
         logger.info("--> start another node");
         startNode("node2");
@@ -107,7 +107,7 @@ public class RelocationTests extends AbstractNodesTests {
 
         logger.info("--> verifying count again...");
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount("test").execute().actionGet().count(), equalTo(20l));
+        assertThat(client("node1").prepareCount("test").execute().actionGet().getCount(), equalTo(20l));
     }
 
     @Test
@@ -209,7 +209,7 @@ public class RelocationTests extends AbstractNodesTests {
         }
 
         logger.info("--> waiting for 2000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -385,7 +385,7 @@ public class RelocationTests extends AbstractNodesTests {
         }
 
         logger.info("--> waiting for 2000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }

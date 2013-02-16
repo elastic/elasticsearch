@@ -39,7 +39,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      * The types of documents the query will run against. Defaults to all types.
      */
     public CountRequestBuilder setTypes(String... types) {
-        request.types(types);
+        request.setTypes(types);
         return this;
     }
 
@@ -48,7 +48,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      * documents will be included in the count.
      */
     public CountRequestBuilder setMinScore(float minScore) {
-        request.minScore(minScore);
+        request.setMinScore(minScore);
         return this;
     }
 
@@ -56,7 +56,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
     public CountRequestBuilder setRouting(String routing) {
-        request.routing(routing);
+        request.setRouting(routing);
         return this;
     }
 
@@ -64,7 +64,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      * The routing values to control the shards that the search will be executed on.
      */
     public CountRequestBuilder setRouting(String... routing) {
-        request.routing(routing);
+        request.setRouting(routing);
         return this;
     }
 
@@ -74,7 +74,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public CountRequestBuilder setQuery(QueryBuilder queryBuilder) {
-        request.query(queryBuilder);
+        request.setQuery(queryBuilder);
         return this;
     }
 
@@ -84,7 +84,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public CountRequestBuilder setQuery(BytesReference querySource) {
-        request.query(querySource, false);
+        request.setQuery(querySource, false);
         return this;
     }
 
@@ -94,7 +94,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public CountRequestBuilder setQuery(BytesReference querySource, boolean unsafe) {
-        request.query(querySource, unsafe);
+        request.setQuery(querySource, unsafe);
         return this;
     }
 
@@ -104,7 +104,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public CountRequestBuilder setQuery(byte[] querySource) {
-        request.query(querySource);
+        request.setQuery(querySource);
         return this;
     }
 

@@ -74,21 +74,21 @@ public class RestCountAction extends BaseRestHandler {
             }
             countRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                countRequest.query(request.content(), request.contentUnsafe());
+                countRequest.setQuery(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    countRequest.query(source);
+                    countRequest.setQuery(source);
                 } else {
                     BytesReference querySource = RestActions.parseQuerySource(request);
                     if (querySource != null) {
-                        countRequest.query(querySource, false);
+                        countRequest.setQuery(querySource, false);
                     }
                 }
             }
-            countRequest.routing(request.param("routing"));
-            countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
-            countRequest.types(splitTypes(request.param("type")));
+            countRequest.setRouting(request.param("routing"));
+            countRequest.setMinScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
+            countRequest.setTypes(splitTypes(request.param("type")));
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -105,7 +105,7 @@ public class RestCountAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field("count", response.count());
+                    builder.field("count", response.getCount());
 
                     buildBroadcastShardsHeader(builder, response);
 

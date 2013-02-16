@@ -78,24 +78,24 @@ public class BroadcastActionsTests extends AbstractNodesTests {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client("server1").count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
-            assertThat(countResponse.count(), equalTo(2l));
+            CountResponse countResponse = client("server1").count(countRequest("test").setQuery(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
+            assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.totalShards(), equalTo(5));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
         }
 
         for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client("server1").count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
-            assertThat(countResponse.count(), equalTo(2l));
+            CountResponse countResponse = client("server1").count(countRequest("test").setQuery(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
+            assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.totalShards(), equalTo(5));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
         }
 
         for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client("server1").count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
-            assertThat(countResponse.count(), equalTo(2l));
+            CountResponse countResponse = client("server1").count(countRequest("test").setQuery(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
+            assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.totalShards(), equalTo(5));
             assertThat(countResponse.successfulShards(), equalTo(5));
             assertThat(countResponse.failedShards(), equalTo(0));
@@ -103,9 +103,9 @@ public class BroadcastActionsTests extends AbstractNodesTests {
 
         for (int i = 0; i < 5; i++) {
             // test failed (simply query that can't be parsed)
-            CountResponse countResponse = client("server1").count(countRequest("test").query(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
+            CountResponse countResponse = client("server1").count(countRequest("test").setQuery(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
-            assertThat(countResponse.count(), equalTo(0l));
+            assertThat(countResponse.getCount(), equalTo(0l));
             assertThat(countResponse.totalShards(), equalTo(5));
             assertThat(countResponse.successfulShards(), equalTo(0));
             assertThat(countResponse.failedShards(), equalTo(5));

@@ -81,7 +81,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
         logger.info("--> closing nodes");
@@ -106,7 +106,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
     }
 
@@ -137,7 +137,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
         logger.info("--> closing first node, and indexing more data to the second node");
@@ -153,7 +153,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         node2.client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node2.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
+            assertThat(node2.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(3l));
         }
 
         logger.info("--> closing the second node and third node");
@@ -173,7 +173,7 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(3l));
         }
     }
 }

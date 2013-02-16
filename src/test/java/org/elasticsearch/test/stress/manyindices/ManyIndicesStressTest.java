@@ -87,7 +87,7 @@ public class ManyIndicesStressTest {
         }
 
         for (int i = 0; i < numberOfIndices; i++) {
-            long count = node.client().prepareCount("index_" + i).setQuery(matchAllQuery()).execute().actionGet().count();
+            long count = node.client().prepareCount("index_" + i).setQuery(matchAllQuery()).execute().actionGet().getCount();
             if (count == numberOfDocs) {
                 logger.info("VERIFIED [{}], count [{}]", i, count);
             } else {

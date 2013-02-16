@@ -242,8 +242,8 @@ public class RollingRestartStressTest {
         // check the count
         for (int i = 0; i < (nodes.length * 5); i++) {
             CountResponse count = client.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            logger.info("indexed [{}], count [{}], [{}]", count.count(), indexCounter.get(), count.count() == indexCounter.get() ? "OK" : "FAIL");
-            if (count.count() != indexCounter.get()) {
+            logger.info("indexed [{}], count [{}], [{}]", count.getCount(), indexCounter.get(), count.getCount() == indexCounter.get() ? "OK" : "FAIL");
+            if (count.getCount() != indexCounter.get()) {
                 logger.warn("count does not match!");
             }
         }

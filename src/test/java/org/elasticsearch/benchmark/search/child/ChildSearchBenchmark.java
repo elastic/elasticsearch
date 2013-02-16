@@ -113,7 +113,7 @@ public class ChildSearchBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
+        System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
 
         System.out.println("--> Running just child query");
         // run just the child query, warm up first

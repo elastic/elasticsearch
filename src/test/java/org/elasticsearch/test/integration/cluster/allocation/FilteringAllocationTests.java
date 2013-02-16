@@ -65,7 +65,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
             client("node1").prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
 
         logger.info("--> decommission the second node");
         client("node1").admin().cluster().prepareUpdateSettings()
@@ -91,7 +91,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
         }
 
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
     }
 
     @Test
@@ -113,7 +113,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
             client("node1").prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
 
         logger.info("--> remove index from the first node");
         client("node1").admin().indices().prepareUpdateSettings("test")

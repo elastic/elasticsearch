@@ -288,32 +288,32 @@ public class IndexAliasesTests extends AbstractNodesTests {
         logger.info("--> checking filtering alias for two indices");
         SearchResponse searchResponse = client1.prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "1", "5");
-        assertThat(client1.prepareCount("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2L));
+        assertThat(client1.prepareCount("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2L));
 
         logger.info("--> checking filtering alias for one index");
         searchResponse = client1.prepareSearch("bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "2");
-        assertThat(client1.prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1L));
+        assertThat(client1.prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1L));
 
         logger.info("--> checking filtering alias for two indices and one complete index");
         searchResponse = client1.prepareSearch("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client1.prepareCount("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(5L));
+        assertThat(client1.prepareCount("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(5L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for one index");
         searchResponse = client1.prepareSearch("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client1.prepareCount("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(5L));
+        assertThat(client1.prepareCount("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(5L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client1.prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(8L));
-        assertThat(client1.prepareCount("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(8L));
+        assertThat(client1.prepareCount("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(8L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client1.prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).execute().actionGet();
         assertHits(searchResponse.getHits(), "4", "8");
-        assertThat(client1.prepareCount("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).execute().actionGet().count(), equalTo(2L));
+        assertThat(client1.prepareCount("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).execute().actionGet().getCount(), equalTo(2L));
     }
 
     @Test
@@ -361,27 +361,27 @@ public class IndexAliasesTests extends AbstractNodesTests {
         logger.info("--> checking filtering alias for multiple indices");
         SearchResponse searchResponse = client1.prepareSearch("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "21", "31", "13", "33");
-        assertThat(client1.prepareCount("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(4L));
+        assertThat(client1.prepareCount("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(4L));
 
         searchResponse = client1.prepareSearch("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "21", "31", "11", "12", "13");
-        assertThat(client1.prepareCount("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(5L));
+        assertThat(client1.prepareCount("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(5L));
 
         searchResponse = client1.prepareSearch("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "11", "12", "13", "33");
-        assertThat(client1.prepareCount("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(4L));
+        assertThat(client1.prepareCount("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(4L));
 
         searchResponse = client1.prepareSearch("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "31", "33");
-        assertThat(client1.prepareCount("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(6L));
+        assertThat(client1.prepareCount("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(6L));
 
         searchResponse = client1.prepareSearch("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "21", "22", "23", "31", "13", "33");
-        assertThat(client1.prepareCount("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(6L));
+        assertThat(client1.prepareCount("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(6L));
 
         searchResponse = client1.prepareSearch("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "22", "23", "31", "33");
-        assertThat(client1.prepareCount("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(8L));
+        assertThat(client1.prepareCount("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(8L));
 
     }
 
@@ -428,14 +428,14 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.index(indexRequest("test2").type("type1").id("8").source(source("8", "something else")).refresh(true)).actionGet();
 
         logger.info("--> checking counts before delete");
-        assertThat(client1.prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1L));
+        assertThat(client1.prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1L));
 
         logger.info("--> delete by query from a single alias");
         client1.prepareDeleteByQuery("bars").setQuery(QueryBuilders.termQuery("name", "test")).execute().actionGet();
         client1.admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> verify that only one record was deleted");
-        assertThat(client1.prepareCount("test1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(3L));
+        assertThat(client1.prepareCount("test1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(3L));
 
         logger.info("--> delete by query from an aliases pointing to two indices");
         client1.prepareDeleteByQuery("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();

@@ -142,13 +142,13 @@ public class FullRestartStressTest {
             }
 
             CountResponse count = client.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            logger.info("*** index_count [{}], expected_count [{}]", count.count(), indexCounter.get());
+            logger.info("*** index_count [{}], expected_count [{}]", count.getCount(), indexCounter.get());
             // verify count
             for (int i = 0; i < (nodes.length * 5); i++) {
                 count = client.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-                logger.debug("index_count [{}], expected_count [{}]", count.count(), indexCounter.get());
-                if (count.count() != indexCounter.get()) {
-                    logger.warn("!!! count does not match, index_count [{}], expected_count [{}]", count.count(), indexCounter.get());
+                logger.debug("index_count [{}], expected_count [{}]", count.getCount(), indexCounter.get());
+                if (count.getCount() != indexCounter.get()) {
+                    logger.warn("!!! count does not match, index_count [{}], expected_count [{}]", count.getCount(), indexCounter.get());
                     throw new Exception("failed test, count does not match...");
                 }
             }
@@ -158,7 +158,7 @@ public class FullRestartStressTest {
                 // do a search with norms field, so we don't rely on match all filtering cache
                 SearchResponse search = client.client().prepareSearch().setQuery(matchAllQuery().normsField("field")).execute().actionGet();
                 logger.debug("index_count [{}], expected_count [{}]", search.getHits().totalHits(), indexCounter.get());
-                if (count.count() != indexCounter.get()) {
+                if (count.getCount() != indexCounter.get()) {
                     logger.warn("!!! search does not match, index_count [{}], expected_count [{}]", search.getHits().totalHits(), indexCounter.get());
                     throw new Exception("failed test, count does not match...");
                 }

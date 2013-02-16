@@ -116,7 +116,7 @@ public class HistogramFacetSearchBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        COUNT = client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count();
+        COUNT = client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
         System.out.println("--> Number of docs in index: " + COUNT);
 
         System.out.println("--> Warmup...");

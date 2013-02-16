@@ -108,7 +108,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
 
         String masterNodeName = state.nodes().masterNode().name();
@@ -144,7 +144,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
 
         masterNodeName = state.nodes().masterNode().name();
@@ -182,7 +182,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
     }
 
@@ -242,7 +242,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
 
         Set<String> nodesToShutdown = Sets.newHashSet();
@@ -281,7 +281,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
     }
 }

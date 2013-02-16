@@ -260,7 +260,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("--> refreshing and checking count");
         client("server1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(0l));
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
 
         logger.info("--> indexing 1234 docs");
         for (long i = 0; i < 1234; i++) {
@@ -280,7 +280,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("--> refreshing and checking count");
         client("server1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1234l));
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1234l));
 
 
         logger.info("--> closing the server");
@@ -300,7 +300,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("--> checking count");
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1234l));
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1234l));
 
         logger.info("--> checking reuse / recovery status");
         IndicesStatusResponse statusResponse = client("server1").admin().indices().prepareStatus().setRecovery(true).execute().actionGet();

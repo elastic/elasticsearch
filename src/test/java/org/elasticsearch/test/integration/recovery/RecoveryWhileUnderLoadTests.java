@@ -89,7 +89,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         }
 
         logger.info("--> waiting for 2000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -101,7 +101,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
 
 
         logger.info("--> waiting for 4000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 4000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 4000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -116,7 +116,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         assertThat(client("node1").admin().cluster().prepareHealth().setTimeout("1m").setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet().isTimedOut(), equalTo(false));
 
         logger.info("--> waiting for 10000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 10000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 10000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -131,7 +131,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         logger.info("--> verifying indexed content");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(indexCounter.get()));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(indexCounter.get()));
         }
     }
 
@@ -174,7 +174,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         }
 
         logger.info("--> waiting for 2000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -186,7 +186,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
 
 
         logger.info("--> waiting for 4000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 4000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 4000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -204,7 +204,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
 
 
         logger.info("--> waiting for 15000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 15000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 15000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -222,7 +222,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         logger.info("--> verifying indexed content");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(indexCounter.get()));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(indexCounter.get()));
         }
     }
 
@@ -267,7 +267,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         }
 
         logger.info("--> waiting for 2000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -279,7 +279,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
 
 
         logger.info("--> waiting for 4000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 4000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 4000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -296,7 +296,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
 
 
         logger.info("--> waiting for 10000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 10000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 10000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -330,7 +330,7 @@ public class RecoveryWhileUnderLoadTests extends AbstractNodesTests {
         logger.info("--> verifying indexed content");
         client("node2").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node2").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(indexCounter.get()));
+            assertThat(client("node2").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(indexCounter.get()));
         }
     }
 }

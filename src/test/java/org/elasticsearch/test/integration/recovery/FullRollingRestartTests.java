@@ -69,7 +69,7 @@ public class FullRollingRestartTests extends AbstractNodesTests {
 
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2000l));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
         }
 
         // now start shutting nodes down
@@ -83,7 +83,7 @@ public class FullRollingRestartTests extends AbstractNodesTests {
 
         client("node5").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node5").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2000l));
+            assertThat(client("node5").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
         }
 
         closeNode("node3");
@@ -96,7 +96,7 @@ public class FullRollingRestartTests extends AbstractNodesTests {
 
         client("node5").admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node5").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2000l));
+            assertThat(client("node5").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2000l));
         }
     }
 }

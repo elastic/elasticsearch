@@ -86,7 +86,7 @@ public class SimpleDeleteMappingTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(countResponse.count(), equalTo(10l));
+            assertThat(countResponse.getCount(), equalTo(10l));
         }
 
         ClusterState clusterState = client1.admin().cluster().prepareState().execute().actionGet().getState();
@@ -97,7 +97,7 @@ public class SimpleDeleteMappingTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(countResponse.count(), equalTo(0l));
+            assertThat(countResponse.getCount(), equalTo(0l));
         }
 
         clusterState = client1.admin().cluster().prepareState().execute().actionGet().getState();

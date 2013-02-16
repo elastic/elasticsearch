@@ -4,7 +4,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -53,7 +52,7 @@ public class UpdateMappingTests extends AbstractNodesTests {
         assertThat(refreshResponse.failedShards(), equalTo(0));
         logger.info("Searching");
         CountResponse response = client.prepareCount("test").execute().actionGet();
-        assertThat(response.count(), equalTo(recCount));
+        assertThat(response.getCount(), equalTo(recCount));
     }
 
 }

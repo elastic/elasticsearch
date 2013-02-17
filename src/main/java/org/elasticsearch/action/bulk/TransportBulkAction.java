@@ -220,7 +220,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
                     synchronized (responses) {
-                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.responses()) {
+                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
                             responses[bulkItemResponse.getItemId()] = bulkItemResponse;
                         }
                     }
@@ -235,13 +235,13 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                     String message = ExceptionsHelper.detailedMessage(e);
                     synchronized (responses) {
                         for (BulkItemRequest request : requests) {
-                            if (request.request() instanceof IndexRequest) {
-                                IndexRequest indexRequest = (IndexRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
+                            if (request.getRequest() instanceof IndexRequest) {
+                                IndexRequest indexRequest = (IndexRequest) request.getRequest();
+                                responses[request.getId()] = new BulkItemResponse(request.getId(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
                                         new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message));
-                            } else if (request.request() instanceof DeleteRequest) {
-                                DeleteRequest deleteRequest = (DeleteRequest) request.request();
-                                responses[request.id()] = new BulkItemResponse(request.id(), "delete",
+                            } else if (request.getRequest() instanceof DeleteRequest) {
+                                DeleteRequest deleteRequest = (DeleteRequest) request.getRequest();
+                                responses[request.getId()] = new BulkItemResponse(request.getId(), "delete",
                                         new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), message));
                             }
                         }

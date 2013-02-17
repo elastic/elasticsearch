@@ -99,7 +99,7 @@ public class RestBulkAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field(Fields.TOOK, response.tookInMillis());
+                    builder.field(Fields.TOOK, response.getTookInMillis());
                     builder.startArray(Fields.ITEMS);
                     for (BulkItemResponse itemResponse : response) {
                         builder.startObject();

@@ -46,11 +46,11 @@ public class BulkItemRequest implements Streamable {
         this.request = request;
     }
 
-    public int id() {
+    public int getId() {
         return id;
     }
 
-    public ActionRequest request() {
+    public ActionRequest getRequest() {
         return request;
     }
 

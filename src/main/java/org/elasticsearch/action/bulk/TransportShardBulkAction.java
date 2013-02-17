@@ -120,7 +120,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, BulkShardRequest request) {
-        return clusterState.routingTable().index(request.index()).shard(request.shardId()).shardsIt();
+        return clusterState.routingTable().index(request.index()).shard(request.getShardId()).shardsIt();
     }
 
     @Override
@@ -132,12 +132,12 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
         Set<Tuple<String, String>> mappingsToUpdate = null;
 
-        BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
-        long[] versions = new long[request.items().length];
-        for (int i = 0; i < request.items().length; i++) {
-            BulkItemRequest item = request.items()[i];
-            if (item.request() instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) item.request();
+        BulkItemResponse[] responses = new BulkItemResponse[request.getItems().length];
+        long[] versions = new long[request.getItems().length];
+        for (int i = 0; i < request.getItems().length; i++) {
+            BulkItemRequest item = request.getItems()[i];
+            if (item.getRequest() instanceof IndexRequest) {
+                IndexRequest indexRequest = (IndexRequest) item.getRequest();
                 try {
 
                     // validate, if routing is required, that we got routing
@@ -179,20 +179,20 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     // if we are going to percolate, then we need to keep this op for the postPrimary operation
                     if (Strings.hasLength(indexRequest.percolate())) {
                         if (ops == null) {
-                            ops = new Engine.IndexingOperation[request.items().length];
+                            ops = new Engine.IndexingOperation[request.getItems().length];
                         }
                         ops[i] = op;
                     }
 
                     // add the response
-                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(),
+                    responses[i] = new BulkItemResponse(item.getId(), indexRequest.opType().lowercase(),
                             new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version));
                 } catch (Exception e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
                         // restore updated versions...
                         for (int j = 0; j < i; j++) {
-                            applyVersion(request.items()[j], versions[j]);
+                            applyVersion(request.getItems()[j], versions[j]);
                         }
                         throw (ElasticSearchException) e;
                     }
@@ -201,13 +201,13 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     } else {
                         logger.debug("[{}][{}] failed to execute bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                     }
-                    responses[i] = new BulkItemResponse(item.id(), indexRequest.opType().lowercase(),
+                    responses[i] = new BulkItemResponse(item.getId(), indexRequest.opType().lowercase(),
                             new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), ExceptionsHelper.detailedMessage(e)));
                     // nullify the request so it won't execute on the replicas
-                    request.items()[i] = null;
+                    request.getItems()[i] = null;
                 }
-            } else if (item.request() instanceof DeleteRequest) {
-                DeleteRequest deleteRequest = (DeleteRequest) item.request();
+            } else if (item.getRequest() instanceof DeleteRequest) {
+                DeleteRequest deleteRequest = (DeleteRequest) item.getRequest();
                 try {
                     Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).versionType(deleteRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
                     indexShard.delete(delete);
@@ -215,14 +215,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     deleteRequest.version(delete.version());
 
                     // add the response
-                    responses[i] = new BulkItemResponse(item.id(), "delete",
+                    responses[i] = new BulkItemResponse(item.getId(), "delete",
                             new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.notFound()));
                 } catch (Exception e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
                         // restore updated versions...
                         for (int j = 0; j < i; j++) {
-                            applyVersion(request.items()[j], versions[j]);
+                            applyVersion(request.getItems()[j], versions[j]);
                         }
                         throw (ElasticSearchException) e;
                     }
@@ -231,10 +231,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     } else {
                         logger.debug("[{}][{}] failed to execute bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
                     }
-                    responses[i] = new BulkItemResponse(item.id(), "delete",
+                    responses[i] = new BulkItemResponse(item.getId(), "delete",
                             new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), ExceptionsHelper.detailedMessage(e)));
                     // nullify the request so it won't execute on the replicas
-                    request.items()[i] = null;
+                    request.getItems()[i] = null;
                 }
             }
         }
@@ -245,14 +245,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
 
-        if (request.refresh()) {
+        if (request.isRefresh()) {
             try {
                 indexShard.refresh(new Engine.Refresh(false));
             } catch (Exception e) {
                 // ignore
             }
         }
-        BulkShardResponse response = new BulkShardResponse(new ShardId(request.index(), request.shardId()), responses);
+        BulkShardResponse response = new BulkShardResponse(new ShardId(request.index(), request.getShardId()), responses);
         return new PrimaryResponse<BulkShardResponse, BulkShardRequest>(shardRequest.request, response, ops);
     }
 
@@ -264,8 +264,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             return;
         }
         for (int i = 0; i < ops.length; i++) {
-            BulkItemRequest itemRequest = request.items()[i];
-            BulkItemResponse itemResponse = response.response().responses()[i];
+            BulkItemRequest itemRequest = request.getItems()[i];
+            BulkItemResponse itemResponse = response.response().getResponses()[i];
             if (itemResponse.isFailed()) {
                 // failure, continue
                 continue;
@@ -274,8 +274,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (op == null) {
                 continue; // failed / no matches requested
             }
-            if (itemRequest.request() instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) itemRequest.request();
+            if (itemRequest.getRequest() instanceof IndexRequest) {
+                IndexRequest indexRequest = (IndexRequest) itemRequest.getRequest();
                 if (!Strings.hasLength(indexRequest.percolate())) {
                     continue;
                 }
@@ -283,7 +283,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), indexRequest.percolate()));
                     ((IndexResponse) itemResponse.getResponse()).matches(percolate.matches());
                 } catch (Exception e) {
-                    logger.warn("failed to percolate [{}]", e, itemRequest.request());
+                    logger.warn("failed to percolate [{}]", e, itemRequest.getRequest());
                 }
             }
         }
@@ -293,13 +293,13 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
         final BulkShardRequest request = shardRequest.request;
-        for (int i = 0; i < request.items().length; i++) {
-            BulkItemRequest item = request.items()[i];
+        for (int i = 0; i < request.getItems().length; i++) {
+            BulkItemRequest item = request.getItems()[i];
             if (item == null) {
                 continue;
             }
-            if (item.request() instanceof IndexRequest) {
-                IndexRequest indexRequest = (IndexRequest) item.request();
+            if (item.getRequest() instanceof IndexRequest) {
+                IndexRequest indexRequest = (IndexRequest) item.getRequest();
                 try {
                     SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
                             .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
@@ -314,8 +314,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 } catch (Exception e) {
                     // ignore, we are on backup
                 }
-            } else if (item.request() instanceof DeleteRequest) {
-                DeleteRequest deleteRequest = (DeleteRequest) item.request();
+            } else if (item.getRequest() instanceof DeleteRequest) {
+                DeleteRequest deleteRequest = (DeleteRequest) item.getRequest();
                 try {
                     Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).origin(Engine.Operation.Origin.REPLICA);
                     indexShard.delete(delete);
@@ -325,7 +325,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
 
-        if (request.refresh()) {
+        if (request.isRefresh()) {
             try {
                 indexShard.refresh(new Engine.Refresh(false));
             } catch (Exception e) {
@@ -364,10 +364,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     }
 
     private void applyVersion(BulkItemRequest item, long version) {
-        if (item.request() instanceof IndexRequest) {
-            ((IndexRequest) item.request()).version(version);
-        } else if (item.request() instanceof DeleteRequest) {
-            ((DeleteRequest) item.request()).version(version);
+        if (item.getRequest() instanceof IndexRequest) {
+            ((IndexRequest) item.getRequest()).version(version);
+        } else if (item.getRequest() instanceof DeleteRequest) {
+            ((DeleteRequest) item.getRequest()).version(version);
         } else {
             // log?
         }

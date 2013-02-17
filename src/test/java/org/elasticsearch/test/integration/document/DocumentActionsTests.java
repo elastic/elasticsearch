@@ -285,36 +285,36 @@ public class DocumentActionsTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
-        assertThat(bulkResponse.items().length, equalTo(5));
+        assertThat(bulkResponse.getItems().length, equalTo(5));
 
-        assertThat(bulkResponse.items()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[0].getOpType(), equalTo("index"));
-        assertThat(bulkResponse.items()[0].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[0].getType(), equalTo("type1"));
-        assertThat(bulkResponse.items()[0].getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[0].getOpType(), equalTo("index"));
+        assertThat(bulkResponse.getItems()[0].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[0].getType(), equalTo("type1"));
+        assertThat(bulkResponse.getItems()[0].getId(), equalTo("1"));
 
-        assertThat(bulkResponse.items()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[1].getOpType(), equalTo("create"));
-        assertThat(bulkResponse.items()[1].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[1].getType(), equalTo("type1"));
-        assertThat(bulkResponse.items()[1].getId(), equalTo("2"));
+        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[1].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[1].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[1].getType(), equalTo("type1"));
+        assertThat(bulkResponse.getItems()[1].getId(), equalTo("2"));
 
-        assertThat(bulkResponse.items()[2].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[2].getOpType(), equalTo("create"));
-        assertThat(bulkResponse.items()[2].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[2].getType(), equalTo("type1"));
-        String generatedId3 = bulkResponse.items()[2].getId();
+        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[2].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[2].getType(), equalTo("type1"));
+        String generatedId3 = bulkResponse.getItems()[2].getId();
 
-        assertThat(bulkResponse.items()[3].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[3].getOpType(), equalTo("delete"));
-        assertThat(bulkResponse.items()[3].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[3].getType(), equalTo("type1"));
-        assertThat(bulkResponse.items()[3].getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[3].getOpType(), equalTo("delete"));
+        assertThat(bulkResponse.getItems()[3].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[3].getType(), equalTo("type1"));
+        assertThat(bulkResponse.getItems()[3].getId(), equalTo("1"));
 
-        assertThat(bulkResponse.items()[4].isFailed(), equalTo(true));
-        assertThat(bulkResponse.items()[4].getOpType(), equalTo("create"));
-        assertThat(bulkResponse.items()[4].getIndex(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[4].getType(), equalTo("type1"));
+        assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(true));
+        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
 
         RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
         assertThat(refreshResponse.successfulShards(), equalTo(10));

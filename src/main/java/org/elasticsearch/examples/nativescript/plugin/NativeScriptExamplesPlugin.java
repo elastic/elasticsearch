@@ -1,6 +1,7 @@
 package org.elasticsearch.examples.nativescript.plugin;
 
 import org.elasticsearch.examples.nativescript.script.IsPrimeSearchScript;
+import org.elasticsearch.examples.nativescript.script.LookupScript;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.ScriptModule;
 
@@ -36,5 +37,6 @@ public class NativeScriptExamplesPlugin extends AbstractPlugin {
     public void onModule(ScriptModule module) {
         // Register each script that we defined in this plugin
         module.registerScript("is_prime", IsPrimeSearchScript.Factory.class);
+        module.registerScript("lookup", LookupScript.Factory.class);
     }
 }

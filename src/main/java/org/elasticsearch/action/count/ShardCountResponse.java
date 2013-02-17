@@ -43,7 +43,7 @@ class ShardCountResponse extends BroadcastShardOperationResponse {
         this.count = count;
     }
 
-    long getCount() {
+    public long getCount() {
         return this.count;
     }
 

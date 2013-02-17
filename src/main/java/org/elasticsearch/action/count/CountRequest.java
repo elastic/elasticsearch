@@ -95,7 +95,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     /**
      * The minimum score of the documents to include in the count.
      */
-    float getMinScore() {
+    public float getMinScore() {
         return minScore;
     }
 
@@ -111,7 +111,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     /**
      * The query source to execute.
      */
-    BytesReference getQuerySource() {
+    public BytesReference getQuerySource() {
         return querySource;
     }
 
@@ -185,7 +185,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    String[] getTypes() {
+    public String[] getTypes() {
         return this.types;
     }
 

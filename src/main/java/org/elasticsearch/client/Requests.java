@@ -86,8 +86,8 @@ public class Requests {
     }
 
     /**
-     * Creates a delete request against a specific index. Note the {@link DeleteRequest#type(String)} and
-     * {@link DeleteRequest#id(String)} must be set.
+     * Creates a delete request against a specific index. Note the {@link DeleteRequest#setType(String)} and
+     * {@link DeleteRequest#setId(String)} must be set.
      *
      * @param index The index name to delete from
      * @return The delete request

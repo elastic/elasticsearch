@@ -102,7 +102,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
 
         logger.info("Deleting #1");
-        client("server1").delete(deleteRequest("test").type("type1").id("1")).actionGet();
+        client("server1").delete(deleteRequest("test").setType("type1").setId("1")).actionGet();
 
         // perform snapshot to the index
         logger.info("Gateway Snapshot");

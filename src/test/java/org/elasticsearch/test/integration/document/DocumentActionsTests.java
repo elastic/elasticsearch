@@ -179,9 +179,9 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Delete [type1/1]");
         DeleteResponse deleteResponse = client1.prepareDelete("test", "type1", "1").setReplicationType(ReplicationType.SYNC).execute().actionGet();
-        assertThat(deleteResponse.index(), equalTo(getConcreteIndexName()));
-        assertThat(deleteResponse.id(), equalTo("1"));
-        assertThat(deleteResponse.type(), equalTo("type1"));
+        assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(deleteResponse.getId(), equalTo("1"));
+        assertThat(deleteResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         client1.admin().indices().refresh(refreshRequest("test")).actionGet();
 

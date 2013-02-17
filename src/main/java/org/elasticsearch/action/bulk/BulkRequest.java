@@ -285,7 +285,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 }
 
                 if ("delete".equals(action)) {
-                    add(new DeleteRequest(index, type, id).parent(parent).version(version).versionType(versionType).routing(routing), payload);
+                    add(new DeleteRequest(index, type, id).setParent(parent).setVersion(version).setVersionType(versionType).setRouting(routing), payload);
                 } else {
                     nextMarker = findNextMarker(marker, from, data, length);
                     if (nextMarker == -1) {

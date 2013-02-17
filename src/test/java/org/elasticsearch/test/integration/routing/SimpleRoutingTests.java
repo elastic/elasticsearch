@@ -236,7 +236,7 @@ public class SimpleRoutingTests extends AbstractNodesTests {
         logger.info("--> verifying get with no routing, should not find anything");
 
         logger.info("--> bulk deleting with no routing, should broadcast the delete since _routing is required");
-        client.prepareBulk().add(Requests.deleteRequest("test").type("type1").id("1")).execute().actionGet();
+        client.prepareBulk().add(Requests.deleteRequest("test").setType("type1").setId("1")).execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 5; i++) {
             assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));

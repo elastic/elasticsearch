@@ -145,7 +145,7 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.sourceAsMap().get("field2").toString(), equalTo("value2_2"));
 
         DeleteResponse deleteResponse = client.prepareDelete("test", "type1", "1").execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(false));
+        assertThat(deleteResponse.isNotFound(), equalTo(false));
 
         response = client.prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.exists(), equalTo(false));

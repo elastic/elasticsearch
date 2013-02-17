@@ -58,12 +58,12 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.listenerThreaded(false);
         deleteRequest.operationThreaded(true);
 
-        deleteRequest.parent(request.param("parent"));
-        deleteRequest.routing(request.param("routing"));
+        deleteRequest.setParent(request.param("parent"));
+        deleteRequest.setRouting(request.param("routing"));
         deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
-        deleteRequest.refresh(request.paramAsBoolean("refresh", deleteRequest.refresh()));
-        deleteRequest.version(RestActions.parseVersion(request));
-        deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
+        deleteRequest.setRefresh(request.paramAsBoolean("refresh", deleteRequest.isRefresh()));
+        deleteRequest.setVersion(RestActions.parseVersion(request));
+        deleteRequest.setVersionType(VersionType.fromString(request.param("version_type"), deleteRequest.getVersionType()));
 
         String replicationType = request.param("replication");
         if (replicationType != null) {
@@ -81,14 +81,14 @@ public class RestDeleteAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields.FOUND, !result.notFound())
-                            .field(Fields._INDEX, result.index())
-                            .field(Fields._TYPE, result.type())
-                            .field(Fields._ID, result.id())
-                            .field(Fields._VERSION, result.version())
+                            .field(Fields.FOUND, !result.isNotFound())
+                            .field(Fields._INDEX, result.getIndex())
+                            .field(Fields._TYPE, result.getType())
+                            .field(Fields._ID, result.getId())
+                            .field(Fields._VERSION, result.getVersion())
                             .endObject();
                     RestStatus status = OK;
-                    if (result.notFound()) {
+                    if (result.isNotFound()) {
                         status = NOT_FOUND;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));

@@ -54,50 +54,22 @@ public class DeleteResponse extends ActionResponse {
     /**
      * The index the document was deleted from.
      */
-    public String index() {
-        return this.index;
-    }
-
-    /**
-     * The index the document was deleted from.
-     */
     public String getIndex() {
-        return index;
-    }
-
-    /**
-     * The type of the document deleted.
-     */
-    public String type() {
-        return this.type;
+        return this.index;
     }
 
     /**
      * The type of the document deleted.
      */
     public String getType() {
-        return type;
-    }
-
-    /**
-     * The id of the document deleted.
-     */
-    public String id() {
-        return this.id;
+        return this.type;
     }
 
     /**
      * The id of the document deleted.
      */
     public String getId() {
-        return id;
-    }
-
-    /**
-     * The version of the delete operation.
-     */
-    public long version() {
-        return this.version;
+        return this.id;
     }
 
     /**
@@ -105,13 +77,6 @@ public class DeleteResponse extends ActionResponse {
      */
     public long getVersion() {
         return this.version;
-    }
-
-    /**
-     * Returns <tt>true</tt> if there was no doc found to delete.
-     */
-    public boolean notFound() {
-        return notFound;
     }
 
     /**

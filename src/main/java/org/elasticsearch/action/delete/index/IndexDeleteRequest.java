@@ -44,10 +44,10 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDe
         this.consistencyLevel = request.consistencyLevel();
         this.replicationType = request.replicationType();
         this.index = request.index();
-        this.type = request.type();
-        this.id = request.id();
-        this.refresh = request.refresh();
-        this.version = request.version();
+        this.type = request.getType();
+        this.id = request.getId();
+        this.refresh = request.isRefresh();
+        this.version = request.getVersion();
     }
 
     public String getType() {

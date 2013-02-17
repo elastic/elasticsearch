@@ -170,7 +170,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
 
         // check delete, so all is gone...
         DeleteResponse deleteResponse = client.prepareDelete("test", "type1", "2").execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(false));
+        assertThat(deleteResponse.isNotFound(), equalTo(false));
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();

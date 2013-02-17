@@ -209,14 +209,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             } else if (item.getRequest() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.getRequest();
                 try {
-                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).versionType(deleteRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
+                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.getType(), deleteRequest.getId(), deleteRequest.getVersion()).versionType(deleteRequest.getVersionType()).origin(Engine.Operation.Origin.PRIMARY);
                     indexShard.delete(delete);
                     // update the request with teh version so it will go to the replicas
-                    deleteRequest.version(delete.version());
+                    deleteRequest.setVersion(delete.version());
 
                     // add the response
                     responses[i] = new BulkItemResponse(item.getId(), "delete",
-                            new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.notFound()));
+                            new DeleteResponse(deleteRequest.index(), deleteRequest.getType(), deleteRequest.getId(), delete.version(), delete.notFound()));
                 } catch (Exception e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
@@ -232,7 +232,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         logger.debug("[{}][{}] failed to execute bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
                     }
                     responses[i] = new BulkItemResponse(item.getId(), "delete",
-                            new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                            new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.getType(), deleteRequest.getId(), ExceptionsHelper.detailedMessage(e)));
                     // nullify the request so it won't execute on the replicas
                     request.getItems()[i] = null;
                 }
@@ -317,7 +317,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             } else if (item.getRequest() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.getRequest();
                 try {
-                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.getType(), deleteRequest.getId(), deleteRequest.getVersion()).origin(Engine.Operation.Origin.REPLICA);
                     indexShard.delete(delete);
                 } catch (Exception e) {
                     // ignore, we are on backup
@@ -367,7 +367,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         if (item.getRequest() instanceof IndexRequest) {
             ((IndexRequest) item.getRequest()).version(version);
         } else if (item.getRequest() instanceof DeleteRequest) {
-            ((DeleteRequest) item.getRequest()).version(version);
+            ((DeleteRequest) item.getRequest()).setVersion(version);
         } else {
             // log?
         }

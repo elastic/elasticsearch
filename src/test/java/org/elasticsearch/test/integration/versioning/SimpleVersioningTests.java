@@ -72,7 +72,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(true));
+        assertThat(deleteResponse.isNotFound(), equalTo(true));
 
         try {
             client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -111,8 +111,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
 
         DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(false));
-        assertThat(deleteResponse.version(), equalTo(17l));
+        assertThat(deleteResponse.isNotFound(), equalTo(false));
+        assertThat(deleteResponse.getVersion(), equalTo(17l));
 
         try {
             client2.prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -121,8 +121,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
 
         deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(true));
-        assertThat(deleteResponse.version(), equalTo(18l));
+        assertThat(deleteResponse.isNotFound(), equalTo(true));
+        assertThat(deleteResponse.getVersion(), equalTo(18l));
     }
 
     @Test
@@ -195,8 +195,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
 
         DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(false));
-        assertThat(deleteResponse.version(), equalTo(3l));
+        assertThat(deleteResponse.isNotFound(), equalTo(false));
+        assertThat(deleteResponse.getVersion(), equalTo(3l));
 
         try {
             client2.prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
@@ -205,8 +205,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
 
         deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(3).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(true));
-        assertThat(deleteResponse.version(), equalTo(4l));
+        assertThat(deleteResponse.isNotFound(), equalTo(true));
+        assertThat(deleteResponse.getVersion(), equalTo(4l));
     }
 
     @Test

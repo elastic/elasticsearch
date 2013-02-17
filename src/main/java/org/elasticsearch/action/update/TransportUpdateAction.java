@@ -376,14 +376,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 }
             });
         } else if ("delete".equals(operation)) {
-            DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
-                    .version(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+            DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).setType(request.type()).setId(request.id()).setRouting(routing).setParent(parent)
+                    .setVersion(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             deleteRequest.operationThreaded(false);
             deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse response) {
-                    UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
-                    update.getResult(extractGetResult(request, response.version(), updatedSourceAsMap, updateSourceContentType, null));
+                    UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
+                    update.getResult(extractGetResult(request, response.getVersion(), updatedSourceAsMap, updateSourceContentType, null));
                     listener.onResponse(update);
                 }
 

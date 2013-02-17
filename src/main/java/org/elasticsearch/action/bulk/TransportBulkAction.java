@@ -158,7 +158,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
-                deleteRequest.routing(clusterState.metaData().resolveIndexRouting(deleteRequest.routing(), deleteRequest.index()));
+                deleteRequest.setRouting(clusterState.metaData().resolveIndexRouting(deleteRequest.getRouting(), deleteRequest.index()));
                 deleteRequest.index(clusterState.metaData().concreteIndex(deleteRequest.index()));
             }
         }
@@ -180,8 +180,8 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 list.add(new BulkItemRequest(i, request));
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
-                MappingMetaData mappingMd = clusterState.metaData().index(deleteRequest.index()).mappingOrDefault(deleteRequest.type());
-                if (mappingMd != null && mappingMd.routing().required() && deleteRequest.routing() == null) {
+                MappingMetaData mappingMd = clusterState.metaData().index(deleteRequest.index()).mappingOrDefault(deleteRequest.getType());
+                if (mappingMd != null && mappingMd.routing().required() && deleteRequest.getRouting() == null) {
                     // if routing is required, and no routing on the delete request, we need to broadcast it....
                     GroupShardsIterator groupShards = clusterService.operationRouting().broadcastDeleteShards(clusterState, deleteRequest.index());
                     for (ShardIterator shardIt : groupShards) {
@@ -193,7 +193,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                         list.add(new BulkItemRequest(i, new DeleteRequest(deleteRequest)));
                     }
                 } else {
-                    ShardId shardId = clusterService.operationRouting().deleteShards(clusterState, deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), deleteRequest.routing()).shardId();
+                    ShardId shardId = clusterService.operationRouting().deleteShards(clusterState, deleteRequest.index(), deleteRequest.getType(), deleteRequest.getId(), deleteRequest.getRouting()).shardId();
                     List<BulkItemRequest> list = requestsByShard.get(shardId);
                     if (list == null) {
                         list = Lists.newArrayList();
@@ -242,7 +242,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                             } else if (request.getRequest() instanceof DeleteRequest) {
                                 DeleteRequest deleteRequest = (DeleteRequest) request.getRequest();
                                 responses[request.getId()] = new BulkItemResponse(request.getId(), "delete",
-                                        new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), message));
+                                        new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.getType(), deleteRequest.getId(), message));
                             }
                         }
                     }

@@ -84,7 +84,7 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
 
     @Override
     protected GroupShardsIterator shards(IndexDeleteByQueryRequest request) {
-        return clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.index(), request.routing());
+        return clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.index(), request.getRouting());
     }
 
     @Override

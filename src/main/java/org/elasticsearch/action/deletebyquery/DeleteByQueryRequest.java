@@ -47,8 +47,8 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to delete all documents that matching a specific query. Best created with
  * {@link org.elasticsearch.client.Requests#deleteByQueryRequest(String...)}.
  * <p/>
- * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
- * or {@link #query(byte[])}.
+ * <p>The request requires the query source to be set either using {@link #setQuery(org.elasticsearch.index.query.QueryBuilder)},
+ * or {@link #setQuery(byte[])}.
  *
  * @see DeleteByQueryResponse
  * @see org.elasticsearch.client.Requests#deleteByQueryRequest(String...)
@@ -88,7 +88,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The query source to execute.
      */
-    BytesReference querySource() {
+    public BytesReference getQuerySource() {
         if (querySourceUnsafe) {
             querySource = querySource.copyBytesArray();
         }
@@ -101,18 +101,18 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     @Required
-    public DeleteByQueryRequest query(QueryBuilder queryBuilder) {
+    public DeleteByQueryRequest setQuery(QueryBuilder queryBuilder) {
         this.querySource = queryBuilder.buildAsBytes();
         this.querySourceUnsafe = false;
         return this;
     }
 
     /**
-     * The query source to execute. It is preferable to use either {@link #query(byte[])}
-     * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
+     * The query source to execute. It is preferable to use either {@link #setQuery(byte[])}
+     * or {@link #setQuery(org.elasticsearch.index.query.QueryBuilder)}.
      */
     @Required
-    public DeleteByQueryRequest query(String querySource) {
+    public DeleteByQueryRequest setQuery(String querySource) {
         this.querySource = new BytesArray(querySource.getBytes(Charsets.UTF_8));
         this.querySourceUnsafe = false;
         return this;
@@ -122,18 +122,18 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      * The query source to execute in the form of a map.
      */
     @Required
-    public DeleteByQueryRequest query(Map querySource) {
+    public DeleteByQueryRequest setQuery(Map querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(querySource);
-            return query(builder);
+            return setQuery(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + querySource + "]", e);
         }
     }
 
     @Required
-    public DeleteByQueryRequest query(XContentBuilder builder) {
+    public DeleteByQueryRequest setQuery(XContentBuilder builder) {
         this.querySource = builder.bytes();
         this.querySourceUnsafe = false;
         return this;
@@ -143,21 +143,21 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      * The query source to execute.
      */
     @Required
-    public DeleteByQueryRequest query(byte[] querySource) {
-        return query(querySource, 0, querySource.length, false);
+    public DeleteByQueryRequest setQuery(byte[] querySource) {
+        return setQuery(querySource, 0, querySource.length, false);
     }
 
     /**
      * The query source to execute.
      */
     @Required
-    public DeleteByQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
+    public DeleteByQueryRequest setQuery(byte[] querySource, int offset, int length, boolean unsafe) {
         this.querySource = new BytesArray(querySource, offset, length);
         this.querySourceUnsafe = unsafe;
         return this;
     }
 
-    public DeleteByQueryRequest query(BytesReference source, boolean unsafe) {
+    public DeleteByQueryRequest setQuery(BytesReference source, boolean unsafe) {
         this.querySource = source;
         this.querySourceUnsafe = unsafe;
         return this;
@@ -166,21 +166,21 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    String[] types() {
+    public String[] getTypes() {
         return this.types;
     }
 
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
-    public String routing() {
+    public String getRouting() {
         return this.routing;
     }
 
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
-    public DeleteByQueryRequest routing(String routing) {
+    public DeleteByQueryRequest setRouting(String routing) {
         this.routing = routing;
         return this;
     }
@@ -188,7 +188,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The routing values to control the shards that the search will be executed on.
      */
-    public DeleteByQueryRequest routing(String... routings) {
+    public DeleteByQueryRequest setRouting(String... routings) {
         this.routing = Strings.arrayToCommaDelimitedString(routings);
         return this;
     }
@@ -196,7 +196,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    public DeleteByQueryRequest types(String... types) {
+    public DeleteByQueryRequest setTypes(String... types) {
         this.types = types;
         return this;
     }

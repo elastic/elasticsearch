@@ -49,13 +49,6 @@ public class DeleteByQueryResponse extends ActionResponse implements Iterable<In
     /**
      * The responses from all the different indices.
      */
-    public Map<String, IndexDeleteByQueryResponse> indices() {
-        return indices;
-    }
-
-    /**
-     * The responses from all the different indices.
-     */
     public Map<String, IndexDeleteByQueryResponse> getIndices() {
         return indices;
     }
@@ -63,7 +56,7 @@ public class DeleteByQueryResponse extends ActionResponse implements Iterable<In
     /**
      * The response of a specific index.
      */
-    public IndexDeleteByQueryResponse index(String index) {
+    public IndexDeleteByQueryResponse getIndex(String index) {
         return indices.get(index);
     }
 
@@ -74,7 +67,7 @@ public class DeleteByQueryResponse extends ActionResponse implements Iterable<In
         for (int i = 0; i < size; i++) {
             IndexDeleteByQueryResponse response = new IndexDeleteByQueryResponse();
             response.readFrom(in);
-            indices.put(response.index(), response);
+            indices.put(response.getIndex(), response);
         }
     }
 

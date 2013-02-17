@@ -108,7 +108,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
         flushAction.execute(Requests.flushRequest(request.setIndices()), new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse flushResponse) {
-                deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.setIndices()).query(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.typeFilter(request.getType()))), new ActionListener<DeleteByQueryResponse>() {
+                deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.setIndices()).setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.typeFilter(request.getType()))), new ActionListener<DeleteByQueryResponse>() {
                     @Override
                     public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
                         refreshAction.execute(Requests.refreshRequest(request.setIndices()), new ActionListener<RefreshResponse>() {

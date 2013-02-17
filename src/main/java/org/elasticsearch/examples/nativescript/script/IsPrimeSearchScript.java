@@ -36,7 +36,7 @@ public class IsPrimeSearchScript extends AbstractSearchScript {
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             // Example of a mandatory string parameter
             // The XContentMapValues helper class can be used to simplify parameter parsing
-            String fieldName = XContentMapValues.nodeStringValue(params.get("field"), null);
+            String fieldName = params == null ? null : XContentMapValues.nodeStringValue(params.get("field"), null);
             if (fieldName == null) {
                 throw new ElasticSearchIllegalArgumentException("Missing the field parameter");
             }

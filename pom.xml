@@ -31,7 +31,7 @@
     <!-- The Elasticsearch version that the project will be built with -->
     <!-- ============================================================= -->
     <properties>
-        <elasticsearch.version>0.20.4</elasticsearch.version>
+        <elasticsearch.version>0.20.5</elasticsearch.version>
     </properties>
 
     <!-- ============================================================= -->

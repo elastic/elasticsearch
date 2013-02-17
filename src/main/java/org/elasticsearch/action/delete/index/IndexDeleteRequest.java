@@ -50,19 +50,19 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDe
         this.version = request.version();
     }
 
-    public String type() {
+    public String getType() {
         return this.type;
     }
 
-    public String id() {
+    public String getId() {
         return this.id;
     }
 
-    public boolean refresh() {
+    public boolean isRefresh() {
         return this.refresh;
     }
 
-    public long version() {
+    public long getVersion() {
         return this.version;
     }
 

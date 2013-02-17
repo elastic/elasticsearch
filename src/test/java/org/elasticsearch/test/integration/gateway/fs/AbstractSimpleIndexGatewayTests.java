@@ -127,11 +127,11 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         assertThat(clusterState.getState().metaData().index("test").mapping("type1"), notNullValue());
 
         logger.info("Getting #1, should not exists");
-        GetResponse getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        GetResponse getResponse = client("server1").get(getRequest("test").setType("type1").setId("1")).actionGet();
+        assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("2")).actionGet();
+        assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
 
         // Now flush and add some data (so we have index recovery as well)
         logger.info("Flushing, so we have actual content in the index files (#2 should be in the index)");
@@ -156,14 +156,14 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("1")).actionGet();
+        assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("2")).actionGet();
+        assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (from the translog)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("3")).actionGet();
+        assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
         logger.info("Closing the server");
         closeNode("server1");
@@ -179,14 +179,14 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("1")).actionGet();
+        assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("2")).actionGet();
+        assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (from the translog)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("3")).actionGet();
+        assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
 
         logger.info("Flushing, so we have actual content in the index files (#3 should be in the index now as well)");
@@ -209,14 +209,14 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("1")).actionGet();
+        assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("2")).actionGet();
+        assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
+        getResponse = client("server1").get(getRequest("test").setType("type1").setId("3")).actionGet();
+        assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
         logger.info("Deleting the index");
         client("server1").admin().indices().delete(deleteIndexRequest("test")).actionGet();

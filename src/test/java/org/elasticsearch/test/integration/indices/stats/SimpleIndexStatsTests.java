@@ -126,7 +126,7 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         assertThat(stats.getTotal().getGet().getCount(), equalTo(0l));
         // check get
         GetResponse getResponse = client.prepareGet("test1", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.isExists(), equalTo(true));
 
         stats = client.admin().indices().prepareStats().execute().actionGet();
         assertThat(stats.getTotal().getGet().getCount(), equalTo(1l));
@@ -135,7 +135,7 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
 
         // missing get
         getResponse = client.prepareGet("test1", "type1", "2").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
 
         stats = client.admin().indices().prepareStats().execute().actionGet();
         assertThat(stats.getTotal().getGet().getCount(), equalTo(2l));

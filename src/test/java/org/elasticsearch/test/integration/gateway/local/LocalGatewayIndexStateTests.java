@@ -179,7 +179,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
 
         logger.info("--> trying to get the indexed document on the first index");
         GetResponse getResponse = client("node1").prepareGet("test", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> closing test index...");
         client("node1").admin().indices().prepareClose("test").execute().actionGet();
@@ -225,7 +225,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
 
         logger.info("--> trying to get the indexed document on the first round (before close and shutdown)");
         getResponse = client("node1").prepareGet("test", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> indexing a simple document");
         client("node1").prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
@@ -351,7 +351,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> shutting down the nodes");
         Gateway gateway1 = ((InternalNode) node("node1")).injector().getInstance(Gateway.class);
@@ -379,7 +379,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify the doc is there");
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     @Test
@@ -408,7 +408,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> shutting down the nodes");
         Gateway gateway1 = ((InternalNode) node("node1")).injector().getInstance(Gateway.class);
@@ -444,7 +444,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify the doc is there");
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     @Test
@@ -473,7 +473,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> shutting down the nodes");
         Gateway gateway1 = ((InternalNode) node("node1")).injector().getInstance(Gateway.class);
@@ -513,7 +513,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         logger.info("--> verify that the dangling index does exists now!");
         assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> verify the doc is there");
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     @Test
@@ -569,7 +569,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         logger.info("--> index a different doc");
         client("node2").prepareIndex("test", "type1", "2").setSource("field1", "value2").setRefresh(true).execute().actionGet();
 
-        assertThat(client("node2").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
-        assertThat(client("node2").prepareGet("test", "type1", "2").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node2").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+        assertThat(client("node2").prepareGet("test", "type1", "2").execute().actionGet().isExists(), equalTo(true));
     }
 }

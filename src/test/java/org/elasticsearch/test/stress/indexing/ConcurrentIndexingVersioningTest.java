@@ -89,23 +89,23 @@ public class ConcurrentIndexingVersioningTest {
                 }
             }
             GetResponse getResponse = client.client().prepareGet("test", "type1", id).execute().actionGet();
-            if (getResponse.exists()) {
-                long version = getResponse.version();
+            if (getResponse.isExists()) {
+                long version = getResponse.getVersion();
                 for (int j = 0; j < 5; j++) {
                     getResponse = client.client().prepareGet("test", "type1", id).execute().actionGet();
-                    if (!getResponse.exists()) {
+                    if (!getResponse.isExists()) {
                         System.err.println("[" + i + "] FAIL, EXISTED, and NOT_EXISTED");
                         break;
                     }
-                    if (version != getResponse.version()) {
-                        System.err.println("[" + i + "] FAIL, DIFFERENT VERSIONS: [" + version + "], [" + getResponse.version() + "]");
+                    if (version != getResponse.getVersion()) {
+                        System.err.println("[" + i + "] FAIL, DIFFERENT VERSIONS: [" + version + "], [" + getResponse.getVersion() + "]");
                         break;
                     }
                 }
             } else {
                 for (int j = 0; j < 5; j++) {
                     getResponse = client.client().prepareGet("test", "type1", id).execute().actionGet();
-                    if (getResponse.exists()) {
+                    if (getResponse.isExists()) {
                         System.err.println("[" + i + "] FAIL, EXISTED, and NOT_EXISTED");
                         break;
                     }

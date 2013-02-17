@@ -85,7 +85,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
     @Override
     protected ShardIterator shards(ClusterState state, MultiGetShardRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.index(), request.shardId(), request.preference());
+                .getShards(clusterService.state(), request.index(), request.shardId(), request.getPreference());
     }
 
     @Override
@@ -102,7 +102,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 
-        if (request.refresh() && !request.realtime()) {
+        if (request.isRefresh() && !request.isRealtime()) {
             indexShard.refresh(new Engine.Refresh(false));
         }
 
@@ -113,7 +113,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
             String[] fields = request.fields.get(i);
 
             try {
-                GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime());
+                GetResult getResult = indexShard.getService().get(type, id, fields, request.isRealtime());
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (Exception e) {
                 logger.debug("[{}][{}] failed to execute multi_get for [{}]/[{}]", e, request.index(), shardId, type, id);

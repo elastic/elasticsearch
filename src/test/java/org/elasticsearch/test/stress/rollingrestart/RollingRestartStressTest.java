@@ -267,10 +267,10 @@ public class RollingRestartStressTest {
                 for (int i = 0; i < (numberOfReplicas + 1); i++) {
                     GetResponse getResponse = client.client().prepareGet(hit.index(), hit.type(), hit.id()).execute().actionGet();
                     if (version == -1) {
-                        version = getResponse.version();
+                        version = getResponse.getVersion();
                     } else {
-                        if (version != getResponse.version()) {
-                            logger.warn("Doc {} has different version numbers {} and {}", hit.id(), version, getResponse.version());
+                        if (version != getResponse.getVersion()) {
+                            logger.warn("Doc {} has different version numbers {} and {}", hit.id(), version, getResponse.getVersion());
                         }
                     }
                 }

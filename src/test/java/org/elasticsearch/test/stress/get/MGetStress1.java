@@ -81,12 +81,12 @@ public class MGetStress1 {
                     int count = 0;
                     for (MultiGetItemResponse item : response) {
                         count++;
-                        if (item.failed()) {
-                            System.err.println("item failed... " + item.failure());
+                        if (item.isFailed()) {
+                            System.err.println("item failed... " + item.getFailure());
                         } else {
-                            boolean removed = ids.remove(item.id());
+                            boolean removed = ids.remove(item.getId());
                             if (!removed) {
-                                System.err.println("got id twice " + item.id());
+                                System.err.println("got id twice " + item.getId());
                             }
                         }
                     }

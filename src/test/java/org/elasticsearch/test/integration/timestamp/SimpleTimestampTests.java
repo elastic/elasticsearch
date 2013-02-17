@@ -69,40 +69,40 @@ public class SimpleTimestampTests extends AbstractNodesTests {
 
         // we check both realtime get and non realtime get
         GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(true).execute().actionGet();
-        long timestamp = ((Number) getResponse.field("_timestamp").getValue()).longValue();
+        long timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
         assertThat(timestamp, greaterThanOrEqualTo(now1));
         assertThat(timestamp, lessThanOrEqualTo(now2));
         // verify its the same timestamp when going the replica
         getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(true).execute().actionGet();
-        assertThat(((Number) getResponse.field("_timestamp").getValue()).longValue(), equalTo(timestamp));
+        assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
 
         // non realtime get (stored)
         getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
-        timestamp = ((Number) getResponse.field("_timestamp").getValue()).longValue();
+        timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
         assertThat(timestamp, greaterThanOrEqualTo(now1));
         assertThat(timestamp, lessThanOrEqualTo(now2));
         // verify its the same timestamp when going the replica
         getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
-        assertThat(((Number) getResponse.field("_timestamp").getValue()).longValue(), equalTo(timestamp));
+        assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
 
         logger.info("--> check with custom timestamp (numeric)");
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimestamp("10").setRefresh(true).execute().actionGet();
 
         getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
-        timestamp = ((Number) getResponse.field("_timestamp").getValue()).longValue();
+        timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
         assertThat(timestamp, equalTo(10l));
         // verify its the same timestamp when going the replica
         getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
-        assertThat(((Number) getResponse.field("_timestamp").getValue()).longValue(), equalTo(timestamp));
+        assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
 
         logger.info("--> check with custom timestamp (string)");
         client.prepareIndex("test", "type1", "1").setSource("field1", "value1").setTimestamp("1970-01-01T00:00:00.020").setRefresh(true).execute().actionGet();
 
         getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
-        timestamp = ((Number) getResponse.field("_timestamp").getValue()).longValue();
+        timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
         assertThat(timestamp, equalTo(20l));
         // verify its the same timestamp when going the replica
         getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
-        assertThat(((Number) getResponse.field("_timestamp").getValue()).longValue(), equalTo(timestamp));
+        assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
     }
 }

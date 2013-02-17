@@ -33,7 +33,7 @@ import java.io.IOException;
  * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
  * {@link org.elasticsearch.client.Requests#getRequest(String)}.
  * <p/>
- * <p>The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)}
+ * <p>The operation requires the {@link #index()}, {@link #setType(String)} and {@link #setId(String)}
  * to be set.
  *
  * @see org.elasticsearch.action.get.GetResponse
@@ -58,7 +58,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     }
 
     /**
-     * Constructs a new get request against the specified index. The {@link #type(String)} and {@link #id(String)}
+     * Constructs a new get request against the specified index. The {@link #setType(String)} and {@link #setId(String)}
      * must be set.
      */
     public GetRequest(String index) {
@@ -94,7 +94,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
     /**
      * Sets the type of the document to fetch.
      */
-    public GetRequest type(@Nullable String type) {
+    public GetRequest setType(@Nullable String type) {
         if (type == null) {
             type = "_all";
         }
@@ -106,7 +106,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
      * Sets the id of the document to fetch.
      */
     @Required
-    public GetRequest id(String id) {
+    public GetRequest setId(String id) {
         this.id = id;
         return this;
     }
@@ -115,7 +115,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
      * Sets the parent id of this document. Will simply set the routing to this value, as it is only
      * used for routing with delete requests.
      */
-    public GetRequest parent(String parent) {
+    public GetRequest setParent(String parent) {
         if (routing == null) {
             routing = parent;
         }
@@ -126,7 +126,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
-    public GetRequest routing(String routing) {
+    public GetRequest setRouting(String routing) {
         this.routing = routing;
         return this;
     }
@@ -136,24 +136,24 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
      * a custom value, which guarantees that the same order will be used across different requests.
      */
-    public GetRequest preference(String preference) {
+    public GetRequest setPreference(String preference) {
         this.preference = preference;
         return this;
     }
 
-    public String type() {
+    public String getType() {
         return type;
     }
 
-    public String id() {
+    public String getId() {
         return id;
     }
 
-    public String routing() {
+    public String getRouting() {
         return this.routing;
     }
 
-    public String preference() {
+    public String getPreference() {
         return this.preference;
     }
 
@@ -161,7 +161,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
      * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */
-    public GetRequest fields(String... fields) {
+    public GetRequest setFields(String... fields) {
         this.fields = fields;
         return this;
     }
@@ -170,7 +170,7 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
      * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */
-    public String[] fields() {
+    public String[] getFields() {
         return this.fields;
     }
 
@@ -179,20 +179,20 @@ public class GetRequest extends SingleShardOperationRequest<GetRequest> {
      * return the latest value. Note, heavy get should not set this to <tt>true</tt>. Defaults
      * to <tt>false</tt>.
      */
-    public GetRequest refresh(boolean refresh) {
+    public GetRequest setRefresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }
 
-    public boolean refresh() {
+    public boolean isRefresh() {
         return this.refresh;
     }
 
-    public boolean realtime() {
+    public boolean isRealtime() {
         return this.realtime == null ? true : this.realtime;
     }
 
-    public GetRequest realtime(Boolean realtime) {
+    public GetRequest setRealtime(Boolean realtime) {
         this.realtime = realtime;
         return this;
     }

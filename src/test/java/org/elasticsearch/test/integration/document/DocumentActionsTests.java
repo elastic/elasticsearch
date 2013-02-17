@@ -154,27 +154,27 @@ public class DocumentActionsTests extends AbstractNodesTests {
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
             getResult = client1.prepareGet("test", "type1", "1").setOperationThreaded(false).execute().actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test").string()));
-            assertThat("cycle(map) #" + i, (String) ((Map) getResult.sourceAsMap().get("type1")).get("name"), equalTo("test"));
-            getResult = client1.get(getRequest("test").type("type1").id("1").operationThreaded(true)).actionGet();
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test").string()));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
+            assertThat("cycle(map) #" + i, (String) ((Map) getResult.getSourceAsMap().get("type1")).get("name"), equalTo("test"));
+            getResult = client1.get(getRequest("test").setType("type1").setId("1").operationThreaded(true)).actionGet();
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
 
         logger.info("Get [type1/1] with script");
         for (int i = 0; i < 5; i++) {
             getResult = client1.prepareGet("test", "type1", "1").setFields("_source.type1.name").execute().actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat(getResult.exists(), equalTo(true));
-            assertThat(getResult.source(), nullValue());
-            assertThat(getResult.field("_source.type1.name").getValues().get(0).toString(), equalTo("test"));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat(getResult.isExists(), equalTo(true));
+            assertThat(getResult.getSourceAsBytes(), nullValue());
+            assertThat(getResult.getField("_source.type1.name").getValues().get(0).toString(), equalTo("test"));
         }
 
         logger.info("Get [type1/2] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat(getResult.exists(), equalTo(false));
+            getResult = client1.get(getRequest("test").setType("type1").setId("2")).actionGet();
+            assertThat(getResult.isExists(), equalTo(false));
         }
 
         logger.info("Delete [type1/1]");
@@ -187,8 +187,8 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Get [type1/1] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.exists(), equalTo(false));
+            getResult = client1.get(getRequest("test").setType("type1").setId("1")).actionGet();
+            assertThat(getResult.isExists(), equalTo(false));
         }
 
         logger.info("Index [type1/1]");
@@ -205,14 +205,14 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Get [type1/1] and [type1/2]");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test").string()));
-            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            String ste1 = getResult.sourceAsString();
+            getResult = client1.get(getRequest("test").setType("type1").setId("1")).actionGet();
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
+            getResult = client1.get(getRequest("test").setType("type1").setId("2")).actionGet();
+            String ste1 = getResult.getSourceAsString();
             String ste2 = source("2", "test2").string();
             assertThat("cycle #" + i, ste1, equalTo(ste2));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
 
         logger.info("Count");
@@ -258,12 +258,12 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Get [type1/1] and [type1/2], should be empty");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test").string()));
-            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.exists(), equalTo(false));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            getResult = client1.get(getRequest("test").setType("type1").setId("1")).actionGet();
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
+            getResult = client1.get(getRequest("test").setType("type1").setId("2")).actionGet();
+            assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
     }
 
@@ -322,17 +322,17 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.exists(), equalTo(false));
+            GetResponse getResult = client1.get(getRequest("test").setType("type1").setId("1")).actionGet();
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
 
-            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("2", "test").string()));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            getResult = client1.get(getRequest("test").setType("type1").setId("2")).actionGet();
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("2", "test").string()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
-            getResult = client1.get(getRequest("test").type("type1").id(generatedId3)).actionGet();
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("3", "test").string()));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            getResult = client1.get(getRequest("test").setType("type1").setId(generatedId3)).actionGet();
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("3", "test").string()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
     }
 

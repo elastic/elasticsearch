@@ -52,17 +52,17 @@ public class RestGetAction extends BaseRestHandler {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
-        getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
-        getRequest.parent(request.param("parent"));
-        getRequest.routing(request.param("routing"));
-        getRequest.preference(request.param("preference"));
-        getRequest.realtime(request.paramAsBooleanOptional("realtime", null));
+        getRequest.setRefresh(request.paramAsBoolean("refresh", getRequest.isRefresh()));
+        getRequest.setParent(request.param("parent"));
+        getRequest.setRouting(request.param("routing"));
+        getRequest.setPreference(request.param("preference"));
+        getRequest.setRealtime(request.paramAsBooleanOptional("realtime", null));
 
         String sField = request.param("fields");
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);
             if (sFields != null) {
-                getRequest.fields(sFields);
+                getRequest.setFields(sFields);
             }
         }
 
@@ -74,7 +74,7 @@ public class RestGetAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     response.toXContent(builder, request);
-                    if (!response.exists()) {
+                    if (!response.isExists()) {
                         channel.sendResponse(new XContentRestResponse(request, NOT_FOUND, builder));
                     } else {
                         channel.sendResponse(new XContentRestResponse(request, OK, builder));

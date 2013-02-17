@@ -63,29 +63,29 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
      * a custom value, which guarantees that the same order will be used across different requests.
      */
-    public MultiGetShardRequest preference(String preference) {
+    public MultiGetShardRequest setPreference(String preference) {
         this.preference = preference;
         return this;
     }
 
-    public String preference() {
+    public String getPreference() {
         return this.preference;
     }
 
-    public boolean realtime() {
+    public boolean isRealtime() {
         return this.realtime == null ? true : this.realtime;
     }
 
-    public MultiGetShardRequest realtime(Boolean realtime) {
+    public MultiGetShardRequest setRealtime(Boolean realtime) {
         this.realtime = realtime;
         return this;
     }
 
-    public boolean refresh() {
+    public boolean isRefresh() {
         return this.refresh;
     }
 
-    public MultiGetShardRequest refresh(boolean refresh) {
+    public MultiGetShardRequest setRefresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }

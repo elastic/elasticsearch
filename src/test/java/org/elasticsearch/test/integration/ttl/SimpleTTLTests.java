@@ -93,34 +93,34 @@ public class SimpleTTLTests extends AbstractNodesTests {
         // realtime get check
         long now1 = System.currentTimeMillis();
         GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
-        long ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
+        long ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
         // verify the ttl is still decreasing when going to the replica
         now1 = System.currentTimeMillis();
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
-        ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
+        ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
         // non realtime get (stored)
         now1 = System.currentTimeMillis();
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
-        ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
+        ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
         // non realtime get going the replica
         now1 = System.currentTimeMillis();
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
-        ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
+        ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
         assertThat(ttl0, lessThan(providedTTLValue - (now1 - now)));
 
         // no TTL provided so no TTL fetched
         getResponse = client.prepareGet("test", "type1", "no_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
-        assertThat(getResponse.field("_ttl"), nullValue());
+        assertThat(getResponse.getField("_ttl"), nullValue());
         // no TTL provided make sure it has default TTL
         getResponse = client.prepareGet("test", "type2", "default_ttl").setFields("_ttl").setRealtime(true).execute().actionGet();
-        ttl0 = ((Number) getResponse.field("_ttl").getValue()).longValue();
+        ttl0 = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl0, greaterThan(0L));
 
         logger.info("--> checking purger");
@@ -132,23 +132,23 @@ public class SimpleTTLTests extends AbstractNodesTests {
         }
         // realtime get check
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         // replica realtime get check
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(true).execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(true).execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         // non realtime get (stored) check
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         // non realtime get going the replica check
         getResponse = client.prepareGet("test", "type1", "1").setFields("_ttl").setRealtime(false).execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         getResponse = client.prepareGet("test", "type1", "with_routing").setRouting("routing").setFields("_ttl").setRealtime(false).execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
     }
 }

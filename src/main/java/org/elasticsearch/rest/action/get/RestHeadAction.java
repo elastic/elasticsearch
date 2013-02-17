@@ -49,20 +49,20 @@ public class RestHeadAction extends BaseRestHandler {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
-        getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
-        getRequest.parent(request.param("parent"));
-        getRequest.routing(request.param("routing"));
-        getRequest.preference(request.param("preference"));
-        getRequest.realtime(request.paramAsBooleanOptional("realtime", null));
+        getRequest.setRefresh(request.paramAsBoolean("refresh", getRequest.isRefresh()));
+        getRequest.setParent(request.param("parent"));
+        getRequest.setRouting(request.param("routing"));
+        getRequest.setPreference(request.param("preference"));
+        getRequest.setRealtime(request.paramAsBooleanOptional("realtime", null));
         // don't get any fields back...
-        getRequest.fields(Strings.EMPTY_ARRAY);
+        getRequest.setFields(Strings.EMPTY_ARRAY);
         // TODO we can also just return the document size as Content-Length
 
         client.get(getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse response) {
                 try {
-                    if (!response.exists()) {
+                    if (!response.isExists()) {
                         channel.sendResponse(new StringRestResponse(NOT_FOUND));
                     } else {
                         channel.sendResponse(new StringRestResponse(OK));

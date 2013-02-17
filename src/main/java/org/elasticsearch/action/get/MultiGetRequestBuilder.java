@@ -64,7 +64,7 @@ public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest
      * a custom value, which guarantees that the same order will be used across different requests.
      */
     public MultiGetRequestBuilder setPreference(String preference) {
-        request.preference(preference);
+        request.setPreference(preference);
         return this;
     }
 
@@ -74,12 +74,12 @@ public class MultiGetRequestBuilder extends ActionRequestBuilder<MultiGetRequest
      * to <tt>false</tt>.
      */
     public MultiGetRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return this;
     }
 
     public MultiGetRequestBuilder setRealtime(Boolean realtime) {
-        request.realtime(realtime);
+        request.setRealtime(realtime);
         return this;
     }
 

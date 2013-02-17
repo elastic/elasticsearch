@@ -101,8 +101,8 @@ public class SimpleNestedTests extends AbstractNodesTests {
         // flush, so we fetch it from the index (as see that we filter nested docs)
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
         GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
-        assertThat(getResponse.source(), notNullValue());
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getSourceAsBytes(), notNullValue());
 
         // check the numDocs
         IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
@@ -240,7 +240,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo((total * 3l) - 3));
 
         for (int i = 0; i < total; i++) {
-            assertThat(client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().exists(), equalTo(i != docToDelete));
+            assertThat(client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
         }
     }
 
@@ -291,7 +291,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo((total) - 1));
 
         for (int i = 0; i < total; i++) {
-            assertThat(client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().exists(), equalTo(i != docToDelete));
+            assertThat(client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
         }
     }
 
@@ -322,7 +322,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         // flush, so we fetch it from the index (as see that we filter nested docs)
         client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
         GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.isExists(), equalTo(true));
 
         // check the numDocs
         IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
@@ -522,7 +522,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         // This must be 3, otherwise child docs aren't deleted.
         // If this is 5 then only the parent has been removed
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
-        assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+        assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
     }
 
     @Test

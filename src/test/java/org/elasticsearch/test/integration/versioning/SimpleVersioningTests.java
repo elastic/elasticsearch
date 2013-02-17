@@ -107,7 +107,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(14l));
+            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(14l));
         }
 
         DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -179,7 +179,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(2l));
+            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(2l));
         }
 
         // search with versioning
@@ -267,7 +267,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(2l));
+            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(2l));
         }
 
         for (int i = 0; i < 10; i++) {

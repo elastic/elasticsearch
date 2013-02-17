@@ -61,20 +61,20 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
         Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<ShardId, MultiGetShardRequest>();
         for (int i = 0; i < request.items.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
-            item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
-            item.index(clusterState.metaData().concreteIndex(item.index()));
+            item.setRouting(clusterState.metaData().resolveIndexRouting(item.getRouting(), item.getIndex()));
+            item.setIndex(clusterState.metaData().concreteIndex(item.getIndex()));
             ShardId shardId = clusterService.operationRouting()
-                    .getShards(clusterState, item.index(), item.type(), item.id(), item.routing(), null).shardId();
+                    .getShards(clusterState, item.getIndex(), item.getType(), item.getId(), item.getRouting(), null).shardId();
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
                 shardRequest = new MultiGetShardRequest(shardId.index().name(), shardId.id());
-                shardRequest.preference(request.preference);
-                shardRequest.realtime(request.realtime);
-                shardRequest.refresh(request.refresh);
+                shardRequest.setPreference(request.preference);
+                shardRequest.setRealtime(request.realtime);
+                shardRequest.setRefresh(request.refresh);
 
                 shardRequests.put(shardId, shardRequest);
             }
-            shardRequest.add(i, item.type(), item.id(), item.fields());
+            shardRequest.add(i, item.getType(), item.getId(), item.getFields());
         }
 
         final MultiGetItemResponse[] responses = new MultiGetItemResponse[request.items.size()];

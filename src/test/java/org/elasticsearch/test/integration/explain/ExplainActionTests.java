@@ -74,28 +74,28 @@ public class ExplainActionTests extends AbstractNodesTests {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
-        assertFalse(response.exists()); // not a match b/c not realtime
-        assertFalse(response.match()); // not a match b/c not realtime
+        assertFalse(response.isExists()); // not a match b/c not realtime
+        assertFalse(response.isMatch()); // not a match b/c not realtime
 
         client.admin().indices().prepareRefresh("test").execute().actionGet();
         response = client.prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.match());
-        assertNotNull(response.explanation());
-        assertTrue(response.explanation().isMatch());
-        assertThat(response.explanation().getValue(), equalTo(1.0f));
+        assertTrue(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertTrue(response.getExplanation().isMatch());
+        assertThat(response.getExplanation().getValue(), equalTo(1.0f));
 
         client.admin().indices().prepareRefresh("test").execute().actionGet();
         response = client.prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.termQuery("field", "value2"))
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.exists());
-        assertFalse(response.match());
-        assertNotNull(response.explanation());
-        assertFalse(response.explanation().isMatch());
+        assertTrue(response.isExists());
+        assertFalse(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertFalse(response.getExplanation().isMatch());
 
         client.admin().indices().prepareRefresh("test").execute().actionGet();
         response = client.prepareExplain("test", "test", "1")
@@ -105,18 +105,18 @@ public class ExplainActionTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.exists());
-        assertFalse(response.match());
-        assertNotNull(response.explanation());
-        assertFalse(response.explanation().isMatch());
-        assertThat(response.explanation().getDetails().length, equalTo(2));
+        assertTrue(response.isExists());
+        assertFalse(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertFalse(response.getExplanation().isMatch());
+        assertThat(response.getExplanation().getDetails().length, equalTo(2));
 
         response = client.prepareExplain("test", "test", "2")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
-        assertFalse(response.exists());
-        assertFalse(response.match());
+        assertFalse(response.isExists());
+        assertFalse(response.isMatch());
     }
 
     @Test
@@ -143,23 +143,23 @@ public class ExplainActionTests extends AbstractNodesTests {
                 .setFields("obj1.field1")
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.match());
-        assertNotNull(response.explanation());
-        assertTrue(response.explanation().isMatch());
-        assertThat(response.explanation().getValue(), equalTo(1.0f));
-        assertThat(response.getResult().isExists(), equalTo(true));
-        assertThat(response.getResult().getId(), equalTo("1"));
-        assertThat(response.getResult().getFields().size(), equalTo(1));
-        assertThat(response.getResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
+        assertTrue(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertTrue(response.getExplanation().isMatch());
+        assertThat(response.getExplanation().getValue(), equalTo(1.0f));
+        assertThat(response.getGetResult().isExists(), equalTo(true));
+        assertThat(response.getGetResult().getId(), equalTo("1"));
+        assertThat(response.getGetResult().getFields().size(), equalTo(1));
+        assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
 
         response = client.prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setFields("_source.obj1")
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.match());
-        assertThat(response.getResult().getFields().size(), equalTo(1));
-        Map<String, String> fields = (Map<String, String>) response.getResult().field("_source.obj1").getValue();
+        assertTrue(response.isMatch());
+        assertThat(response.getGetResult().getFields().size(), equalTo(1));
+        Map<String, String> fields = (Map<String, String>) response.getGetResult().field("_source.obj1").getValue();
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get("field1"), equalTo("value1"));
         assertThat(fields.get("field2"), equalTo("value2"));
@@ -183,8 +183,8 @@ public class ExplainActionTests extends AbstractNodesTests {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.exists());
-        assertFalse(response.match());
+        assertTrue(response.isExists());
+        assertFalse(response.isMatch());
     }
 
 }

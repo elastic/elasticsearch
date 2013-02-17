@@ -44,7 +44,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -82,14 +81,14 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     @Override
     protected void resolveRequest(ClusterState state, ExplainRequest request) {
         String concreteIndex = state.metaData().concreteIndex(request.index());
-        request.filteringAlias(state.metaData().filteringAliases(concreteIndex, request.index()));
+        request.setFilteringAlias(state.metaData().filteringAliases(concreteIndex, request.index()));
         request.index(state.metaData().concreteIndex(request.index()));
     }
 
     protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticSearchException {
         IndexService indexService = indicesService.indexService(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
-        Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
+        Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.getType(), request.getId()));
         Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));
         if (!result.exists()) {
             return new ExplainResponse(false);
@@ -97,8 +96,8 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
         SearchContext context = new SearchContext(
                 0,
-                new ShardSearchRequest().types(new String[]{request.type()})
-                        .filteringAliases(request.filteringAlias()),
+                new ShardSearchRequest().types(new String[]{request.getType()})
+                        .filteringAliases(request.getFilteringAlias()),
                 null, result.searcher(), indexService, indexShard,
                 scriptService
         );
@@ -116,14 +115,14 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
             } else {
                 explanation = context.searcher().explain(context.query(), topLevelDocId);
             }
-            if (request.fields() != null) {
-                if (request.fields().length == 1 && "_source".equals(request.fields()[0])) {
-                    request.fields(null); // Load the _source field
+            if (request.getFields() != null) {
+                if (request.getFields().length == 1 && "_source".equals(request.getFields()[0])) {
+                    request.setFields(null); // Load the _source field
                 }
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
-                GetResult getResult = indexShard.getService().get(result, request.id(), request.type(), request.fields());
+                GetResult getResult = indexShard.getService().get(result, request.getId(), request.getType(), request.getFields());
                 return new ExplainResponse(true, explanation, getResult);
             } else {
                 return new ExplainResponse(true, explanation);
@@ -138,7 +137,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     private ParsedQuery parseQuery(ExplainRequest request, IndexService indexService) {
         try {
-            XContentParser parser = XContentHelper.createParser(request.source());
+            XContentParser parser = XContentHelper.createParser(request.getSource());
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
@@ -176,7 +175,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     protected ShardIterator shards(ClusterState state, ExplainRequest request) throws ElasticSearchException {
         return clusterService.operationRouting().getShards(
-                clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference()
+                clusterService.state(), request.index(), request.getType(), request.getId(), request.getRouting(), request.getPreference()
         );
     }
 }

@@ -50,12 +50,12 @@ import java.util.Map;
  * postings format is exposed via
  * <tt>index.codec.postings_format.elastic_fantastic.type : "ElasticFantastic"</tt>.
  * </p>
- * 
+ *
  * @see CodecModule
  */
 public interface PostingsFormatProvider {
     public static final String POSTINGS_FORMAT_SETTINGS_PREFIX = "index.codec.postings_format";
-    
+
     /**
      * A helper class to lookup {@link PostingsFormatProvider providers} by their unique {@link PostingsFormatProvider#name() name}
      */
@@ -64,16 +64,17 @@ public interface PostingsFormatProvider {
         /**
          * Looks up and creates {@link PostingsFormatProvider} for the given name.
          * <p>
-         * The settings for the created {@link PostingsFormatProvider} is taken from the given index settings. 
+         * The settings for the created {@link PostingsFormatProvider} is taken from the given index settings.
          * All settings with the {@value PostingsFormatProvider#POSTINGS_FORMAT_SETTINGS_PREFIX} prefix
          * and the formats name as the key are passed to the factory.
-         * </p>  
-         *  
-         * @param indexSettings the index settings to configure the postings format 
-         * @param name the name of the postings format to lookup
+         * </p>
+         *
+         * @param indexSettings          the index settings to configure the postings format
+         * @param name                   the name of the postings format to lookup
          * @param postingFormatFactories the factory mapping to lookup the {@link Factory} to create the {@link PostingsFormatProvider}
          * @return a fully configured {@link PostingsFormatProvider} for the given name.
-         * @throws ElasticSearchIllegalArgumentException if the no {@link PostingsFormatProvider} for the given name parameter could be found.
+         * @throws ElasticSearchIllegalArgumentException
+         *          if the no {@link PostingsFormatProvider} for the given name parameter could be found.
          */
         public static PostingsFormatProvider lookup(@IndexSettings Settings indexSettings, String name, Map<String, Factory> postingFormatFactories) throws ElasticSearchIllegalArgumentException {
             Factory factory = postingFormatFactories.get(name);
@@ -100,7 +101,7 @@ public interface PostingsFormatProvider {
 
     /**
      * A simple factory used to create {@link PostingsFormatProvider} used by
-     * delegating providers like {@link BloomFilterPostingsFormatProvider} or
+     * delegating providers like {@link BloomFilterLucenePostingsFormatProvider} or
      * {@link PulsingPostingsFormatProvider}. Those providers wrap other
      * postings formats to enrich their capabilities.
      */

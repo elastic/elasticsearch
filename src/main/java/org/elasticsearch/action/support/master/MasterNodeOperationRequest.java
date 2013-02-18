@@ -39,7 +39,7 @@ public abstract class MasterNodeOperationRequest<T extends MasterNodeOperationRe
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
     @SuppressWarnings("unchecked")
-    public final T masterNodeTimeout(TimeValue timeout) {
+    public final T setMasterNodeTimeout(TimeValue timeout) {
         this.masterNodeTimeout = timeout;
         return (T) this;
     }
@@ -47,11 +47,11 @@ public abstract class MasterNodeOperationRequest<T extends MasterNodeOperationRe
     /**
      * A timeout value in case the master has not been discovered yet or disconnected.
      */
-    public final T masterNodeTimeout(String timeout) {
-        return masterNodeTimeout(TimeValue.parseTimeValue(timeout, null));
+    public final T setMasterNodeTimeout(String timeout) {
+        return setMasterNodeTimeout(TimeValue.parseTimeValue(timeout, null));
     }
 
-    public final TimeValue masterNodeTimeout() {
+    public final TimeValue getMasterNodeTimeout() {
         return this.masterNodeTimeout;
     }
 

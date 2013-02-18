@@ -39,7 +39,7 @@ public class DeleteIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * to <tt>10s</tt>.
      */
     public DeleteIndexRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return this;
     }
 
@@ -48,7 +48,7 @@ public class DeleteIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * to <tt>10s</tt>.
      */
     public DeleteIndexRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return this;
     }
 

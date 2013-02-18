@@ -58,23 +58,23 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(RestActions.splitIndices(request.param("index")));
-        clearIndicesCacheRequest.listenerThreaded(false);
+        clearIndicesCacheRequest.setListenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
-            clearIndicesCacheRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            clearIndicesCacheRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         try {
-            clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.filterCache()));
-            clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.fieldDataCache()));
-            clearIndicesCacheRequest.idCache(request.paramAsBoolean("id", clearIndicesCacheRequest.idCache()));
-            clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
-            clearIndicesCacheRequest.filterKeys(request.paramAsStringArray("filter_keys", clearIndicesCacheRequest.filterKeys()));
+            clearIndicesCacheRequest.setFilterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.isFilterCache()));
+            clearIndicesCacheRequest.setFieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.isFieldDataCache()));
+            clearIndicesCacheRequest.setIdCache(request.paramAsBoolean("id", clearIndicesCacheRequest.isIdCache()));
+            clearIndicesCacheRequest.setFields(request.paramAsStringArray("fields", clearIndicesCacheRequest.getFields()));
+            clearIndicesCacheRequest.setFilterKeys(request.paramAsStringArray("filter_keys", clearIndicesCacheRequest.getFilterKeys()));
 
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
             }
-            clearIndicesCacheRequest.operationThreading(operationThreading);
+            clearIndicesCacheRequest.setOperationThreading(operationThreading);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);

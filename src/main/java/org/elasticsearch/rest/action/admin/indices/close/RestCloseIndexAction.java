@@ -49,8 +49,8 @@ public class RestCloseIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(request.param("index"));
-        closeIndexRequest.listenerThreaded(false);
-        closeIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        closeIndexRequest.setListenerThreaded(false);
+        closeIndexRequest.setTimeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().close(closeIndexRequest, new ActionListener<CloseIndexResponse>() {
             @Override
             public void onResponse(CloseIndexResponse response) {
@@ -58,7 +58,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields.ACKNOWLEDGED, response.acknowledged())
+                            .field(Fields.ACKNOWLEDGED, response.isAcknowledged())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {

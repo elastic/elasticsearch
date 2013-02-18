@@ -67,11 +67,11 @@ public class AnalyzeActionTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             AnalyzeResponse analyzeResponse = client.admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
-            assertThat(analyzeResponse.tokens().size(), equalTo(1));
-            AnalyzeResponse.AnalyzeToken token = analyzeResponse.tokens().get(0);
-            assertThat(token.term(), equalTo("test"));
-            assertThat(token.startOffset(), equalTo(10));
-            assertThat(token.endOffset(), equalTo(14));
+            assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+            AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+            assertThat(token.getTerm(), equalTo("test"));
+            assertThat(token.getStartOffset(), equalTo(10));
+            assertThat(token.getEndOffset(), equalTo(14));
         }
     }
 
@@ -80,11 +80,11 @@ public class AnalyzeActionTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         AnalyzeResponse analyzeResponse = client.admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").execute().actionGet();
-        assertThat(analyzeResponse.tokens().size(), equalTo(4));
+        assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
         analyzeResponse = client.admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").setTokenFilters("lowercase").execute().actionGet();
-        assertThat(analyzeResponse.tokens().size(), equalTo(1));
-        assertThat(analyzeResponse.tokens().get(0).term(), equalTo("this is a test"));
+        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+        assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
     }
 
     @Test
@@ -112,11 +112,11 @@ public class AnalyzeActionTests extends AbstractNodesTests {
             final AnalyzeRequestBuilder requestBuilder = client.admin().indices().prepareAnalyze("test", "THIS IS A TEST");
             requestBuilder.setField("document.simple");
             AnalyzeResponse analyzeResponse = requestBuilder.execute().actionGet();
-            assertThat(analyzeResponse.tokens().size(), equalTo(4));
-            AnalyzeResponse.AnalyzeToken token = analyzeResponse.tokens().get(3);
-            assertThat(token.term(), equalTo("test"));
-            assertThat(token.startOffset(), equalTo(10));
-            assertThat(token.endOffset(), equalTo(14));
+            assertThat(analyzeResponse.getTokens().size(), equalTo(4));
+            AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(3);
+            assertThat(token.getTerm(), equalTo("test"));
+            assertThat(token.getStartOffset(), equalTo(10));
+            assertThat(token.getEndOffset(), equalTo(14));
         }
     }
 }

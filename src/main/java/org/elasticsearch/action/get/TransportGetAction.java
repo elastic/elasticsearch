@@ -71,13 +71,13 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, GetRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.getIndex());
     }
 
     @Override
     protected ShardIterator shards(ClusterState state, GetRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing(), request.preference());
+                .getShards(clusterService.state(), request.getIndex(), request.getType(), request.getId(), request.getRouting(), request.getPreference());
     }
 
     @Override
@@ -86,20 +86,20 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
             request.realtime = this.realtime;
         }
         // update the routing (request#index here is possibly an alias)
-        request.routing(state.metaData().resolveIndexRouting(request.routing(), request.index()));
-        request.index(state.metaData().concreteIndex(request.index()));
+        request.setRouting(state.metaData().resolveIndexRouting(request.getRouting(), request.getIndex()));
+        request.setIndex(state.metaData().concreteIndex(request.getIndex()));
     }
 
     @Override
     protected GetResponse shardOperation(GetRequest request, int shardId) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
+        IndexService indexService = indicesService.indexServiceSafe(request.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId);
 
-        if (request.refresh() && !request.realtime()) {
+        if (request.isRefresh() && !request.isRealtime()) {
             indexShard.refresh(new Engine.Refresh(false));
         }
 
-        GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(), request.realtime());
+        GetResult result = indexShard.getService().get(request.getType(), request.getId(), request.getFields(), request.isRealtime());
         return new GetResponse(result);
     }
 

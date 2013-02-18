@@ -46,7 +46,7 @@ public class NodesShutdownRequestBuilder extends MasterNodeOperationRequestBuild
      * The delay for the restart to occur. Defaults to <tt>1s</tt>.
      */
     public NodesShutdownRequestBuilder setDelay(TimeValue delay) {
-        request.delay(delay);
+        request.setDelay(delay);
         return this;
     }
 
@@ -54,7 +54,7 @@ public class NodesShutdownRequestBuilder extends MasterNodeOperationRequestBuild
      * The delay for the restart to occur. Defaults to <tt>1s</tt>.
      */
     public NodesShutdownRequestBuilder setDelay(String delay) {
-        request.delay(delay);
+        request.setDelay(delay);
         return this;
     }
 
@@ -62,7 +62,7 @@ public class NodesShutdownRequestBuilder extends MasterNodeOperationRequestBuild
      * Should the JVM be exited as well or not. Defaults to <tt>true</tt>.
      */
     public NodesShutdownRequestBuilder setExit(boolean exit) {
-        request.exit(exit);
+        request.setExit(exit);
         return this;
     }
 

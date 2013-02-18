@@ -42,7 +42,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * registered).
      */
     public AnalyzeRequestBuilder setIndex(String index) {
-        request.index(index);
+        request.setIndex(index);
         return this;
     }
 
@@ -52,7 +52,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * @param analyzer The analyzer name.
      */
     public AnalyzeRequestBuilder setAnalyzer(String analyzer) {
-        request.analyzer(analyzer);
+        request.setAnalyzer(analyzer);
         return this;
     }
 
@@ -61,7 +61,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * to be set.
      */
     public AnalyzeRequestBuilder setField(String field) {
-        request.field(field);
+        request.setField(field);
         return this;
     }
 
@@ -70,7 +70,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * analyzer.
      */
     public AnalyzeRequestBuilder setTokenizer(String tokenizer) {
-        request.tokenizer(tokenizer);
+        request.setTokenizer(tokenizer);
         return this;
     }
 
@@ -78,7 +78,7 @@ public class AnalyzeRequestBuilder extends SingleCustomOperationRequestBuilder<A
      * Sets token filters that will be used on top of a tokenizer provided.
      */
     public AnalyzeRequestBuilder setTokenFilters(String... tokenFilters) {
-        request.tokenFilters(tokenFilters);
+        request.setTokenFilters(tokenFilters);
         return this;
     }
 

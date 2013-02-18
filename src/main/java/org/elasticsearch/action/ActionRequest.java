@@ -49,7 +49,7 @@ public abstract class ActionRequest<T extends ActionRequest> extends TransportRe
      * <p>When not executing on a thread, it will either be executed on the calling thread, or
      * on an expensive, IO based, thread.
      */
-    public final boolean listenerThreaded() {
+    public final boolean isListenerThreaded() {
         return this.listenerThreaded;
     }
 
@@ -57,7 +57,7 @@ public abstract class ActionRequest<T extends ActionRequest> extends TransportRe
      * Sets if the response listener be executed on a thread or not.
      */
     @SuppressWarnings("unchecked")
-    public final T listenerThreaded(boolean listenerThreaded) {
+    public final T setListenerThreaded(boolean listenerThreaded) {
         this.listenerThreaded = listenerThreaded;
         return (T) this;
     }

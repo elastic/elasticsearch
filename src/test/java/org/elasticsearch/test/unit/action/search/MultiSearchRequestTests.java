@@ -37,54 +37,54 @@ public class MultiSearchRequestTests {
     public void simpleAdd() throws Exception {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/test/unit/action/search/simple-msearch1.json");
         MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, false, null, null, null);
-        assertThat(request.requests().size(), equalTo(5));
-        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(0).types().length, equalTo(0));
-        assertThat(request.requests().get(1).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
-        assertThat(request.requests().get(2).indices(), nullValue());
-        assertThat(request.requests().get(2).types().length, equalTo(0));
-        assertThat(request.requests().get(3).indices(), nullValue());
-        assertThat(request.requests().get(3).types().length, equalTo(0));
-        assertThat(request.requests().get(3).searchType(), equalTo(SearchType.COUNT));
-        assertThat(request.requests().get(4).indices(), nullValue());
-        assertThat(request.requests().get(4).types().length, equalTo(0));
+        assertThat(request.getRequests().size(), equalTo(5));
+        assertThat(request.getRequests().get(0).getIndices()[0], equalTo("test"));
+        assertThat(request.getRequests().get(0).getTypes().length, equalTo(0));
+        assertThat(request.getRequests().get(1).getIndices()[0], equalTo("test"));
+        assertThat(request.getRequests().get(1).getTypes()[0], equalTo("type1"));
+        assertThat(request.getRequests().get(2).getIndices(), nullValue());
+        assertThat(request.getRequests().get(2).getTypes().length, equalTo(0));
+        assertThat(request.getRequests().get(3).getIndices(), nullValue());
+        assertThat(request.getRequests().get(3).getTypes().length, equalTo(0));
+        assertThat(request.getRequests().get(3).getSearchType(), equalTo(SearchType.COUNT));
+        assertThat(request.getRequests().get(4).getIndices(), nullValue());
+        assertThat(request.getRequests().get(4).getTypes().length, equalTo(0));
     }
 
     @Test
     public void simpleAdd2() throws Exception {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/test/unit/action/search/simple-msearch2.json");
         MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, false, null, null, null);
-        assertThat(request.requests().size(), equalTo(5));
-        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(0).types().length, equalTo(0));
-        assertThat(request.requests().get(1).indices()[0], equalTo("test"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
-        assertThat(request.requests().get(2).indices(), nullValue());
-        assertThat(request.requests().get(2).types().length, equalTo(0));
-        assertThat(request.requests().get(3).indices(), nullValue());
-        assertThat(request.requests().get(3).types().length, equalTo(0));
-        assertThat(request.requests().get(3).searchType(), equalTo(SearchType.COUNT));
-        assertThat(request.requests().get(4).indices(), nullValue());
-        assertThat(request.requests().get(4).types().length, equalTo(0));
+        assertThat(request.getRequests().size(), equalTo(5));
+        assertThat(request.getRequests().get(0).getIndices()[0], equalTo("test"));
+        assertThat(request.getRequests().get(0).getTypes().length, equalTo(0));
+        assertThat(request.getRequests().get(1).getIndices()[0], equalTo("test"));
+        assertThat(request.getRequests().get(1).getTypes()[0], equalTo("type1"));
+        assertThat(request.getRequests().get(2).getIndices(), nullValue());
+        assertThat(request.getRequests().get(2).getTypes().length, equalTo(0));
+        assertThat(request.getRequests().get(3).getIndices(), nullValue());
+        assertThat(request.getRequests().get(3).getTypes().length, equalTo(0));
+        assertThat(request.getRequests().get(3).getSearchType(), equalTo(SearchType.COUNT));
+        assertThat(request.getRequests().get(4).getIndices(), nullValue());
+        assertThat(request.getRequests().get(4).getTypes().length, equalTo(0));
     }
     
     @Test
     public void simpleAdd3() throws Exception {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/test/unit/action/search/simple-msearch3.json");
         MultiSearchRequest request = new MultiSearchRequest().add(data, 0, data.length, false, null, null, null);
-        assertThat(request.requests().size(), equalTo(4));
-        assertThat(request.requests().get(0).indices()[0], equalTo("test0"));
-        assertThat(request.requests().get(0).indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(1).indices()[0], equalTo("test2"));
-        assertThat(request.requests().get(1).indices()[1], equalTo("test3"));
-        assertThat(request.requests().get(1).types()[0], equalTo("type1"));
-        assertThat(request.requests().get(2).indices()[0], equalTo("test4"));
-        assertThat(request.requests().get(2).indices()[1], equalTo("test1"));
-        assertThat(request.requests().get(2).types()[0], equalTo("type2"));
-        assertThat(request.requests().get(2).types()[1], equalTo("type1"));
-        assertThat(request.requests().get(3).indices(), nullValue());
-        assertThat(request.requests().get(3).types().length, equalTo(0));
-        assertThat(request.requests().get(3).searchType(), equalTo(SearchType.COUNT));
+        assertThat(request.getRequests().size(), equalTo(4));
+        assertThat(request.getRequests().get(0).getIndices()[0], equalTo("test0"));
+        assertThat(request.getRequests().get(0).getIndices()[1], equalTo("test1"));
+        assertThat(request.getRequests().get(1).getIndices()[0], equalTo("test2"));
+        assertThat(request.getRequests().get(1).getIndices()[1], equalTo("test3"));
+        assertThat(request.getRequests().get(1).getTypes()[0], equalTo("type1"));
+        assertThat(request.getRequests().get(2).getIndices()[0], equalTo("test4"));
+        assertThat(request.getRequests().get(2).getIndices()[1], equalTo("test1"));
+        assertThat(request.getRequests().get(2).getTypes()[0], equalTo("type2"));
+        assertThat(request.getRequests().get(2).getTypes()[1], equalTo("type1"));
+        assertThat(request.getRequests().get(3).getIndices(), nullValue());
+        assertThat(request.getRequests().get(3).getTypes().length, equalTo(0));
+        assertThat(request.getRequests().get(3).getSearchType(), equalTo(SearchType.COUNT));
     }
 }

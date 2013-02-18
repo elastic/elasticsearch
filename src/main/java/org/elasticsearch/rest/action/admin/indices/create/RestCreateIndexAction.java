@@ -50,10 +50,10 @@ public class RestCreateIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
-        createIndexRequest.listenerThreaded(false);
+        createIndexRequest.setListenerThreaded(false);
         if (request.hasContent()) {
             try {
-                createIndexRequest.source(request.content());
+                createIndexRequest.setSource(request.content());
             } catch (Exception e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
@@ -64,7 +64,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
             }
         }
 
-        createIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        createIndexRequest.setTimeout(request.paramAsTime("timeout", timeValueSeconds(10)));
 
         client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
             @Override
@@ -73,7 +73,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
-                            .field("acknowledged", response.acknowledged())
+                            .field("acknowledged", response.isAcknowledged())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Exception e) {

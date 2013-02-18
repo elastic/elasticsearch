@@ -51,15 +51,15 @@ public class RestMainAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.listenerThreaded(false);
-        clusterStateRequest.masterNodeTimeout(TimeValue.timeValueMillis(0));
-        clusterStateRequest.local(true);
-        clusterStateRequest.filterAll().filterBlocks(false);
+        clusterStateRequest.setListenerThreaded(false);
+        clusterStateRequest.setMasterNodeTimeout(TimeValue.timeValueMillis(0));
+        clusterStateRequest.setLocal(true);
+        clusterStateRequest.filterAll().setFilterBlocks(false);
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 RestStatus status = RestStatus.OK;
-                if (response.state().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+                if (response.getState().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
                     status = RestStatus.SERVICE_UNAVAILABLE;
                 }
                 if (request.method() == RestRequest.Method.HEAD) {

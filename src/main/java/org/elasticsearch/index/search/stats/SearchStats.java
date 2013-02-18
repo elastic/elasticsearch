@@ -69,56 +69,32 @@ public class SearchStats implements Streamable, ToXContent {
             fetchCurrent += stats.fetchCurrent;
         }
 
-        public long queryCount() {
-            return queryCount;
-        }
-
         public long getQueryCount() {
             return queryCount;
         }
 
-        public TimeValue queryTime() {
+        public TimeValue getQueryTime() {
             return new TimeValue(queryTimeInMillis);
-        }
-
-        public long queryTimeInMillis() {
-            return queryTimeInMillis;
         }
 
         public long getQueryTimeInMillis() {
             return queryTimeInMillis;
         }
 
-        public long queryCurrent() {
-            return queryCurrent;
-        }
-
         public long getQueryCurrent() {
             return queryCurrent;
-        }
-
-        public long fetchCount() {
-            return fetchCount;
         }
 
         public long getFetchCount() {
             return fetchCount;
         }
 
-        public TimeValue fetchTime() {
+        public TimeValue getFetchTime() {
             return new TimeValue(fetchTimeInMillis);
-        }
-
-        public long fetchTimeInMillis() {
-            return fetchTimeInMillis;
         }
 
         public long getFetchTimeInMillis() {
             return fetchTimeInMillis;
-        }
-
-        public long fetchCurrent() {
-            return fetchCurrent;
         }
 
         public long getFetchCurrent() {
@@ -157,12 +133,12 @@ public class SearchStats implements Streamable, ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.QUERY_TOTAL, queryCount);
-            builder.field(Fields.QUERY_TIME, queryTime().toString());
+            builder.field(Fields.QUERY_TIME, getQueryTime().toString());
             builder.field(Fields.QUERY_TIME_IN_MILLIS, queryTimeInMillis);
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
-            builder.field(Fields.FETCH_TIME, fetchTime().toString());
+            builder.field(Fields.FETCH_TIME, getFetchTime().toString());
             builder.field(Fields.FETCH_TIME_IN_MILLIS, fetchTimeInMillis);
             builder.field(Fields.FETCH_CURRENT, fetchCurrent);
 
@@ -208,12 +184,12 @@ public class SearchStats implements Streamable, ToXContent {
         }
     }
 
-    public Stats total() {
+    public Stats getTotal() {
         return this.totalStats;
     }
 
     @Nullable
-    public Map<String, Stats> groupStats() {
+    public Map<String, Stats> getGroupStats() {
         return this.groupStats;
     }
 

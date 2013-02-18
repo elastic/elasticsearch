@@ -106,7 +106,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             this.listener = listener;
             this.scrollId = scrollId;
             this.nodes = clusterService.state().nodes();
-            this.successfulOps = new AtomicInteger(scrollId.context().length);
+            this.successfulOps = new AtomicInteger(scrollId.getContext().length);
         }
 
         protected final ShardSearchFailure[] buildShardFailures() {
@@ -127,14 +127,14 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         }
 
         public void start() {
-            if (scrollId.context().length == 0) {
+            if (scrollId.getContext().length == 0) {
                 listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", null));
                 return;
             }
-            final AtomicInteger counter = new AtomicInteger(scrollId.context().length);
+            final AtomicInteger counter = new AtomicInteger(scrollId.getContext().length);
 
             int localOperations = 0;
-            for (Tuple<String, Long> target : scrollId.context()) {
+            for (Tuple<String, Long> target : scrollId.getContext()) {
                 DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
                     if (nodes.localNodeId().equals(node.id())) {
@@ -144,7 +144,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                     }
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.source() + "]");
+                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.getSource() + "]");
                     }
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
@@ -154,11 +154,11 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             }
 
             if (localOperations > 0) {
-                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
+                if (request.getOperationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
-                            for (Tuple<String, Long> target : scrollId.context()) {
+                            for (Tuple<String, Long> target : scrollId.getContext()) {
                                 DiscoveryNode node = nodes.get(target.v1());
                                 if (node != null && nodes.localNodeId().equals(node.id())) {
                                     executeQueryPhase(counter, node, target.v2());
@@ -167,8 +167,8 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                         }
                     });
                 } else {
-                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    for (final Tuple<String, Long> target : scrollId.context()) {
+                    boolean localAsync = request.getOperationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
+                    for (final Tuple<String, Long> target : scrollId.getContext()) {
                         final DiscoveryNode node = nodes.get(target.v1());
                         if (node != null && nodes.localNodeId().equals(node.id())) {
                             if (localAsync) {
@@ -261,10 +261,10 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         private void innerFinishHim() {
             InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
             String scrollId = null;
-            if (request.scroll() != null) {
-                scrollId = request.scrollId();
+            if (request.getScroll() != null) {
+                scrollId = request.getScrollId();
             }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.context().length, successfulOps.get(),
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
                     System.currentTimeMillis() - startTime, buildShardFailures()));
             searchCache.releaseQueryResults(queryResults);
             searchCache.releaseFetchResults(fetchResults);

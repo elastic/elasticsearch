@@ -38,7 +38,7 @@ public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNo
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setMasterNodeTimeout(TimeValue timeout) {
-        request.masterNodeTimeout(timeout);
+        request.setMasterNodeTimeout(timeout);
         return (RequestBuilder) this;
     }
 
@@ -47,7 +47,7 @@ public abstract class MasterNodeOperationRequestBuilder<Request extends MasterNo
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setMasterNodeTimeout(String timeout) {
-        request.masterNodeTimeout(timeout);
+        request.setMasterNodeTimeout(timeout);
         return (RequestBuilder) this;
     }
 

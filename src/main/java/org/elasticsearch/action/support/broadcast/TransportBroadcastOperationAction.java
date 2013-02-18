@@ -138,7 +138,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 throw blockException;
             }
             // update to concrete indices
-            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
+            String[] concreteIndices = clusterState.metaData().concreteIndices(request.getIndices(), request.getIgnoreIndices(), true);
             blockException = checkRequestBlock(clusterState, request, concreteIndices);
             if (blockException != null) {
                 throw blockException;
@@ -175,7 +175,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             }
             // we have local operations, perform them now
             if (localOperations > 0) {
-                if (request.operationThreading() == BroadcastOperationThreading.SINGLE_THREAD) {
+                if (request.getOperationThreading() == BroadcastOperationThreading.SINGLE_THREAD) {
                     request.beforeLocalFork();
                     threadPool.executor(executor).execute(new Runnable() {
                         @Override
@@ -191,7 +191,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                         }
                     });
                 } else {
-                    boolean localAsync = request.operationThreading() == BroadcastOperationThreading.THREAD_PER_SHARD;
+                    boolean localAsync = request.getOperationThreading() == BroadcastOperationThreading.THREAD_PER_SHARD;
                     if (localAsync) {
                         request.beforeLocalFork();
                     }
@@ -354,10 +354,10 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         @Override
         public void messageReceived(Request request, final TransportChannel channel) throws Exception {
             // we just send back a response, no need to fork a listener
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             // we don't spawn, so if we get a request with no threading, change it to single threaded
-            if (request.operationThreading() == BroadcastOperationThreading.NO_THREADS) {
-                request.operationThreading(BroadcastOperationThreading.SINGLE_THREAD);
+            if (request.getOperationThreading() == BroadcastOperationThreading.NO_THREADS) {
+                request.setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD);
             }
             execute(request, new ActionListener<Response>() {
                 @Override

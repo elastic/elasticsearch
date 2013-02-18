@@ -121,7 +121,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
     BulkRequest internalAdd(IndexRequest request, @Nullable Object payload) {
         requests.add(request);
         addPayload(payload);
-        sizeInBytes += request.source().length() + REQUEST_OVERHEAD;
+        sizeInBytes += request.getSource().length() + REQUEST_OVERHEAD;
         return this;
     }
 
@@ -285,7 +285,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 }
 
                 if ("delete".equals(action)) {
-                    add(new DeleteRequest(index, type, id).parent(parent).version(version).versionType(versionType).routing(routing), payload);
+                    add(new DeleteRequest(index, type, id).setParent(parent).setVersion(version).setVersionType(versionType).setRouting(routing), payload);
                 } else {
                     nextMarker = findNextMarker(marker, from, data, length);
                     if (nextMarker == -1) {
@@ -296,20 +296,20 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                     // of index request. All index requests are still unsafe if applicable.
                     if ("index".equals(action)) {
                         if (opType == null) {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .source(data.slice(from, nextMarker - from), contentUnsafe)
-                                    .percolate(percolate), payload);
+                            internalAdd(new IndexRequest(index, type, id).setRouting(routing).setParent(parent).setTimestamp(timestamp).setTtl(ttl).setVersion(version).setVersionType(versionType)
+                                    .setSource(data.slice(from, nextMarker - from), contentUnsafe)
+                                    .setPercolate(percolate), payload);
                         } else {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .create("create".equals(opType))
-                                    .source(data.slice(from, nextMarker - from), contentUnsafe)
-                                    .percolate(percolate), payload);
+                            internalAdd(new IndexRequest(index, type, id).setRouting(routing).setParent(parent).setTimestamp(timestamp).setTtl(ttl).setVersion(version).setVersionType(versionType)
+                                    .setCreate("create".equals(opType))
+                                    .setSource(data.slice(from, nextMarker - from), contentUnsafe)
+                                    .setPercolate(percolate), payload);
                         }
                     } else if ("create".equals(action)) {
-                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                .create(true)
-                                .source(data.slice(from, nextMarker - from), contentUnsafe)
-                                .percolate(percolate), payload);
+                        internalAdd(new IndexRequest(index, type, id).setRouting(routing).setParent(parent).setTimestamp(timestamp).setTtl(ttl).setVersion(version).setVersionType(versionType)
+                                .setCreate(true)
+                                .setSource(data.slice(from, nextMarker - from), contentUnsafe)
+                                .setPercolate(percolate), payload);
                     }
                     // move pointers
                     from = nextMarker + 1;

@@ -68,7 +68,7 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        bulkRequest.listenerThreaded(false);
+        bulkRequest.setListenerThreaded(false);
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
 
@@ -99,28 +99,28 @@ public class RestBulkAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field(Fields.TOOK, response.tookInMillis());
+                    builder.field(Fields.TOOK, response.getTookInMillis());
                     builder.startArray(Fields.ITEMS);
                     for (BulkItemResponse itemResponse : response) {
                         builder.startObject();
-                        builder.startObject(itemResponse.opType());
-                        builder.field(Fields._INDEX, itemResponse.index());
-                        builder.field(Fields._TYPE, itemResponse.type());
-                        builder.field(Fields._ID, itemResponse.id());
-                        long version = itemResponse.version();
+                        builder.startObject(itemResponse.getOpType());
+                        builder.field(Fields._INDEX, itemResponse.getIndex());
+                        builder.field(Fields._TYPE, itemResponse.getType());
+                        builder.field(Fields._ID, itemResponse.getId());
+                        long version = itemResponse.getVersion();
                         if (version != -1) {
-                            builder.field(Fields._VERSION, itemResponse.version());
+                            builder.field(Fields._VERSION, itemResponse.getVersion());
                         }
-                        if (itemResponse.failed()) {
-                            builder.field(Fields.ERROR, itemResponse.failure().message());
+                        if (itemResponse.isFailed()) {
+                            builder.field(Fields.ERROR, itemResponse.getFailure().getMessage());
                         } else {
                             builder.field(Fields.OK, true);
                         }
-                        if (itemResponse.response() instanceof IndexResponse) {
-                            IndexResponse indexResponse = itemResponse.response();
-                            if (indexResponse.matches() != null) {
+                        if (itemResponse.getResponse() instanceof IndexResponse) {
+                            IndexResponse indexResponse = itemResponse.getResponse();
+                            if (indexResponse.getMatches() != null) {
                                 builder.startArray(Fields.MATCHES);
-                                for (String match : indexResponse.matches()) {
+                                for (String match : indexResponse.getMatches()) {
                                     builder.value(match);
                                 }
                                 builder.endArray();

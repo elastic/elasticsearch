@@ -48,11 +48,11 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
 
     IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, @Nullable Set<String> routing, @Nullable String[] filteringAliases) {
         this.index = index;
-        this.timeout = request.timeout();
-        this.querySource = request.querySource();
-        this.types = request.types();
-        this.replicationType = request.replicationType();
-        this.consistencyLevel = request.consistencyLevel();
+        this.timeout = request.getTimeout();
+        this.querySource = request.getQuerySource();
+        this.types = request.getTypes();
+        this.replicationType = request.getReplicationType();
+        this.consistencyLevel = request.getConsistencyLevel();
         this.routing = routing;
         this.filteringAliases = filteringAliases;
     }
@@ -60,7 +60,7 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
     IndexDeleteByQueryRequest() {
     }
 
-    BytesReference querySource() {
+    public BytesReference getQuerySource() {
         return querySource;
     }
 
@@ -73,19 +73,19 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
         return validationException;
     }
 
-    Set<String> routing() {
+    public Set<String> getRouting() {
         return this.routing;
     }
 
-    String[] types() {
+    public String[] getTypes() {
         return this.types;
     }
 
-    String[] filteringAliases() {
+    public String[] getFilteringAliases() {
         return filteringAliases;
     }
 
-    public IndexDeleteByQueryRequest timeout(TimeValue timeout) {
+    public IndexDeleteByQueryRequest setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }

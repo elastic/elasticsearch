@@ -50,11 +50,11 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
-        clusterRerouteRequest.listenerThreaded(false);
+        clusterRerouteRequest.setListenerThreaded(false);
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
         if (request.hasContent()) {
             try {
-                clusterRerouteRequest.source(request.content());
+                clusterRerouteRequest.setSource(request.content());
             } catch (Exception e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));
@@ -77,7 +77,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                     if (request.param("filter_metadata") == null) {
                         request.params().put("filter_metadata", "true");
                     }
-                    response.state().settingsFilter(settingsFilter).toXContent(builder, request);
+                    response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
                     builder.endObject();
 
                     builder.endObject();

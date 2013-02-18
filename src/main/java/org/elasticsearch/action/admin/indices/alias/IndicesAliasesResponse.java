@@ -40,14 +40,9 @@ public class IndicesAliasesResponse extends ActionResponse {
         this.acknowledged = acknowledged;
     }
 
-    public boolean acknowledged() {
+    public boolean isAcknowledged() {
         return acknowledged;
     }
-
-    public boolean getAcknowledged() {
-        return acknowledged();
-    }
-
 
     @Override
     public void readFrom(StreamInput in) throws IOException {

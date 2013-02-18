@@ -55,23 +55,23 @@ public class RestClusterStateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest();
-        clusterStateRequest.listenerThreaded(false);
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        clusterStateRequest.filterNodes(request.paramAsBoolean("filter_nodes", clusterStateRequest.filterNodes()));
-        clusterStateRequest.filterRoutingTable(request.paramAsBoolean("filter_routing_table", clusterStateRequest.filterRoutingTable()));
-        clusterStateRequest.filterMetaData(request.paramAsBoolean("filter_metadata", clusterStateRequest.filterMetaData()));
-        clusterStateRequest.filterBlocks(request.paramAsBoolean("filter_blocks", clusterStateRequest.filterBlocks()));
-        clusterStateRequest.filteredIndices(RestActions.splitIndices(request.param("filter_indices", null)));
-        clusterStateRequest.filteredIndexTemplates(request.paramAsStringArray("filter_index_templates", Strings.EMPTY_ARRAY));
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        clusterStateRequest.setListenerThreaded(false);
+        clusterStateRequest.setMasterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.getMasterNodeTimeout()));
+        clusterStateRequest.setFilterNodes(request.paramAsBoolean("filter_nodes", clusterStateRequest.isFilterNodes()));
+        clusterStateRequest.setFilterRoutingTable(request.paramAsBoolean("filter_routing_table", clusterStateRequest.isFilterRoutingTable()));
+        clusterStateRequest.setFilterMetaData(request.paramAsBoolean("filter_metadata", clusterStateRequest.isFilterMetaData()));
+        clusterStateRequest.setFilterBlocks(request.paramAsBoolean("filter_blocks", clusterStateRequest.isFilterBlocks()));
+        clusterStateRequest.setFilteredIndices(RestActions.splitIndices(request.param("filter_indices", null)));
+        clusterStateRequest.setFilteredIndexTemplates(request.paramAsStringArray("filter_index_templates", Strings.EMPTY_ARRAY));
+        clusterStateRequest.setLocal(request.paramAsBoolean("local", clusterStateRequest.isLocal()));
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field(Fields.CLUSTER_NAME, response.clusterName().value());
-                    response.state().settingsFilter(settingsFilter).toXContent(builder, request);
+                    builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
+                    response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Exception e) {

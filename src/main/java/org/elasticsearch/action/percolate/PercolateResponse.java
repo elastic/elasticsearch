@@ -43,7 +43,7 @@ public class PercolateResponse extends ActionResponse implements Iterable<String
         this.matches = matches;
     }
 
-    public List<String> matches() {
+    public List<String> getMatches() {
         return this.matches;
     }
 

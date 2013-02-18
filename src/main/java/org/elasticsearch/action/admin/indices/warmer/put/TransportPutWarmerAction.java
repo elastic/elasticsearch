@@ -81,7 +81,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
 
     @Override
     protected ClusterBlockException checkBlock(PutWarmerRequest request, ClusterState state) {
-        String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.searchRequest().indices());
+        String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.getSearchRequest().getIndices());
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
     }
 
@@ -89,11 +89,11 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
     protected PutWarmerResponse masterOperation(final PutWarmerRequest request, ClusterState state) throws ElasticSearchException {
 
         // first execute the search request, see that its ok...
-        SearchResponse searchResponse = searchAction.execute(request.searchRequest()).actionGet();
+        SearchResponse searchResponse = searchAction.execute(request.getSearchRequest()).actionGet();
         // check no shards errors
         //TODO: better failure to raise...
-        if (searchResponse.failedShards() > 0) {
-            throw new ElasticSearchException("search failed with failed shards: " + Arrays.toString(searchResponse.shardFailures()));
+        if (searchResponse.getFailedShards() > 0) {
+            throw new ElasticSearchException("search failed with failed shards: " + Arrays.toString(searchResponse.getShardFailures()));
         }
 
         // all is well, continue to the cluster service
@@ -101,18 +101,18 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
-        clusterService.submitStateUpdateTask("put_warmer [" + request.name() + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("put_warmer [" + request.getName() + "]", new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 MetaData metaData = currentState.metaData();
-                String[] concreteIndices = metaData.concreteIndices(request.searchRequest().indices());
+                String[] concreteIndices = metaData.concreteIndices(request.getSearchRequest().getIndices());
 
 
                 BytesReference source = null;
-                if (request.searchRequest().source() != null && request.searchRequest().source().length() > 0) {
-                    source = request.searchRequest().source();
-                } else if (request.searchRequest().extraSource() != null && request.searchRequest().extraSource().length() > 0) {
-                    source = request.searchRequest().extraSource();
+                if (request.getSearchRequest().getSource() != null && request.getSearchRequest().getSource().length() > 0) {
+                    source = request.getSearchRequest().getSource();
+                } else if (request.getSearchRequest().getExtraSource() != null && request.getSearchRequest().getExtraSource().length() > 0) {
+                    source = request.getSearchRequest().getExtraSource();
                 }
 
                 // now replace it on the metadata
@@ -125,24 +125,24 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                     }
                     IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                     if (warmers == null) {
-                        logger.info("[{}] putting warmer [{}]", index, request.name());
-                        warmers = new IndexWarmersMetaData(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
+                        logger.info("[{}] putting warmer [{}]", index, request.getName());
+                        warmers = new IndexWarmersMetaData(new IndexWarmersMetaData.Entry(request.getName(), request.getSearchRequest().getTypes(), source));
                     } else {
                         boolean found = false;
                         List<IndexWarmersMetaData.Entry> entries = new ArrayList<IndexWarmersMetaData.Entry>(warmers.entries().size() + 1);
                         for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                            if (entry.name().equals(request.name())) {
+                            if (entry.name().equals(request.getName())) {
                                 found = true;
-                                entries.add(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
+                                entries.add(new IndexWarmersMetaData.Entry(request.getName(), request.getSearchRequest().getTypes(), source));
                             } else {
                                 entries.add(entry);
                             }
                         }
                         if (!found) {
-                            logger.info("[{}] put warmer [{}]", index, request.name());
-                            entries.add(new IndexWarmersMetaData.Entry(request.name(), request.searchRequest().types(), source));
+                            logger.info("[{}] put warmer [{}]", index, request.getName());
+                            entries.add(new IndexWarmersMetaData.Entry(request.getName(), request.getSearchRequest().getTypes(), source));
                         } else {
-                            logger.info("[{}] update warmer [{}]", index, request.name());
+                            logger.info("[{}] update warmer [{}]", index, request.getName());
                         }
                         warmers = new IndexWarmersMetaData(entries.toArray(new IndexWarmersMetaData.Entry[entries.size()]));
                     }

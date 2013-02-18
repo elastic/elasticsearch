@@ -73,7 +73,7 @@ public class SuggestSearchBenchMark {
                     .endObject()
                     .endObject().endObject()).execute().actionGet();
             ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-            if (clusterHealthResponse.timedOut()) {
+            if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> Timed out waiting for cluster health");
             }
 
@@ -89,7 +89,7 @@ public class SuggestSearchBenchMark {
                 int termCounter = 0;
                 BulkRequestBuilder request = client.prepareBulk();
                 for (int j = 0; j < BATCH; j++) {
-                    request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(idCounter++)).source(source("prefix" + character + termCounter++)));
+                    request.add(Requests.indexRequest("test").setType("type1").setId(Integer.toString(idCounter++)).setSource(source("prefix" + character + termCounter++)));
                 }
                 character++;
                 BulkResponse response = request.execute().actionGet();
@@ -100,15 +100,15 @@ public class SuggestSearchBenchMark {
             System.out.println("Indexing took " + stopWatch.totalTime());
 
             client.admin().indices().prepareRefresh().execute().actionGet();
-            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
+            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
         } catch (Exception e) {
             System.out.println("--> Index already exists, ignoring indexing phase, waiting for green");
             ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
-            if (clusterHealthResponse.timedOut()) {
+            if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> Timed out waiting for cluster health");
             }
             client.admin().indices().prepareRefresh().execute().actionGet();
-            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
+            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
         }
 
 
@@ -120,7 +120,7 @@ public class SuggestSearchBenchMark {
                     .setQuery(prefixQuery("field", term))
                     .addSuggestion(new SuggestBuilder.FuzzySuggestion("field").setField("field").setText(term).setSuggestMode("always"))
                     .execute().actionGet();
-            if (response.hits().totalHits() == 0) {
+            if (response.getHits().totalHits() == 0) {
                 System.err.println("No hits");
                 continue;
             }
@@ -137,12 +137,12 @@ public class SuggestSearchBenchMark {
                     .setQuery(matchQuery("field", term))
                     .addSuggestion(new SuggestBuilder.FuzzySuggestion("field").setText(term).setField("field").setSuggestMode("always"))
                     .execute().actionGet();
-            timeTaken += response.tookInMillis();
-            if (response.suggest() == null) {
+            timeTaken += response.getTookInMillis();
+            if (response.getSuggest() == null) {
                 System.err.println("No suggestions");
                 continue;
             }
-            List<Suggest.Suggestion.Entry.Option> options = response.suggest().getSuggestions().get(0).getEntries().get(0).getOptions();
+            List<Suggest.Suggestion.Entry.Option> options = response.getSuggest().getSuggestions().get(0).getEntries().get(0).getOptions();
             if (options == null || options.isEmpty()) {
                 System.err.println("No suggestions");
             }

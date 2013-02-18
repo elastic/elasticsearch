@@ -50,11 +50,11 @@ public class RestPutWarmerAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
-        putWarmerRequest.listenerThreaded(false);
+        putWarmerRequest.setListenerThreaded(false);
         SearchRequest searchRequest = new SearchRequest(RestActions.splitIndices(request.param("index")))
-                .types(RestActions.splitTypes(request.param("type")))
-                .source(request.content(), request.contentUnsafe());
-        putWarmerRequest.searchRequest(searchRequest);
+                .setTypes(RestActions.splitTypes(request.param("type")))
+                .setSource(request.content(), request.contentUnsafe());
+        putWarmerRequest.setSearchRequest(searchRequest);
         client.admin().indices().putWarmer(putWarmerRequest, new ActionListener<PutWarmerResponse>() {
             @Override
             public void onResponse(PutWarmerResponse response) {
@@ -62,7 +62,7 @@ public class RestPutWarmerAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
-                            .field("acknowledged", response.acknowledged());
+                            .field("acknowledged", response.isAcknowledged());
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {

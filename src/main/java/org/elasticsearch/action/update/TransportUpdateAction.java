@@ -135,7 +135,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, UpdateRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.getIndex());
     }
 
     @Override
@@ -150,18 +150,18 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected boolean resolveRequest(ClusterState state, UpdateRequest request, ActionListener<UpdateResponse> listener) {
         MetaData metaData = clusterService.state().metaData();
-        String aliasOrIndex = request.index();
-        request.routing((metaData.resolveIndexRouting(request.routing(), aliasOrIndex)));
-        request.index(metaData.concreteIndex(request.index()));
+        String aliasOrIndex = request.getIndex();
+        request.setRouting((metaData.resolveIndexRouting(request.getRouting(), aliasOrIndex)));
+        request.setIndex(metaData.concreteIndex(request.getIndex()));
         return true;
     }
 
     @Override
     protected void doExecute(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
-        if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
+        if (autoCreateIndex.shouldAutoCreate(request.getIndex(), clusterService.state())) {
             request.beforeLocalFork(); // we fork on another thread...
-            createIndexAction.execute(new CreateIndexRequest(request.index()).cause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request.getIndex()).setCause("auto(update api)").setMasterNodeTimeout(request.getTimeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -192,11 +192,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, UpdateRequest request) throws ElasticSearchException {
-        if (request.shardId() != -1) {
-            return clusterState.routingTable().index(request.index()).shard(request.shardId()).primaryShardIt();
+        if (request.getShardId() != -1) {
+            return clusterState.routingTable().index(request.getIndex()).shard(request.getShardId()).primaryShardIt();
         }
         ShardIterator shardIterator = clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
+                .indexShards(clusterService.state(), request.getIndex(), request.getType(), request.getId(), request.getRouting());
         ShardRouting shard;
         while ((shard = shardIterator.nextOrNull()) != null) {
             if (shard.primary()) {
@@ -212,40 +212,40 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexService indexService = indicesService.indexServiceSafe(request.getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.getShardId());
 
         long getDate = System.currentTimeMillis();
-        final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
+        final GetResult getResult = indexShard.getService().get(request.getType(), request.getId(),
                 new String[]{SourceFieldMapper.NAME, RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME}, true);
 
         // no doc, what to do, what to do...
-        if (!getResult.exists()) {
-            if (request.upsertRequest() == null) {
-                listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+        if (!getResult.isExists()) {
+            if (request.getUpsertRequest() == null) {
+                listener.onFailure(new DocumentMissingException(new ShardId(request.getIndex(), request.getShardId()), request.getType(), request.getId()));
                 return;
             }
-            final IndexRequest indexRequest = request.upsertRequest();
-            indexRequest.index(request.index()).type(request.type()).id(request.id())
+            final IndexRequest indexRequest = request.getUpsertRequest();
+            indexRequest.setIndex(request.getIndex()).setType(request.getType()).setId(request.getId())
                     // it has to be a "create!"
-                    .create(true)
-                    .routing(request.routing())
-                    .percolate(request.percolate())
-                    .refresh(request.refresh())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
-            indexRequest.operationThreaded(false);
+                    .setCreate(true)
+                    .setRouting(request.getRouting())
+                    .setPercolate(request.getPercolate())
+                    .setRefresh(request.isRefresh())
+                    .setReplicationType(request.setReplicationType()).setConsistencyLevel(request.getConsistencyLevel());
+            indexRequest.setOperationThreaded(false);
             // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-            final BytesReference updateSourceBytes = indexRequest.source();
+            final BytesReference updateSourceBytes = indexRequest.getSource();
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
-                    UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
-                    update.matches(response.matches());
-                    if (request.fields() != null && request.fields().length > 0) {
+                    UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
+                    update.setMatches(response.getMatches());
+                    if (request.getFields() != null && request.getFields().length > 0) {
                         Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(updateSourceBytes, true);
-                        update.getResult(extractGetResult(request, response.version(), sourceAndContent.v2(), sourceAndContent.v1(), updateSourceBytes));
+                        update.setGetResult(extractGetResult(request, response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), updateSourceBytes));
                     } else {
-                        update.getResult(null);
+                        update.setGetResult(null);
                     }
                     listener.onResponse(update);
                 }
@@ -254,7 +254,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 public void onFailure(Throwable e) {
                     e = ExceptionsHelper.unwrapCause(e);
                     if (e instanceof VersionConflictEngineException || e instanceof DocumentAlreadyExistsException) {
-                        if (retryCount < request.retryOnConflict()) {
+                        if (retryCount < request.getRetryOnConflict()) {
                             threadPool.executor(executor()).execute(new Runnable() {
                                 @Override
                                 public void run() {
@@ -272,7 +272,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
         if (getResult.internalSourceRef() == null) {
             // no source, we can't do nothing, through a failure...
-            listener.onFailure(new DocumentSourceMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+            listener.onFailure(new DocumentSourceMissingException(new ShardId(request.getIndex(), request.getShardId()), request.getType(), request.getId()));
             return;
         }
 
@@ -283,23 +283,23 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         Object fetchedTTL = null;
         final Map<String, Object> updatedSourceAsMap;
         final XContentType updateSourceContentType = sourceAndContent.v1();
-        String routing = getResult.fields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).value().toString() : null;
-        String parent = getResult.fields().containsKey(ParentFieldMapper.NAME) ? getResult.field(ParentFieldMapper.NAME).value().toString() : null;
+        String routing = getResult.getFields().containsKey(RoutingFieldMapper.NAME) ? getResult.field(RoutingFieldMapper.NAME).getValue().toString() : null;
+        String parent = getResult.getFields().containsKey(ParentFieldMapper.NAME) ? getResult.field(ParentFieldMapper.NAME).getValue().toString() : null;
 
-        if (request.script() == null && request.doc() != null) {
-            IndexRequest indexRequest = request.doc();
+        if (request.getScript() == null && request.getDoc() != null) {
+            IndexRequest indexRequest = request.getDoc();
             updatedSourceAsMap = sourceAndContent.v2();
-            if (indexRequest.ttl() > 0) {
-                ttl = indexRequest.ttl();
+            if (indexRequest.getTtl() > 0) {
+                ttl = indexRequest.getTtl();
             }
-            timestamp = indexRequest.timestamp();
-            if (indexRequest.routing() != null) {
-                routing = indexRequest.routing();
+            timestamp = indexRequest.getTimestamp();
+            if (indexRequest.getRouting() != null) {
+                routing = indexRequest.getRouting();
             }
-            if (indexRequest.parent() != null) {
-                parent = indexRequest.parent();
+            if (indexRequest.getParent() != null) {
+                parent = indexRequest.getParent();
             }
-            XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap());
+            XContentHelper.update(updatedSourceAsMap, indexRequest.getSourceAsMap());
         } else {
             Map<String, Object> ctx = new HashMap<String, Object>(2);
             ctx.put("_source", sourceAndContent.v2());
@@ -331,7 +331,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // apply script to update the source
         // No TTL has been given in the update script so we keep previous TTL value if there is one
         if (ttl == null) {
-            ttl = getResult.fields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).value() : null;
+            ttl = getResult.getFields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).getValue() : null;
             if (ttl != null) {
                 ttl = ttl - (System.currentTimeMillis() - getDate); // It is an approximation of exact TTL value, could be improved
             }
@@ -340,21 +340,21 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // TODO: external version type, does it make sense here? does not seem like it...
 
         if (operation == null || "index".equals(operation)) {
-            final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
-                    .source(updatedSourceAsMap, updateSourceContentType)
-                    .version(getResult.version()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
-                    .timestamp(timestamp).ttl(ttl)
-                    .percolate(request.percolate())
-                    .refresh(request.refresh());
-            indexRequest.operationThreaded(false);
+            final IndexRequest indexRequest = Requests.indexRequest(request.getIndex()).setType(request.getType()).setId(request.getId()).setRouting(routing).setParent(parent)
+                    .setSource(updatedSourceAsMap, updateSourceContentType)
+                    .setVersion(getResult.getVersion()).setReplicationType(request.setReplicationType()).setConsistencyLevel(request.getConsistencyLevel())
+                    .setTimestamp(timestamp).setTtl(ttl)
+                    .setPercolate(request.getPercolate())
+                    .setRefresh(request.isRefresh());
+            indexRequest.setOperationThreaded(false);
             // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-            final BytesReference updateSourceBytes = indexRequest.source();
+            final BytesReference updateSourceBytes = indexRequest.getSource();
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
-                    UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
-                    update.matches(response.matches());
-                    update.getResult(extractGetResult(request, response.version(), updatedSourceAsMap, updateSourceContentType, updateSourceBytes));
+                    UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
+                    update.setMatches(response.getMatches());
+                    update.setGetResult(extractGetResult(request, response.getVersion(), updatedSourceAsMap, updateSourceContentType, updateSourceBytes));
                     listener.onResponse(update);
                 }
 
@@ -362,7 +362,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 public void onFailure(Throwable e) {
                     e = ExceptionsHelper.unwrapCause(e);
                     if (e instanceof VersionConflictEngineException) {
-                        if (retryCount < request.retryOnConflict()) {
+                        if (retryCount < request.getRetryOnConflict()) {
                             threadPool.executor(executor()).execute(new Runnable() {
                                 @Override
                                 public void run() {
@@ -376,14 +376,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 }
             });
         } else if ("delete".equals(operation)) {
-            DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
-                    .version(getResult.version()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
-            deleteRequest.operationThreaded(false);
+            DeleteRequest deleteRequest = Requests.deleteRequest(request.getIndex()).setType(request.getType()).setId(request.getId()).setRouting(routing).setParent(parent)
+                    .setVersion(getResult.getVersion()).setReplicationType(request.setReplicationType()).setConsistencyLevel(request.getConsistencyLevel());
+            deleteRequest.setOperationThreaded(false);
             deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse response) {
-                    UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
-                    update.getResult(extractGetResult(request, response.version(), updatedSourceAsMap, updateSourceContentType, null));
+                    UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
+                    update.setGetResult(extractGetResult(request, response.getVersion(), updatedSourceAsMap, updateSourceContentType, null));
                     listener.onResponse(update);
                 }
 
@@ -391,7 +391,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 public void onFailure(Throwable e) {
                     e = ExceptionsHelper.unwrapCause(e);
                     if (e instanceof VersionConflictEngineException) {
-                        if (retryCount < request.retryOnConflict()) {
+                        if (retryCount < request.getRetryOnConflict()) {
                             threadPool.executor(executor()).execute(new Runnable() {
                                 @Override
                                 public void run() {
@@ -405,26 +405,26 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 }
             });
         } else if ("none".equals(operation)) {
-            UpdateResponse update = new UpdateResponse(getResult.index(), getResult.type(), getResult.id(), getResult.version());
-            update.getResult(extractGetResult(request, getResult.version(), updatedSourceAsMap, updateSourceContentType, null));
+            UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion());
+            update.setGetResult(extractGetResult(request, getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, null));
             listener.onResponse(update);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script);
-            listener.onResponse(new UpdateResponse(getResult.index(), getResult.type(), getResult.id(), getResult.version()));
+            listener.onResponse(new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion()));
         }
     }
 
     @Nullable
     protected GetResult extractGetResult(final UpdateRequest request, long version, final Map<String, Object> source, XContentType sourceContentType, @Nullable final BytesReference sourceAsBytes) {
-        if (request.fields() == null || request.fields().length == 0) {
+        if (request.getFields() == null || request.getFields().length == 0) {
             return null;
         }
         boolean sourceRequested = false;
         Map<String, GetField> fields = null;
-        if (request.fields() != null && request.fields().length > 0) {
+        if (request.getFields() != null && request.getFields().length > 0) {
             SourceLookup sourceLookup = new SourceLookup();
             sourceLookup.setNextSource(source);
-            for (String field : request.fields()) {
+            for (String field : request.getFields()) {
                 if (field.equals("_source")) {
                     sourceRequested = true;
                     continue;
@@ -439,13 +439,13 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         getField = new GetField(field, new ArrayList<Object>(2));
                         fields.put(field, getField);
                     }
-                    getField.values().add(value);
+                    getField.getValues().add(value);
                 }
             }
         }
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
 
-        return new GetResult(request.index(), request.type(), request.id(), version, true, sourceRequested ? sourceAsBytes : null, fields);
+        return new GetResult(request.getIndex(), request.getType(), request.getId(), version, true, sourceRequested ? sourceAsBytes : null, fields);
     }
 }

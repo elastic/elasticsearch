@@ -43,50 +43,50 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
     public ClearIndicesCacheRequest(String... indices) {
         super(indices);
         // we want to do the refresh in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
+        setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
-    public boolean filterCache() {
+    public boolean isFilterCache() {
         return filterCache;
     }
 
-    public ClearIndicesCacheRequest filterCache(boolean filterCache) {
+    public ClearIndicesCacheRequest setFilterCache(boolean filterCache) {
         this.filterCache = filterCache;
         return this;
     }
 
-    public boolean fieldDataCache() {
+    public boolean isFieldDataCache() {
         return this.fieldDataCache;
     }
 
-    public ClearIndicesCacheRequest fieldDataCache(boolean fieldDataCache) {
+    public ClearIndicesCacheRequest setFieldDataCache(boolean fieldDataCache) {
         this.fieldDataCache = fieldDataCache;
         return this;
     }
 
-    public ClearIndicesCacheRequest fields(String... fields) {
+    public ClearIndicesCacheRequest setFields(String... fields) {
         this.fields = fields;
         return this;
     }
 
-    public String[] fields() {
+    public String[] getFields() {
         return this.fields;
     }
 
-    public ClearIndicesCacheRequest filterKeys(String... filterKeys) {
+    public ClearIndicesCacheRequest setFilterKeys(String... filterKeys) {
         this.filterKeys = filterKeys;
         return this;
     }
 
-    public String[] filterKeys() {
+    public String[] getFilterKeys() {
         return this.filterKeys;
     }
 
-    public boolean idCache() {
+    public boolean isIdCache() {
         return this.idCache;
     }
 
-    public ClearIndicesCacheRequest idCache(boolean idCache) {
+    public ClearIndicesCacheRequest setIdCache(boolean idCache) {
         this.idCache = idCache;
         return this;
     }

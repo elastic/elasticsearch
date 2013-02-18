@@ -36,42 +36,42 @@ public class ClusterUpdateSettingsRequestBuilder extends MasterNodeOperationRequ
     }
 
     public ClusterUpdateSettingsRequestBuilder setTransientSettings(Settings settings) {
-        request.transientSettings(settings);
+        request.setTransientSettings(settings);
         return this;
     }
 
     public ClusterUpdateSettingsRequestBuilder setTransientSettings(Settings.Builder settings) {
-        request.transientSettings(settings);
+        request.setTransientSettings(settings);
         return this;
     }
 
     public ClusterUpdateSettingsRequestBuilder setTransientSettings(String settings) {
-        request.transientSettings(settings);
+        request.setTransientSettings(settings);
         return this;
     }
 
     public ClusterUpdateSettingsRequestBuilder setTransientSettings(Map settings) {
-        request.transientSettings(settings);
+        request.setTransientSettings(settings);
         return this;
     }
 
     public ClusterUpdateSettingsRequestBuilder setPersistentSettings(Settings settings) {
-        request.persistentSettings(settings);
+        request.setPersistentSettings(settings);
         return this;
     }
 
     public ClusterUpdateSettingsRequestBuilder setPersistentSettings(Settings.Builder settings) {
-        request.persistentSettings(settings);
+        request.setPersistentSettings(settings);
         return this;
     }
 
     public ClusterUpdateSettingsRequestBuilder setPersistentSettings(String settings) {
-        request.persistentSettings(settings);
+        request.setPersistentSettings(settings);
         return this;
     }
 
     public ClusterUpdateSettingsRequestBuilder setPersistentSettings(Map settings) {
-        request.persistentSettings(settings);
+        request.setPersistentSettings(settings);
         return this;
     }
 

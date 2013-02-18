@@ -86,7 +86,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request);
 
     protected void resolveRequest(ClusterState state, Request request) {
-        request.index(state.metaData().concreteIndex(request.index()));
+        request.setIndex(state.metaData().concreteIndex(request.getIndex()));
     }
 
     protected abstract ShardIterator shards(ClusterState state, Request request) throws ElasticSearchException;
@@ -147,7 +147,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             }
 
             if (shardRouting.currentNodeId().equals(nodes.localNodeId())) {
-                if (request.operationThreaded()) {
+                if (request.isOperationThreaded()) {
                     request.beforeLocalFork();
                     threadPool.executor(executor).execute(new Runnable() {
                         @Override
@@ -211,9 +211,9 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
         @Override
         public void messageReceived(Request request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             // if we have a local operation, execute it on a thread since we don't spawn
-            request.operationThreaded(true);
+            request.setOperationThreaded(true);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response result) {

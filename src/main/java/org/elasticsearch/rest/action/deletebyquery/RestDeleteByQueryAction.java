@@ -58,30 +58,30 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(splitIndices(request.param("index")));
-        deleteByQueryRequest.listenerThreaded(false);
+        deleteByQueryRequest.setListenerThreaded(false);
         try {
             if (request.hasContent()) {
-                deleteByQueryRequest.query(request.content(), request.contentUnsafe());
+                deleteByQueryRequest.setQuery(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    deleteByQueryRequest.query(source);
+                    deleteByQueryRequest.setQuery(source);
                 } else {
                     BytesReference bytes = RestActions.parseQuerySource(request);
-                    deleteByQueryRequest.query(bytes, false);
+                    deleteByQueryRequest.setQuery(bytes, false);
                 }
             }
-            deleteByQueryRequest.types(splitTypes(request.param("type")));
-            deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
+            deleteByQueryRequest.setTypes(splitTypes(request.param("type")));
+            deleteByQueryRequest.setTimeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
 
-            deleteByQueryRequest.routing(request.param("routing"));
+            deleteByQueryRequest.setRouting(request.param("routing"));
             String replicationType = request.param("replication");
             if (replicationType != null) {
-                deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
+                deleteByQueryRequest.setReplicationType(ReplicationType.fromString(replicationType));
             }
             String consistencyLevel = request.param("consistency");
             if (consistencyLevel != null) {
-                deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+                deleteByQueryRequest.setConsistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
             }
         } catch (Exception e) {
             try {
@@ -100,13 +100,13 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                     builder.startObject().field("ok", true);
 
                     builder.startObject("_indices");
-                    for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.indices().values()) {
-                        builder.startObject(indexDeleteByQueryResponse.index(), XContentBuilder.FieldCaseConversion.NONE);
+                    for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
+                        builder.startObject(indexDeleteByQueryResponse.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
                         builder.startObject("_shards");
-                        builder.field("total", indexDeleteByQueryResponse.totalShards());
-                        builder.field("successful", indexDeleteByQueryResponse.successfulShards());
-                        builder.field("failed", indexDeleteByQueryResponse.failedShards());
+                        builder.field("total", indexDeleteByQueryResponse.getTotalShards());
+                        builder.field("successful", indexDeleteByQueryResponse.getSuccessfulShards());
+                        builder.field("failed", indexDeleteByQueryResponse.getFailedShards());
                         builder.endObject();
 
                         builder.endObject();

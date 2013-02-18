@@ -60,57 +60,57 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
      * enabled, returning specific indexing stats for those types.
      */
     public IndicesStatsRequestBuilder setTypes(String... types) {
-        request.types(types);
+        request.setTypes(types);
         return this;
     }
 
     public IndicesStatsRequestBuilder setGroups(String... groups) {
-        request.groups(groups);
+        request.setGroups(groups);
         return this;
     }
 
     public IndicesStatsRequestBuilder setDocs(boolean docs) {
-        request.docs(docs);
+        request.setDocs(docs);
         return this;
     }
 
     public IndicesStatsRequestBuilder setStore(boolean store) {
-        request.store(store);
+        request.setStore(store);
         return this;
     }
 
     public IndicesStatsRequestBuilder setIndexing(boolean indexing) {
-        request.indexing(indexing);
+        request.setIndexing(indexing);
         return this;
     }
 
     public IndicesStatsRequestBuilder setGet(boolean get) {
-        request.get(get);
+        request.setGet(get);
         return this;
     }
 
     public IndicesStatsRequestBuilder setSearch(boolean search) {
-        request.search(search);
+        request.setSearch(search);
         return this;
     }
 
     public IndicesStatsRequestBuilder setMerge(boolean merge) {
-        request.merge(merge);
+        request.setMerge(merge);
         return this;
     }
 
     public IndicesStatsRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return this;
     }
 
     public IndicesStatsRequestBuilder setFlush(boolean flush) {
-        request.flush(flush);
+        request.setFlush(flush);
         return this;
     }
 
     public IndicesStatsRequestBuilder setWarmer(boolean warmer) {
-        request.warmer(warmer);
+        request.setWarmer(warmer);
         return this;
     }
 

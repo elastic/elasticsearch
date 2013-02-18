@@ -66,6 +66,6 @@ public class SearchTimeoutTests extends AbstractNodesTests {
                 .setTimeout("10ms")
                 .setQuery(filteredQuery(matchAllQuery(), scriptFilter("Thread.sleep(100); return true;")))
                 .execute().actionGet();
-        assertThat(searchResponse.timedOut(), equalTo(true));
+        assertThat(searchResponse.isTimedOut(), equalTo(true));
     }
 }

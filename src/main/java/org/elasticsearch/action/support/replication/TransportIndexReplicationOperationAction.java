@@ -67,7 +67,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
             throw blockException;
         }
         // update to concrete index
-        request.index(clusterState.metaData().concreteIndex(request.index()));
+        request.setIndex(clusterState.metaData().concreteIndex(request.getIndex()));
         blockException = checkRequestBlock(clusterState, request);
         if (blockException != null) {
             throw blockException;
@@ -89,10 +89,10 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
 
             // TODO for now, we fork operations on shardIt of the index
             shardRequest.beforeLocalFork(); // optimize for local fork
-            shardRequest.operationThreaded(true);
+            shardRequest.setOperationThreaded(true);
 
             // no need for threaded listener, we will fork when its done based on the index request
-            shardRequest.listenerThreaded(false);
+            shardRequest.setListenerThreaded(false);
             shardAction.execute(shardRequest, new ActionListener<ShardResponse>() {
                 @Override
                 public void onResponse(ShardResponse result) {
@@ -147,7 +147,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response result) {

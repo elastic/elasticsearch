@@ -62,9 +62,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
-        validateQueryRequest.listenerThreaded(false);
+        validateQueryRequest.setListenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
-            validateQueryRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            validateQueryRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
@@ -72,25 +72,25 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
             }
-            validateQueryRequest.operationThreading(operationThreading);
+            validateQueryRequest.setOperationThreading(operationThreading);
             if (request.hasContent()) {
-                validateQueryRequest.query(request.content(), request.contentUnsafe());
+                validateQueryRequest.setQuery(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    validateQueryRequest.query(source);
+                    validateQueryRequest.setQuery(source);
                 } else {
                     BytesReference querySource = RestActions.parseQuerySource(request);
                     if (querySource != null) {
-                        validateQueryRequest.query(querySource, false);
+                        validateQueryRequest.setQuery(querySource, false);
                     }
                 }
             }
-            validateQueryRequest.types(splitTypes(request.param("type")));
+            validateQueryRequest.setTypes(splitTypes(request.param("type")));
             if (request.paramAsBoolean("explain", false)) {
-                validateQueryRequest.explain(true);
+                validateQueryRequest.setExplain(true);
             } else {
-                validateQueryRequest.explain(false);
+                validateQueryRequest.setExplain(false);
             }
         } catch (Exception e) {
             try {
@@ -108,23 +108,23 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field("valid", response.valid());
+                    builder.field("valid", response.isValid());
 
                     buildBroadcastShardsHeader(builder, response);
 
-                    if (response.queryExplanations() != null && !response.queryExplanations().isEmpty()) {
+                    if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
                         builder.startArray("explanations");
-                        for (QueryExplanation explanation : response.queryExplanations()) {
+                        for (QueryExplanation explanation : response.getQueryExplanation()) {
                             builder.startObject();
-                            if (explanation.index() != null) {
-                                builder.field("index", explanation.index(), XContentBuilder.FieldCaseConversion.NONE);
+                            if (explanation.getIndex() != null) {
+                                builder.field("index", explanation.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
                             }
-                            builder.field("valid", explanation.valid());
-                            if (explanation.error() != null) {
-                                builder.field("error", explanation.error());
+                            builder.field("valid", explanation.isValid());
+                            if (explanation.getError() != null) {
+                                builder.field("error", explanation.getError());
                             }
-                            if (explanation.explanation() != null) {
-                                builder.field("explanation", explanation.explanation());
+                            if (explanation.getExplanation() != null) {
+                                builder.field("explanation", explanation.getExplanation());
                             }
                             builder.endObject();
                         }

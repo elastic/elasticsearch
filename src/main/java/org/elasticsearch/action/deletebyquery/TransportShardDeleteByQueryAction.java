@@ -85,14 +85,14 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ShardDeleteByQueryRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.getIndex());
     }
 
     @Override
     protected PrimaryResponse<ShardDeleteByQueryResponse, ShardDeleteByQueryRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.querySource(), request.filteringAliases(), request.types());
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
+        Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.getQuerySource(), request.getFilteringAliases(), request.getTypes());
         indexShard.deleteByQuery(deleteByQuery);
         return new PrimaryResponse<ShardDeleteByQueryResponse, ShardDeleteByQueryRequest>(shardRequest.request, new ShardDeleteByQueryResponse(), null);
     }
@@ -101,19 +101,19 @@ public class TransportShardDeleteByQueryAction extends TransportShardReplication
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         ShardDeleteByQueryRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
-        Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.querySource(), request.filteringAliases(), request.types());
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
+        Engine.DeleteByQuery deleteByQuery = indexShard.prepareDeleteByQuery(request.getQuerySource(), request.getFilteringAliases(), request.getTypes());
         indexShard.deleteByQuery(deleteByQuery);
     }
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, ShardDeleteByQueryRequest request) {
-        GroupShardsIterator group = clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.index(), request.routing());
+        GroupShardsIterator group = clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.getIndex(), request.getRouting());
         for (ShardIterator shardIt : group) {
-            if (shardIt.shardId().id() == request.shardId()) {
+            if (shardIt.shardId().id() == request.getShardId()) {
                 return shardIt;
             }
         }
-        throw new ElasticSearchIllegalStateException("No shards iterator found for shard [" + request.shardId() + "]");
+        throw new ElasticSearchIllegalStateException("No shards iterator found for shard [" + request.getShardId() + "]");
     }
 }

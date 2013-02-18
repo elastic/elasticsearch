@@ -45,7 +45,7 @@ public class GeoDistanceSearchBenchmark {
         Client client = node.client();
 
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        if (clusterHealthResponse.timedOut()) {
+        if (clusterHealthResponse.isTimedOut()) {
             System.err.println("Failed to wait for green status, bailing");
             System.exit(1);
         }
@@ -54,8 +54,8 @@ public class GeoDistanceSearchBenchmark {
         final long NUM_WARM = 50;
         final long NUM_RUNS = 100;
 
-        if (client.admin().indices().prepareExists("test").execute().actionGet().exists()) {
-            System.out.println("Found an index, count: " + client.prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count());
+        if (client.admin().indices().prepareExists("test").execute().actionGet().isExists()) {
+            System.out.println("Found an index, count: " + client.prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount());
         } else {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()

@@ -43,15 +43,8 @@ public class PutWarmerResponse extends ActionResponse {
     /**
      * Has the put warmer been ack'ed.
      */
-    public boolean acknowledged() {
+    public boolean isAcknowledged() {
         return acknowledged;
-    }
-
-    /**
-     * Has the put warmer been ack'ed.
-     */
-    public boolean getAcknowledged() {
-        return acknowledged();
     }
 
     @Override

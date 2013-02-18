@@ -151,7 +151,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                             // inactive?
                             if (!status.inactiveIndexing) {
                                 // mark it as inactive only if enough time has passed and there are no ongoing merges going on...
-                                if ((time - status.time) > inactiveTime.millis() && indexShard.mergeStats().current() == 0) {
+                                if ((time - status.time) > inactiveTime.millis() && indexShard.mergeStats().getCurrent() == 0) {
                                     // inactive for this amount of time, mark it
                                     activeToInactiveIndexingShards.add(indexShard);
                                     status.inactiveIndexing = true;

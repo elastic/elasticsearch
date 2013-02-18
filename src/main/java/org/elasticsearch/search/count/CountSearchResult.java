@@ -50,7 +50,7 @@ public class CountSearchResult implements Streamable, SearchPhaseResult {
         return this.id;
     }
 
-    public long totalHits() {
+    public long getTotalHits() {
         return this.totalHits;
     }
 

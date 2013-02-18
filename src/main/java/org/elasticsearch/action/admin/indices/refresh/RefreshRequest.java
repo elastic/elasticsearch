@@ -45,14 +45,14 @@ public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
     public RefreshRequest(String... indices) {
         super(indices);
         // we want to do the refresh in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
+        setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
-    public boolean waitForOperations() {
+    public boolean isWaitForOperations() {
         return waitForOperations;
     }
 
-    public RefreshRequest waitForOperations(boolean waitForOperations) {
+    public RefreshRequest setWaitForOperations(boolean waitForOperations) {
         this.waitForOperations = waitForOperations;
         return this;
     }

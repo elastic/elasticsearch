@@ -63,15 +63,15 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
     @Override
     protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
-            ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            if (scrollId.type().equals(QUERY_THEN_FETCH_TYPE)) {
+            ParsedScrollId scrollId = parseScrollId(request.getScrollId());
+            if (scrollId.getType().equals(QUERY_THEN_FETCH_TYPE)) {
                 queryThenFetchAction.execute(request, scrollId, listener);
-            } else if (scrollId.type().equals(QUERY_AND_FETCH_TYPE)) {
+            } else if (scrollId.getType().equals(QUERY_AND_FETCH_TYPE)) {
                 queryAndFetchAction.execute(request, scrollId, listener);
-            } else if (scrollId.type().equals(SCAN)) {
+            } else if (scrollId.getType().equals(SCAN)) {
                 scanAction.execute(request, scrollId, listener);
             } else {
-                throw new ElasticSearchIllegalArgumentException("Scroll id type [" + scrollId.type() + "] unrecognized");
+                throw new ElasticSearchIllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }
         } catch (Exception e) {
             listener.onFailure(e);
@@ -88,7 +88,7 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
         @Override
         public void messageReceived(SearchScrollRequest request, final TransportChannel channel) throws Exception {
             // no need for a threaded listener
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             execute(request, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse result) {

@@ -34,12 +34,12 @@ public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushR
     }
 
     public FlushRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return this;
     }
 
     public FlushRequestBuilder setFull(boolean full) {
-        request.full(full);
+        request.setFull(full);
         return this;
     }
 

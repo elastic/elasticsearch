@@ -39,7 +39,7 @@ public class CloseIndexRequestBuilder extends MasterNodeOperationRequestBuilder<
     }
 
     public CloseIndexRequestBuilder setIndex(String index) {
-        request.index(index);
+        request.setIndex(index);
         return this;
     }
 
@@ -48,7 +48,7 @@ public class CloseIndexRequestBuilder extends MasterNodeOperationRequestBuilder<
      * to <tt>10s</tt>.
      */
     public CloseIndexRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return this;
     }
 
@@ -57,7 +57,7 @@ public class CloseIndexRequestBuilder extends MasterNodeOperationRequestBuilder<
      * to <tt>10s</tt>.
      */
     public CloseIndexRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return this;
     }
 

@@ -51,8 +51,8 @@ public class RestDeleteMappingAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteMappingRequest deleteMappingRequest = deleteMappingRequest(splitIndices(request.param("index")));
-        deleteMappingRequest.listenerThreaded(false);
-        deleteMappingRequest.type(request.param("type"));
+        deleteMappingRequest.setListenerThreaded(false);
+        deleteMappingRequest.setType(request.param("type"));
         client.admin().indices().deleteMapping(deleteMappingRequest, new ActionListener<DeleteMappingResponse>() {
             @Override
             public void onResponse(DeleteMappingResponse response) {

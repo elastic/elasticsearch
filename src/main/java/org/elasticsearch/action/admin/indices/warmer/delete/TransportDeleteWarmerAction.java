@@ -77,13 +77,13 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
     @Override
     protected void doExecute(DeleteWarmerRequest request, ActionListener<DeleteWarmerResponse> listener) {
         // update to concrete indices
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
+        request.setIndices(clusterService.state().metaData().concreteIndices(request.getIndices()));
         super.doExecute(request, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteWarmerRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.getIndices());
     }
 
     @Override
@@ -91,14 +91,14 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
-        clusterService.submitStateUpdateTask("delete_warmer [" + request.name() + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete_warmer [" + request.getName() + "]", new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 try {
                     MetaData.Builder mdBuilder = MetaData.builder().metaData(currentState.metaData());
 
                     boolean globalFoundAtLeastOne = false;
-                    for (String index : request.indices()) {
+                    for (String index : request.getIndices()) {
                         IndexMetaData indexMetaData = currentState.metaData().index(index);
                         if (indexMetaData == null) {
                             throw new IndexMissingException(new Index(index));
@@ -107,7 +107,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                         if (warmers != null) {
                             List<IndexWarmersMetaData.Entry> entries = Lists.newArrayList();
                             for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                                if (request.name() == null || Regex.simpleMatch(request.name(), entry.name())) {
+                                if (request.getName() == null || Regex.simpleMatch(request.getName(), entry.name())) {
                                     globalFoundAtLeastOne = true;
                                     // don't add it...
                                 } else {
@@ -124,15 +124,15 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                     }
 
                     if (!globalFoundAtLeastOne) {
-                        if (request.name() == null) {
+                        if (request.getName() == null) {
                             // full match, just return with no failure
                             return currentState;
                         }
-                        throw new IndexWarmerMissingException(request.name());
+                        throw new IndexWarmerMissingException(request.getName());
                     }
 
                     if (logger.isInfoEnabled()) {
-                        for (String index : request.indices()) {
+                        for (String index : request.getIndices()) {
                             IndexMetaData indexMetaData = currentState.metaData().index(index);
                             if (indexMetaData == null) {
                                 throw new IndexMissingException(new Index(index));
@@ -140,7 +140,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeOperationAct
                             IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                             if (warmers != null) {
                                 for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                                    if (Regex.simpleMatch(request.name(), entry.name())) {
+                                    if (Regex.simpleMatch(request.getName(), entry.name())) {
                                         logger.info("[{}] delete warmer [{}]", index, entry.name());
                                     }
                                 }

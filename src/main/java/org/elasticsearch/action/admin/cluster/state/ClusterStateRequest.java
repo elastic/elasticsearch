@@ -64,66 +64,66 @@ public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterState
         return this;
     }
 
-    public boolean filterRoutingTable() {
+    public boolean isFilterRoutingTable() {
         return filterRoutingTable;
     }
 
-    public ClusterStateRequest filterRoutingTable(boolean filterRoutingTable) {
+    public ClusterStateRequest setFilterRoutingTable(boolean filterRoutingTable) {
         this.filterRoutingTable = filterRoutingTable;
         return this;
     }
 
-    public boolean filterNodes() {
+    public boolean isFilterNodes() {
         return filterNodes;
     }
 
-    public ClusterStateRequest filterNodes(boolean filterNodes) {
+    public ClusterStateRequest setFilterNodes(boolean filterNodes) {
         this.filterNodes = filterNodes;
         return this;
     }
 
-    public boolean filterMetaData() {
+    public boolean isFilterMetaData() {
         return filterMetaData;
     }
 
-    public ClusterStateRequest filterMetaData(boolean filterMetaData) {
+    public ClusterStateRequest setFilterMetaData(boolean filterMetaData) {
         this.filterMetaData = filterMetaData;
         return this;
     }
 
-    public boolean filterBlocks() {
+    public boolean isFilterBlocks() {
         return filterBlocks;
     }
 
-    public ClusterStateRequest filterBlocks(boolean filterBlocks) {
+    public ClusterStateRequest setFilterBlocks(boolean filterBlocks) {
         this.filterBlocks = filterBlocks;
         return this;
     }
 
-    public String[] filteredIndices() {
+    public String[] getFilteredIndices() {
         return filteredIndices;
     }
 
-    public ClusterStateRequest filteredIndices(String... filteredIndices) {
+    public ClusterStateRequest setFilteredIndices(String... filteredIndices) {
         this.filteredIndices = filteredIndices;
         return this;
     }
 
-    public String[] filteredIndexTemplates() {
+    public String[] getFilteredIndexTemplates() {
         return this.filteredIndexTemplates;
     }
 
-    public ClusterStateRequest filteredIndexTemplates(String... filteredIndexTemplates) {
+    public ClusterStateRequest setFilteredIndexTemplates(String... filteredIndexTemplates) {
         this.filteredIndexTemplates = filteredIndexTemplates;
         return this;
     }
 
-    public ClusterStateRequest local(boolean local) {
+    public ClusterStateRequest setLocal(boolean local) {
         this.local = local;
         return this;
     }
 
-    public boolean local() {
+    public boolean isLocal() {
         return this.local;
     }
 

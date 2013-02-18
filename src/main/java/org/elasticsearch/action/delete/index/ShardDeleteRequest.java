@@ -41,15 +41,15 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
 
     ShardDeleteRequest(IndexDeleteRequest request, int shardId) {
         super(request);
-        this.index = request.index();
+        this.index = request.getIndex();
         this.shardId = shardId;
-        this.type = request.type();
-        this.id = request.id();
-        replicationType(request.replicationType());
-        consistencyLevel(request.consistencyLevel());
-        timeout = request.timeout();
-        this.refresh = request.refresh();
-        this.version = request.version();
+        this.type = request.getType();
+        this.id = request.getId();
+        setReplicationType(request.getReplicationType());
+        setConsistencyLevel(request.getConsistencyLevel());
+        timeout = request.getTimeout();
+        this.refresh = request.isRefresh();
+        this.version = request.getVersion();
     }
 
     ShardDeleteRequest() {
@@ -67,27 +67,27 @@ public class ShardDeleteRequest extends ShardReplicationOperationRequest<ShardDe
         return validationException;
     }
 
-    public int shardId() {
+    public int getShardId() {
         return this.shardId;
     }
 
-    public String type() {
+    public String getType() {
         return this.type;
     }
 
-    public String id() {
+    public String getId() {
         return this.id;
     }
 
-    public boolean refresh() {
+    public boolean isRefresh() {
         return this.refresh;
     }
 
-    public void version(long version) {
+    public void setVersion(long version) {
         this.version = version;
     }
 
-    public long version() {
+    public long getVersion() {
         return this.version;
     }
 

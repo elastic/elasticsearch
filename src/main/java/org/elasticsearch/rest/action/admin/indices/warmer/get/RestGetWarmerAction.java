@@ -64,16 +64,16 @@ public class RestGetWarmerAction extends BaseRestHandler {
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .filterAll()
-                .filterMetaData(false)
-                .filteredIndices(indices);
+                .setFilterMetaData(false)
+                .setFilteredIndices(indices);
 
-        clusterStateRequest.listenerThreaded(false);
+        clusterStateRequest.setListenerThreaded(false);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 try {
-                    MetaData metaData = response.state().metaData();
+                    MetaData metaData = response.getState().metaData();
 
                     if (indices.length == 1 && metaData.indices().isEmpty()) {
                         channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));

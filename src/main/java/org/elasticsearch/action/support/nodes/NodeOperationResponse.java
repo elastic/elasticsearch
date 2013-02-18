@@ -43,15 +43,8 @@ public abstract class NodeOperationResponse extends TransportResponse {
     /**
      * The node this information relates to.
      */
-    public DiscoveryNode node() {
-        return node;
-    }
-
-    /**
-     * The node this information relates to.
-     */
     public DiscoveryNode getNode() {
-        return node();
+        return node;
     }
 
     @Override

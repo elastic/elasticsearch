@@ -58,31 +58,17 @@ public class ValidateQueryResponse extends BroadcastOperationResponse {
     /**
      * A boolean denoting whether the query is valid.
      */
-    public boolean valid() {
-        return valid;
-    }
-
-    /**
-     * A boolean denoting whether the query is valid.
-     */
-    public boolean getValid() {
+    public boolean isValid() {
         return valid;
     }
 
     /**
      * The list of query explanations.
      */
-    public List<? extends QueryExplanation> queryExplanations() {
+    public List<? extends QueryExplanation> getQueryExplanation() {
         if (queryExplanations == null) {
             return ImmutableList.of();
         }
-        return queryExplanations;
-    }
-
-    /**
-     * The list of query explanations.
-     */
-    public List<QueryExplanation> getQueryExplanation() {
         return queryExplanations;
     }
 

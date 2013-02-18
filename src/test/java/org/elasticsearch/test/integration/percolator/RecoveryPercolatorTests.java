@@ -80,7 +80,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.getMatches().size(), equalTo(1));
 
         client.close();
         closeNode("node1");
@@ -89,16 +89,16 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         client = client("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.getMatches().size(), equalTo(1));
     }
 
     @Test
@@ -122,13 +122,13 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
         PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.getMatches().size(), equalTo(1));
 
         client.close();
         closeNode("node1");
@@ -137,27 +137,27 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         client = client("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
         client.admin().indices().prepareDelete("test").execute().actionGet();
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(0l));
+        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
 
         percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(0));
+        assertThat(percolate.getMatches().size(), equalTo(0));
 
         logger.info("--> register a query");
         client.prepareIndex("_percolator", "test", "kuku")
@@ -168,12 +168,12 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+        assertThat(client.prepareCount("_percolator").setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
 
         percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.getMatches().size(), equalTo(1));
     }
 }

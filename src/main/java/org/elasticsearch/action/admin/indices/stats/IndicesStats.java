@@ -51,10 +51,6 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
         this.shards = shards;
     }
 
-    public ShardStats[] shards() {
-        return this.shards;
-    }
-
     public ShardStats[] getShards() {
         return this.shards;
     }
@@ -63,17 +59,13 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
         return shards[position];
     }
 
-    public IndexStats index(String index) {
-        return indices().get(index);
-    }
-
-    public Map<String, IndexStats> getIndices() {
-        return indices();
+    public IndexStats getIndex(String index) {
+        return getIndices().get(index);
     }
 
     private Map<String, IndexStats> indicesStats;
 
-    public Map<String, IndexStats> indices() {
+    public Map<String, IndexStats> getIndices() {
         if (indicesStats != null) {
             return indicesStats;
         }
@@ -81,13 +73,13 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
 
         Set<String> indices = Sets.newHashSet();
         for (ShardStats shard : shards) {
-            indices.add(shard.index());
+            indices.add(shard.getIndex());
         }
 
         for (String index : indices) {
             List<ShardStats> shards = Lists.newArrayList();
             for (ShardStats shard : this.shards) {
-                if (shard.shardRouting().index().equals(index)) {
+                if (shard.getShardRouting().index().equals(index)) {
                     shards.add(shard);
                 }
             }
@@ -100,16 +92,12 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
     private CommonStats total = null;
 
     public CommonStats getTotal() {
-        return total();
-    }
-
-    public CommonStats total() {
         if (total != null) {
             return total;
         }
         CommonStats stats = new CommonStats();
         for (ShardStats shard : shards) {
-            stats.add(shard.stats());
+            stats.add(shard.getStats());
         }
         total = stats;
         return stats;
@@ -118,17 +106,13 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
     private CommonStats primary = null;
 
     public CommonStats getPrimaries() {
-        return primaries();
-    }
-
-    public CommonStats primaries() {
         if (primary != null) {
             return primary;
         }
         CommonStats stats = new CommonStats();
         for (ShardStats shard : shards) {
-            if (shard.shardRouting().primary()) {
-                stats.add(shard.stats());
+            if (shard.getShardRouting().primary()) {
+                stats.add(shard.getStats());
             }
         }
         primary = stats;
@@ -158,40 +142,40 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
         builder.startObject("_all");
 
         builder.startObject("primaries");
-        primaries().toXContent(builder, params);
+        getPrimaries().toXContent(builder, params);
         builder.endObject();
 
         builder.startObject("total");
-        total().toXContent(builder, params);
+        getTotal().toXContent(builder, params);
         builder.endObject();
 
         builder.startObject(Fields.INDICES);
-        for (IndexStats indexStats : indices().values()) {
-            builder.startObject(indexStats.index(), XContentBuilder.FieldCaseConversion.NONE);
+        for (IndexStats indexStats : getIndices().values()) {
+            builder.startObject(indexStats.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.startObject("primaries");
-            indexStats.primaries().toXContent(builder, params);
+            indexStats.getPrimaries().toXContent(builder, params);
             builder.endObject();
 
             builder.startObject("total");
-            indexStats.total().toXContent(builder, params);
+            indexStats.getTotal().toXContent(builder, params);
             builder.endObject();
 
             if ("shards".equalsIgnoreCase(params.param("level", null))) {
                 builder.startObject(Fields.SHARDS);
                 for (IndexShardStats indexShardStats : indexStats) {
-                    builder.startArray(Integer.toString(indexShardStats.shardId().id()));
+                    builder.startArray(Integer.toString(indexShardStats.getShardId().id()));
                     for (ShardStats shardStats : indexShardStats) {
                         builder.startObject();
 
                         builder.startObject(Fields.ROUTING)
-                                .field(Fields.STATE, shardStats.shardRouting().state())
-                                .field(Fields.PRIMARY, shardStats.shardRouting().primary())
-                                .field(Fields.NODE, shardStats.shardRouting().currentNodeId())
-                                .field(Fields.RELOCATING_NODE, shardStats.shardRouting().relocatingNodeId())
+                                .field(Fields.STATE, shardStats.getShardRouting().state())
+                                .field(Fields.PRIMARY, shardStats.getShardRouting().primary())
+                                .field(Fields.NODE, shardStats.getShardRouting().currentNodeId())
+                                .field(Fields.RELOCATING_NODE, shardStats.getShardRouting().relocatingNodeId())
                                 .endObject();
 
-                        shardStats.stats().toXContent(builder, params);
+                        shardStats.getStats().toXContent(builder, params);
 
                         builder.endObject();
                     }

@@ -56,11 +56,11 @@ public class RestPutMappingAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PutMappingRequest putMappingRequest = putMappingRequest(splitIndices(request.param("index")));
-        putMappingRequest.listenerThreaded(false);
-        putMappingRequest.type(request.param("type"));
-        putMappingRequest.source(request.content().toUtf8());
-        putMappingRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
-        putMappingRequest.ignoreConflicts(request.paramAsBoolean("ignore_conflicts", putMappingRequest.ignoreConflicts()));
+        putMappingRequest.setListenerThreaded(false);
+        putMappingRequest.setType(request.param("type"));
+        putMappingRequest.setSource(request.content().toUtf8());
+        putMappingRequest.setTimeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        putMappingRequest.setIgnoreConflicts(request.paramAsBoolean("ignore_conflicts", putMappingRequest.isIgnoreConflicts()));
         client.admin().indices().putMapping(putMappingRequest, new ActionListener<PutMappingResponse>() {
             @Override
             public void onResponse(PutMappingResponse response) {
@@ -68,7 +68,7 @@ public class RestPutMappingAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
-                            .field("acknowledged", response.acknowledged());
+                            .field("acknowledged", response.isAcknowledged());
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {

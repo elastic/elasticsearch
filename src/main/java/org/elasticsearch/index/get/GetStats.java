@@ -61,97 +61,57 @@ public class GetStats implements Streamable, ToXContent {
         current += stats.current;
     }
 
-    public long count() {
+    public long getCount() {
         return existsCount + missingCount;
     }
 
-    public long getCount() {
-        return count();
-    }
-
-    public long timeInMillis() {
+    public long getTimeInMillis() {
         return existsTimeInMillis + missingTimeInMillis;
     }
 
-    public long getTimeInMillis() {
-        return timeInMillis();
-    }
-
-    public TimeValue time() {
-        return new TimeValue(timeInMillis());
-    }
-
     public TimeValue getTime() {
-        return time();
-    }
-
-    public long existsCount() {
-        return this.existsCount;
+        return new TimeValue(getTimeInMillis());
     }
 
     public long getExistsCount() {
         return this.existsCount;
     }
 
-    public long existsTimeInMillis() {
-        return this.existsTimeInMillis;
-    }
-
     public long getExistsTimeInMillis() {
         return this.existsTimeInMillis;
     }
 
-    public TimeValue existsTime() {
-        return new TimeValue(existsTimeInMillis);
-    }
-
     public TimeValue getExistsTime() {
-        return existsTime();
-    }
-
-    public long missingCount() {
-        return this.missingCount;
+        return new TimeValue(existsTimeInMillis);
     }
 
     public long getMissingCount() {
         return this.missingCount;
     }
 
-    public long missingTimeInMillis() {
-        return this.missingTimeInMillis;
-    }
-
     public long getMissingTimeInMillis() {
         return this.missingTimeInMillis;
     }
 
-    public TimeValue missingTime() {
-        return new TimeValue(missingTimeInMillis);
-    }
-
     public TimeValue getMissingTime() {
-        return missingTime();
+        return new TimeValue(missingTimeInMillis);
     }
 
     public long current() {
         return this.current;
     }
 
-    public long getCurrent() {
-        return this.current;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.GET);
-        builder.field(Fields.TOTAL, count());
-        builder.field(Fields.TIME, time().toString());
-        builder.field(Fields.TIME_IN_MILLIS, timeInMillis());
+        builder.field(Fields.TOTAL, getCount());
+        builder.field(Fields.TIME, getTime().toString());
+        builder.field(Fields.TIME_IN_MILLIS, getTimeInMillis());
         builder.field(Fields.EXISTS_TOTAL, existsCount);
-        builder.field(Fields.EXISTS_TIME, existsTime().toString());
+        builder.field(Fields.EXISTS_TIME, getExistsTime().toString());
         builder.field(Fields.EXISTS_TIME_IN_MILLIS, existsTimeInMillis);
         builder.field(Fields.MISSING_TOTAL, missingCount);
-        builder.field(Fields.MISSING_TIME, missingTime().toString());
+        builder.field(Fields.MISSING_TIME, getMissingTime().toString());
         builder.field(Fields.MISSING_TIME_IN_MILLIS, missingTimeInMillis);
         builder.field(Fields.CURRENT, current);
         builder.endObject();
@@ -161,7 +121,7 @@ public class GetStats implements Streamable, ToXContent {
     static final class Fields {
         static final XContentBuilderString GET = new XContentBuilderString("get");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString TIME = new XContentBuilderString("time");
+        static final XContentBuilderString TIME = new XContentBuilderString("getTime");
         static final XContentBuilderString TIME_IN_MILLIS = new XContentBuilderString("time_in_millis");
         static final XContentBuilderString EXISTS_TOTAL = new XContentBuilderString("exists_total");
         static final XContentBuilderString EXISTS_TIME = new XContentBuilderString("exists_time");

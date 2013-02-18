@@ -58,17 +58,17 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
         return validationException;
     }
 
-    public String index() {
+    public String getIndex() {
         return index;
     }
 
     @SuppressWarnings("unchecked")
-    public final T index(String index) {
+    public final T setIndex(String index) {
         this.index = index;
         return (T) this;
     }
 
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return timeout;
     }
 
@@ -76,7 +76,7 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final T setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return (T) this;
     }
@@ -84,8 +84,8 @@ public abstract class InstanceShardOperationRequest<T extends InstanceShardOpera
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
-    public final T timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null));
+    public final T setTimeout(String timeout) {
+        return setTimeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override

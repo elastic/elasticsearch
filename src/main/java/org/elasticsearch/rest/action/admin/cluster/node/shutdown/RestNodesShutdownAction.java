@@ -52,19 +52,19 @@ public class RestNodesShutdownAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] nodesIds = RestActions.splitNodes(request.param("nodeId"));
         NodesShutdownRequest nodesShutdownRequest = new NodesShutdownRequest(nodesIds);
-        nodesShutdownRequest.listenerThreaded(false);
-        nodesShutdownRequest.delay(request.paramAsTime("delay", nodesShutdownRequest.delay()));
-        nodesShutdownRequest.exit(request.paramAsBoolean("exit", nodesShutdownRequest.exit()));
+        nodesShutdownRequest.setListenerThreaded(false);
+        nodesShutdownRequest.setDelay(request.paramAsTime("delay", nodesShutdownRequest.getDelay()));
+        nodesShutdownRequest.setExit(request.paramAsBoolean("exit", nodesShutdownRequest.isExit()));
         client.admin().cluster().nodesShutdown(nodesShutdownRequest, new ActionListener<NodesShutdownResponse>() {
             @Override
             public void onResponse(NodesShutdownResponse response) {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field("cluster_name", response.clusterName().value());
+                    builder.field("cluster_name", response.getClusterName().value());
 
                     builder.startObject("nodes");
-                    for (DiscoveryNode node : response.nodes()) {
+                    for (DiscoveryNode node : response.getNodes()) {
                         builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
                         builder.field("name", node.name(), XContentBuilder.FieldCaseConversion.NONE);
                         builder.endObject();

@@ -97,17 +97,17 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                         geoShapeFilter("location", shape).relation(ShapeRelation.INTERSECTS)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
 
         searchResponse = client.prepareSearch()
                 .setQuery(geoShapeQuery("location", shape).relation(ShapeRelation.INTERSECTS))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
     @Test
@@ -149,16 +149,16 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                         geoShapeFilter("location", "Big_Rectangle", "shape_type").relation(ShapeRelation.INTERSECTS)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
 
         searchResponse = client.prepareSearch()
                 .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type").relation(ShapeRelation.INTERSECTS))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 }

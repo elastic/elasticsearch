@@ -179,7 +179,7 @@ public class RollingRestartStressTest {
                         .setWaitForNodes(Integer.toString(numberOfNodes + 0 /* client node*/))
                         .setWaitForRelocatingShards(0)
                         .setTimeout("10m").execute().actionGet();
-                if (clusterHealth.timedOut()) {
+                if (clusterHealth.isTimedOut()) {
                     logger.warn("timed out waiting for green status....");
                 }
             } catch (Exception e) {
@@ -196,7 +196,7 @@ public class RollingRestartStressTest {
                         .setWaitForNodes(Integer.toString(numberOfNodes + 1 /* client node*/))
                         .setWaitForRelocatingShards(0)
                         .setTimeout("10m").execute().actionGet();
-                if (clusterHealth.timedOut()) {
+                if (clusterHealth.isTimedOut()) {
                     logger.warn("timed out waiting for green status....");
                 }
             } catch (Exception e) {
@@ -229,12 +229,12 @@ public class RollingRestartStressTest {
 
         // check the status
         IndicesStatusResponse status = client.client().admin().indices().prepareStatus("test").execute().actionGet();
-        for (IndexShardStatus shardStatus : status.index("test")) {
-            ShardStatus shard = shardStatus.shards()[0];
-            logger.info("shard [{}], docs [{}]", shard.shardId(), shard.getDocs().numDocs());
+        for (IndexShardStatus shardStatus : status.getIndex("test")) {
+            ShardStatus shard = shardStatus.getShards()[0];
+            logger.info("shard [{}], docs [{}]", shard.getShardId(), shard.getDocs().getNumDocs());
             for (ShardStatus shardStatu : shardStatus) {
-                if (shard.docs().numDocs() != shardStatu.docs().numDocs()) {
-                    logger.warn("shard doc number does not match!, got {} and {}", shard.docs().numDocs(), shardStatu.docs().numDocs());
+                if (shard.getDocs().getNumDocs() != shardStatu.getDocs().getNumDocs()) {
+                    logger.warn("shard doc number does not match!, got {} and {}", shard.getDocs().getNumDocs(), shardStatu.getDocs().getNumDocs());
                 }
             }
         }
@@ -242,8 +242,8 @@ public class RollingRestartStressTest {
         // check the count
         for (int i = 0; i < (nodes.length * 5); i++) {
             CountResponse count = client.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            logger.info("indexed [{}], count [{}], [{}]", count.count(), indexCounter.get(), count.count() == indexCounter.get() ? "OK" : "FAIL");
-            if (count.count() != indexCounter.get()) {
+            logger.info("indexed [{}], count [{}], [{}]", count.getCount(), indexCounter.get(), count.getCount() == indexCounter.get() ? "OK" : "FAIL");
+            if (count.getCount() != indexCounter.get()) {
                 logger.warn("count does not match!");
             }
         }
@@ -255,27 +255,27 @@ public class RollingRestartStressTest {
                 .setSize(50)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
-        logger.info("Verifying versions for {} hits...", searchResponse.hits().totalHits());
+        logger.info("Verifying versions for {} hits...", searchResponse.getHits().totalHits());
 
         while (true) {
-            searchResponse = client.client().prepareSearchScroll(searchResponse.scrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
-            if (searchResponse.failedShards() > 0) {
-                logger.warn("Search Failures " + Arrays.toString(searchResponse.shardFailures()));
+            searchResponse = client.client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+            if (searchResponse.getFailedShards() > 0) {
+                logger.warn("Search Failures " + Arrays.toString(searchResponse.getShardFailures()));
             }
-            for (SearchHit hit : searchResponse.hits()) {
+            for (SearchHit hit : searchResponse.getHits()) {
                 long version = -1;
                 for (int i = 0; i < (numberOfReplicas + 1); i++) {
                     GetResponse getResponse = client.client().prepareGet(hit.index(), hit.type(), hit.id()).execute().actionGet();
                     if (version == -1) {
-                        version = getResponse.version();
+                        version = getResponse.getVersion();
                     } else {
-                        if (version != getResponse.version()) {
-                            logger.warn("Doc {} has different version numbers {} and {}", hit.id(), version, getResponse.version());
+                        if (version != getResponse.getVersion()) {
+                            logger.warn("Doc {} has different version numbers {} and {}", hit.id(), version, getResponse.getVersion());
                         }
                     }
                 }
             }
-            if (searchResponse.hits().hits().length == 0) {
+            if (searchResponse.getHits().hits().length == 0) {
                 break;
             }
         }

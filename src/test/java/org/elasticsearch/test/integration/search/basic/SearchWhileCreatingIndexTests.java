@@ -58,7 +58,7 @@ public class SearchWhileCreatingIndexTests extends AbstractNodesTests {
             node.client().admin().indices().prepareRefresh().execute().actionGet();
 
             SearchResponse searchResponse = node.client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
-            assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+            assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
             node.client().admin().indices().prepareDelete("test").execute().actionGet();
         }

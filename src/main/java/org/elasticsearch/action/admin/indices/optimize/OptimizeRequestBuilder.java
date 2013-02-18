@@ -44,7 +44,7 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
      * Should the call block until the optimize completes. Defaults to <tt>true</tt>.
      */
     public OptimizeRequestBuilder setWaitForMerge(boolean waitForMerge) {
-        request.waitForMerge(waitForMerge);
+        request.setWaitForMerge(waitForMerge);
         return this;
     }
 
@@ -53,7 +53,7 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
      * process to optimize down to half the configured number of segments.
      */
     public OptimizeRequestBuilder setMaxNumSegments(int maxNumSegments) {
-        request.maxNumSegments(maxNumSegments);
+        request.setMaxNumSegments(maxNumSegments);
         return this;
     }
 
@@ -62,7 +62,7 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
      * Defaults to full optimization (<tt>false</tt>).
      */
     public OptimizeRequestBuilder setOnlyExpungeDeletes(boolean onlyExpungeDeletes) {
-        request.onlyExpungeDeletes(onlyExpungeDeletes);
+        request.setOnlyExpungeDeletes(onlyExpungeDeletes);
         return this;
     }
 
@@ -70,7 +70,7 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
      * Should flush be performed after the optimization. Defaults to <tt>true</tt>.
      */
     public OptimizeRequestBuilder setFlush(boolean flush) {
-        request.flush(flush);
+        request.setFlush(flush);
         return this;
     }
 
@@ -78,7 +78,7 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
      * Should refresh be performed after the optimization. Defaults to <tt>true</tt>.
      */
     public OptimizeRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return this;
     }
 

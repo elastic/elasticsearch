@@ -58,18 +58,10 @@ public class ExplainResponse extends ActionResponse {
     }
 
     public Explanation getExplanation() {
-        return explanation();
-    }
-
-    public Explanation explanation() {
         return explanation;
     }
 
     public boolean isMatch() {
-        return match();
-    }
-
-    public boolean match() {
         return explanation != null && explanation.isMatch();
     }
 
@@ -77,20 +69,12 @@ public class ExplainResponse extends ActionResponse {
         return explanation != null;
     }
 
-    public boolean exists() {
+    public boolean isExists() {
         return exists;
     }
 
-    public boolean isExists() {
-        return exists();
-    }
-
-    public GetResult getResult() {
-        return getResult;
-    }
-
     public GetResult getGetResult() {
-        return getResult();
+        return getResult;
     }
 
     public void readFrom(StreamInput in) throws IOException {

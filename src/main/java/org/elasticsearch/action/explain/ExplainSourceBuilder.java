@@ -35,12 +35,12 @@ public class ExplainSourceBuilder implements ToXContent {
 
     private BytesReference queryBinary;
 
-    public ExplainSourceBuilder query(QueryBuilder query) {
+    public ExplainSourceBuilder setQuery(QueryBuilder query) {
         this.queryBuilder = query;
         return this;
     }
 
-    public ExplainSourceBuilder query(BytesReference queryBinary) {
+    public ExplainSourceBuilder setQuery(BytesReference queryBinary) {
         this.queryBinary = queryBinary;
         return this;
     }

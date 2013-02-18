@@ -198,10 +198,10 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 int size = request.getSearchSize() != 0 ? request.getSearchSize() : 10;
                 int from = request.getSearchFrom() != 0 ? request.getSearchFrom() : 0;
                 SearchRequest searchRequest = searchRequest(searchIndices)
-                        .types(searchTypes)
-                        .searchType(request.getSearchType())
-                        .scroll(request.getSearchScroll())
-                        .extraSource(searchSource()
+                        .setTypes(searchTypes)
+                        .setSearchType(request.getSearchType())
+                        .setScroll(request.getSearchScroll())
+                        .setExtraSource(searchSource()
                                 .query(boolBuilder)
                                 .from(from)
                                 .size(size)
@@ -209,7 +209,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                         .listenerThreaded(request.listenerThreaded());
 
                 if (request.getSearchSource() != null) {
-                    searchRequest.source(request.getSearchSource(), request.isSearchSourceUnsafe());
+                    searchRequest.setSource(request.getSearchSource(), request.isSearchSourceUnsafe());
                 }
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override

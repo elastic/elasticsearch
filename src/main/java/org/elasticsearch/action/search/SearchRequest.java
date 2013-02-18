@@ -47,10 +47,10 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * A request to execute search against one or more indices (or all). Best created using
  * {@link org.elasticsearch.client.Requests#searchRequest(String...)}.
  * <p/>
- * <p>Note, the search {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}
+ * <p>Note, the search {@link #setSource(org.elasticsearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including facets and such.
  * <p/>
- * <p>There is an option to specify an addition search source using the {@link #extraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
+ * <p>There is an option to specify an addition search source using the {@link #setExtraSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
  *
  * @see org.elasticsearch.client.Requests#searchRequest(String...)
  * @see org.elasticsearch.client.Client#search(SearchRequest)
@@ -134,7 +134,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * Sets the indices the search will be executed on.
      */
-    public SearchRequest indices(String... indices) {
+    public SearchRequest setIndices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -142,14 +142,14 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * Controls the the search operation threading model.
      */
-    public SearchOperationThreading operationThreading() {
+    public SearchOperationThreading getOperationThreading() {
         return this.operationThreading;
     }
 
     /**
      * Controls the the search operation threading model.
      */
-    public SearchRequest operationThreading(SearchOperationThreading operationThreading) {
+    public SearchRequest setOperationThreading(SearchOperationThreading operationThreading) {
         this.operationThreading = operationThreading;
         return this;
     }
@@ -158,15 +158,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      * Sets the string representation of the operation threading model. Can be one of
      * "no_threads", "single_thread" and "thread_per_shard".
      */
-    public SearchRequest operationThreading(String operationThreading) {
-        return operationThreading(SearchOperationThreading.fromString(operationThreading, this.operationThreading));
+    public SearchRequest setOperationThreading(String operationThreading) {
+        return setOperationThreading(SearchOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
-    public IgnoreIndices ignoreIndices() {
+    public IgnoreIndices getIgnoreIndices() {
         return ignoreIndices;
     }
 
-    public SearchRequest ignoreIndices(IgnoreIndices ignoreIndices) {
+    public SearchRequest setIgnoreIndices(IgnoreIndices ignoreIndices) {
         this.ignoreIndices = ignoreIndices;
         return this;
     }
@@ -175,7 +175,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      * The document types to execute the search against. Defaults to be executed against
      * all types.
      */
-    public String[] types() {
+    public String[] getTypes() {
         return types;
     }
 
@@ -183,7 +183,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      * The document types to execute the search against. Defaults to be executed against
      * all types.
      */
-    public SearchRequest types(String... types) {
+    public SearchRequest setTypes(String... types) {
         this.types = types;
         return this;
     }
@@ -191,14 +191,14 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
-    public String routing() {
+    public String getRouting() {
         return this.routing;
     }
 
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
-    public SearchRequest routing(String routing) {
+    public SearchRequest setRouting(String routing) {
         this.routing = routing;
         return this;
     }
@@ -206,7 +206,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The routing values to control the shards that the search will be executed on.
      */
-    public SearchRequest routing(String... routings) {
+    public SearchRequest setRouting(String... routings) {
         this.routing = Strings.arrayToCommaDelimitedString(routings);
         return this;
     }
@@ -216,19 +216,19 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
      * a custom value, which guarantees that the same order will be used across different requests.
      */
-    public SearchRequest preference(String preference) {
+    public SearchRequest setPreference(String preference) {
         this.preference = preference;
         return this;
     }
 
-    public String preference() {
+    public String getPreference() {
         return this.preference;
     }
 
     /**
      * The search type to execute, defaults to {@link SearchType#DEFAULT}.
      */
-    public SearchRequest searchType(SearchType searchType) {
+    public SearchRequest setSearchType(SearchType searchType) {
         this.searchType = searchType;
         return this;
     }
@@ -238,24 +238,24 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
      */
-    public SearchRequest searchType(String searchType) throws ElasticSearchIllegalArgumentException {
-        return searchType(SearchType.fromString(searchType));
+    public SearchRequest setSearchType(String searchType) throws ElasticSearchIllegalArgumentException {
+        return setSearchType(SearchType.fromString(searchType));
     }
 
     /**
      * The source of the search request.
      */
-    public SearchRequest source(SearchSourceBuilder sourceBuilder) {
+    public SearchRequest setSource(SearchSourceBuilder sourceBuilder) {
         this.source = sourceBuilder.buildAsBytes(contentType);
         this.sourceUnsafe = false;
         return this;
     }
 
     /**
-     * The source of the search request. Consider using either {@link #source(byte[])} or
-     * {@link #source(org.elasticsearch.search.builder.SearchSourceBuilder)}.
+     * The source of the search request. Consider using either {@link #setSource(byte[])} or
+     * {@link #setSource(org.elasticsearch.search.builder.SearchSourceBuilder)}.
      */
-    public SearchRequest source(String source) {
+    public SearchRequest setSource(String source) {
         this.source = new BytesArray(source);
         this.sourceUnsafe = false;
         return this;
@@ -264,17 +264,17 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The source of the search request in the form of a map.
      */
-    public SearchRequest source(Map source) {
+    public SearchRequest setSource(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
-            return source(builder);
+            return setSource(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
-    public SearchRequest source(XContentBuilder builder) {
+    public SearchRequest setSource(XContentBuilder builder) {
         this.source = builder.bytes();
         this.sourceUnsafe = false;
         return this;
@@ -283,29 +283,29 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The search source to execute.
      */
-    public SearchRequest source(byte[] source) {
-        return source(source, 0, source.length, false);
+    public SearchRequest setSource(byte[] source) {
+        return setSource(source, 0, source.length, false);
     }
 
 
     /**
      * The search source to execute.
      */
-    public SearchRequest source(byte[] source, int offset, int length) {
-        return source(source, offset, length, false);
+    public SearchRequest setSource(byte[] source, int offset, int length) {
+        return setSource(source, offset, length, false);
     }
 
     /**
      * The search source to execute.
      */
-    public SearchRequest source(byte[] source, int offset, int length, boolean unsafe) {
-        return source(new BytesArray(source, offset, length), unsafe);
+    public SearchRequest setSource(byte[] source, int offset, int length, boolean unsafe) {
+        return setSource(new BytesArray(source, offset, length), unsafe);
     }
 
     /**
      * The search source to execute.
      */
-    public SearchRequest source(BytesReference source, boolean unsafe) {
+    public SearchRequest setSource(BytesReference source, boolean unsafe) {
         this.source = source;
         this.sourceUnsafe = unsafe;
         return this;
@@ -314,14 +314,14 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * The search source to execute.
      */
-    public BytesReference source() {
+    public BytesReference getSource() {
         return source;
     }
 
     /**
      * Allows to provide additional source that will be used as well.
      */
-    public SearchRequest extraSource(SearchSourceBuilder sourceBuilder) {
+    public SearchRequest setExtraSource(SearchSourceBuilder sourceBuilder) {
         if (sourceBuilder == null) {
             extraSource = null;
             return this;
@@ -331,17 +331,17 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
         return this;
     }
 
-    public SearchRequest extraSource(Map extraSource) {
+    public SearchRequest setExtraSource(Map extraSource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(extraSource);
-            return extraSource(builder);
+            return setExtraSource(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
-    public SearchRequest extraSource(XContentBuilder builder) {
+    public SearchRequest setExtraSource(XContentBuilder builder) {
         this.extraSource = builder.bytes();
         this.extraSourceUnsafe = false;
         return this;
@@ -350,7 +350,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * Allows to provide additional source that will use used as well.
      */
-    public SearchRequest extraSource(String source) {
+    public SearchRequest setExtraSource(String source) {
         this.extraSource = new BytesArray(source);
         this.extraSourceUnsafe = false;
         return this;
@@ -359,28 +359,28 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * Allows to provide additional source that will be used as well.
      */
-    public SearchRequest extraSource(byte[] source) {
-        return extraSource(source, 0, source.length, false);
+    public SearchRequest setExtraSource(byte[] source) {
+        return setExtraSource(source, 0, source.length, false);
     }
 
     /**
      * Allows to provide additional source that will be used as well.
      */
-    public SearchRequest extraSource(byte[] source, int offset, int length) {
-        return extraSource(source, offset, length, false);
+    public SearchRequest setExtraSource(byte[] source, int offset, int length) {
+        return setExtraSource(source, offset, length, false);
     }
 
     /**
      * Allows to provide additional source that will be used as well.
      */
-    public SearchRequest extraSource(byte[] source, int offset, int length, boolean unsafe) {
-        return extraSource(new BytesArray(source, offset, length), unsafe);
+    public SearchRequest setExtraSource(byte[] source, int offset, int length, boolean unsafe) {
+        return setExtraSource(new BytesArray(source, offset, length), unsafe);
     }
 
     /**
      * Allows to provide additional source that will be used as well.
      */
-    public SearchRequest extraSource(BytesReference source, boolean unsafe) {
+    public SearchRequest setExtraSource(BytesReference source, boolean unsafe) {
         this.extraSource = source;
         this.extraSourceUnsafe = unsafe;
         return this;
@@ -389,35 +389,35 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * Additional search source to execute.
      */
-    public BytesReference extraSource() {
+    public BytesReference getExtraSource() {
         return this.extraSource;
     }
 
     /**
      * The tye of search to execute.
      */
-    public SearchType searchType() {
+    public SearchType getSearchType() {
         return searchType;
     }
 
     /**
      * The indices
      */
-    public String[] indices() {
+    public String[] getIndices() {
         return indices;
     }
 
     /**
      * If set, will enable scrolling of the search request.
      */
-    public Scroll scroll() {
+    public Scroll getScroll() {
         return scroll;
     }
 
     /**
      * If set, will enable scrolling of the search request.
      */
-    public SearchRequest scroll(Scroll scroll) {
+    public SearchRequest setScroll(Scroll scroll) {
         this.scroll = scroll;
         return this;
     }
@@ -425,15 +425,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     /**
      * If set, will enable scrolling of the search request for the specified timeout.
      */
-    public SearchRequest scroll(TimeValue keepAlive) {
-        return scroll(new Scroll(keepAlive));
+    public SearchRequest setScroll(TimeValue keepAlive) {
+        return setScroll(new Scroll(keepAlive));
     }
 
     /**
      * If set, will enable scrolling of the search request for the specified timeout.
      */
-    public SearchRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
+    public SearchRequest setScroll(String keepAlive) {
+        return setScroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
     }
 
     @Override

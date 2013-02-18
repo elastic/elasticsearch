@@ -72,7 +72,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         assertThat(refreshResponse.failedShards(), equalTo(0));
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client("server1").search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+                SearchResponse searchResponse = client("server1").search(searchRequest("test").setSource(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(3));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(3));
@@ -101,7 +101,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
 
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client("server1").search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+                SearchResponse searchResponse = client("server1").search(searchRequest("test").setSource(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(3));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(3));

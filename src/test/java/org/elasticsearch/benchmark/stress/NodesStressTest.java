@@ -210,7 +210,7 @@ public class NodesStressTest {
                     query = constantScoreQuery(queryFilter(query));
 
                     SearchResponse search = client.search(searchRequest()
-                            .source(searchSource().query(query)))
+                            .setSource(searchSource().query(query)))
                             .actionGet();
 //                    System.out.println("Got search response, hits [" + search.hits().totalHits() + "]");
                 }

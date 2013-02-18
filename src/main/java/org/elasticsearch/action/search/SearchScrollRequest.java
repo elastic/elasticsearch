@@ -61,14 +61,14 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
     /**
      * Controls the the search operation threading model.
      */
-    public SearchOperationThreading operationThreading() {
+    public SearchOperationThreading getOperationThreading() {
         return this.operationThreading;
     }
 
     /**
      * Controls the the search operation threading model.
      */
-    public SearchScrollRequest operationThreading(SearchOperationThreading operationThreading) {
+    public SearchScrollRequest setOperationThreading(SearchOperationThreading operationThreading) {
         this.operationThreading = operationThreading;
         return this;
     }
@@ -76,11 +76,11 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
     /**
      * The scroll id used to scroll the search.
      */
-    public String scrollId() {
+    public String getScrollId() {
         return scrollId;
     }
 
-    public SearchScrollRequest scrollId(String scrollId) {
+    public SearchScrollRequest setScrollId(String scrollId) {
         this.scrollId = scrollId;
         return this;
     }
@@ -88,14 +88,14 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
     /**
      * If set, will enable scrolling of the search request.
      */
-    public Scroll scroll() {
+    public Scroll getScroll() {
         return scroll;
     }
 
     /**
      * If set, will enable scrolling of the search request.
      */
-    public SearchScrollRequest scroll(Scroll scroll) {
+    public SearchScrollRequest setScroll(Scroll scroll) {
         this.scroll = scroll;
         return this;
     }
@@ -103,15 +103,15 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
     /**
      * If set, will enable scrolling of the search request for the specified timeout.
      */
-    public SearchScrollRequest scroll(TimeValue keepAlive) {
-        return scroll(new Scroll(keepAlive));
+    public SearchScrollRequest setScroll(TimeValue keepAlive) {
+        return setScroll(new Scroll(keepAlive));
     }
 
     /**
      * If set, will enable scrolling of the search request for the specified timeout.
      */
-    public SearchScrollRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
+    public SearchScrollRequest setScroll(String keepAlive) {
+        return setScroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null)));
     }
 
     @Override

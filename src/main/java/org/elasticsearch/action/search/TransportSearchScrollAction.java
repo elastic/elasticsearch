@@ -63,7 +63,7 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
     @Override
     protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
-            ParsedScrollId scrollId = parseScrollId(request.scrollId());
+            ParsedScrollId scrollId = parseScrollId(request.getScrollId());
             if (scrollId.getType().equals(QUERY_THEN_FETCH_TYPE)) {
                 queryThenFetchAction.execute(request, scrollId, listener);
             } else if (scrollId.getType().equals(QUERY_AND_FETCH_TYPE)) {

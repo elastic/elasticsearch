@@ -99,7 +99,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true);
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(DFS_QUERY_THEN_FETCH).setScroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
@@ -128,7 +128,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(DFS_QUERY_THEN_FETCH).setScroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
@@ -156,7 +156,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
                 .sort("nid", SortOrder.DESC) // we have to sort here to have some ordering with dist scoring
                 .from(0).size(60).explain(true);
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
@@ -185,7 +185,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
 
         Set<String> collectedIds = Sets.newHashSet();
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source.from(0).size(60)).setSearchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
@@ -193,7 +193,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
             SearchHit hit = searchResponse.getHits().hits()[i];
             collectedIds.add(hit.id());
         }
-        searchResponse = client.search(searchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source.from(60).size(60)).setSearchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(40));
@@ -210,7 +210,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
@@ -242,7 +242,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
             expectedIds.add(Integer.toString(i));
         }
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_AND_FETCH).setScroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60)); // 20 per shard
@@ -280,7 +280,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         }
 
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(DFS_QUERY_AND_FETCH).setScroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60)); // 20 per shard
@@ -314,7 +314,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
                 .facet(FacetBuilders.queryFacet("all", termQuery("multi", "test")).global(true))
                 .facet(FacetBuilders.queryFacet("test1", termQuery("name", "test1")));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(sourceBuilder)).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(sourceBuilder)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
 
@@ -332,7 +332,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
         try {
-            SearchResponse searchResponse = client.search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+            SearchResponse searchResponse = client.search(searchRequest("test").setSource(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
             assertThat(searchResponse.getTotalShards(), equalTo(3));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(3));
@@ -350,21 +350,21 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(1000).size(20).explain(true);
-        SearchResponse response = client.search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
+        SearchResponse response = client.search(searchRequest("test").setSearchType(DFS_QUERY_AND_FETCH).setSource(source)).actionGet();
         assertThat(response.getHits().hits().length, equalTo(0));
         assertThat(response.getTotalShards(), equalTo(3));
         assertThat(response.getSuccessfulShards(), equalTo(3));
         assertThat(response.getFailedShards(), equalTo(0));
 
-        response = client.search(searchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
+        response = client.search(searchRequest("test").setSearchType(QUERY_THEN_FETCH).setSource(source)).actionGet();
         assertThat(response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
-        response = client.search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
+        response = client.search(searchRequest("test").setSearchType(DFS_QUERY_AND_FETCH).setSource(source)).actionGet();
         assertThat(response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
-        response = client.search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
+        response = client.search(searchRequest("test").setSearchType(DFS_QUERY_THEN_FETCH).setSource(source)).actionGet();
         assertThat(response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 

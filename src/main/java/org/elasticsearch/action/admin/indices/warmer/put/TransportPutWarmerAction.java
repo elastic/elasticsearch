@@ -81,7 +81,7 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
 
     @Override
     protected ClusterBlockException checkBlock(PutWarmerRequest request, ClusterState state) {
-        String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.getSearchRequest().indices());
+        String[] concreteIndices = clusterService.state().metaData().concreteIndices(request.getSearchRequest().getIndices());
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, concreteIndices);
     }
 
@@ -105,14 +105,14 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
             @Override
             public ClusterState execute(ClusterState currentState) {
                 MetaData metaData = currentState.metaData();
-                String[] concreteIndices = metaData.concreteIndices(request.getSearchRequest().indices());
+                String[] concreteIndices = metaData.concreteIndices(request.getSearchRequest().getIndices());
 
 
                 BytesReference source = null;
-                if (request.getSearchRequest().source() != null && request.getSearchRequest().source().length() > 0) {
-                    source = request.getSearchRequest().source();
-                } else if (request.getSearchRequest().extraSource() != null && request.getSearchRequest().extraSource().length() > 0) {
-                    source = request.getSearchRequest().extraSource();
+                if (request.getSearchRequest().getSource() != null && request.getSearchRequest().getSource().length() > 0) {
+                    source = request.getSearchRequest().getSource();
+                } else if (request.getSearchRequest().getExtraSource() != null && request.getSearchRequest().getExtraSource().length() > 0) {
+                    source = request.getSearchRequest().getExtraSource();
                 }
 
                 // now replace it on the metadata
@@ -126,21 +126,21 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
                     IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
                     if (warmers == null) {
                         logger.info("[{}] putting warmer [{}]", index, request.getName());
-                        warmers = new IndexWarmersMetaData(new IndexWarmersMetaData.Entry(request.getName(), request.getSearchRequest().types(), source));
+                        warmers = new IndexWarmersMetaData(new IndexWarmersMetaData.Entry(request.getName(), request.getSearchRequest().getTypes(), source));
                     } else {
                         boolean found = false;
                         List<IndexWarmersMetaData.Entry> entries = new ArrayList<IndexWarmersMetaData.Entry>(warmers.entries().size() + 1);
                         for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
                             if (entry.name().equals(request.getName())) {
                                 found = true;
-                                entries.add(new IndexWarmersMetaData.Entry(request.getName(), request.getSearchRequest().types(), source));
+                                entries.add(new IndexWarmersMetaData.Entry(request.getName(), request.getSearchRequest().getTypes(), source));
                             } else {
                                 entries.add(entry);
                             }
                         }
                         if (!found) {
                             logger.info("[{}] put warmer [{}]", index, request.getName());
-                            entries.add(new IndexWarmersMetaData.Entry(request.getName(), request.getSearchRequest().types(), source));
+                            entries.add(new IndexWarmersMetaData.Entry(request.getName(), request.getSearchRequest().getTypes(), source));
                         } else {
                             logger.info("[{}] update warmer [{}]", index, request.getName());
                         }

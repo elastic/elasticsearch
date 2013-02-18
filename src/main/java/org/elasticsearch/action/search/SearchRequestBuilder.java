@@ -57,7 +57,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets the indices the search will be executed on.
      */
     public SearchRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
+        request.setIndices(indices);
         return this;
     }
 
@@ -66,7 +66,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * all types.
      */
     public SearchRequestBuilder setTypes(String... types) {
-        request.types(types);
+        request.setTypes(types);
         return this;
     }
 
@@ -74,7 +74,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * The search type to execute, defaults to {@link org.elasticsearch.action.search.SearchType#DEFAULT}.
      */
     public SearchRequestBuilder setSearchType(SearchType searchType) {
-        request.searchType(searchType);
+        request.setSearchType(searchType);
         return this;
     }
 
@@ -84,7 +84,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
      */
     public SearchRequestBuilder setSearchType(String searchType) throws ElasticSearchIllegalArgumentException {
-        request.searchType(searchType);
+        request.setSearchType(searchType);
         return this;
     }
 
@@ -92,7 +92,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * If set, will enable scrolling of the search request.
      */
     public SearchRequestBuilder setScroll(Scroll scroll) {
-        request.scroll(scroll);
+        request.setScroll(scroll);
         return this;
     }
 
@@ -100,7 +100,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchRequestBuilder setScroll(TimeValue keepAlive) {
-        request.scroll(keepAlive);
+        request.setScroll(keepAlive);
         return this;
     }
 
@@ -108,7 +108,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchRequestBuilder setScroll(String keepAlive) {
-        request.scroll(keepAlive);
+        request.setScroll(keepAlive);
         return this;
     }
 
@@ -132,7 +132,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
     public SearchRequestBuilder setRouting(String routing) {
-        request.routing(routing);
+        request.setRouting(routing);
         return this;
     }
 
@@ -140,7 +140,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * The routing values to control the shards that the search will be executed on.
      */
     public SearchRequestBuilder setRouting(String... routing) {
-        request.routing(routing);
+        request.setRouting(routing);
         return this;
     }
 
@@ -150,7 +150,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * a custom value, which guarantees that the same order will be used across different requests.
      */
     public SearchRequestBuilder setPreference(String preference) {
-        request.preference(preference);
+        request.setPreference(preference);
         return this;
     }
 
@@ -158,7 +158,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Controls the the search operation threading model.
      */
     public SearchRequestBuilder setOperationThreading(SearchOperationThreading operationThreading) {
-        request.operationThreading(operationThreading);
+        request.setOperationThreading(operationThreading);
         return this;
     }
 
@@ -167,7 +167,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * "no_threads", "single_thread" and "thread_per_shard".
      */
     public SearchRequestBuilder setOperationThreading(String operationThreading) {
-        request.operationThreading(operationThreading);
+        request.setOperationThreading(operationThreading);
         return this;
     }
 
@@ -175,7 +175,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Specifies what type of requested indices to ignore. For example indices that don't exist.
      */
     public SearchRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request().ignoreIndices(ignoreIndices);
+        request().setIgnoreIndices(ignoreIndices);
         return this;
     }
 
@@ -680,7 +680,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * {@link #setExtraSource(String)}.
      */
     public SearchRequestBuilder setSource(String source) {
-        request.source(source);
+        request.setSource(source);
         return this;
     }
 
@@ -688,7 +688,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets the source of the request as a json string. Allows to set other parameters.
      */
     public SearchRequestBuilder setExtraSource(String source) {
-        request.extraSource(source);
+        request.setExtraSource(source);
         return this;
     }
 
@@ -698,7 +698,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * {@link #setExtraSource(BytesReference)}.
      */
     public SearchRequestBuilder setSource(BytesReference source) {
-        request.source(source, false);
+        request.setSource(source, false);
         return this;
     }
 
@@ -708,7 +708,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * {@link #setExtraSource(BytesReference)}.
      */
     public SearchRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request.source(source, unsafe);
+        request.setSource(source, unsafe);
         return this;
     }
 
@@ -719,7 +719,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * {@link #setExtraSource(byte[])}.
      */
     public SearchRequestBuilder setSource(byte[] source) {
-        request.source(source);
+        request.setSource(source);
         return this;
     }
 
@@ -727,7 +727,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets the source of the request as a json string. Allows to set other parameters.
      */
     public SearchRequestBuilder setExtraSource(BytesReference source) {
-        request.extraSource(source, false);
+        request.setExtraSource(source, false);
         return this;
     }
 
@@ -735,7 +735,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets the source of the request as a json string. Allows to set other parameters.
      */
     public SearchRequestBuilder setExtraSource(BytesReference source, boolean unsafe) {
-        request.extraSource(source, unsafe);
+        request.setExtraSource(source, unsafe);
         return this;
     }
 
@@ -743,7 +743,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets the source of the request as a json string. Allows to set other parameters.
      */
     public SearchRequestBuilder setExtraSource(byte[] source) {
-        request.extraSource(source);
+        request.setExtraSource(source);
         return this;
     }
 
@@ -753,7 +753,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * {@link #setExtraSource(byte[])}.
      */
     public SearchRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.source(source, offset, length);
+        request.setSource(source, offset, length);
         return this;
     }
 
@@ -761,7 +761,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets the source of the request as a json string. Allows to set other parameters.
      */
     public SearchRequestBuilder setExtraSource(byte[] source, int offset, int length) {
-        request.extraSource(source, offset, length);
+        request.setExtraSource(source, offset, length);
         return this;
     }
 
@@ -771,7 +771,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * {@link #setExtraSource(byte[])}.
      */
     public SearchRequestBuilder setSource(XContentBuilder builder) {
-        request.source(builder);
+        request.setSource(builder);
         return this;
     }
 
@@ -779,7 +779,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * Sets the source of the request as a json string. Allows to set other parameters.
      */
     public SearchRequestBuilder setExtraSource(XContentBuilder builder) {
-        request.extraSource(builder);
+        request.setExtraSource(builder);
         return this;
     }
 
@@ -789,12 +789,12 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * {@link #setExtraSource(java.util.Map)}.
      */
     public SearchRequestBuilder setSource(Map source) {
-        request.source(source);
+        request.setSource(source);
         return this;
     }
 
     public SearchRequestBuilder setExtraSource(Map source) {
-        request.extraSource(source);
+        request.setExtraSource(source);
         return this;
     }
 
@@ -823,7 +823,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     @Override
     public SearchRequest request() {
         if (sourceBuilder != null) {
-            request.source(sourceBuilder());
+            request.setSource(sourceBuilder());
         }
         return request;
     }
@@ -831,7 +831,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     @Override
     protected void doExecute(ActionListener<SearchResponse> listener) {
         if (sourceBuilder != null) {
-            request.source(sourceBuilder());
+            request.setSource(sourceBuilder());
         }
         ((Client) client).search(request, listener);
     }

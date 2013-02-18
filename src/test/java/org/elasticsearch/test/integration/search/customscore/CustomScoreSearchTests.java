@@ -157,8 +157,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
         logger.info("running doc['num1'].value");
         SearchResponse response = client.search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value")))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -169,8 +169,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
         logger.info("running -doc['num1'].value");
         response = client.search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("-doc['num1'].value")))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("-doc['num1'].value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -182,8 +182,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
         logger.info("running pow(doc['num1'].value, 2)");
         response = client.search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("pow(doc['num1'].value, 2)")))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("pow(doc['num1'].value, 2)")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -194,8 +194,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
         logger.info("running max(doc['num1'].value, 1)");
         response = client.search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("max(doc['num1'].value, 1d)")))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("max(doc['num1'].value, 1d)")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -206,8 +206,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
         logger.info("running doc['num1'].value * _score");
         response = client.search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value * _score")))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value * _score")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -218,8 +218,8 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
 
         logger.info("running param1 * param2 * _score");
         response = client.search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * _score").param("param1", 2).param("param2", 2)))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * _score").param("param1", 2).param("param2", 2)))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));

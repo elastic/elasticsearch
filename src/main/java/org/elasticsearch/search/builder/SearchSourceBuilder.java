@@ -53,7 +53,7 @@ import java.util.Map;
  * A search source builder allowing to easily build search source. Simple construction
  * using {@link org.elasticsearch.search.builder.SearchSourceBuilder#searchSource()}.
  *
- * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
+ * @see org.elasticsearch.action.search.SearchRequest#setSource(SearchSourceBuilder)
  */
 public class SearchSourceBuilder implements ToXContent {
 

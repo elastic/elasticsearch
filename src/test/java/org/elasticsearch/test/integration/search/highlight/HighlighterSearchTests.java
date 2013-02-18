@@ -275,7 +275,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field*").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -303,7 +303,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -315,7 +315,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -327,7 +327,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -339,7 +339,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -351,7 +351,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -363,7 +363,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
@@ -389,7 +389,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -401,7 +401,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -414,7 +414,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -427,7 +427,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -970,7 +970,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -995,7 +995,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .explain(true).highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
         SearchResponse searchResponse = client.search(
-                searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+                searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH).setScroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -1041,7 +1041,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        SearchResponse searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -1053,7 +1053,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
@@ -1073,7 +1073,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field3", "fast bro")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field3").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -1084,7 +1084,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "the fast bro")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
@@ -1097,7 +1097,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client.search(searchRequest("test").setSource(source).setSearchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 

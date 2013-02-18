@@ -64,7 +64,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
         try {
             String scroll = request.param("scroll");
             if (scroll != null) {
-                searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
+                searchScrollRequest.setScroll(new Scroll(parseTimeValue(scroll, null)));
             }
             SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
             if (operationThreading != null) {
@@ -72,7 +72,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
                     // since we don't spawn, don't allow no_threads, but change it to a single thread
                     operationThreading = SearchOperationThreading.SINGLE_THREAD;
                 }
-                searchScrollRequest.operationThreading(operationThreading);
+                searchScrollRequest.setOperationThreading(operationThreading);
             }
         } catch (Exception e) {
             try {

@@ -56,11 +56,11 @@ public class TransportMultiSearchAction extends TransportAction<MultiSearchReque
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
-        final MultiSearchResponse.Item[] responses = new MultiSearchResponse.Item[request.requests().size()];
+        final MultiSearchResponse.Item[] responses = new MultiSearchResponse.Item[request.getRequests().size()];
         final AtomicInteger counter = new AtomicInteger(responses.length);
         for (int i = 0; i < responses.length; i++) {
             final int index = i;
-            searchAction.execute(request.requests().get(i), new ActionListener<SearchResponse>() {
+            searchAction.execute(request.getRequests().get(i), new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     synchronized (responses) {

@@ -96,8 +96,8 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         logger.info("Query with test1 boosted");
         SearchResponse response = client.search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -108,8 +108,8 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         logger.info("Query with test2 boosted");
         response = client.search(searchRequest()
-                .searchType(SearchType.QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -122,8 +122,8 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         logger.info("Query with test1 boosted");
         response = client.search(searchRequest()
-                .searchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -134,8 +134,8 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         logger.info("Query with test2 boosted");
         response = client.search(searchRequest()
-                .searchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setSource(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));

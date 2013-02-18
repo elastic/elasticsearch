@@ -112,7 +112,7 @@ public class ParentChildStressTest {
      * elevate the visibility of the problem.
      */
     public List<String> executeSearch(String source) {
-        SearchRequest request = Requests.searchRequest(INDEX_NAME).source(source);
+        SearchRequest request = Requests.searchRequest(INDEX_NAME).setSource(source);
 
         List<ShardSearchFailure> failures;
         SearchResponse response;

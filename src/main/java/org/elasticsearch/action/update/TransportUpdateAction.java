@@ -135,7 +135,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, UpdateRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.getIndex());
     }
 
     @Override
@@ -150,18 +150,18 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected boolean resolveRequest(ClusterState state, UpdateRequest request, ActionListener<UpdateResponse> listener) {
         MetaData metaData = clusterService.state().metaData();
-        String aliasOrIndex = request.index();
+        String aliasOrIndex = request.getIndex();
         request.routing((metaData.resolveIndexRouting(request.routing(), aliasOrIndex)));
-        request.index(metaData.concreteIndex(request.index()));
+        request.setIndex(metaData.concreteIndex(request.getIndex()));
         return true;
     }
 
     @Override
     protected void doExecute(final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
-        if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
+        if (autoCreateIndex.shouldAutoCreate(request.getIndex(), clusterService.state())) {
             request.beforeLocalFork(); // we fork on another thread...
-            createIndexAction.execute(new CreateIndexRequest(request.index()).setCause("auto(update api)").setMasterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request.getIndex()).setCause("auto(update api)").setMasterNodeTimeout(request.getTimeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -193,10 +193,10 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected ShardIterator shards(ClusterState clusterState, UpdateRequest request) throws ElasticSearchException {
         if (request.shardId() != -1) {
-            return clusterState.routingTable().index(request.index()).shard(request.shardId()).primaryShardIt();
+            return clusterState.routingTable().index(request.getIndex()).shard(request.shardId()).primaryShardIt();
         }
         ShardIterator shardIterator = clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.index(), request.type(), request.id(), request.routing());
+                .indexShards(clusterService.state(), request.getIndex(), request.type(), request.id(), request.routing());
         ShardRouting shard;
         while ((shard = shardIterator.nextOrNull()) != null) {
             if (shard.primary()) {
@@ -212,7 +212,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
+        IndexService indexService = indicesService.indexServiceSafe(request.getIndex());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
 
         long getDate = System.currentTimeMillis();
@@ -222,11 +222,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // no doc, what to do, what to do...
         if (!getResult.isExists()) {
             if (request.upsertRequest() == null) {
-                listener.onFailure(new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+                listener.onFailure(new DocumentMissingException(new ShardId(request.getIndex(), request.shardId()), request.type(), request.id()));
                 return;
             }
             final IndexRequest indexRequest = request.upsertRequest();
-            indexRequest.setIndex(request.index()).setType(request.type()).setId(request.id())
+            indexRequest.setIndex(request.getIndex()).setType(request.type()).setId(request.id())
                     // it has to be a "create!"
                     .setCreate(true)
                     .setRouting(request.routing())
@@ -272,7 +272,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
         if (getResult.internalSourceRef() == null) {
             // no source, we can't do nothing, through a failure...
-            listener.onFailure(new DocumentSourceMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id()));
+            listener.onFailure(new DocumentSourceMissingException(new ShardId(request.getIndex(), request.shardId()), request.type(), request.id()));
             return;
         }
 
@@ -340,7 +340,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // TODO: external version type, does it make sense here? does not seem like it...
 
         if (operation == null || "index".equals(operation)) {
-            final IndexRequest indexRequest = Requests.indexRequest(request.index()).setType(request.type()).setId(request.id()).setRouting(routing).setParent(parent)
+            final IndexRequest indexRequest = Requests.indexRequest(request.getIndex()).setType(request.type()).setId(request.id()).setRouting(routing).setParent(parent)
                     .setSource(updatedSourceAsMap, updateSourceContentType)
                     .setVersion(getResult.getVersion()).setReplicationType(request.replicationType()).setConsistencyLevel(request.consistencyLevel())
                     .setTimestamp(timestamp).setTtl(ttl)
@@ -376,7 +376,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 }
             });
         } else if ("delete".equals(operation)) {
-            DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).setType(request.type()).setId(request.id()).setRouting(routing).setParent(parent)
+            DeleteRequest deleteRequest = Requests.deleteRequest(request.getIndex()).setType(request.type()).setId(request.id()).setRouting(routing).setParent(parent)
                     .setVersion(getResult.getVersion()).setReplicationType(request.replicationType()).setConsistencyLevel(request.consistencyLevel());
             deleteRequest.setOperationThreaded(false);
             deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
@@ -446,6 +446,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
 
         // TODO when using delete/none, we can still return the source as bytes by generating it (using the sourceContentType)
 
-        return new GetResult(request.index(), request.type(), request.id(), version, true, sourceRequested ? sourceAsBytes : null, fields);
+        return new GetResult(request.getIndex(), request.type(), request.id(), version, true, sourceRequested ? sourceAsBytes : null, fields);
     }
 }

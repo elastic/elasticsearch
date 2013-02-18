@@ -90,7 +90,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
      * means a different execution, then return false here to indicate not to continue and execute this request.
      */
     protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-        request.index(state.metaData().concreteIndex(request.index()));
+        request.setIndex(state.metaData().concreteIndex(request.getIndex()));
         return true;
     }
 
@@ -239,7 +239,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
             if (!fromClusterEvent) {
                 // make it threaded operation so we fork on the discovery listener thread
                 request.beforeLocalFork();
-                clusterService.add(request.timeout(), new TimeoutClusterStateListener() {
+                clusterService.add(request.getTimeout(), new TimeoutClusterStateListener() {
                     @Override
                     public void postAdded() {
                         if (start(true)) {
@@ -273,7 +273,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
                         Throwable listenFailure = failure;
                         if (listenFailure == null) {
                             if (shardIt == null) {
-                                listenFailure = new UnavailableShardsException(new ShardId(request.index(), -1), "Timeout waiting for [" + timeValue + "], request: " + request.toString());
+                                listenFailure = new UnavailableShardsException(new ShardId(request.getIndex(), -1), "Timeout waiting for [" + timeValue + "], request: " + request.toString());
                             } else {
                                 listenFailure = new UnavailableShardsException(shardIt.shardId(), "[" + shardIt.size() + "] shardIt, [" + shardIt.sizeActive() + "] active : Timeout waiting for [" + timeValue + "], request: " + request.toString());
                             }

@@ -29,6 +29,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
+import org.elasticsearch.search.facet.filter.FilterFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -39,7 +40,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.nestedFilter;
+import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -437,28 +438,52 @@ public class SimpleNestedTests extends AbstractNodesTests {
         assertThat(termsStatsFacet.getEntries().get(3).getCount(), equalTo(1l));
         assertThat(termsStatsFacet.getEntries().get(3).getTotal(), equalTo(12d));
 
-        // test scope ones
-//        searchResponse = client.prepareSearch("test")
-//                .setQuery(
-//                        nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue"))
-//                )
-//                .addFacet(
-//                        FacetBuilders.termsStatsFacet("facet1")
-//                                .keyField("nested1.nested2.field2_1")
-//                                .valueField("nested1.nested2.field2_2")
-//                                .nested("nested1.nested2")
-//                                .facetFilter(nestedFilter("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue")).join(false))
-//                )
-//                .execute().actionGet();
-//
-//        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-//        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
-//
-//        termsStatsFacet = searchResponse.facets().facet("facet1");
-//        assertThat(termsStatsFacet.getEntries().size(), equalTo(1));
-//        assertThat(termsStatsFacet.getEntries().get(0).getTerm().string(), equalTo("blue"));
-//        assertThat(termsStatsFacet.getEntries().get(0).getCount(), equalTo(3l));
-//        assertThat(termsStatsFacet.getEntries().get(0).getTotal(), equalTo(8d));
+        // test scope ones (collector based)
+        searchResponse = client.prepareSearch("test")
+                .setQuery(
+                        nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue"))
+                )
+                .addFacet(
+                        FacetBuilders.termsStatsFacet("facet1")
+                                .keyField("nested1.nested2.field2_1")
+                                .valueField("nested1.nested2.field2_2")
+                                .nested("nested1.nested2")
+                                        // Maybe remove the `join` option?
+                                        // The following also works:
+                                        // .facetFilter(termFilter("nested1.nested2.field2_1", "blue"))
+                                .facetFilter(nestedFilter("nested1.nested2", termFilter("nested1.nested2.field2_1", "blue")).join(false))
+                )
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+
+        termsStatsFacet = searchResponse.getFacets().facet("facet1");
+        assertThat(termsStatsFacet.getEntries().size(), equalTo(1));
+        assertThat(termsStatsFacet.getEntries().get(0).getTerm().string(), equalTo("blue"));
+        assertThat(termsStatsFacet.getEntries().get(0).getCount(), equalTo(3l));
+        assertThat(termsStatsFacet.getEntries().get(0).getTotal(), equalTo(8d));
+
+        // test scope ones (post based)
+        searchResponse = client.prepareSearch("test")
+                .setQuery(
+                        nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue"))
+                )
+                .addFacet(
+                        FacetBuilders.filterFacet("facet1")
+                                .global(true)
+                                .filter(rangeFilter("nested1.nested2.field2_2").gte(0).lte(2))
+                                .nested("nested1.nested2")
+                                .facetFilter(nestedFilter("nested1.nested2", termFilter("nested1.nested2.field2_1", "blue")).join(false))
+                )
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+
+        FilterFacet filterFacet = searchResponse.getFacets().facet("facet1");
+        assertThat(filterFacet.getCount(), equalTo(2l));
+        assertThat(filterFacet.getName(), equalTo("facet1"));
     }
 
     @Test

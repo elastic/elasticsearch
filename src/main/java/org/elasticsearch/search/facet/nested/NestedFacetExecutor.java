@@ -28,6 +28,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.docset.ContextDocIdSet;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -101,6 +102,12 @@ public class NestedFacetExecutor extends FacetExecutor {
             this.childFilter = childFilter;
         }
 
+        public Post(Post post, Filter filter) {
+            this.post = new FacetExecutor.Post.Filtered(post.post, filter);
+            this.parentFilter = post.parentFilter;
+            this.childFilter = post.childFilter;
+        }
+
         @Override
         public void executePost(List<ContextDocIdSet> docSets) throws IOException {
             List<ContextDocIdSet> nestedEntries = new ArrayList<ContextDocIdSet>(docSets.size());
@@ -150,6 +157,13 @@ public class NestedFacetExecutor extends FacetExecutor {
         private final Filter childFilter;
         private Bits childDocs;
         private FixedBitSet parentDocs;
+
+        // We can move
+        public Collector(Collector collector, Filter filter) {
+            this.collector = new FilteredCollector(collector.collector, filter);
+            this.parentFilter = collector.parentFilter;
+            this.childFilter = collector.childFilter;
+        }
 
         public Collector(org.apache.lucene.search.Collector collector, Filter parentFilter, Filter childFilter) {
             this.collector = collector;

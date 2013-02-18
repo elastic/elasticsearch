@@ -863,32 +863,32 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         CountResponse countResponse = client.prepareCount("test")
                 .setQuery(topChildrenQuery("child", termQuery("c_field1", "1")))
                 .execute().actionGet();
-        assertThat(countResponse.failedShards(), equalTo(1));
-        assertThat(countResponse.shardFailures().get(0).reason().contains("top_children query hasn't executed properly"), equalTo(true));
+        assertThat(countResponse.getFailedShards(), equalTo(1));
+        assertThat(countResponse.getShardFailures().get(0).reason().contains("top_children query hasn't executed properly"), equalTo(true));
 
         countResponse = client.prepareCount("test")
                 .setQuery(hasChildQuery("child", termQuery("c_field1", "2")).scoreType("max"))
                 .execute().actionGet();
-        assertThat(countResponse.failedShards(), equalTo(1));
-        assertThat(countResponse.shardFailures().get(0).reason().contains("has_child query hasn't executed properly"), equalTo(true));
+        assertThat(countResponse.getFailedShards(), equalTo(1));
+        assertThat(countResponse.getShardFailures().get(0).reason().contains("has_child query hasn't executed properly"), equalTo(true));
 
         countResponse = client.prepareCount("test")
                 .setQuery(hasParentQuery("parent", termQuery("p_field1", "1")).scoreType("score"))
                 .execute().actionGet();
-        assertThat(countResponse.failedShards(), equalTo(1));
-        assertThat(countResponse.shardFailures().get(0).reason().contains("has_parent query hasn't executed properly"), equalTo(true));
+        assertThat(countResponse.getFailedShards(), equalTo(1));
+        assertThat(countResponse.getShardFailures().get(0).reason().contains("has_parent query hasn't executed properly"), equalTo(true));
 
         countResponse = client.prepareCount("test")
                 .setQuery(constantScoreQuery(hasChildFilter("child", termQuery("c_field1", "2"))))
                 .execute().actionGet();
-        assertThat(countResponse.failedShards(), equalTo(1));
-        assertThat(countResponse.shardFailures().get(0).reason().contains("has_child filter hasn't executed properly"), equalTo(true));
+        assertThat(countResponse.getFailedShards(), equalTo(1));
+        assertThat(countResponse.getShardFailures().get(0).reason().contains("has_child filter hasn't executed properly"), equalTo(true));
 
         countResponse = client.prepareCount("test")
                 .setQuery(constantScoreQuery(hasParentFilter("parent", termQuery("p_field1", "1"))))
                 .execute().actionGet();
-        assertThat(countResponse.failedShards(), equalTo(1));
-        assertThat(countResponse.shardFailures().get(0).reason().contains("has_parent filter hasn't executed properly"), equalTo(true));
+        assertThat(countResponse.getFailedShards(), equalTo(1));
+        assertThat(countResponse.getShardFailures().get(0).reason().contains("has_parent filter hasn't executed properly"), equalTo(true));
     }
 
     @Test

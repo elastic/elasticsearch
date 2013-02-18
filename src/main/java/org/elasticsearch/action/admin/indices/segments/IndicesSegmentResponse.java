@@ -60,7 +60,7 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
 
         Set<String> indices = Sets.newHashSet();
         for (ShardSegments shard : shards) {
-            indices.add(shard.index());
+            indices.add(shard.getIndex());
         }
 
         for (String index : indices) {

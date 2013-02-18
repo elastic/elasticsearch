@@ -60,7 +60,7 @@ public class RestOptimizeAction extends BaseRestHandler {
         OptimizeRequest optimizeRequest = new OptimizeRequest(RestActions.splitIndices(request.param("index")));
         optimizeRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
-            optimizeRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            optimizeRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         try {
             optimizeRequest.setWaitForMerge(request.paramAsBoolean("wait_for_merge", optimizeRequest.isWaitForMerge()));
@@ -74,7 +74,7 @@ public class RestOptimizeAction extends BaseRestHandler {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
             }
-            optimizeRequest.operationThreading(operationThreading);
+            optimizeRequest.setOperationThreading(operationThreading);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);

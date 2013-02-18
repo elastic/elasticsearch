@@ -68,7 +68,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
     public OptimizeRequest(String... indices) {
         super(indices);
         // we want to do the optimize in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
+        setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     public OptimizeRequest() {

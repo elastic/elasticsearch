@@ -63,7 +63,7 @@ public class RestCountAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CountRequest countRequest = new CountRequest(RestActions.splitIndices(request.param("index")));
         if (request.hasParam("ignore_indices")) {
-            countRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            countRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         countRequest.listenerThreaded(false);
         try {
@@ -72,7 +72,7 @@ public class RestCountAction extends BaseRestHandler {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
             }
-            countRequest.operationThreading(operationThreading);
+            countRequest.setOperationThreading(operationThreading);
             if (request.hasContent()) {
                 countRequest.setQuery(request.content(), request.contentUnsafe());
             } else {

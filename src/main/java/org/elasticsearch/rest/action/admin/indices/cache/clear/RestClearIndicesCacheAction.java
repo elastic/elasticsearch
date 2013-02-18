@@ -60,7 +60,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(RestActions.splitIndices(request.param("index")));
         clearIndicesCacheRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
-            clearIndicesCacheRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            clearIndicesCacheRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         try {
             clearIndicesCacheRequest.setFilterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.isFilterCache()));
@@ -74,7 +74,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
             }
-            clearIndicesCacheRequest.operationThreading(operationThreading);
+            clearIndicesCacheRequest.setOperationThreading(operationThreading);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);

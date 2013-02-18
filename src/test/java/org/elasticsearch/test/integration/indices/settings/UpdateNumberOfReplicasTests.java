@@ -140,7 +140,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(countResponse.shardFailures().toString(), countResponse.failedShards(), equalTo(0));
+            assertThat(countResponse.getShardFailures().toString(), countResponse.getFailedShards(), equalTo(0));
             assertThat(countResponse.getCount(), equalTo(10l));
         }
     }

@@ -128,8 +128,8 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(indexResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
-        assertThat(refreshResponse.successfulShards(), equalTo(10));
-        assertThat(refreshResponse.failedShards(), equalTo(0));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
         logger.info("--> index exists?");
         IndicesExistsResponse indicesExistsResponse = client1.admin().indices().prepareExists(getConcreteIndexName()).execute().actionGet();
@@ -141,13 +141,13 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Clearing cache");
         ClearIndicesCacheResponse clearIndicesCacheResponse = client1.admin().indices().clearCache(clearIndicesCacheRequest("test")).actionGet();
-        assertThat(clearIndicesCacheResponse.successfulShards(), equalTo(10));
-        assertThat(clearIndicesCacheResponse.failedShards(), equalTo(0));
+        assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(clearIndicesCacheResponse.getFailedShards(), equalTo(0));
 
         logger.info("Optimizing");
         OptimizeResponse optimizeResponse = client1.admin().indices().prepareOptimize("test").execute().actionGet();
-        assertThat(optimizeResponse.successfulShards(), equalTo(10));
-        assertThat(optimizeResponse.failedShards(), equalTo(0));
+        assertThat(optimizeResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(optimizeResponse.getFailedShards(), equalTo(0));
 
         GetResponse getResult;
 
@@ -198,8 +198,8 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Flushing");
         FlushResponse flushResult = client1.admin().indices().prepareFlush("test").execute().actionGet();
-        assertThat(flushResult.successfulShards(), equalTo(10));
-        assertThat(flushResult.failedShards(), equalTo(0));
+        assertThat(flushResult.getSuccessfulShards(), equalTo(10));
+        assertThat(flushResult.getFailedShards(), equalTo(0));
         logger.info("Refreshing");
         client1.admin().indices().refresh(refreshRequest("test")).actionGet();
 
@@ -220,34 +220,34 @@ public class DocumentActionsTests extends AbstractNodesTests {
         for (int i = 0; i < 5; i++) {
             // test successful
             CountResponse countResponse = client1.prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
-            assertThat("Failures " + countResponse.shardFailures(), countResponse.shardFailures().size(), equalTo(0));
+            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures().size(), equalTo(0));
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
 
-            countResponse = client1.count(countRequest("test").setQuery(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
+            countResponse = client1.count(countRequest("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
 
-            countResponse = client1.count(countRequest("test").setQuery(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
+            countResponse = client1.count(countRequest("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // test failed (simply query that can't be parsed)
             countResponse = client1.count(countRequest("test").setQuery(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
             assertThat(countResponse.getCount(), equalTo(0l));
-            assertThat(countResponse.successfulShards(), equalTo(0));
-            assertThat(countResponse.failedShards(), equalTo(5));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(0));
+            assertThat(countResponse.getFailedShards(), equalTo(5));
 
             // count with no query is a match all one
             countResponse = client1.prepareCount("test").execute().actionGet();
-            assertThat("Failures " + countResponse.shardFailures(), countResponse.shardFailures().size(), equalTo(0));
+            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures().size(), equalTo(0));
             assertThat(countResponse.getCount(), equalTo(2l));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
         }
 
         logger.info("Delete by query");
@@ -317,8 +317,8 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
 
         RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
-        assertThat(refreshResponse.successfulShards(), equalTo(10));
-        assertThat(refreshResponse.failedShards(), equalTo(0));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
 
         for (int i = 0; i < 5; i++) {

@@ -393,7 +393,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         for (IndexShardStatus indexShardStatus : statusResponse.getIndex("test")) {
             for (ShardStatus shardStatus : indexShardStatus) {
                 if (!shardStatus.getShardRouting().primary()) {
-                    logger.info("--> shard {}, recovered {}, reuse {}", shardStatus.shardId(), shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize(), shardStatus.getPeerRecoveryStatus().getReusedIndexSize());
+                    logger.info("--> shard {}, recovered {}, reuse {}", shardStatus.getShardId(), shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize(), shardStatus.getPeerRecoveryStatus().getReusedIndexSize());
                     assertThat(shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize().bytes(), greaterThan(0l));
                     assertThat(shardStatus.getPeerRecoveryStatus().getReusedIndexSize().bytes(), greaterThan(0l));
                     assertThat(shardStatus.getPeerRecoveryStatus().getReusedIndexSize().bytes(), greaterThan(shardStatus.getPeerRecoveryStatus().getRecoveredIndexSize().bytes()));

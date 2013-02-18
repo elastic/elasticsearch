@@ -73,7 +73,7 @@ public class IndicesStats extends BroadcastOperationResponse implements ToXConte
 
         Set<String> indices = Sets.newHashSet();
         for (ShardStats shard : shards) {
-            indices.add(shard.index());
+            indices.add(shard.getIndex());
         }
 
         for (String index : indices) {

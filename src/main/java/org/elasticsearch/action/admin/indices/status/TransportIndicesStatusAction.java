@@ -149,8 +149,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     @Override
     protected ShardStatus shardOperation(IndexShardStatusRequest request) throws ElasticSearchException {
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.getIndex());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.getShardId());
         ShardStatus shardStatus = new ShardStatus(indexShard.routingEntry());
         shardStatus.state = indexShard.state();
         try {
@@ -209,7 +209,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                         peerRecoveryStatus.currentFilesSize(), peerRecoveryStatus.currentTranslogOperations());
             }
 
-            IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId()).getInstance(IndexShardGatewayService.class);
+            IndexShardGatewayService gatewayService = indexService.shardInjector(request.getShardId()).getInstance(IndexShardGatewayService.class);
             org.elasticsearch.index.gateway.RecoveryStatus gatewayRecoveryStatus = gatewayService.recoveryStatus();
             if (gatewayRecoveryStatus != null) {
                 GatewayRecoveryStatus.Stage stage;
@@ -235,7 +235,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         }
 
         if (request.snapshot) {
-            IndexShardGatewayService gatewayService = indexService.shardInjector(request.shardId()).getInstance(IndexShardGatewayService.class);
+            IndexShardGatewayService gatewayService = indexService.shardInjector(request.getShardId()).getInstance(IndexShardGatewayService.class);
             SnapshotStatus snapshotStatus = gatewayService.snapshotStatus();
             if (snapshotStatus != null) {
                 GatewaySnapshotStatus.Stage stage;

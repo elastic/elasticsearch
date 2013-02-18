@@ -45,12 +45,12 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         this.indices = indices;
     }
 
-    public String[] indices() {
+    public String[] getIndices() {
         return indices;
     }
 
     @SuppressWarnings("unchecked")
-    public final T indices(String... indices) {
+    public final T setIndices(String... indices) {
         this.indices = indices;
         return (T) this;
     }
@@ -63,7 +63,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
     /**
      * Controls the operation threading model.
      */
-    public BroadcastOperationThreading operationThreading() {
+    public BroadcastOperationThreading getOperationThreading() {
         return operationThreading;
     }
 
@@ -71,7 +71,7 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
      * Controls the operation threading model.
      */
     @SuppressWarnings("unchecked")
-    public final T operationThreading(BroadcastOperationThreading operationThreading) {
+    public final T setOperationThreading(BroadcastOperationThreading operationThreading) {
         this.operationThreading = operationThreading;
         return (T) this;
     }
@@ -79,16 +79,16 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
     /**
      * Controls the operation threading model.
      */
-    public T operationThreading(String operationThreading) {
-        return operationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
+    public T setOperationThreading(String operationThreading) {
+        return setOperationThreading(BroadcastOperationThreading.fromString(operationThreading, this.operationThreading));
     }
 
-    public IgnoreIndices ignoreIndices() {
+    public IgnoreIndices getIgnoreIndices() {
         return ignoreIndices;
     }
 
     @SuppressWarnings("unchecked")
-    public final T ignoreIndices(IgnoreIndices ignoreIndices) {
+    public final T setIgnoreIndices(IgnoreIndices ignoreIndices) {
         this.ignoreIndices = ignoreIndices;
         return (T) this;
     }

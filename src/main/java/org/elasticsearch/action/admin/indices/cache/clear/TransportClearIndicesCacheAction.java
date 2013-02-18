@@ -115,7 +115,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
 
     @Override
     protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) throws ElasticSearchException {
-        IndexService service = indicesService.indexService(request.index());
+        IndexService service = indicesService.indexService(request.getIndex());
         if (service != null) {
             // we always clear the query cache
             service.cache().queryParserCache().clear();
@@ -154,7 +154,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             }
             service.cache().invalidateCache();
         }
-        return new ShardClearIndicesCacheResponse(request.index(), request.shardId());
+        return new ShardClearIndicesCacheResponse(request.getIndex(), request.getShardId());
     }
 
     /**

@@ -80,7 +80,7 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
 
         Set<String> indices = Sets.newHashSet();
         for (ShardStatus shard : shards) {
-            indices.add(shard.index());
+            indices.add(shard.getIndex());
         }
 
         for (String index : indices) {

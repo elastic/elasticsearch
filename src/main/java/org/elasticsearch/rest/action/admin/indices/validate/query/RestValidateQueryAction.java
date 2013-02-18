@@ -64,7 +64,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
         validateQueryRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
-            validateQueryRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            validateQueryRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
@@ -72,7 +72,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
             }
-            validateQueryRequest.operationThreading(operationThreading);
+            validateQueryRequest.setOperationThreading(operationThreading);
             if (request.hasContent()) {
                 validateQueryRequest.setQuery(request.content(), request.contentUnsafe());
             } else {

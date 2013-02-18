@@ -90,7 +90,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     @Override
     protected ShardValidateQueryRequest newShardRequest(ShardRouting shard, ValidateQueryRequest request) {
-        String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
+        String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.getIndices());
         return new ShardValidateQueryRequest(shard.index(), shard.id(), filteringAliases, request);
     }
 
@@ -102,8 +102,8 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
         // Hard-code routing to limit request to a single shard, but still, randomize it...
-        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(Integer.toString(ThreadLocalRandom.current().nextInt(1000)), request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, "_local");
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(Integer.toString(ThreadLocalRandom.current().nextInt(1000)), request.getIndices());
+        return clusterService.operationRouting().searchShards(clusterState, request.getIndices(), concreteIndices, routingMap, "_local");
     }
 
     @Override
@@ -141,7 +141,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
                         queryExplanations = newArrayList();
                     }
                     queryExplanations.add(new QueryExplanation(
-                            validateQueryResponse.index(),
+                            validateQueryResponse.getIndex(),
                             validateQueryResponse.isValid(),
                             validateQueryResponse.getExplanation(),
                             validateQueryResponse.getError()
@@ -155,9 +155,9 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     @Override
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) throws ElasticSearchException {
-        IndexQueryParserService queryParserService = indicesService.indexServiceSafe(request.index()).queryParserService();
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexQueryParserService queryParserService = indicesService.indexServiceSafe(request.getIndex()).queryParserService();
+        IndexService indexService = indicesService.indexServiceSafe(request.getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.getShardId());
 
         boolean valid;
         String explanation = null;
@@ -186,6 +186,6 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
                 SearchContext.removeCurrent();
             }
         }
-        return new ShardValidateQueryResponse(request.index(), request.shardId(), valid, explanation, error);
+        return new ShardValidateQueryResponse(request.getIndex(), request.getShardId(), valid, explanation, error);
     }
 }

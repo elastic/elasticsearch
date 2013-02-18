@@ -49,7 +49,7 @@ public class UpdateMappingTests extends AbstractNodesTests {
             client.prepareIndex("test", "type", "rec" + rec).setSource("field" + rec, "some_value").execute().actionGet();
         }
         RefreshResponse refreshResponse = client.admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(refreshResponse.failedShards(), equalTo(0));
+        assertThat(refreshResponse.getFailedShards(), equalTo(0));
         logger.info("Searching");
         CountResponse response = client.prepareCount("test").execute().actionGet();
         assertThat(response.getCount(), equalTo(recCount));

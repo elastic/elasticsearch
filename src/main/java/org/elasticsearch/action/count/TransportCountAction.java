@@ -92,7 +92,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected ShardCountRequest newShardRequest(ShardRouting shard, CountRequest request) {
-        String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.indices());
+        String[] filteringAliases = clusterService.state().metaData().filteringAliases(shard.index(), request.getIndices());
         return new ShardCountRequest(shard.index(), shard.id(), filteringAliases, request);
     }
 
@@ -103,8 +103,8 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, CountRequest request, String[] concreteIndices) {
-        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.getRouting(), request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, null);
+        Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.getRouting(), request.getIndices());
+        return clusterService.operationRouting().searchShards(clusterState, request.getIndices(), concreteIndices, routingMap, null);
     }
 
     @Override
@@ -143,10 +143,10 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
 
     @Override
     protected ShardCountResponse shardOperation(ShardCountRequest request) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
-        IndexShard indexShard = indexService.shardSafe(request.shardId());
+        IndexService indexService = indicesService.indexServiceSafe(request.getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.getShardId());
 
-        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.index(), request.shardId());
+        SearchShardTarget shardTarget = new SearchShardTarget(clusterService.localNode().id(), request.getIndex(), request.getShardId());
         SearchContext context = new SearchContext(0,
                 new ShardSearchRequest().types(request.getTypes()).filteringAliases(request.getFilteringAliases()),
                 shardTarget, indexShard.searcher(), indexService, indexShard,
@@ -170,7 +170,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
             context.preProcess();
             try {
                 long count = Lucene.count(context.searcher(), context.query());
-                return new ShardCountResponse(request.index(), request.shardId(), count);
+                return new ShardCountResponse(request.getIndex(), request.getShardId(), count);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "failed to execute count", e);
             }

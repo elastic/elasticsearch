@@ -67,9 +67,9 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
             index(client("server1"), Integer.toString(i), "test", i);
         }
         RefreshResponse refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResponse.totalShards(), equalTo(9));
-        assertThat(refreshResponse.successfulShards(), equalTo(3));
-        assertThat(refreshResponse.failedShards(), equalTo(0));
+        assertThat(refreshResponse.getTotalShards(), equalTo(9));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(3));
+        assertThat(refreshResponse.getFailedShards(), equalTo(0));
         for (int i = 0; i < 5; i++) {
             try {
                 SearchResponse searchResponse = client("server1").search(searchRequest("test").setSource(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
@@ -95,9 +95,9 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         assertThat(clusterHealth.getActiveShards(), equalTo(6));
 
         refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResponse.totalShards(), equalTo(9));
-        assertThat(refreshResponse.successfulShards(), equalTo(6));
-        assertThat(refreshResponse.failedShards(), equalTo(0));
+        assertThat(refreshResponse.getTotalShards(), equalTo(9));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(6));
+        assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
         for (int i = 0; i < 5; i++) {
             try {

@@ -43,7 +43,7 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
     public ClearIndicesCacheRequest(String... indices) {
         super(indices);
         // we want to do the refresh in parallel on local shards...
-        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
+        setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     public boolean isFilterCache() {

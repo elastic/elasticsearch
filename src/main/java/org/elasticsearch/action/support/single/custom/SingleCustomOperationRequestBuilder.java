@@ -37,7 +37,7 @@ public abstract class SingleCustomOperationRequestBuilder<Request extends Single
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setOperationThreaded(boolean threadedOperation) {
-        request.operationThreaded(threadedOperation);
+        request.setOperationThreaded(threadedOperation);
         return (RequestBuilder) this;
     }
 
@@ -47,7 +47,7 @@ public abstract class SingleCustomOperationRequestBuilder<Request extends Single
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setPreferLocal(boolean preferLocal) {
-        request.preferLocal(preferLocal);
+        request.setPreferLocal(preferLocal);
         return (RequestBuilder) this;
     }
 }

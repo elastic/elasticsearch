@@ -67,7 +67,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"), text);
         analyzeRequest.listenerThreaded(false);
-        analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
+        analyzeRequest.setPreferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.isPreferLocal()));
         analyzeRequest.setAnalyzer(request.param("analyzer"));
         analyzeRequest.setField(request.param("field"));
         analyzeRequest.setTokenizer(request.param("tokenizer"));

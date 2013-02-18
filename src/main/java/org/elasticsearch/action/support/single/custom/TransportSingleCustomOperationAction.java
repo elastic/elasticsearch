@@ -133,7 +133,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
         private void performFirst() {
             if (shardsIt == null) {
                 // just execute it on the local node
-                if (request.operationThreaded()) {
+                if (request.isOperationThreaded()) {
                     request.beforeLocalFork();
                     threadPool.executor(executor()).execute(new Runnable() {
                         @Override
@@ -159,14 +159,14 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
                 return;
             }
 
-            if (request.preferLocalShard()) {
+            if (request.isPreferLocal()) {
                 boolean foundLocal = false;
                 ShardRouting shardX;
                 while ((shardX = shardsIt.nextOrNull()) != null) {
                     final ShardRouting shard = shardX;
                     if (shard.currentNodeId().equals(nodes.localNodeId())) {
                         foundLocal = true;
-                        if (request.operationThreaded()) {
+                        if (request.isOperationThreaded()) {
                             request.beforeLocalFork();
                             threadPool.executor(executor()).execute(new Runnable() {
                                 @Override
@@ -218,8 +218,8 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
             } else {
                 if (shard.currentNodeId().equals(nodes.localNodeId())) {
                     // we don't prefer local shard, so try and do it here
-                    if (!request.preferLocalShard()) {
-                        if (request.operationThreaded()) {
+                    if (!request.isPreferLocal()) {
+                        if (request.isOperationThreaded()) {
                             request.beforeLocalFork();
                             threadPool.executor(executor).execute(new Runnable() {
                                 @Override
@@ -283,7 +283,7 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
             // no need to have a threaded listener since we just send back a response
             request.listenerThreaded(false);
             // if we have a local operation, execute it on a thread since we don't spawn
-            request.operationThreaded(true);
+            request.setOperationThreaded(true);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response result) {

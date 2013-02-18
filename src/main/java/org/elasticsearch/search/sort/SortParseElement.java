@@ -21,13 +21,20 @@ package org.elasticsearch.search.sort;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -71,7 +78,7 @@ public class SortParseElement implements SearchParseElement {
                 if (token == XContentParser.Token.START_OBJECT) {
                     addCompoundSortField(parser, context, sortFields);
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    addSortField(context, sortFields, parser.text(), false, false, null, null);
+                    addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
                 }
             }
         } else {
@@ -106,6 +113,8 @@ public class SortParseElement implements SearchParseElement {
                 String innerJsonName = null;
                 boolean ignoreUnmapped = false;
                 SortMode sortMode = null;
+                Filter nestedFilter = null;
+                String nestedPath = null;
                 token = parser.nextToken();
                 if (token == XContentParser.Token.VALUE_STRING) {
                     String direction = parser.text();
@@ -114,7 +123,7 @@ public class SortParseElement implements SearchParseElement {
                     } else if (direction.equals("desc")) {
                         reverse = !SCORE_FIELD_NAME.equals(fieldName);
                     }
-                    addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode);
+                    addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter);
                 } else {
                     if (parsers.containsKey(fieldName)) {
                         sortFields.add(parsers.get(fieldName).parse(parser, context));
@@ -137,17 +146,23 @@ public class SortParseElement implements SearchParseElement {
                                     ignoreUnmapped = parser.booleanValue();
                                 } else if ("sort_mode".equals(innerJsonName) || "sortMode".equals(innerJsonName)) {
                                     sortMode = SortMode.fromString(parser.text());
+                                } else if ("nested_path".equals(innerJsonName)) {
+                                    nestedPath = parser.text();
+                                }
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                if ("nested_filter".equals(innerJsonName)) {
+                                    nestedFilter = context.queryParserService().parseInnerFilter(parser);
                                 }
                             }
                         }
-                        addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode);
+                        addSortField(context, sortFields, fieldName, reverse, ignoreUnmapped, missing, sortMode, nestedPath, nestedFilter);
                     }
                 }
             }
         }
     }
 
-    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, SortMode sortMode) {
+    private void addSortField(SearchContext context, List<SortField> sortFields, String fieldName, boolean reverse, boolean ignoreUnmapped, @Nullable final String missing, SortMode sortMode, String nestedPath, Filter nestedFilter) {
         if (SCORE_FIELD_NAME.equals(fieldName)) {
             if (reverse) {
                 sortFields.add(SORT_SCORE_REVERSE);
@@ -183,9 +198,62 @@ public class SortParseElement implements SearchParseElement {
                 sortMode = null;
             }
             if (sortMode == null) {
-                sortMode = reverse ? SortMode.MAX : SortMode.MIN;
+                sortMode = resolveDefaultSortMode(reverse);
             }
-            sortFields.add(new SortField(fieldMapper.names().indexName(), context.fieldData().getForField(fieldMapper).comparatorSource(missing, sortMode), reverse));
+
+            IndexFieldData.XFieldComparatorSource fieldComparatorSource = context.fieldData().getForField(fieldMapper)
+                    .comparatorSource(missing, sortMode);
+            ObjectMapper objectMapper;
+            if (nestedPath != null) {
+                ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
+                if (objectMappers == null) {
+                    throw new ElasticSearchIllegalArgumentException("Invalid nested path");
+                }
+                objectMapper = objectMappers.mapper();
+            } else {
+                objectMapper = resolveClosestNestedObjectMapper(fieldName, context);
+            }
+            if (objectMapper != null && objectMapper.nested().isNested()) {
+                Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
+                Filter innerDocumentsFilter;
+                if (nestedFilter != null) {
+                    innerDocumentsFilter = context.filterCache().cache(nestedFilter);
+                } else {
+                    innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
+                }
+                // For now the nested sorting doesn't support SUM or AVG
+                if (sortMode == SortMode.SUM || sortMode == SortMode.AVG) {
+                    sortMode = resolveDefaultSortMode(reverse);
+                }
+                fieldComparatorSource = new NestedFieldComparatorSource(sortMode, fieldComparatorSource, rootDocumentsFilter, innerDocumentsFilter);
+            }
+            sortFields.add(new SortField(fieldMapper.names().indexName(), fieldComparatorSource, reverse));
         }
     }
+
+    private static SortMode resolveDefaultSortMode(boolean reverse) {
+        return reverse ? SortMode.MAX : SortMode.MIN;
+    }
+
+    private static ObjectMapper resolveClosestNestedObjectMapper(String fieldName, SearchContext context) {
+        int indexOf = fieldName.lastIndexOf('.');
+        if (indexOf == -1) {
+            return null;
+        }
+
+        String objectPath = fieldName.substring(0, indexOf);
+        ObjectMappers objectMappers = context.mapperService().objectMapper(objectPath);
+        if (objectMappers == null) {
+            return null;
+        }
+
+        for (ObjectMapper objectMapper : objectMappers) {
+            if (objectMapper.nested().isNested()) {
+                return objectMapper;
+            }
+        }
+
+        return null;
+    }
+
 }

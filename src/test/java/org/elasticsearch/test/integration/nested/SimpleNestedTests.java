@@ -26,11 +26,15 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.filter.FilterFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -593,6 +597,293 @@ public class SimpleNestedTests extends AbstractNodesTests {
 //        assertThat(explanation.getDetails()[0].getDescription(), equalTo("Child[0]"));
 //        assertThat(explanation.getDetails()[1].getValue(), equalTo(1f));
 //        assertThat(explanation.getDetails()[1].getDescription(), equalTo("Child[1]"));
+    }
+
+    @Test
+    public void testSimpleNestedSorting() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.referesh_interval", -1)
+                        .build()
+                )
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", 1)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 5)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("field1", 2)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 1)
+                .endObject()
+                .startObject()
+                .field("field1", 2)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("field1", 3)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 3)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("4"));
+
+        searchResponse = client.prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("5"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("4"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
+    }
+
+    @Test
+    public void testSortNestedWithNestedFilter() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject()
+                        .startObject("type1")
+                        .startObject("properties")
+                        .startObject("grand_parent_values").field("type", "long").endObject()
+                        .startObject("parent").field("type", "nested")
+                        .startObject("properties")
+                        .startObject("parent_values").field("type", "long").endObject()
+                        .startObject("child").field("type", "nested")
+                        .startObject("properties")
+                        .startObject("child_values").field("type", "long").endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
+                .field("grand_parent_values", 1l)
+                .startObject("parent")
+                .field("filter", false)
+                .field("parent_values", 1l)
+                .startObject("child")
+                .field("filter", true)
+                .field("child_values", 1l)
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 6l)
+                .endObject()
+                .endObject()
+                .startObject("parent")
+                .field("filter", true)
+                .field("parent_values", 2l)
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", -1l)
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 5l)
+                .endObject()
+                .endObject()
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
+                .field("grand_parent_values", 2l)
+                .startObject("parent")
+                .field("filter", false)
+                .field("parent_values", 2l)
+                .startObject("child")
+                .field("filter", true)
+                .field("child_values", 2l)
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 4l)
+                .endObject()
+                .endObject()
+                .startObject("parent")
+                .field("parent_values", 3l)
+                .field("filter", true)
+                .startObject("child")
+                .field("child_values", -2l)
+                .field("filter", false)
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 3l)
+                .endObject()
+                .endObject()
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
+                .field("grand_parent_values", 3l)
+                .startObject("parent")
+                .field("parent_values", 3l)
+                .field("filter", false)
+                .startObject("child")
+                .field("filter", true)
+                .field("child_values", 3l)
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 1l)
+                .endObject()
+                .endObject()
+                .startObject("parent")
+                .field("parent_values", 4l)
+                .field("filter", true)
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", -3l)
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 1l)
+                .endObject()
+                .endObject()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        // Without nested filter
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("-3"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("-2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("-1"));
+
+        // With nested filter
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        // Nested path should be automatically detected, expect same results as above search request
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.parent_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.filter", false))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.filter", false))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        // TODO: If we expose ToChildBlockJoinQuery we can filter sort values based on a higher level nested objects
+//        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
+//        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("-3"));
+//        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+//        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("-2"));
+//        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
+//        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("-1"));
     }
 
 }

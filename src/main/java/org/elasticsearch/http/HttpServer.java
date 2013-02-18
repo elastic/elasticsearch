@@ -153,9 +153,8 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         if (i1 == -1) {
             pluginName = path;
             sitePath = null;
-            // TODO This is a path in the form of "/_plugin/head", without a trailing "/", which messes up
-            // resources fetching if it does not exists, a better solution would be to send a redirect
-            channel.sendResponse(new StringRestResponse(NOT_FOUND));
+            // If a trailing / is missing, we redirect to the right page #2654
+            channel.sendResponse(new HttpRedirectRestResponse(request.rawPath()+"/"));
             return;
         } else {
             pluginName = path.substring(0, i1);

@@ -48,11 +48,11 @@ public class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<
 
     IndexDeleteByQueryRequest(DeleteByQueryRequest request, String index, @Nullable Set<String> routing, @Nullable String[] filteringAliases) {
         this.index = index;
-        this.timeout = request.timeout();
+        this.timeout = request.getTimeout();
         this.querySource = request.getQuerySource();
         this.types = request.getTypes();
-        this.replicationType = request.replicationType();
-        this.consistencyLevel = request.consistencyLevel();
+        this.replicationType = request.getReplicationType();
+        this.consistencyLevel = request.getConsistencyLevel();
         this.routing = routing;
         this.filteringAliases = filteringAliases;
     }

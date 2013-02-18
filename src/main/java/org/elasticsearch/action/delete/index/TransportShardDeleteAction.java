@@ -85,13 +85,13 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ShardDeleteRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.getIndex());
     }
 
     @Override
     protected PrimaryResponse<ShardDeleteResponse, ShardDeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
         Engine.Delete delete = indexShard.prepareDelete(request.getType(), request.getId(), request.getVersion())
                 .origin(Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
@@ -114,7 +114,7 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
         Engine.Delete delete = indexShard.prepareDelete(request.getType(), request.getId(), request.getVersion())
                 .origin(Engine.Operation.Origin.REPLICA);
         indexShard.delete(delete);
@@ -131,7 +131,7 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, ShardDeleteRequest request) {
-        GroupShardsIterator group = clusterService.operationRouting().broadcastDeleteShards(clusterService.state(), request.index());
+        GroupShardsIterator group = clusterService.operationRouting().broadcastDeleteShards(clusterService.state(), request.getIndex());
         for (ShardIterator shardIt : group) {
             if (shardIt.shardId().id() == request.getShardId()) {
                 return shardIt;

@@ -226,14 +226,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 return;
             }
             final IndexRequest indexRequest = request.upsertRequest();
-            indexRequest.index(request.index()).setType(request.type()).setId(request.id())
+            indexRequest.setIndex(request.index()).setType(request.type()).setId(request.id())
                     // it has to be a "create!"
                     .setCreate(true)
                     .setRouting(request.routing())
                     .setPercolate(request.percolate())
                     .setRefresh(request.refresh())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
-            indexRequest.operationThreaded(false);
+                    .setReplicationType(request.replicationType()).setConsistencyLevel(request.consistencyLevel());
+            indexRequest.setOperationThreaded(false);
             // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
             final BytesReference updateSourceBytes = indexRequest.getSource();
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -342,11 +342,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         if (operation == null || "index".equals(operation)) {
             final IndexRequest indexRequest = Requests.indexRequest(request.index()).setType(request.type()).setId(request.id()).setRouting(routing).setParent(parent)
                     .setSource(updatedSourceAsMap, updateSourceContentType)
-                    .setVersion(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
+                    .setVersion(getResult.getVersion()).setReplicationType(request.replicationType()).setConsistencyLevel(request.consistencyLevel())
                     .setTimestamp(timestamp).setTtl(ttl)
                     .setPercolate(request.percolate())
                     .setRefresh(request.refresh());
-            indexRequest.operationThreaded(false);
+            indexRequest.setOperationThreaded(false);
             // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
             final BytesReference updateSourceBytes = indexRequest.getSource();
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
@@ -377,8 +377,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             });
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).setType(request.type()).setId(request.id()).setRouting(routing).setParent(parent)
-                    .setVersion(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
-            deleteRequest.operationThreaded(false);
+                    .setVersion(getResult.getVersion()).setReplicationType(request.replicationType()).setConsistencyLevel(request.consistencyLevel());
+            deleteRequest.setOperationThreaded(false);
             deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
                 @Override
                 public void onResponse(DeleteResponse response) {

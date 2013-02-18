@@ -38,7 +38,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return timeout;
     }
 
@@ -46,7 +46,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      * A timeout to wait if the delete by query operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final T setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return (T) this;
     }
@@ -55,12 +55,12 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      * A timeout to wait if the delete by query operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")
-    public T timeout(String timeout) {
+    public T setTimeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null);
         return (T) this;
     }
 
-    public String[] indices() {
+    public String[] getIndices() {
         return this.indices;
     }
 
@@ -68,12 +68,12 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      * The indices the request will execute against.
      */
     @SuppressWarnings("unchecked")
-    public final T indices(String[] indices) {
+    public final T setIndices(String[] indices) {
         this.indices = indices;
         return (T) this;
     }
 
-    public ReplicationType replicationType() {
+    public ReplicationType getReplicationType() {
         return this.replicationType;
     }
 
@@ -81,7 +81,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      * Sets the replication type.
      */
     @SuppressWarnings("unchecked")
-    public final T replicationType(ReplicationType replicationType) {
+    public final T setReplicationType(ReplicationType replicationType) {
         this.replicationType = replicationType;
         return (T) this;
     }
@@ -89,11 +89,11 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
     /**
      * Sets the replication type.
      */
-    public final T replicationType(String replicationType) {
-        return replicationType(ReplicationType.fromString(replicationType));
+    public final T setReplicationType(String replicationType) {
+        return setReplicationType(ReplicationType.fromString(replicationType));
     }
 
-    public WriteConsistencyLevel consistencyLevel() {
+    public WriteConsistencyLevel getConsistencyLevel() {
         return this.consistencyLevel;
     }
 
@@ -101,7 +101,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
     @SuppressWarnings("unchecked")
-    public final T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public final T setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
         return (T) this;
     }

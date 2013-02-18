@@ -91,13 +91,13 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         for (ActionRequest request : bulkRequest.requests) {
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                if (!indices.contains(indexRequest.index())) {
-                    indices.add(indexRequest.index());
+                if (!indices.contains(indexRequest.getIndex())) {
+                    indices.add(indexRequest.getIndex());
                 }
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
-                if (!indices.contains(deleteRequest.index())) {
-                    indices.add(deleteRequest.index());
+                if (!indices.contains(deleteRequest.getIndex())) {
+                    indices.add(deleteRequest.getIndex());
                 }
             }
         }
@@ -148,18 +148,18 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         for (ActionRequest request : bulkRequest.requests) {
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                String aliasOrIndex = indexRequest.index();
-                indexRequest.index(clusterState.metaData().concreteIndex(indexRequest.index()));
+                String aliasOrIndex = indexRequest.getIndex();
+                indexRequest.setIndex(clusterState.metaData().concreteIndex(indexRequest.getIndex()));
 
                 MappingMetaData mappingMd = null;
-                if (metaData.hasIndex(indexRequest.index())) {
-                    mappingMd = metaData.index(indexRequest.index()).mappingOrDefault(indexRequest.getType());
+                if (metaData.hasIndex(indexRequest.getIndex())) {
+                    mappingMd = metaData.index(indexRequest.getIndex()).mappingOrDefault(indexRequest.getType());
                 }
                 indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
-                deleteRequest.setRouting(clusterState.metaData().resolveIndexRouting(deleteRequest.getRouting(), deleteRequest.index()));
-                deleteRequest.index(clusterState.metaData().concreteIndex(deleteRequest.index()));
+                deleteRequest.setRouting(clusterState.metaData().resolveIndexRouting(deleteRequest.getRouting(), deleteRequest.getIndex()));
+                deleteRequest.setIndex(clusterState.metaData().concreteIndex(deleteRequest.getIndex()));
             }
         }
         final BulkItemResponse[] responses = new BulkItemResponse[bulkRequest.requests.size()];
@@ -171,7 +171,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.getType(), indexRequest.getId(), indexRequest.getRouting()).shardId();
+                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.getIndex(), indexRequest.getType(), indexRequest.getId(), indexRequest.getRouting()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {
                     list = Lists.newArrayList();
@@ -180,10 +180,10 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 list.add(new BulkItemRequest(i, request));
             } else if (request instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) request;
-                MappingMetaData mappingMd = clusterState.metaData().index(deleteRequest.index()).mappingOrDefault(deleteRequest.getType());
+                MappingMetaData mappingMd = clusterState.metaData().index(deleteRequest.getIndex()).mappingOrDefault(deleteRequest.getType());
                 if (mappingMd != null && mappingMd.routing().required() && deleteRequest.getRouting() == null) {
                     // if routing is required, and no routing on the delete request, we need to broadcast it....
-                    GroupShardsIterator groupShards = clusterService.operationRouting().broadcastDeleteShards(clusterState, deleteRequest.index());
+                    GroupShardsIterator groupShards = clusterService.operationRouting().broadcastDeleteShards(clusterState, deleteRequest.getIndex());
                     for (ShardIterator shardIt : groupShards) {
                         List<BulkItemRequest> list = requestsByShard.get(shardIt.shardId());
                         if (list == null) {
@@ -193,7 +193,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                         list.add(new BulkItemRequest(i, new DeleteRequest(deleteRequest)));
                     }
                 } else {
-                    ShardId shardId = clusterService.operationRouting().deleteShards(clusterState, deleteRequest.index(), deleteRequest.getType(), deleteRequest.getId(), deleteRequest.getRouting()).shardId();
+                    ShardId shardId = clusterService.operationRouting().deleteShards(clusterState, deleteRequest.getIndex(), deleteRequest.getType(), deleteRequest.getId(), deleteRequest.getRouting()).shardId();
                     List<BulkItemRequest> list = requestsByShard.get(shardId);
                     if (list == null) {
                         list = Lists.newArrayList();
@@ -214,8 +214,8 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             final ShardId shardId = entry.getKey();
             final List<BulkItemRequest> requests = entry.getValue();
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId.index().name(), shardId.id(), bulkRequest.refresh(), requests.toArray(new BulkItemRequest[requests.size()]));
-            bulkShardRequest.replicationType(bulkRequest.replicationType());
-            bulkShardRequest.consistencyLevel(bulkRequest.consistencyLevel());
+            bulkShardRequest.setReplicationType(bulkRequest.replicationType());
+            bulkShardRequest.setConsistencyLevel(bulkRequest.consistencyLevel());
             shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
@@ -238,11 +238,11 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                             if (request.getRequest() instanceof IndexRequest) {
                                 IndexRequest indexRequest = (IndexRequest) request.getRequest();
                                 responses[request.getId()] = new BulkItemResponse(request.getId(), indexRequest.getOpType().toString().toLowerCase(Locale.ENGLISH),
-                                        new BulkItemResponse.Failure(indexRequest.index(), indexRequest.getType(), indexRequest.getId(), message));
+                                        new BulkItemResponse.Failure(indexRequest.getIndex(), indexRequest.getType(), indexRequest.getId(), message));
                             } else if (request.getRequest() instanceof DeleteRequest) {
                                 DeleteRequest deleteRequest = (DeleteRequest) request.getRequest();
                                 responses[request.getId()] = new BulkItemResponse(request.getId(), "delete",
-                                        new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.getType(), deleteRequest.getId(), message));
+                                        new BulkItemResponse.Failure(deleteRequest.getIndex(), deleteRequest.getType(), deleteRequest.getId(), message));
                             }
                         }
                     }

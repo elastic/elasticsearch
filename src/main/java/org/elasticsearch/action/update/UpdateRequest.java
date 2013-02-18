@@ -558,7 +558,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         } else {
             out.writeBoolean(true);
             // make sure the basics are set
-            doc.index(index);
+            doc.setIndex(index);
             doc.setType(type);
             doc.setId(id);
             doc.writeTo(out);
@@ -576,7 +576,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         } else {
             out.writeBoolean(true);
             // make sure the basics are set
-            upsertRequest.index(index);
+            upsertRequest.setIndex(index);
             upsertRequest.setType(type);
             upsertRequest.setId(id);
             upsertRequest.writeTo(out);

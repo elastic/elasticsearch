@@ -47,7 +47,7 @@ public class SimpleDataNodesTests extends AbstractNodesTests {
         startNode("nonData1", settingsBuilder().put("node.data", false).build());
         client("nonData1").admin().indices().create(createIndexRequest("test")).actionGet();
         try {
-            client("nonData1").index(Requests.indexRequest("test").setType("type1").setId("1").setSource(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
+            client("nonData1").index(Requests.indexRequest("test").setType("type1").setId("1").setSource(source("1", "test")).setTimeout(timeValueSeconds(1))).actionGet();
             assert false : "no allocation should happen";
         } catch (UnavailableShardsException e) {
             // all is well
@@ -58,7 +58,7 @@ public class SimpleDataNodesTests extends AbstractNodesTests {
 
         // still no shard should be allocated
         try {
-            client("nonData2").index(Requests.indexRequest("test").setType("type1").setId("1").setSource(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
+            client("nonData2").index(Requests.indexRequest("test").setType("type1").setId("1").setSource(source("1", "test")).setTimeout(timeValueSeconds(1))).actionGet();
             assert false : "no allocation should happen";
         } catch (UnavailableShardsException e) {
             // all is well

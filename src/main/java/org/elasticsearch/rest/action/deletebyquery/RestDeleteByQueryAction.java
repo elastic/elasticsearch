@@ -72,16 +72,16 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 }
             }
             deleteByQueryRequest.setTypes(splitTypes(request.param("type")));
-            deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
+            deleteByQueryRequest.setTimeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
 
             deleteByQueryRequest.setRouting(request.param("routing"));
             String replicationType = request.param("replication");
             if (replicationType != null) {
-                deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
+                deleteByQueryRequest.setReplicationType(ReplicationType.fromString(replicationType));
             }
             String consistencyLevel = request.param("consistency");
             if (consistencyLevel != null) {
-                deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+                deleteByQueryRequest.setConsistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
             }
         } catch (Exception e) {
             try {

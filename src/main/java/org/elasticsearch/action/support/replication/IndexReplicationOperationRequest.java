@@ -42,16 +42,16 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return timeout;
     }
 
-    public String index() {
+    public String getIndex() {
         return this.index;
     }
 
     @SuppressWarnings("unchecked")
-    public T index(String index) {
+    public T setIndex(String index) {
         this.index = index;
         return (T) this;
     }
@@ -60,7 +60,7 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
      * Sets the replication type.
      */
     @SuppressWarnings("unchecked")
-    public T replicationType(ReplicationType replicationType) {
+    public T setReplicationType(ReplicationType replicationType) {
         this.replicationType = replicationType;
         return (T) this;
     }
@@ -68,15 +68,15 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
     /**
      * Sets the replication type.
      */
-    public T replicationType(String replicationType) {
-        return replicationType(ReplicationType.fromString(replicationType));
+    public T setReplicationType(String replicationType) {
+        return setReplicationType(ReplicationType.fromString(replicationType));
     }
 
-    public ReplicationType replicationType() {
+    public ReplicationType getReplicationType() {
         return this.replicationType;
     }
 
-    public WriteConsistencyLevel consistencyLevel() {
+    public WriteConsistencyLevel getConsistencyLevel() {
         return this.consistencyLevel;
     }
 
@@ -84,7 +84,7 @@ public class IndexReplicationOperationRequest<T extends IndexReplicationOperatio
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
     @SuppressWarnings("unchecked")
-    public T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public T setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
         return (T) this;
     }

@@ -74,9 +74,9 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override
     protected void doExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
-        if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
+        if (autoCreateIndex.shouldAutoCreate(request.getIndex(), clusterService.state())) {
             request.beforeLocalFork();
-            createIndexAction.execute(new CreateIndexRequest(request.index()).setCause("auto(delete api)").setMasterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request.getIndex()).setCause("auto(delete api)").setMasterNodeTimeout(request.getTimeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);
@@ -99,11 +99,11 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override
     protected boolean resolveRequest(final ClusterState state, final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
-        request.setRouting(state.metaData().resolveIndexRouting(request.getRouting(), request.index()));
-        request.index(state.metaData().concreteIndex(request.index()));
-        if (state.metaData().hasIndex(request.index())) {
+        request.setRouting(state.metaData().resolveIndexRouting(request.getRouting(), request.getIndex()));
+        request.setIndex(state.metaData().concreteIndex(request.getIndex()));
+        if (state.metaData().hasIndex(request.getIndex())) {
             // check if routing is required, if so, do a broadcast delete
-            MappingMetaData mappingMd = state.metaData().index(request.index()).mappingOrDefault(request.getType());
+            MappingMetaData mappingMd = state.metaData().index(request.getIndex()).mappingOrDefault(request.getType());
             if (mappingMd != null && mappingMd.routing().required()) {
                 if (request.getRouting() == null) {
                     indexDeleteAction.execute(new IndexDeleteRequest(request), new ActionListener<IndexDeleteResponse>() {
@@ -119,7 +119,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                                     break;
                                 }
                             }
-                            listener.onResponse(new DeleteResponse(request.index(), request.getType(), request.getId(), version, !found));
+                            listener.onResponse(new DeleteResponse(request.getIndex(), request.getType(), request.getId(), version, !found));
                         }
 
                         @Override
@@ -170,13 +170,13 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, DeleteRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.getIndex());
     }
 
     @Override
     protected PrimaryResponse<DeleteResponse, DeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
         Engine.Delete delete = indexShard.prepareDelete(request.getType(), request.getId(), request.getVersion())
                 .versionType(request.getVersionType())
                 .origin(Engine.Operation.Origin.PRIMARY);
@@ -192,14 +192,14 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
             }
         }
 
-        DeleteResponse response = new DeleteResponse(request.index(), request.getType(), request.getId(), delete.version(), delete.notFound());
+        DeleteResponse response = new DeleteResponse(request.getIndex(), request.getType(), request.getId(), delete.version(), delete.notFound());
         return new PrimaryResponse<DeleteResponse, DeleteRequest>(shardRequest.request, response, null);
     }
 
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
         Engine.Delete delete = indexShard.prepareDelete(request.getType(), request.getId(), request.getVersion())
                 .origin(Engine.Operation.Origin.REPLICA);
 
@@ -218,6 +218,6 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     @Override
     protected ShardIterator shards(ClusterState clusterState, DeleteRequest request) {
         return clusterService.operationRouting()
-                .deleteShards(clusterService.state(), request.index(), request.getType(), request.getId(), request.getRouting());
+                .deleteShards(clusterService.state(), request.getIndex(), request.getType(), request.getId(), request.getRouting());
     }
 }

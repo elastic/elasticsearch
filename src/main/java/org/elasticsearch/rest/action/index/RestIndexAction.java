@@ -67,7 +67,7 @@ public class RestIndexAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.listenerThreaded(false);
-        indexRequest.operationThreaded(true);
+        indexRequest.setOperationThreaded(true);
         indexRequest.setRouting(request.param("routing"));
         indexRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         indexRequest.setTimestamp(request.param("timestamp"));
@@ -75,7 +75,7 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.setTtl(request.paramAsTime("ttl", null).millis());
         }
         indexRequest.setSource(request.content(), request.contentUnsafe());
-        indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
+        indexRequest.setTimeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefresh(request.paramAsBoolean("refresh", indexRequest.isRefresh()));
         indexRequest.setVersion(RestActions.parseVersion(request));
         indexRequest.setVersionType(VersionType.fromString(request.param("version_type"), indexRequest.getVersionType()));
@@ -98,11 +98,11 @@ public class RestIndexAction extends BaseRestHandler {
         }
         String replicationType = request.param("replication");
         if (replicationType != null) {
-            indexRequest.replicationType(ReplicationType.fromString(replicationType));
+            indexRequest.setReplicationType(ReplicationType.fromString(replicationType));
         }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
-            indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+            indexRequest.setConsistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         client.index(indexRequest, new ActionListener<IndexResponse>() {
             @Override

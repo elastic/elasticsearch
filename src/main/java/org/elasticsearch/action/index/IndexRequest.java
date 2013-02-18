@@ -51,7 +51,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
  * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
  * <p/>
- * <p>The index requires the {@link #index()}, {@link #setType(String)}, {@link #setId(String)} and
+ * <p>The index requires the {@link #getIndex()}, {@link #setType(String)}, {@link #setId(String)} and
  * {@link #setSource(byte[])} to be set.
  * <p/>
  * <p>The source (content to index) can be set in its bytes form using ({@link #setSource(byte[])}),

@@ -249,7 +249,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Set the replication type for this operation.
      */
     public IndexRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.replicationType(replicationType);
+        request.setReplicationType(replicationType);
         return this;
     }
 
@@ -257,7 +257,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
      */
     public IndexRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.consistencyLevel(consistencyLevel);
+        request.setConsistencyLevel(consistencyLevel);
         return this;
     }
 
@@ -265,7 +265,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Set the replication type for this operation.
      */
     public IndexRequestBuilder setReplicationType(String replicationType) {
-        request.replicationType(replicationType);
+        request.setReplicationType(replicationType);
         return this;
     }
 

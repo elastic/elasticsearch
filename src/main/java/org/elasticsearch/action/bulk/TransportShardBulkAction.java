@@ -115,18 +115,18 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, BulkShardRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.getIndex());
     }
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, BulkShardRequest request) {
-        return clusterState.routingTable().index(request.index()).shard(request.getShardId()).shardsIt();
+        return clusterState.routingTable().index(request.getIndex()).shard(request.getShardId()).shardsIt();
     }
 
     @Override
     protected PrimaryResponse<BulkShardResponse, BulkShardRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         final BulkShardRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
 
         Engine.IndexingOperation[] ops = null;
 
@@ -141,10 +141,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 try {
 
                     // validate, if routing is required, that we got routing
-                    MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mappingOrDefault(indexRequest.getType());
+                    MappingMetaData mappingMd = clusterState.metaData().index(request.getIndex()).mappingOrDefault(indexRequest.getType());
                     if (mappingMd != null && mappingMd.routing().required()) {
                         if (indexRequest.getRouting() == null) {
-                            throw new RoutingMissingException(indexRequest.index(), indexRequest.getType(), indexRequest.getId());
+                            throw new RoutingMissingException(indexRequest.getIndex(), indexRequest.getType(), indexRequest.getId());
                         }
                     }
 
@@ -173,7 +173,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         if (mappingsToUpdate == null) {
                             mappingsToUpdate = Sets.newHashSet();
                         }
-                        mappingsToUpdate.add(Tuple.tuple(indexRequest.index(), indexRequest.getType()));
+                        mappingsToUpdate.add(Tuple.tuple(indexRequest.getIndex(), indexRequest.getType()));
                     }
 
                     // if we are going to percolate, then we need to keep this op for the postPrimary operation
@@ -186,7 +186,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
                     // add the response
                     responses[i] = new BulkItemResponse(item.getId(), indexRequest.getOpType().lowercase(),
-                            new IndexResponse(indexRequest.index(), indexRequest.getType(), indexRequest.getId(), version));
+                            new IndexResponse(indexRequest.getIndex(), indexRequest.getType(), indexRequest.getId(), version));
                 } catch (Exception e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
@@ -197,12 +197,12 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         throw (ElasticSearchException) e;
                     }
                     if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {
-                        logger.trace("[{}][{}] failed to execute bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
+                        logger.trace("[{}][{}] failed to execute bulk item (index) {}", e, shardRequest.request.getIndex(), shardRequest.shardId, indexRequest);
                     } else {
-                        logger.debug("[{}][{}] failed to execute bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
+                        logger.debug("[{}][{}] failed to execute bulk item (index) {}", e, shardRequest.request.getIndex(), shardRequest.shardId, indexRequest);
                     }
                     responses[i] = new BulkItemResponse(item.getId(), indexRequest.getOpType().lowercase(),
-                            new BulkItemResponse.Failure(indexRequest.index(), indexRequest.getType(), indexRequest.getId(), ExceptionsHelper.detailedMessage(e)));
+                            new BulkItemResponse.Failure(indexRequest.getIndex(), indexRequest.getType(), indexRequest.getId(), ExceptionsHelper.detailedMessage(e)));
                     // nullify the request so it won't execute on the replicas
                     request.getItems()[i] = null;
                 }
@@ -216,7 +216,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
                     // add the response
                     responses[i] = new BulkItemResponse(item.getId(), "delete",
-                            new DeleteResponse(deleteRequest.index(), deleteRequest.getType(), deleteRequest.getId(), delete.version(), delete.notFound()));
+                            new DeleteResponse(deleteRequest.getIndex(), deleteRequest.getType(), deleteRequest.getId(), delete.version(), delete.notFound()));
                 } catch (Exception e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
@@ -227,12 +227,12 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         throw (ElasticSearchException) e;
                     }
                     if (e instanceof ElasticSearchException && ((ElasticSearchException) e).status() == RestStatus.CONFLICT) {
-                        logger.trace("[{}][{}] failed to execute bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
+                        logger.trace("[{}][{}] failed to execute bulk item (delete) {}", e, shardRequest.request.getIndex(), shardRequest.shardId, deleteRequest);
                     } else {
-                        logger.debug("[{}][{}] failed to execute bulk item (delete) {}", e, shardRequest.request.index(), shardRequest.shardId, deleteRequest);
+                        logger.debug("[{}][{}] failed to execute bulk item (delete) {}", e, shardRequest.request.getIndex(), shardRequest.shardId, deleteRequest);
                     }
                     responses[i] = new BulkItemResponse(item.getId(), "delete",
-                            new BulkItemResponse.Failure(deleteRequest.index(), deleteRequest.getType(), deleteRequest.getId(), ExceptionsHelper.detailedMessage(e)));
+                            new BulkItemResponse.Failure(deleteRequest.getIndex(), deleteRequest.getType(), deleteRequest.getId(), ExceptionsHelper.detailedMessage(e)));
                     // nullify the request so it won't execute on the replicas
                     request.getItems()[i] = null;
                 }
@@ -252,13 +252,13 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 // ignore
             }
         }
-        BulkShardResponse response = new BulkShardResponse(new ShardId(request.index(), request.getShardId()), responses);
+        BulkShardResponse response = new BulkShardResponse(new ShardId(request.getIndex(), request.getShardId()), responses);
         return new PrimaryResponse<BulkShardResponse, BulkShardRequest>(shardRequest.request, response, ops);
     }
 
     @Override
     protected void postPrimaryOperation(BulkShardRequest request, PrimaryResponse<BulkShardResponse, BulkShardRequest> response) {
-        IndexService indexService = indicesService.indexServiceSafe(request.index());
+        IndexService indexService = indicesService.indexServiceSafe(request.getIndex());
         Engine.IndexingOperation[] ops = (Engine.IndexingOperation[]) response.payload();
         if (ops == null) {
             return;
@@ -291,7 +291,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
         final BulkShardRequest request = shardRequest.request;
         for (int i = 0; i < request.getItems().length; i++) {
             BulkItemRequest item = request.getItems()[i];

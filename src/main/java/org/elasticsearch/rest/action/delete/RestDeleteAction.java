@@ -56,22 +56,22 @@ public class RestDeleteAction extends BaseRestHandler {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
 
         deleteRequest.listenerThreaded(false);
-        deleteRequest.operationThreaded(true);
+        deleteRequest.setOperationThreaded(true);
 
         deleteRequest.setParent(request.param("parent"));
         deleteRequest.setRouting(request.param("routing"));
-        deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
+        deleteRequest.setTimeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
         deleteRequest.setRefresh(request.paramAsBoolean("refresh", deleteRequest.isRefresh()));
         deleteRequest.setVersion(RestActions.parseVersion(request));
         deleteRequest.setVersionType(VersionType.fromString(request.param("version_type"), deleteRequest.getVersionType()));
 
         String replicationType = request.param("replication");
         if (replicationType != null) {
-            deleteRequest.replicationType(ReplicationType.fromString(replicationType));
+            deleteRequest.setReplicationType(ReplicationType.fromString(replicationType));
         }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
-            deleteRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+            deleteRequest.setConsistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
 
         client.delete(deleteRequest, new ActionListener<DeleteResponse>() {

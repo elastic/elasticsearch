@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to delete a document from an index based on its type and id. Best created using
  * {@link org.elasticsearch.client.Requests#deleteRequest(String)}.
  * <p/>
- * <p>The operation requires the {@link #index()}, {@link #setType(String)} and {@link #setId(String)} to
+ * <p>The operation requires the {@link #getIndex()}, {@link #setType(String)} and {@link #setId(String)} to
  * be set.
  *
  * @see DeleteResponse

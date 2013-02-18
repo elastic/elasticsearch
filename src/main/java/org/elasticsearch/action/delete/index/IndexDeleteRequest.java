@@ -40,10 +40,10 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDe
     }
 
     public IndexDeleteRequest(DeleteRequest request) {
-        this.timeout = request.timeout();
-        this.consistencyLevel = request.consistencyLevel();
-        this.replicationType = request.replicationType();
-        this.index = request.index();
+        this.timeout = request.getTimeout();
+        this.consistencyLevel = request.getConsistencyLevel();
+        this.replicationType = request.getReplicationType();
+        this.index = request.getIndex();
         this.type = request.getType();
         this.id = request.getId();
         this.refresh = request.isRefresh();

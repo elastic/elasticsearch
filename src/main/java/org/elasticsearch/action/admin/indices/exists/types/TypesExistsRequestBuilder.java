@@ -46,7 +46,7 @@ public class TypesExistsRequestBuilder extends MasterNodeOperationRequestBuilder
      * @param indices What indices to check for types
      */
     public TypesExistsRequestBuilder setIndices(String[] indices) {
-        request.indices(indices);
+        request.setIndices(indices);
         return this;
     }
 
@@ -54,7 +54,7 @@ public class TypesExistsRequestBuilder extends MasterNodeOperationRequestBuilder
      * @param types The types to check if they exist
      */
     public TypesExistsRequestBuilder setTypes(String... types) {
-        request.types(types);
+        request.setTypes(types);
         return this;
     }
 
@@ -62,7 +62,7 @@ public class TypesExistsRequestBuilder extends MasterNodeOperationRequestBuilder
      * @param ignoreIndices Specifies how to resolve indices that aren't active / ready
      */
     public TypesExistsRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request.ignoreIndices(ignoreIndices);
+        request.setIgnoreIndices(ignoreIndices);
         return this;
     }
 

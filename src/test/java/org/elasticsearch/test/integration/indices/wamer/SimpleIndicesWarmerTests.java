@@ -104,7 +104,7 @@ public class SimpleIndicesWarmerTests extends AbstractNodesTests {
 
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
-        ClusterState clusterState = client.admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client.admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(1));
@@ -135,7 +135,7 @@ public class SimpleIndicesWarmerTests extends AbstractNodesTests {
                         "}")
                 .execute().actionGet();
 
-        ClusterState clusterState = client.admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client.admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(1));

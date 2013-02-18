@@ -37,14 +37,14 @@ class ShardRefreshRequest extends BroadcastShardOperationRequest {
 
     public ShardRefreshRequest(String index, int shardId, RefreshRequest request) {
         super(index, shardId, request);
-        waitForOperations = request.waitForOperations();
+        waitForOperations = request.isWaitForOperations();
     }
 
-    public boolean waitForOperations() {
+    public boolean isWaitForOperations() {
         return waitForOperations;
     }
 
-    public ShardRefreshRequest waitForOperations(boolean waitForOperations) {
+    public ShardRefreshRequest setWaitForOperations(boolean waitForOperations) {
         this.waitForOperations = waitForOperations;
         return this;
     }

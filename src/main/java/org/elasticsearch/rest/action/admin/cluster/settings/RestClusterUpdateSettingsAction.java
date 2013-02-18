@@ -45,14 +45,14 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
-        clusterUpdateSettingsRequest.listenerThreaded(false);
+        clusterUpdateSettingsRequest.setListenerThreaded(false);
         try {
             Map<String, Object> source = XContentFactory.xContent(request.content()).createParser(request.content()).mapAndClose();
             if (source.containsKey("transient")) {
-                clusterUpdateSettingsRequest.transientSettings((Map) source.get("transient"));
+                clusterUpdateSettingsRequest.setTransientSettings((Map) source.get("transient"));
             }
             if (source.containsKey("persistent")) {
-                clusterUpdateSettingsRequest.persistentSettings((Map) source.get("persistent"));
+                clusterUpdateSettingsRequest.setPersistentSettings((Map) source.get("persistent"));
             }
         } catch (Exception e) {
             try {

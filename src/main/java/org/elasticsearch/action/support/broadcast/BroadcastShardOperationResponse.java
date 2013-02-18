@@ -42,20 +42,12 @@ public abstract class BroadcastShardOperationResponse extends TransportResponse 
         this.shardId = shardId;
     }
 
-    public String index() {
+    public String getIndex() {
         return this.index;
     }
 
-    public String getIndex() {
-        return index();
-    }
-
-    public int shardId() {
-        return this.shardId;
-    }
-
     public int getShardId() {
-        return shardId();
+        return this.shardId;
     }
 
     @Override

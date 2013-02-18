@@ -38,14 +38,14 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
     }
 
     public ExplainRequestBuilder(Client client, String index, String type, String id) {
-        super((InternalClient) client, new ExplainRequest().index(index).type(type).id(id));
+        super((InternalClient) client, new ExplainRequest().setIndex(index).setType(type).setId(id));
     }
 
     /**
      * Sets the type to get a score explanation for.
      */
     public ExplainRequestBuilder setType(String type) {
-        request().type(type);
+        request().setType(type);
         return this;
     }
 
@@ -53,7 +53,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the id to get a score explanation for.
      */
     public ExplainRequestBuilder setId(String id) {
-        request().id(id);
+        request().setId(id);
         return this;
     }
 
@@ -61,7 +61,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the routing for sharding.
      */
     public ExplainRequestBuilder setRouting(String routing) {
-        request().routing(routing);
+        request().setRouting(routing);
         return this;
     }
 
@@ -69,7 +69,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Simple sets the routing. Since the parent is only used to get to the right shard.
      */
     public ExplainRequestBuilder setParent(String parent) {
-        request().parent(parent);
+        request().setParent(parent);
         return this;
     }
 
@@ -77,7 +77,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the shard preference.
      */
     public ExplainRequestBuilder setPreference(String preference) {
-        request().preference(preference);
+        request().setPreference(preference);
         return this;
     }
 
@@ -85,7 +85,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the query to get a score explanation for.
      */
     public ExplainRequestBuilder setQuery(QueryBuilder query) {
-        sourceBuilder().query(query);
+        sourceBuilder().setQuery(query);
         return this;
     }
 
@@ -93,7 +93,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the query to get a score explanation for.
      */
     public ExplainRequestBuilder setQuery(BytesReference query) {
-        sourceBuilder().query(query);
+        sourceBuilder().setQuery(query);
         return this;
     }
 
@@ -101,7 +101,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Explicitly specify the fields that will be returned for the explained document. By default, nothing is returned.
      */
     public ExplainRequestBuilder setFields(String... fields) {
-        request.fields(fields);
+        request.setFields(fields);
         return this;
     }
 
@@ -109,7 +109,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the full source of the explain request (for example, wrapping an actual query).
      */
     public ExplainRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request().source(source, unsafe);
+        request().setSource(source, unsafe);
         return this;
     }
 
@@ -117,13 +117,13 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets whether the actual explain action should occur in a different thread if executed locally.
      */
     public ExplainRequestBuilder operationThreaded(boolean threadedOperation) {
-        request().operationThreaded(threadedOperation);
+        request().setOperationThreaded(threadedOperation);
         return this;
     }
 
     protected void doExecute(ActionListener<ExplainResponse> listener) {
         if (sourceBuilder != null) {
-            request.source(sourceBuilder);
+            request.setSource(sourceBuilder);
         }
 
         ((Client) client).explain(request, listener);

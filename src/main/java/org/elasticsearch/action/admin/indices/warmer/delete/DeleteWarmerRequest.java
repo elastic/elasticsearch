@@ -59,7 +59,7 @@ public class DeleteWarmerRequest extends MasterNodeOperationRequest<DeleteWarmer
      * The name to delete.
      */
     @Nullable
-    String name() {
+    public String getName() {
         return name;
     }
 
@@ -67,7 +67,7 @@ public class DeleteWarmerRequest extends MasterNodeOperationRequest<DeleteWarmer
      * The name (or wildcard expression) of the index warmer to delete, or null
      * to delete all warmers.
      */
-    public DeleteWarmerRequest name(@Nullable String name) {
+    public DeleteWarmerRequest setName(@Nullable String name) {
         this.name = name;
         return this;
     }
@@ -75,7 +75,7 @@ public class DeleteWarmerRequest extends MasterNodeOperationRequest<DeleteWarmer
     /**
      * Sets the indices this put mapping operation will execute on.
      */
-    public DeleteWarmerRequest indices(String[] indices) {
+    public DeleteWarmerRequest setIndices(String[] indices) {
         this.indices = indices;
         return this;
     }
@@ -83,7 +83,7 @@ public class DeleteWarmerRequest extends MasterNodeOperationRequest<DeleteWarmer
     /**
      * The indices the mappings will be put.
      */
-    public String[] indices() {
+    public String[] getIndices() {
         return indices;
     }
 

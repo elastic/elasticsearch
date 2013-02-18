@@ -43,20 +43,12 @@ public class NodesShutdownResponse extends ActionResponse {
         this.nodes = nodes;
     }
 
-    public ClusterName clusterName() {
+    public ClusterName getClusterName() {
         return this.clusterName;
     }
 
-    public ClusterName getClusterName() {
-        return clusterName();
-    }
-
-    public DiscoveryNode[] nodes() {
-        return this.nodes;
-    }
-
     public DiscoveryNode[] getNodes() {
-        return nodes();
+        return this.nodes;
     }
 
     @Override

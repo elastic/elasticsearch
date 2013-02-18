@@ -70,8 +70,8 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
 
     @Override
     protected ClusterBlockException checkBlock(CloseIndexRequest request, ClusterState state) {
-        request.index(clusterService.state().metaData().concreteIndex(request.index()));
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
+        request.setIndex(clusterService.state().metaData().concreteIndex(request.getIndex()));
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.getIndex());
     }
 
     @Override
@@ -79,7 +79,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
         final AtomicReference<CloseIndexResponse> responseRef = new AtomicReference<CloseIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        stateIndexService.closeIndex(new MetaDataStateIndexService.Request(request.index()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
+        stateIndexService.closeIndex(new MetaDataStateIndexService.Request(request.getIndex()).timeout(request.getTimeout()), new MetaDataStateIndexService.Listener() {
             @Override
             public void onResponse(MetaDataStateIndexService.Response response) {
                 responseRef.set(new CloseIndexResponse(response.acknowledged()));

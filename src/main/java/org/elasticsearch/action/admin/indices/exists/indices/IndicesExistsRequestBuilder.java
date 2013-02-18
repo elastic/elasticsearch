@@ -34,7 +34,7 @@ public class IndicesExistsRequestBuilder extends MasterNodeOperationRequestBuild
     }
 
     public IndicesExistsRequestBuilder setIndices(String... indices) {
-        request.indices(indices);
+        request.setIndices(indices);
         return this;
     }
 

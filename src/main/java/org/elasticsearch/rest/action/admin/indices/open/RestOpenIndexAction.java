@@ -49,8 +49,8 @@ public class RestOpenIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(request.param("index"));
-        openIndexRequest.listenerThreaded(false);
-        openIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        openIndexRequest.setListenerThreaded(false);
+        openIndexRequest.setTimeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().open(openIndexRequest, new ActionListener<OpenIndexResponse>() {
             @Override
             public void onResponse(OpenIndexResponse response) {
@@ -58,7 +58,7 @@ public class RestOpenIndexAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields.ACKNOWLEDGED, response.acknowledged())
+                            .field(Fields.ACKNOWLEDGED, response.isAcknowledged())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {

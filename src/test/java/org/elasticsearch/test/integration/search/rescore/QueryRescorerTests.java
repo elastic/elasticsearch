@@ -25,8 +25,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 import org.apache.lucene.util.English;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
@@ -97,7 +95,7 @@ public class QueryRescorerTests extends AbstractNodesTests {
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)))
                 .setRescoreWindow(5).execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
@@ -107,7 +105,7 @@ public class QueryRescorerTests extends AbstractNodesTests {
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "the quick brown").slop(3)))
                 .setRescoreWindow(5).execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
@@ -117,7 +115,7 @@ public class QueryRescorerTests extends AbstractNodesTests {
                 .setRescorer(RescoreBuilder.queryRescorer((QueryBuilders.matchPhraseQuery("field1", "the quick brown"))))
                 .setRescoreWindow(5).execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
@@ -169,8 +167,8 @@ public class QueryRescorerTests extends AbstractNodesTests {
                         RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
                                 .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(20).execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(9l));
-        assertThat(searchResponse.hits().hits().length, equalTo(5));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(9l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(5));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("6"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
@@ -186,8 +184,8 @@ public class QueryRescorerTests extends AbstractNodesTests {
                 RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
                         .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(20).execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(9l));
-        assertThat(searchResponse.hits().hits().length, equalTo(5));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(9l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(5));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("6"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
@@ -330,7 +328,7 @@ public class QueryRescorerTests extends AbstractNodesTests {
                         RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "the quick brown").slop(2).boost(4.0f))
                                 .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f)).setRescoreWindow(5).setExplain(true).execute()
                 .actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));

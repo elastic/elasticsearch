@@ -51,8 +51,8 @@ public class RestDeleteIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(splitIndices(request.param("index")));
-        deleteIndexRequest.listenerThreaded(false);
-        deleteIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        deleteIndexRequest.setListenerThreaded(false);
+        deleteIndexRequest.setTimeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().delete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
             @Override
             public void onResponse(DeleteIndexResponse response) {
@@ -60,7 +60,7 @@ public class RestDeleteIndexAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields.ACKNOWLEDGED, response.acknowledged())
+                            .field(Fields.ACKNOWLEDGED, response.isAcknowledged())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {

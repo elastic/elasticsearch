@@ -56,22 +56,22 @@ public class RestUpdateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
-        updateRequest.listenerThreaded(false);
-        updateRequest.routing(request.param("routing"));
-        updateRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-        updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
-        updateRequest.refresh(request.paramAsBoolean("refresh", updateRequest.refresh()));
+        updateRequest.setListenerThreaded(false);
+        updateRequest.setRouting(request.param("routing"));
+        updateRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+        updateRequest.setTimeout(request.paramAsTime("timeout", updateRequest.getTimeout()));
+        updateRequest.setRefresh(request.paramAsBoolean("refresh", updateRequest.isRefresh()));
         String replicationType = request.param("replication");
         if (replicationType != null) {
-            updateRequest.replicationType(ReplicationType.fromString(replicationType));
+            updateRequest.setReplicationType(ReplicationType.fromString(replicationType));
         }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
-            updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+            updateRequest.setConsistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        updateRequest.percolate(request.param("percolate", null));
-        updateRequest.script(request.param("script"));
-        updateRequest.scriptLang(request.param("lang"));
+        updateRequest.setPercolate(request.param("percolate", null));
+        updateRequest.setScript(request.param("script"));
+        updateRequest.setScriptLang(request.param("lang"));
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
             if (entry.getKey().startsWith("sp_")) {
                 updateRequest.addScriptParam(entry.getKey().substring(3), entry.getValue());
@@ -81,36 +81,36 @@ public class RestUpdateAction extends BaseRestHandler {
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);
             if (sFields != null) {
-                updateRequest.fields(sFields);
+                updateRequest.setFields(sFields);
             }
         }
-        updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
+        updateRequest.setRetryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.getRetryOnConflict()));
 
         // see if we have it in the body
         if (request.hasContent()) {
             try {
-                updateRequest.source(request.content());
-                IndexRequest upsertRequest = updateRequest.upsertRequest();
+                updateRequest.setSource(request.content());
+                IndexRequest upsertRequest = updateRequest.getUpsertRequest();
                 if (upsertRequest != null) {
-                    upsertRequest.routing(request.param("routing"));
-                    upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    upsertRequest.timestamp(request.param("timestamp"));
+                    upsertRequest.setRouting(request.param("routing"));
+                    upsertRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    upsertRequest.setTimestamp(request.param("timestamp"));
                     if (request.hasParam("ttl")) {
-                        upsertRequest.ttl(request.paramAsTime("ttl", null).millis());
+                        upsertRequest.setTtl(request.paramAsTime("ttl", null).millis());
                     }
-                    upsertRequest.version(RestActions.parseVersion(request));
-                    upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
+                    upsertRequest.setVersion(RestActions.parseVersion(request));
+                    upsertRequest.setVersionType(VersionType.fromString(request.param("version_type"), upsertRequest.getVersionType()));
                 }
-                IndexRequest doc = updateRequest.doc();
+                IndexRequest doc = updateRequest.getDoc();
                 if (doc != null) {
-                    doc.routing(request.param("routing"));
-                    doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    doc.timestamp(request.param("timestamp"));
+                    doc.setRouting(request.param("routing"));
+                    doc.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    doc.setTimestamp(request.param("timestamp"));
                     if (request.hasParam("ttl")) {
-                        doc.ttl(request.paramAsTime("ttl", null).millis());
+                        doc.setTtl(request.paramAsTime("ttl", null).millis());
                     }
-                    doc.version(RestActions.parseVersion(request));
-                    doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
+                    doc.setVersion(RestActions.parseVersion(request));
+                    doc.setVersionType(VersionType.fromString(request.param("version_type"), doc.getVersionType()));
                 }
             } catch (Exception e) {
                 try {
@@ -129,27 +129,27 @@ public class RestUpdateAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields._INDEX, response.index())
-                            .field(Fields._TYPE, response.type())
-                            .field(Fields._ID, response.id())
-                            .field(Fields._VERSION, response.version());
+                            .field(Fields._INDEX, response.getIndex())
+                            .field(Fields._TYPE, response.getType())
+                            .field(Fields._ID, response.getId())
+                            .field(Fields._VERSION, response.getVersion());
 
-                    if (response.getResult() != null) {
+                    if (response.getGetResult() != null) {
                         builder.startObject(Fields.GET);
-                        response.getResult().toXContentEmbedded(builder, request);
+                        response.getGetResult().toXContentEmbedded(builder, request);
                         builder.endObject();
                     }
 
-                    if (response.matches() != null) {
+                    if (response.getMatches() != null) {
                         builder.startArray(Fields.MATCHES);
-                        for (String match : response.matches()) {
+                        for (String match : response.getMatches()) {
                             builder.value(match);
                         }
                         builder.endArray();
                     }
                     builder.endObject();
                     RestStatus status = OK;
-                    if (response.version() == 1) {
+                    if (response.getVersion() == 1) {
                         status = CREATED;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));

@@ -36,12 +36,8 @@ public class IndicesExistsResponse extends ActionResponse {
         this.exists = exists;
     }
 
-    public boolean exists() {
-        return this.exists;
-    }
-
     public boolean isExists() {
-        return exists();
+        return this.exists;
     }
 
     @Override

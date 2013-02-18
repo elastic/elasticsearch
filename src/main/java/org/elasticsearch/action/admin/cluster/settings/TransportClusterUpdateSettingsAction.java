@@ -88,7 +88,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     boolean changed = false;
                     ImmutableSettings.Builder transientSettings = ImmutableSettings.settingsBuilder();
                     transientSettings.put(currentState.metaData().transientSettings());
-                    for (Map.Entry<String, String> entry : request.transientSettings().getAsMap().entrySet()) {
+                    for (Map.Entry<String, String> entry : request.getTransientSettings().getAsMap().entrySet()) {
                         if (MetaData.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
                             transientSettings.put(entry.getKey(), entry.getValue());
                             changed = true;
@@ -99,7 +99,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
 
                     ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder();
                     persistentSettings.put(currentState.metaData().persistentSettings());
-                    for (Map.Entry<String, String> entry : request.persistentSettings().getAsMap().entrySet()) {
+                    for (Map.Entry<String, String> entry : request.getPersistentSettings().getAsMap().entrySet()) {
                         if (MetaData.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
                             changed = true;
                             persistentSettings.put(entry.getKey(), entry.getValue());

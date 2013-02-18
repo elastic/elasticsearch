@@ -58,58 +58,58 @@ public class BroadcastActionsTests extends AbstractNodesTests {
         client("server1").admin().indices().prepareCreate("test").execute().actionGet(5000);
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        client("server1").index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        client("server1").index(indexRequest("test").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
         FlushResponse flushResponse = client("server1").admin().indices().flush(flushRequest("test")).actionGet();
-        assertThat(flushResponse.totalShards(), equalTo(10));
-        assertThat(flushResponse.successfulShards(), equalTo(5));
-        assertThat(flushResponse.failedShards(), equalTo(0));
-        client("server1").index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
+        assertThat(flushResponse.getTotalShards(), equalTo(10));
+        assertThat(flushResponse.getSuccessfulShards(), equalTo(5));
+        assertThat(flushResponse.getFailedShards(), equalTo(0));
+        client("server1").index(indexRequest("test").setType("type1").setId("2").setSource(source("2", "test"))).actionGet();
         RefreshResponse refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResponse.totalShards(), equalTo(10));
-        assertThat(refreshResponse.successfulShards(), equalTo(5));
-        assertThat(refreshResponse.failedShards(), equalTo(0));
+        assertThat(refreshResponse.getTotalShards(), equalTo(10));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(5));
+        assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
         logger.info("Count");
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client("server1").count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
-            assertThat(countResponse.count(), equalTo(2l));
-            assertThat(countResponse.totalShards(), equalTo(5));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            CountResponse countResponse = client("server1").count(countRequest("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
+            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getTotalShards(), equalTo(5));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
         }
 
         for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client("server1").count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
-            assertThat(countResponse.count(), equalTo(2l));
-            assertThat(countResponse.totalShards(), equalTo(5));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            CountResponse countResponse = client("server1").count(countRequest("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
+            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getTotalShards(), equalTo(5));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
         }
 
         for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client("server1").count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
-            assertThat(countResponse.count(), equalTo(2l));
-            assertThat(countResponse.totalShards(), equalTo(5));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            CountResponse countResponse = client("server1").count(countRequest("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
+            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getTotalShards(), equalTo(5));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
         }
 
         for (int i = 0; i < 5; i++) {
             // test failed (simply query that can't be parsed)
-            CountResponse countResponse = client("server1").count(countRequest("test").query(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
+            CountResponse countResponse = client("server1").count(countRequest("test").setQuery(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
-            assertThat(countResponse.count(), equalTo(0l));
-            assertThat(countResponse.totalShards(), equalTo(5));
-            assertThat(countResponse.successfulShards(), equalTo(0));
-            assertThat(countResponse.failedShards(), equalTo(5));
-            for (ShardOperationFailedException exp : countResponse.shardFailures()) {
+            assertThat(countResponse.getCount(), equalTo(0l));
+            assertThat(countResponse.getTotalShards(), equalTo(5));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(0));
+            assertThat(countResponse.getFailedShards(), equalTo(5));
+            for (ShardOperationFailedException exp : countResponse.getShardFailures()) {
                 assertThat(exp.reason(), containsString("QueryParsingException"));
             }
         }

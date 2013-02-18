@@ -109,7 +109,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
 
             if (localOperations > 0) {
-                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
+                if (request.getOperationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
@@ -123,7 +123,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                         }
                     });
                 } else {
-                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
+                    boolean localAsync = request.getOperationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (final DfsSearchResult dfsResult : dfsResults) {
                         final DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
@@ -200,7 +200,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             }
 
             if (localOperations > 0) {
-                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
+                if (request.getOperationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
@@ -214,7 +214,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
                         }
                     });
                 } else {
-                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
+                    boolean localAsync = request.getOperationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
                         final DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
@@ -280,8 +280,8 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         void innerFinishHim() throws Exception {
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
             String scrollId = null;
-            if (request.scroll() != null) {
-                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), dfsResults, null);
+            if (request.getScroll() != null) {
+                scrollId = TransportSearchHelper.buildScrollId(request.getSearchType(), dfsResults, null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }

@@ -84,15 +84,15 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
     @Override
     protected void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
         // optimize search type for cases where there is only one shard group to search on
-        if (optimizeSingleShard && searchRequest.searchType() != SCAN && searchRequest.searchType() != COUNT) {
+        if (optimizeSingleShard && searchRequest.getSearchType() != SCAN && searchRequest.getSearchType() != COUNT) {
             try {
                 ClusterState clusterState = clusterService.state();
-                String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.indices(), searchRequest.ignoreIndices(), true);
-                Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(searchRequest.routing(), searchRequest.indices());
-                int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.indices(), concreteIndices, routingMap, searchRequest.preference());
+                String[] concreteIndices = clusterState.metaData().concreteIndices(searchRequest.getIndices(), searchRequest.getIgnoreIndices(), true);
+                Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(searchRequest.getRouting(), searchRequest.getIndices());
+                int shardCount = clusterService.operationRouting().searchShardsCount(clusterState, searchRequest.getIndices(), concreteIndices, routingMap, searchRequest.getPreference());
                 if (shardCount == 1) {
                     // if we only have one group, then we always want Q_A_F, no need for DFS, and no need to do THEN since we hit one shard
-                    searchRequest.searchType(QUERY_AND_FETCH);
+                    searchRequest.setSearchType(QUERY_AND_FETCH);
                 }
             } catch (IndexMissingException e) {
                 // ignore this, we will notify the search response if its really the case
@@ -102,17 +102,17 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
             }
         }
 
-        if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
+        if (searchRequest.getSearchType() == DFS_QUERY_THEN_FETCH) {
             dfsQueryThenFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.QUERY_THEN_FETCH) {
+        } else if (searchRequest.getSearchType() == SearchType.QUERY_THEN_FETCH) {
             queryThenFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.DFS_QUERY_AND_FETCH) {
+        } else if (searchRequest.getSearchType() == SearchType.DFS_QUERY_AND_FETCH) {
             dfsQueryAndFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.QUERY_AND_FETCH) {
+        } else if (searchRequest.getSearchType() == SearchType.QUERY_AND_FETCH) {
             queryAndFetchAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.SCAN) {
+        } else if (searchRequest.getSearchType() == SearchType.SCAN) {
             scanAction.execute(searchRequest, listener);
-        } else if (searchRequest.searchType() == SearchType.COUNT) {
+        } else if (searchRequest.getSearchType() == SearchType.COUNT) {
             countAction.execute(searchRequest, listener);
         }
     }
@@ -127,10 +127,10 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         @Override
         public void messageReceived(SearchRequest request, final TransportChannel channel) throws Exception {
             // no need for a threaded listener
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             // we don't spawn, so if we get a request with no threading, change it to single threaded
-            if (request.operationThreading() == SearchOperationThreading.NO_THREADS) {
-                request.operationThreading(SearchOperationThreading.SINGLE_THREAD);
+            if (request.getOperationThreading() == SearchOperationThreading.NO_THREADS) {
+                request.setOperationThreading(SearchOperationThreading.SINGLE_THREAD);
             }
             execute(request, new ActionListener<SearchResponse>() {
                 @Override

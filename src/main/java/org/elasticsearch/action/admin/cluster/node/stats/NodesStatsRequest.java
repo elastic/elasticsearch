@@ -86,14 +86,14 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     /**
      * Should indices stats be returned.
      */
-    public boolean indices() {
+    public boolean isIndices() {
         return this.indices;
     }
 
     /**
      * Should indices stats be returned.
      */
-    public NodesStatsRequest indices(boolean indices) {
+    public NodesStatsRequest setIndices(boolean indices) {
         this.indices = indices;
         return this;
     }
@@ -101,14 +101,14 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     /**
      * Should the node OS be returned.
      */
-    public boolean os() {
+    public boolean isOs() {
         return this.os;
     }
 
     /**
      * Should the node OS be returned.
      */
-    public NodesStatsRequest os(boolean os) {
+    public NodesStatsRequest setOs(boolean os) {
         this.os = os;
         return this;
     }
@@ -116,14 +116,14 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     /**
      * Should the node Process be returned.
      */
-    public boolean process() {
+    public boolean isProcess() {
         return this.process;
     }
 
     /**
      * Should the node Process be returned.
      */
-    public NodesStatsRequest process(boolean process) {
+    public NodesStatsRequest setProcess(boolean process) {
         this.process = process;
         return this;
     }
@@ -131,14 +131,14 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     /**
      * Should the node JVM be returned.
      */
-    public boolean jvm() {
+    public boolean isJvm() {
         return this.jvm;
     }
 
     /**
      * Should the node JVM be returned.
      */
-    public NodesStatsRequest jvm(boolean jvm) {
+    public NodesStatsRequest setJvm(boolean jvm) {
         this.jvm = jvm;
         return this;
     }
@@ -146,14 +146,14 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     /**
      * Should the node Thread Pool be returned.
      */
-    public boolean threadPool() {
+    public boolean isThreadPool() {
         return this.threadPool;
     }
 
     /**
      * Should the node Thread Pool be returned.
      */
-    public NodesStatsRequest threadPool(boolean threadPool) {
+    public NodesStatsRequest setThreadPool(boolean threadPool) {
         this.threadPool = threadPool;
         return this;
     }
@@ -161,14 +161,14 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     /**
      * Should the node Network be returned.
      */
-    public boolean network() {
+    public boolean isNetwork() {
         return this.network;
     }
 
     /**
      * Should the node Network be returned.
      */
-    public NodesStatsRequest network(boolean network) {
+    public NodesStatsRequest setNetwork(boolean network) {
         this.network = network;
         return this;
     }
@@ -176,14 +176,14 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     /**
      * Should the node file system stats be returned.
      */
-    public boolean fs() {
+    public boolean isFs() {
         return this.fs;
     }
 
     /**
      * Should the node file system stats be returned.
      */
-    public NodesStatsRequest fs(boolean fs) {
+    public NodesStatsRequest setFs(boolean fs) {
         this.fs = fs;
         return this;
     }
@@ -191,14 +191,14 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     /**
      * Should the node Transport be returned.
      */
-    public boolean transport() {
+    public boolean isTransport() {
         return this.transport;
     }
 
     /**
      * Should the node Transport be returned.
      */
-    public NodesStatsRequest transport(boolean transport) {
+    public NodesStatsRequest setTransport(boolean transport) {
         this.transport = transport;
         return this;
     }
@@ -206,14 +206,14 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     /**
      * Should the node HTTP be returned.
      */
-    public boolean http() {
+    public boolean isHttp() {
         return this.http;
     }
 
     /**
      * Should the node HTTP be returned.
      */
-    public NodesStatsRequest http(boolean http) {
+    public NodesStatsRequest setHttp(boolean http) {
         this.http = http;
         return this;
     }

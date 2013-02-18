@@ -49,8 +49,8 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteIndexTemplateRequest deleteIndexTemplateRequest = new DeleteIndexTemplateRequest(request.param("name"));
-        deleteIndexTemplateRequest.listenerThreaded(false);
-        deleteIndexTemplateRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        deleteIndexTemplateRequest.setListenerThreaded(false);
+        deleteIndexTemplateRequest.setTimeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new ActionListener<DeleteIndexTemplateResponse>() {
             @Override
             public void onResponse(DeleteIndexTemplateResponse response) {
@@ -58,7 +58,7 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields.ACKNOWLEDGED, response.acknowledged())
+                            .field(Fields.ACKNOWLEDGED, response.isAcknowledged())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (IOException e) {

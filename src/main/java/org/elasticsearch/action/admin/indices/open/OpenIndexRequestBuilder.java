@@ -39,7 +39,7 @@ public class OpenIndexRequestBuilder extends MasterNodeOperationRequestBuilder<O
     }
 
     public OpenIndexRequestBuilder setIndex(String index) {
-        request.index(index);
+        request.setIndex(index);
         return this;
     }
 
@@ -48,7 +48,7 @@ public class OpenIndexRequestBuilder extends MasterNodeOperationRequestBuilder<O
      * to <tt>10s</tt>.
      */
     public OpenIndexRequestBuilder setTimeout(TimeValue timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return this;
     }
 
@@ -57,7 +57,7 @@ public class OpenIndexRequestBuilder extends MasterNodeOperationRequestBuilder<O
      * to <tt>10s</tt>.
      */
     public OpenIndexRequestBuilder setTimeout(String timeout) {
-        request.timeout(timeout);
+        request.setTimeout(timeout);
         return this;
     }
 

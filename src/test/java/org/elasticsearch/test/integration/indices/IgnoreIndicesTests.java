@@ -57,7 +57,7 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test1").execute().actionGet();
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         try {
             client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -154,7 +154,7 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test2").execute().actionGet();
 
         clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         client.prepareCount("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -178,14 +178,14 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test2").execute().actionGet();
 
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
 
         client.admin().indices().prepareClose("test2").execute().actionGet();
 
         clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         try {
             client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();

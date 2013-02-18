@@ -141,7 +141,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
      * means a different execution, then return false here to indicate not to continue and execute this request.
      */
     protected boolean resolveRequest(ClusterState state, Request request, ActionListener<Response> listener) {
-        request.index(state.metaData().concreteIndex(request.index()));
+        request.setIndex(state.metaData().concreteIndex(request.getIndex()));
         return true;
     }
 
@@ -212,9 +212,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             // if we have a local operation, execute it on a thread since we don't spawn
-            request.operationThreaded(true);
+            request.setOperationThreaded(true);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response result) {
@@ -332,8 +332,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             this.request = request;
             this.listener = listener;
 
-            if (request.replicationType() != ReplicationType.DEFAULT) {
-                replicationType = request.replicationType();
+            if (request.getReplicationType() != ReplicationType.DEFAULT) {
+                replicationType = request.getReplicationType();
             } else {
                 replicationType = defaultReplicationType;
             }
@@ -399,8 +399,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 // check here for consistency
                 if (checkWriteConsistency) {
                     WriteConsistencyLevel consistencyLevel = defaultWriteConsistencyLevel;
-                    if (request.consistencyLevel() != WriteConsistencyLevel.DEFAULT) {
-                        consistencyLevel = request.consistencyLevel();
+                    if (request.getConsistencyLevel() != WriteConsistencyLevel.DEFAULT) {
+                        consistencyLevel = request.getConsistencyLevel();
                     }
                     int requiredNumber = 1;
                     if (consistencyLevel == WriteConsistencyLevel.QUORUM && shardIt.size() > 2) {
@@ -422,7 +422,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                 foundPrimary = true;
                 if (shard.currentNodeId().equals(clusterState.nodes().localNodeId())) {
-                    if (request.operationThreaded()) {
+                    if (request.isOperationThreaded()) {
                         request.beforeLocalFork();
                         threadPool.executor(executor).execute(new Runnable() {
                             @Override
@@ -481,8 +481,8 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             if (!fromClusterEvent) {
                 // make it threaded operation so we fork on the discovery listener thread
                 request.beforeLocalFork();
-                request.operationThreaded(true);
-                clusterService.add(request.timeout(), new TimeoutClusterStateListener() {
+                request.setOperationThreaded(true);
+                clusterService.add(request.getTimeout(), new TimeoutClusterStateListener() {
                     @Override
                     public void postAdded() {
                         if (start(true)) {
@@ -695,7 +695,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 });
             } else {
-                if (request.operationThreaded()) {
+                if (request.isOperationThreaded()) {
                     request.beforeLocalFork();
                     threadPool.executor(executor).execute(new Runnable() {
                         @Override

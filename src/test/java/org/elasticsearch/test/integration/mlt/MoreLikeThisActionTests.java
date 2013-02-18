@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.integration.mlt;
 
-import java.util.Collections;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
@@ -81,21 +79,21 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client1.index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
-        client1.index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("1").setSource(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("2").setSource(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
         client1.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis");
-        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
-        assertThat(mltResponse.successfulShards(), equalTo(5));
-        assertThat(mltResponse.failedShards(), equalTo(0));
-        assertThat(mltResponse.hits().totalHits(), equalTo(1l));
+        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").setType("type1").setId("1").setMinTermFreq(1).setMinDocFreq(1)).actionGet();
+        assertThat(mltResponse.getSuccessfulShards(), equalTo(5));
+        assertThat(mltResponse.getFailedShards(), equalTo(0));
+        assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
     }
 
 
@@ -113,31 +111,31 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         client1.admin().indices().aliases(indexAliasesRequest().addAlias("test", "beta", termFilter("text", "beta"))).actionGet();
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client1.index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene beta").endObject())).actionGet();
-        client1.index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
-        client1.index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("text", "elasticsearch beta").endObject())).actionGet();
-        client1.index(indexRequest("test").type("type1").id("4").source(jsonBuilder().startObject().field("text", "elasticsearch release").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("1").setSource(jsonBuilder().startObject().field("text", "lucene beta").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("2").setSource(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("3").setSource(jsonBuilder().startObject().field("text", "elasticsearch beta").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("4").setSource(jsonBuilder().startObject().field("text", "elasticsearch release").endObject())).actionGet();
         client1.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis on index");
-        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
-        assertThat(mltResponse.hits().totalHits(), equalTo(2l));
+        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").setType("type1").setId("1").setMinTermFreq(1).setMinDocFreq(1)).actionGet();
+        assertThat(mltResponse.getHits().totalHits(), equalTo(2l));
 
         logger.info("Running moreLikeThis on beta shard");
-        mltResponse = client1.moreLikeThis(moreLikeThisRequest("beta").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
-        assertThat(mltResponse.hits().totalHits(), equalTo(1l));
-        assertThat(mltResponse.hits().getAt(0).id(), equalTo("3"));
+        mltResponse = client1.moreLikeThis(moreLikeThisRequest("beta").setType("type1").setId("1").setMinTermFreq(1).setMinDocFreq(1)).actionGet();
+        assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(mltResponse.getHits().getAt(0).id(), equalTo("3"));
 
         logger.info("Running moreLikeThis on release shard");
-        mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).searchIndices("release")).actionGet();
-        assertThat(mltResponse.hits().totalHits(), equalTo(1l));
-        assertThat(mltResponse.hits().getAt(0).id(), equalTo("2"));
+        mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").setType("type1").setId("1").setMinTermFreq(1).setMinDocFreq(1).setSearchIndices("release")).actionGet();
+        assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(mltResponse.getHits().getAt(0).id(), equalTo("2"));
     }
 
     @Test

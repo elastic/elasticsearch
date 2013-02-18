@@ -64,7 +64,7 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test2").execute().actionGet();
 
         ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> starting 1 node on a different rack");
         startNode("node3", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2"));
@@ -72,9 +72,9 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
         Thread.sleep(500);
 
         health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        assertThat(health.isTimedOut(), equalTo(false));
 
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         //System.out.println(clusterState.routingTable().prettyPrint());
         // verify that we have 10 shards on node3
         TObjectIntHashMap<String> counts = new TObjectIntHashMap<String>();

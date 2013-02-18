@@ -68,14 +68,14 @@ public class RestSearchAction extends BaseRestHandler {
         SearchRequest searchRequest;
         try {
             searchRequest = parseSearchRequest(request);
-            searchRequest.listenerThreaded(false);
+            searchRequest.setListenerThreaded(false);
             SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
             if (operationThreading != null) {
                 if (operationThreading == SearchOperationThreading.NO_THREADS) {
                     // since we don't spawn, don't allow no_threads, but change it to a single thread
                     operationThreading = SearchOperationThreading.SINGLE_THREAD;
                 }
-                searchRequest.operationThreading(operationThreading);
+                searchRequest.setOperationThreading(operationThreading);
             }
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
@@ -122,28 +122,28 @@ public class RestSearchAction extends BaseRestHandler {
         SearchRequest searchRequest = new SearchRequest(indices);
         // get the content, and put it in the body
         if (request.hasContent()) {
-            searchRequest.source(request.content(), request.contentUnsafe());
+            searchRequest.setSource(request.content(), request.contentUnsafe());
         } else {
             String source = request.param("source");
             if (source != null) {
-                searchRequest.source(source);
+                searchRequest.setSource(source);
             }
         }
         // add extra source based on the request parameters
-        searchRequest.extraSource(parseSearchSource(request));
+        searchRequest.setExtraSource(parseSearchSource(request));
 
-        searchRequest.searchType(request.param("search_type"));
+        searchRequest.setSearchType(request.param("search_type"));
 
         String scroll = request.param("scroll");
         if (scroll != null) {
-            searchRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
+            searchRequest.setScroll(new Scroll(parseTimeValue(scroll, null)));
         }
 
-        searchRequest.types(RestActions.splitTypes(request.param("type")));
-        searchRequest.routing(request.param("routing"));
-        searchRequest.preference(request.param("preference"));
+        searchRequest.setTypes(RestActions.splitTypes(request.param("type")));
+        searchRequest.setRouting(request.param("routing"));
+        searchRequest.setPreference(request.param("preference"));
         if (request.hasParam("ignore_indices")) {
-            searchRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            searchRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
 
         return searchRequest;

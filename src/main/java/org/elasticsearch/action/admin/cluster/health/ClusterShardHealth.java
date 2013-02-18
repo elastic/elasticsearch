@@ -52,60 +52,32 @@ public class ClusterShardHealth implements Streamable {
         this.shardId = shardId;
     }
 
-    public int id() {
+    public int getId() {
         return shardId;
     }
 
-    public int getId() {
-        return id();
-    }
-
-    public ClusterHealthStatus status() {
+    public ClusterHealthStatus getStatus() {
         return status;
     }
 
-    public ClusterHealthStatus getStatus() {
-        return status();
-    }
-
-    public int relocatingShards() {
+    public int getRelocatingShards() {
         return relocatingShards;
     }
 
-    public int getRelocatingShards() {
-        return relocatingShards();
-    }
-
-    public int activeShards() {
+    public int getActiveShards() {
         return activeShards;
     }
 
-    public int getActiveShards() {
-        return activeShards();
-    }
-
-    public boolean primaryActive() {
+    public boolean isPrimaryActive() {
         return primaryActive;
     }
 
-    public boolean isPrimaryActive() {
-        return primaryActive();
-    }
-
-    public int initializingShards() {
+    public int getInitializingShards() {
         return initializingShards;
     }
 
-    public int getInitializingShards() {
-        return initializingShards();
-    }
-
-    public int unassignedShards() {
-        return unassignedShards;
-    }
-
     public int getUnassignedShards() {
-        return unassignedShards();
+        return unassignedShards;
     }
 
     static ClusterShardHealth readClusterShardHealth(StreamInput in) throws IOException {

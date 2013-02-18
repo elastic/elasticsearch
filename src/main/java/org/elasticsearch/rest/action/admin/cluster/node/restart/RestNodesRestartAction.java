@@ -50,20 +50,20 @@ public class RestNodesRestartAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] nodesIds = RestActions.splitNodes(request.param("nodeId"));
         NodesRestartRequest nodesRestartRequest = new NodesRestartRequest(nodesIds);
-        nodesRestartRequest.listenerThreaded(false);
-        nodesRestartRequest.delay(request.paramAsTime("delay", nodesRestartRequest.delay()));
+        nodesRestartRequest.setListenerThreaded(false);
+        nodesRestartRequest.setDelay(request.paramAsTime("delay", nodesRestartRequest.getDelay()));
         client.admin().cluster().nodesRestart(nodesRestartRequest, new ActionListener<NodesRestartResponse>() {
             @Override
             public void onResponse(NodesRestartResponse result) {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field("cluster_name", result.clusterName().value());
+                    builder.field("cluster_name", result.getClusterName().value());
 
                     builder.startObject("nodes");
                     for (NodesRestartResponse.NodeRestartResponse nodeInfo : result) {
-                        builder.startObject(nodeInfo.node().id());
-                        builder.field("name", nodeInfo.node().name());
+                        builder.startObject(nodeInfo.getNode().id());
+                        builder.field("name", nodeInfo.getNode().name());
                         builder.endObject();
                     }
                     builder.endObject();

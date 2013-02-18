@@ -49,29 +49,15 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     /**
      * How long the bulk execution took.
      */
-    public TimeValue took() {
-        return new TimeValue(tookInMillis);
-    }
-
-    /**
-     * How long the bulk execution took.
-     */
     public TimeValue getTook() {
-        return took();
-    }
-
-    /**
-     * How long the bulk execution took in milliseconds.
-     */
-    public long tookInMillis() {
-        return tookInMillis;
+        return new TimeValue(tookInMillis);
     }
 
     /**
      * How long the bulk execution took in milliseconds.
      */
     public long getTookInMillis() {
-        return tookInMillis();
+        return tookInMillis;
     }
 
     /**
@@ -79,7 +65,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
      */
     public boolean hasFailures() {
         for (BulkItemResponse response : responses) {
-            if (response.failed()) {
+            if (response.isFailed()) {
                 return true;
             }
         }
@@ -91,10 +77,10 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
         sb.append("failure in bulk execution:");
         for (int i = 0; i < responses.length; i++) {
             BulkItemResponse response = responses[i];
-            if (response.failed()) {
+            if (response.isFailed()) {
                 sb.append("\n[").append(i)
-                        .append("]: index [").append(response.index()).append("], type [").append(response.type()).append("], id [").append(response.id())
-                        .append("], message [").append(response.failureMessage()).append("]");
+                        .append("]: index [").append(response.getIndex()).append("], type [").append(response.getType()).append("], id [").append(response.getId())
+                        .append("], message [").append(response.getFailureMessage()).append("]");
             }
         }
         return sb.toString();
@@ -103,7 +89,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
     /**
      * The items representing each action performed in the bulk operation (in the same order!).
      */
-    public BulkItemResponse[] items() {
+    public BulkItemResponse[] getItems() {
         return responses;
     }
 

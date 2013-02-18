@@ -93,71 +93,71 @@ public class UpdateTests extends AbstractNodesTests {
     public void testUpdateRequest() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
         // simple script
-        request.source(XContentFactory.jsonBuilder().startObject()
+        request.setSource(XContentFactory.jsonBuilder().startObject()
                 .field("script", "script1")
                 .endObject());
-        assertThat(request.script(), equalTo("script1"));
+        assertThat(request.getScript(), equalTo("script1"));
 
         // script with params
         request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
+        request.setSource(XContentFactory.jsonBuilder().startObject()
                 .field("script", "script1")
                 .startObject("params").field("param1", "value1").endObject()
                 .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
+        assertThat(request.getScript(), equalTo("script1"));
+        assertThat(request.getScriptParams().get("param1").toString(), equalTo("value1"));
 
         request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
+        request.setSource(XContentFactory.jsonBuilder().startObject()
                 .startObject("params").field("param1", "value1").endObject()
                 .field("script", "script1")
                 .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
+        assertThat(request.getScript(), equalTo("script1"));
+        assertThat(request.getScriptParams().get("param1").toString(), equalTo("value1"));
 
         // script with params and upsert
         request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
+        request.setSource(XContentFactory.jsonBuilder().startObject()
                 .startObject("params").field("param1", "value1").endObject()
                 .field("script", "script1")
                 .startObject("upsert").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
                 .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-        Map<String, Object> upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
+        assertThat(request.getScript(), equalTo("script1"));
+        assertThat(request.getScriptParams().get("param1").toString(), equalTo("value1"));
+        Map<String, Object> upsertDoc = XContentHelper.convertToMap(request.getUpsertRequest().getSource(), true).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
+        request.setSource(XContentFactory.jsonBuilder().startObject()
                 .startObject("upsert").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
                 .startObject("params").field("param1", "value1").endObject()
                 .field("script", "script1")
                 .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
+        assertThat(request.getScript(), equalTo("script1"));
+        assertThat(request.getScriptParams().get("param1").toString(), equalTo("value1"));
+        upsertDoc = XContentHelper.convertToMap(request.getUpsertRequest().getSource(), true).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
+        request.setSource(XContentFactory.jsonBuilder().startObject()
                 .startObject("params").field("param1", "value1").endObject()
                 .startObject("upsert").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
                 .field("script", "script1")
                 .endObject());
-        assertThat(request.script(), equalTo("script1"));
-        assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
+        assertThat(request.getScript(), equalTo("script1"));
+        assertThat(request.getScriptParams().get("param1").toString(), equalTo("value1"));
+        upsertDoc = XContentHelper.convertToMap(request.getUpsertRequest().getSource(), true).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         // script with doc
         request = new UpdateRequest("test", "type", "1");
-        request.source(XContentFactory.jsonBuilder().startObject()
+        request.setSource(XContentFactory.jsonBuilder().startObject()
                 .startObject("doc").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
                 .endObject());
-        Map<String, Object> doc = request.doc().sourceAsMap();
+        Map<String, Object> doc = request.getDoc().getSourceAsMap();
         assertThat(doc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
@@ -166,27 +166,27 @@ public class UpdateTests extends AbstractNodesTests {
     public void testUpsert() throws Exception {
         createIndex();
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         client.prepareUpdate("test", "type1", "1")
-                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("1"));
+            assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
         }
 
         client.prepareUpdate("test", "type1", "1")
-                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("2"));
+            assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
     }
 
@@ -194,11 +194,11 @@ public class UpdateTests extends AbstractNodesTests {
     public void testUpsertFields() throws Exception {
         createIndex();
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         UpdateResponse updateResponse = client.prepareUpdate("test", "type1", "1")
-                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
                 .execute().actionGet();
@@ -208,7 +208,7 @@ public class UpdateTests extends AbstractNodesTests {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra"), nullValue());
 
         updateResponse = client.prepareUpdate("test", "type1", "1")
-                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
                 .execute().actionGet();
@@ -227,7 +227,7 @@ public class UpdateTests extends AbstractNodesTests {
         }
 
         UpdateResponse updateResponse = client.prepareUpdate("test", "type1", "1")
-                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
                 .execute().actionGet();
@@ -240,8 +240,8 @@ public class UpdateTests extends AbstractNodesTests {
     public void testUpdate() throws Exception {
         createIndex();
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         try {
             client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field++").execute().actionGet();
@@ -253,37 +253,37 @@ public class UpdateTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
 
         UpdateResponse updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").execute().actionGet();
-        assertThat(updateResponse.version(), equalTo(2L));
+        assertThat(updateResponse.getVersion(), equalTo(2L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("2"));
+            assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
 
         updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += count").addScriptParam("count", 3).execute().actionGet();
-        assertThat(updateResponse.version(), equalTo(3L));
+        assertThat(updateResponse.getVersion(), equalTo(3L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("5"));
+            assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("5"));
         }
 
         // check noop
         updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx.op = 'none'").execute().actionGet();
-        assertThat(updateResponse.version(), equalTo(3L));
+        assertThat(updateResponse.getVersion(), equalTo(3L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("5"));
+            assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("5"));
         }
 
         // check delete
         updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx.op = 'delete'").execute().actionGet();
-        assertThat(updateResponse.version(), equalTo(4L));
+        assertThat(updateResponse.getVersion(), equalTo(4L));
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.exists(), equalTo(false));
+            assertThat(getResponse.isExists(), equalTo(false));
         }
 
         // check percolation
@@ -296,25 +296,25 @@ public class UpdateTests extends AbstractNodesTests {
                 .setRefresh(true)
                 .execute().actionGet();
         clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setPercolate("*").execute().actionGet();
-        assertThat(updateResponse.matches().size(), equalTo(1));
+        assertThat(updateResponse.getMatches().size(), equalTo(1));
 
         // check TTL is kept after an update without TTL
         client.prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefresh(true).execute().actionGet();
         GetResponse getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
-        long ttl = ((Number) getResponse.field("_ttl").value()).longValue();
+        long ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
         client.prepareUpdate("test", "type1", "2").setScript("ctx._source.field += 1").execute().actionGet();
         getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
-        ttl = ((Number) getResponse.field("_ttl").value()).longValue();
+        ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
 
         // check TTL update
         client.prepareUpdate("test", "type1", "2").setScript("ctx._ttl = 3600000").execute().actionGet();
         getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
-        ttl = ((Number) getResponse.field("_ttl").value()).longValue();
+        ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
         assertThat(ttl, lessThanOrEqualTo(3600000L));
 
@@ -322,15 +322,15 @@ public class UpdateTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "3").setSource("field", 1).setRefresh(true).execute().actionGet();
         client.prepareUpdate("test", "type1", "3").setScript("ctx._timestamp = \"2009-11-15T14:12:12\"").execute().actionGet();
         getResponse = client.prepareGet("test", "type1", "3").setFields("_timestamp").execute().actionGet();
-        long timestamp = ((Number) getResponse.field("_timestamp").value()).longValue();
+        long timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
         assertThat(timestamp, equalTo(1258294332000L));
 
         // check fields parameter
         client.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
         updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setFields("_source", "field").execute().actionGet();
-        assertThat(updateResponse.getResult(), notNullValue());
-        assertThat(updateResponse.getResult().sourceRef(), notNullValue());
-        assertThat(updateResponse.getResult().field("field").value(), notNullValue());
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
+        assertThat(updateResponse.getGetResult().field("field").getValue(), notNullValue());
 
         // check updates without script
         // add new field
@@ -338,16 +338,16 @@ public class UpdateTests extends AbstractNodesTests {
         updateResponse = client.prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("1"));
-            assertThat(getResponse.sourceAsMap().get("field2").toString(), equalTo("2"));
+            assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
+            assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
 
         // change existing field
         updateResponse = client.prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-            assertThat(getResponse.sourceAsMap().get("field").toString(), equalTo("3"));
-            assertThat(getResponse.sourceAsMap().get("field2").toString(), equalTo("2"));
+            assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("3"));
+            assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
 
         // recursive map
@@ -364,7 +364,7 @@ public class UpdateTests extends AbstractNodesTests {
         updateResponse = client.prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
             getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-            Map map1 = (Map) getResponse.sourceAsMap().get("map");
+            Map map1 = (Map) getResponse.getSourceAsMap().get("map");
             assertThat(map1.size(), equalTo(3));
             assertThat(map1.containsKey("map1"), equalTo(true));
             assertThat(map1.containsKey("map3"), equalTo(true));

@@ -52,16 +52,8 @@ public class DocsStats implements Streamable, ToXContent {
         deleted += docsStats.deleted;
     }
 
-    public long count() {
-        return this.count;
-    }
-
     public long getCount() {
         return this.count;
-    }
-
-    public long deleted() {
-        return this.deleted;
     }
 
     public long getDeleted() {

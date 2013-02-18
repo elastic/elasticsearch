@@ -67,9 +67,9 @@ public class ConcurrentDocumentOperationTests extends AbstractNodesTests {
         nodes[0].client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("done indexing, check all have the same field value");
-        Map masterSource = nodes[0].client().prepareGet("test", "type1", "1").execute().actionGet().sourceAsMap();
+        Map masterSource = nodes[0].client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap();
         for (int i = 0; i < (nodes.length * 5); i++) {
-            assertThat(nodes[0].client().prepareGet("test", "type1", "1").execute().actionGet().sourceAsMap(), equalTo(masterSource));
+            assertThat(nodes[0].client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
         }
     }
 }

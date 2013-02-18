@@ -49,36 +49,15 @@ public class IndexDeleteResponse extends ActionResponse {
     /**
      * The index the delete by query operation was executed against.
      */
-    public String index() {
-        return this.index;
-    }
-
-    /**
-     * The index the delete by query operation was executed against.
-     */
     public String getIndex() {
-        return index;
-    }
-
-    /**
-     * The total number of shards the delete by query was executed on.
-     */
-    public int totalShards() {
-        return failedShards + successfulShards;
+        return this.index;
     }
 
     /**
      * The total number of shards the delete by query was executed on.
      */
     public int getTotalShards() {
-        return totalShards();
-    }
-
-    /**
-     * The successful number of shards the delete by query was executed on.
-     */
-    public int successfulShards() {
-        return successfulShards;
+        return failedShards + successfulShards;
     }
 
     /**
@@ -91,18 +70,11 @@ public class IndexDeleteResponse extends ActionResponse {
     /**
      * The failed number of shards the delete by query was executed on.
      */
-    public int failedShards() {
-        return failedShards;
-    }
-
-    /**
-     * The failed number of shards the delete by query was executed on.
-     */
     public int getFailedShards() {
         return failedShards;
     }
 
-    public ShardDeleteResponse[] responses() {
+    public ShardDeleteResponse[] getResponses() {
         return this.deleteResponses;
     }
 

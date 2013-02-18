@@ -75,13 +75,13 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(6)).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
         logger.info("--> closing nodes");
@@ -94,19 +94,19 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
 
         Thread.sleep(300);
         ClusterStateResponse clusterStateResponse = client("node1").admin().cluster().prepareState().setMasterNodeTimeout("500ms").execute().actionGet();
-        assertThat(clusterStateResponse.state().routingTable().index("test").allPrimaryShardsActive(), equalTo(false));
+        assertThat(clusterStateResponse.getState().routingTable().index("test").allPrimaryShardsActive(), equalTo(false));
 
         logger.info("--> change the recovery.initial_shards setting, and make sure its recovered");
         client("node1").admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("recovery.initial_shards", 1)).execute().actionGet();
 
         logger.info("--> running cluster_health (wait for the shards to startup), 4 shards since we only have 2 nodes");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(4)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(4)).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
     }
 
@@ -131,29 +131,29 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(6)).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
         logger.info("--> closing first node, and indexing more data to the second node");
         closeNode("node1");
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        clusterHealth = client("node2").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("2").waitForActiveShards(4)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        clusterHealth = client("node2").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForNodes("2").setWaitForActiveShards(4)).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         node2.client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute().actionGet();
         node2.client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node2.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
+            assertThat(node2.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(3l));
         }
 
         logger.info("--> closing the second node and third node");
@@ -167,13 +167,13 @@ public class QuorumLocalGatewayTests extends AbstractNodesTests {
         node2 = startNode("node3", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(6)).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(6)).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(3l));
+            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(3l));
         }
     }
 }

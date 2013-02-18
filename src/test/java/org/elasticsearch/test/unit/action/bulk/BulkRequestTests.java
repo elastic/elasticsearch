@@ -38,9 +38,9 @@ public class BulkRequestTests {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true, null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
-        assertThat(((IndexRequest) bulkRequest.requests().get(0)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }").toBytes()));
+        assertThat(((IndexRequest) bulkRequest.requests().get(0)).getSource().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }").toBytes()));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
-        assertThat(((IndexRequest) bulkRequest.requests().get(2)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }").toBytes()));
+        assertThat(((IndexRequest) bulkRequest.requests().get(2)).getSource().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }").toBytes()));
     }
 
     @Test

@@ -91,13 +91,13 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
     @Override
     protected void doExecute(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener) {
         // update to concrete indices
-        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
+        request.setIndices(clusterService.state().metaData().concreteIndices(request.setIndices()));
         super.doExecute(request, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteMappingRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.setIndices());
     }
 
     @Override
@@ -105,16 +105,16 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        flushAction.execute(Requests.flushRequest(request.indices()), new ActionListener<FlushResponse>() {
+        flushAction.execute(Requests.flushRequest(request.setIndices()), new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse flushResponse) {
-                deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.indices()).query(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.typeFilter(request.type()))), new ActionListener<DeleteByQueryResponse>() {
+                deleteByQueryAction.execute(Requests.deleteByQueryRequest(request.setIndices()).setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.typeFilter(request.getType()))), new ActionListener<DeleteByQueryResponse>() {
                     @Override
                     public void onResponse(DeleteByQueryResponse deleteByQueryResponse) {
-                        refreshAction.execute(Requests.refreshRequest(request.indices()), new ActionListener<RefreshResponse>() {
+                        refreshAction.execute(Requests.refreshRequest(request.setIndices()), new ActionListener<RefreshResponse>() {
                             @Override
                             public void onResponse(RefreshResponse refreshResponse) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.setIndices(), request.getType()), new MetaDataMappingService.Listener() {
                                     @Override
                                     public void onResponse(MetaDataMappingService.Response response) {
                                         latch.countDown();
@@ -130,7 +130,7 @@ public class TransportDeleteMappingAction extends TransportMasterNodeOperationAc
 
                             @Override
                             public void onFailure(Throwable e) {
-                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.indices(), request.type()), new MetaDataMappingService.Listener() {
+                                metaDataMappingService.removeMapping(new MetaDataMappingService.RemoveRequest(request.setIndices(), request.getType()), new MetaDataMappingService.Listener() {
                                     @Override
                                     public void onResponse(MetaDataMappingService.Response response) {
                                         latch.countDown();

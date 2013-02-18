@@ -53,10 +53,10 @@ public class RestMultiGetAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
-        multiGetRequest.listenerThreaded(false);
-        multiGetRequest.refresh(request.paramAsBoolean("refresh", multiGetRequest.refresh()));
-        multiGetRequest.preference(request.param("preference"));
-        multiGetRequest.realtime(request.paramAsBooleanOptional("realtime", null));
+        multiGetRequest.setListenerThreaded(false);
+        multiGetRequest.setRefresh(request.paramAsBoolean("refresh", multiGetRequest.isRefresh()));
+        multiGetRequest.setPreference(request.param("preference"));
+        multiGetRequest.setRealtime(request.paramAsBooleanOptional("realtime", null));
 
         String[] sFields = null;
         String sField = request.param("fields");

@@ -47,28 +47,28 @@ public abstract class NodesOperationRequest<T extends NodesOperationRequest> ext
         this.nodesIds = nodesIds;
     }
 
-    public final String[] nodesIds() {
+    public final String[] getNodesIds() {
         return nodesIds;
     }
 
     @SuppressWarnings("unchecked")
-    public final T nodesIds(String... nodesIds) {
+    public final T setNodesIds(String... nodesIds) {
         this.nodesIds = nodesIds;
         return (T) this;
     }
 
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return this.timeout;
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(TimeValue timeout) {
+    public final T setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return (T) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final T timeout(String timeout) {
+    public final T setTimeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null);
         return (T) this;
     }

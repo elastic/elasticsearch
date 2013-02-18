@@ -46,15 +46,15 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
         this.refresh = refresh;
     }
 
-    boolean refresh() {
+    public boolean isRefresh() {
         return this.refresh;
     }
 
-    int shardId() {
+    public int getShardId() {
         return shardId;
     }
 
-    BulkItemRequest[] items() {
+    public BulkItemRequest[] getItems() {
         return items;
     }
 
@@ -64,7 +64,7 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
     @Override
     public void beforeLocalFork() {
         for (BulkItemRequest item : items) {
-            ((ShardReplicationOperationRequest) item.request()).beforeLocalFork();
+            ((ShardReplicationOperationRequest) item.getRequest()).beforeLocalFork();
         }
     }
 

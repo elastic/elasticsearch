@@ -93,39 +93,39 @@ public class SearchFieldsTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).addField("field1").execute().actionGet();
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
 
         // field2 is not stored, check that it gets extracted from source
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).addField("field2").execute().actionGet();
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).fields().get("field2").value().toString(), equalTo("value2"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field2").value().toString(), equalTo("value2"));
 
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).addField("field3").execute().actionGet();
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
 
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).addField("*").execute().actionGet();
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).source(), nullValue());
-        assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(2));
-        assertThat(searchResponse.hits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
-        assertThat(searchResponse.hits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).source(), nullValue());
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
 
         searchResponse = client.prepareSearch().setQuery(matchAllQuery()).addField("*").addField("_source").execute().actionGet();
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).source(), notNullValue());
-        assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(2));
-        assertThat(searchResponse.hits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
-        assertThat(searchResponse.hits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).source(), notNullValue());
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
     }
 
     @Test
@@ -162,22 +162,22 @@ public class SearchFieldsTests extends AbstractNodesTests {
                 .addScriptField("date1", "doc['date'].date.millis")
                 .execute().actionGet();
 
-        assertThat("Failures " + Arrays.toString(response.shardFailures()), response.shardFailures().length, equalTo(0));
+        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 
-        assertThat(response.hits().totalHits(), equalTo(3l));
-        assertThat(response.hits().getAt(0).isSourceEmpty(), equalTo(true));
-        assertThat(response.hits().getAt(0).id(), equalTo("1"));
-        assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
-        assertThat((Double) response.hits().getAt(0).fields().get("sNum1_field").values().get(0), equalTo(1.0));
-        assertThat((Long) response.hits().getAt(0).fields().get("date1").values().get(0), equalTo(0l));
-        assertThat(response.hits().getAt(1).id(), equalTo("2"));
-        assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat((Double) response.hits().getAt(1).fields().get("sNum1_field").values().get(0), equalTo(2.0));
-        assertThat((Long) response.hits().getAt(1).fields().get("date1").values().get(0), equalTo(25000l));
-        assertThat(response.hits().getAt(2).id(), equalTo("3"));
-        assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
-        assertThat((Double) response.hits().getAt(2).fields().get("sNum1_field").values().get(0), equalTo(3.0));
-        assertThat((Long) response.hits().getAt(2).fields().get("date1").values().get(0), equalTo(120000l));
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().getAt(0).isSourceEmpty(), equalTo(true));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1_field").values().get(0), equalTo(1.0));
+        assertThat((Long) response.getHits().getAt(0).fields().get("date1").values().get(0), equalTo(0l));
+        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1_field").values().get(0), equalTo(2.0));
+        assertThat((Long) response.getHits().getAt(1).fields().get("date1").values().get(0), equalTo(25000l));
+        assertThat(response.getHits().getAt(2).id(), equalTo("3"));
+        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1_field").values().get(0), equalTo(3.0));
+        assertThat((Long) response.getHits().getAt(2).fields().get("date1").values().get(0), equalTo(120000l));
 
         logger.info("running doc['num1'].value * factor");
         Map<String, Object> params = MapBuilder.<String, Object>newMapBuilder().put("factor", 2.0).map();
@@ -187,13 +187,13 @@ public class SearchFieldsTests extends AbstractNodesTests {
                 .addScriptField("sNum1", "doc['num1'].value * factor", params)
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(3l));
-        assertThat(response.hits().getAt(0).id(), equalTo("1"));
-        assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.hits().getAt(1).id(), equalTo("2"));
-        assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(4.0));
-        assertThat(response.hits().getAt(2).id(), equalTo("3"));
-        assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(6.0));
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(4.0));
+        assertThat(response.getHits().getAt(2).id(), equalTo("3"));
+        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(6.0));
     }
 
     @Test
@@ -221,28 +221,28 @@ public class SearchFieldsTests extends AbstractNodesTests {
                 .addScriptField("s_arr3", "_source.arr3")
                 .execute().actionGet();
 
-        assertThat("Failures " + Arrays.toString(response.shardFailures()), response.shardFailures().length, equalTo(0));
+        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 
-        Map<String, Object> sObj1 = response.hits().getAt(0).field("_source.obj1").value();
+        Map<String, Object> sObj1 = response.getHits().getAt(0).field("_source.obj1").value();
         assertThat(sObj1.get("test").toString(), equalTo("something"));
-        assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+        assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
-        sObj1 = response.hits().getAt(0).field("s_obj1").value();
+        sObj1 = response.getHits().getAt(0).field("s_obj1").value();
         assertThat(sObj1.get("test").toString(), equalTo("something"));
-        assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+        assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
-        Map<String, Object> sObj2 = response.hits().getAt(0).field("s_obj2").value();
+        Map<String, Object> sObj2 = response.getHits().getAt(0).field("s_obj2").value();
         List sObj2Arr2 = (List) sObj2.get("arr2");
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        sObj2Arr2 = (List) response.hits().getAt(0).field("s_obj2_arr2").value();
+        sObj2Arr2 = (List) response.getHits().getAt(0).field("s_obj2_arr2").value();
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        List sObj2Arr3 = (List) response.hits().getAt(0).field("s_arr3").value();
+        List sObj2Arr3 = (List) response.getHits().getAt(0).field("s_arr3").value();
         assertThat(((Map) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
     }
 
@@ -270,15 +270,15 @@ public class SearchFieldsTests extends AbstractNodesTests {
                 .addPartialField("partial1", "obj1.arr1.*", null)
                 .addPartialField("partial2", null, "obj1.*")
                 .execute().actionGet();
-        assertThat("Failures " + Arrays.toString(response.shardFailures()), response.shardFailures().length, equalTo(0));
+        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 
-        Map<String, Object> partial1 = response.hits().getAt(0).field("partial1").value();
+        Map<String, Object> partial1 = response.getHits().getAt(0).field("partial1").value();
         assertThat(partial1, notNullValue());
         assertThat(partial1.containsKey("field1"), equalTo(false));
         assertThat(partial1.containsKey("obj1"), equalTo(true));
         assertThat(((Map) partial1.get("obj1")).get("arr1"), instanceOf(List.class));
 
-        Map<String, Object> partial2 = response.hits().getAt(0).field("partial2").value();
+        Map<String, Object> partial2 = response.getHits().getAt(0).field("partial2").value();
         assertThat(partial2, notNullValue());
         assertThat(partial2.containsKey("obj1"), equalTo(false));
         assertThat(partial2.containsKey("field1"), equalTo(true));
@@ -331,21 +331,21 @@ public class SearchFieldsTests extends AbstractNodesTests {
                 .addField("binary_field")
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).fields().size(), equalTo(9));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(9));
 
 
-        assertThat(searchResponse.hits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
-        assertThat(searchResponse.hits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
-        assertThat(searchResponse.hits().getAt(0).fields().get("integer_field").value(), equalTo((Object) 3));
-        assertThat(searchResponse.hits().getAt(0).fields().get("long_field").value(), equalTo((Object) 4l));
-        assertThat(searchResponse.hits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0f));
-        assertThat(searchResponse.hits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("integer_field").value(), equalTo((Object) 3));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("long_field").value(), equalTo((Object) 4l));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0f));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
         String dateTime = Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC));
-        assertThat(searchResponse.hits().getAt(0).fields().get("date_field").value(), equalTo((Object) dateTime));
-        assertThat(searchResponse.hits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) Boolean.TRUE));
-        assertThat(((BytesReference) searchResponse.hits().getAt(0).fields().get("binary_field").value()).toBytesArray(), equalTo((BytesReference) new BytesArray("testing text".getBytes("UTF8"))));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) dateTime));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) Boolean.TRUE));
+        assertThat(((BytesReference) searchResponse.getHits().getAt(0).fields().get("binary_field").value()).toBytesArray(), equalTo((BytesReference) new BytesArray("testing text".getBytes("UTF8"))));
 
     }
 }

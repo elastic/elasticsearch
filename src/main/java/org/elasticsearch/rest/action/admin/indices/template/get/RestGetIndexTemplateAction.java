@@ -61,18 +61,18 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .filterRoutingTable(true)
-                .filterNodes(true)
-                .filteredIndexTemplates(request.param("name"))
-                .filteredIndices("_na");
+                .setFilterRoutingTable(true)
+                .setFilterNodes(true)
+                .setFilteredIndexTemplates(request.param("name"))
+                .setFilteredIndices("_na");
 
-        clusterStateRequest.listenerThreaded(false);
+        clusterStateRequest.setListenerThreaded(false);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 try {
-                    MetaData metaData = response.state().metaData();
+                    MetaData metaData = response.getState().metaData();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 

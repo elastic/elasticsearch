@@ -46,27 +46,27 @@ public class TypesExistsRequest extends MasterNodeOperationRequest<TypesExistsRe
         this.types = types;
     }
 
-    public String[] indices() {
+    public String[] getIndices() {
         return indices;
     }
 
-    public void indices(String[] indices) {
+    public void setIndices(String[] indices) {
         this.indices = indices;
     }
 
-    public String[] types() {
+    public String[] getTypes() {
         return types;
     }
 
-    public void types(String[] types) {
+    public void setTypes(String[] types) {
         this.types = types;
     }
 
-    public IgnoreIndices ignoreIndices() {
+    public IgnoreIndices getIgnoreIndices() {
         return ignoreIndices;
     }
 
-    public TypesExistsRequest ignoreIndices(IgnoreIndices ignoreIndices) {
+    public TypesExistsRequest setIgnoreIndices(IgnoreIndices ignoreIndices) {
         this.ignoreIndices = ignoreIndices;
         return this;
     }

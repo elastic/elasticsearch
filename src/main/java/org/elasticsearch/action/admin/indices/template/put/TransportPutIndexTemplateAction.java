@@ -83,7 +83,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeOperatio
         final AtomicReference<PutIndexTemplateResponse> responseRef = new AtomicReference<PutIndexTemplateResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(request.cause(), request.name())
+        indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(request.cause(), request.getName())
                 .template(request.template())
                 .order(request.order())
                 .settings(request.settings())

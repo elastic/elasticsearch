@@ -43,7 +43,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * first document matching it.
      */
     public GetRequestBuilder setType(@Nullable String type) {
-        request.type(type);
+        request.setType(type);
         return this;
     }
 
@@ -51,7 +51,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * Sets the id of the document to fetch.
      */
     public GetRequestBuilder setId(String id) {
-        request.id(id);
+        request.setId(id);
         return this;
     }
 
@@ -60,7 +60,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * used for routing with delete requests.
      */
     public GetRequestBuilder setParent(String parent) {
-        request.parent(parent);
+        request.setParent(parent);
         return this;
     }
 
@@ -69,7 +69,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * and not the id.
      */
     public GetRequestBuilder setRouting(String routing) {
-        request.routing(routing);
+        request.setRouting(routing);
         return this;
     }
 
@@ -79,7 +79,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * a custom value, which guarantees that the same order will be used across different requests.
      */
     public GetRequestBuilder setPreference(String preference) {
-        request.preference(preference);
+        request.setPreference(preference);
         return this;
     }
 
@@ -88,7 +88,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * field will be returned.
      */
     public GetRequestBuilder setFields(String... fields) {
-        request.fields(fields);
+        request.setFields(fields);
         return this;
     }
 
@@ -98,12 +98,12 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * to <tt>false</tt>.
      */
     public GetRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return this;
     }
 
     public GetRequestBuilder setRealtime(Boolean realtime) {
-        request.realtime(realtime);
+        request.setRealtime(realtime);
         return this;
     }
 

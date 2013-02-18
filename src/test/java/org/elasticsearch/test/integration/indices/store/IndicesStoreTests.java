@@ -74,11 +74,11 @@ public class IndicesStoreTests extends AbstractNodesTests {
 
         logger.info("--> creating index [test] with one shard and on replica");
         client1.admin().indices().create(createIndexRequest("test")
-                .settings(settingsBuilder().put("index.numberOfReplicas", 1).put("index.numberOfShards", 1))).actionGet();
+                .setSettings(settingsBuilder().put("index.numberOfReplicas", 1).put("index.numberOfShards", 1))).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
 
         logger.info("--> making sure that shard and it's replica are allocated on server1 and server2");
@@ -97,8 +97,8 @@ public class IndicesStoreTests extends AbstractNodesTests {
         assertThat(server2Shard.exists(), equalTo(true));
 
         logger.info("--> running cluster_health");
-        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         logger.info("--> making sure that shard and it's replica exist on server1, server2 and server3");
         assertThat(shardDirectory("server1", "test", 0).exists(), equalTo(true));
@@ -109,8 +109,8 @@ public class IndicesStoreTests extends AbstractNodesTests {
         startNode("server2");
 
         logger.info("--> running cluster_health");
-        clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         logger.info("--> making sure that shard and it's replica are allocated on server1 and server3 but not on server2");
         assertThat(shardDirectory("server1", "test", 0).exists(), equalTo(true));

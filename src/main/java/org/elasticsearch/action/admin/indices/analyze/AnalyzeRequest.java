@@ -71,52 +71,52 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         this.text = text;
     }
 
-    public String text() {
+    public String getText() {
         return this.text;
     }
 
-    public AnalyzeRequest index(String index) {
+    public AnalyzeRequest setIndex(String index) {
         this.index = index;
         return this;
     }
 
-    public String index() {
+    public String getIndex() {
         return this.index;
     }
 
-    public AnalyzeRequest analyzer(String analyzer) {
+    public AnalyzeRequest setAnalyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
     }
 
-    public String analyzer() {
+    public String getAnalyzer() {
         return this.analyzer;
     }
 
-    public AnalyzeRequest tokenizer(String tokenizer) {
+    public AnalyzeRequest setTokenizer(String tokenizer) {
         this.tokenizer = tokenizer;
         return this;
     }
 
-    public String tokenizer() {
+    public String getTokenizer() {
         return this.tokenizer;
     }
 
-    public AnalyzeRequest tokenFilters(String... tokenFilters) {
+    public AnalyzeRequest setTokenFilters(String... tokenFilters) {
         this.tokenFilters = tokenFilters;
         return this;
     }
 
-    public String[] tokenFilters() {
+    public String[] getTokenFilters() {
         return this.tokenFilters;
     }
 
-    public AnalyzeRequest field(String field) {
+    public AnalyzeRequest setField(String field) {
         this.field = field;
         return this;
     }
 
-    public String field() {
+    public String getField() {
         return this.field;
     }
 

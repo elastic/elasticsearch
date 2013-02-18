@@ -161,7 +161,7 @@ public abstract class AbstractNodesTests {
         ImmutableSet<ClusterBlock> blocks;
         do {
             blocks = client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                    .state().blocks().global(ClusterBlockLevel.METADATA);
+                    .getState().blocks().global(ClusterBlockLevel.METADATA);
         }
         while (!blocks.isEmpty() && (System.currentTimeMillis() - start) < timeout.millis());
         return blocks;

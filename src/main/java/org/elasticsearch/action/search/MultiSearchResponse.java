@@ -46,24 +46,8 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
          * The actual failure message, null if its not a failure.
          */
         @Nullable
-        public String failureMessage() {
-            return failureMessage;
-        }
-
-        /**
-         * The actual failure message, null if its not a failure.
-         */
-        @Nullable
         public String getFailureMessage() {
             return failureMessage;
-        }
-
-        /**
-         * The actual search response, null if its a failure.
-         */
-        @Nullable
-        public SearchResponse response() {
-            return this.response;
         }
 
         /**
@@ -119,13 +103,6 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
     /**
      * The list of responses, the order is the same as the one provided in the request.
      */
-    public Item[] responses() {
-        return this.items;
-    }
-
-    /**
-     * The list of responses, the order is the same as the one provided in the request.
-     */
     public Item[] getResponses() {
         return this.items;
     }
@@ -154,11 +131,11 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
         for (Item item : items) {
             if (item.isFailure()) {
                 builder.startObject();
-                builder.field(Fields.ERROR, item.failureMessage());
+                builder.field(Fields.ERROR, item.getFailureMessage());
                 builder.endObject();
             } else {
                 builder.startObject();
-                item.response().toXContent(builder, params);
+                item.getResponse().toXContent(builder, params);
                 builder.endObject();
             }
         }

@@ -46,9 +46,9 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .listenerThreaded(false)
-                .filterRoutingTable(true)
-                .filterNodes(true);
+                .setListenerThreaded(false)
+                .setFilterRoutingTable(true)
+                .setFilterNodes(true);
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(ClusterStateResponse response) {
@@ -57,13 +57,13 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
                     builder.startObject();
 
                     builder.startObject("persistent");
-                    for (Map.Entry<String, String> entry : response.state().metaData().persistentSettings().getAsMap().entrySet()) {
+                    for (Map.Entry<String, String> entry : response.getState().metaData().persistentSettings().getAsMap().entrySet()) {
                         builder.field(entry.getKey(), entry.getValue());
                     }
                     builder.endObject();
 
                     builder.startObject("transient");
-                    for (Map.Entry<String, String> entry : response.state().metaData().transientSettings().getAsMap().entrySet()) {
+                    for (Map.Entry<String, String> entry : response.getState().metaData().transientSettings().getAsMap().entrySet()) {
                         builder.field(entry.getKey(), entry.getValue());
                     }
                     builder.endObject();

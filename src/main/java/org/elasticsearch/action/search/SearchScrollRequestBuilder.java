@@ -43,7 +43,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * Controls the the search operation threading model.
      */
     public SearchScrollRequestBuilder setOperationThreading(SearchOperationThreading operationThreading) {
-        request.operationThreading(operationThreading);
+        request.setOperationThreading(operationThreading);
         return this;
     }
 
@@ -51,7 +51,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * Should the listener be called on a separate thread if needed.
      */
     public SearchScrollRequestBuilder listenerThreaded(boolean threadedListener) {
-        request.listenerThreaded(threadedListener);
+        request.setListenerThreaded(threadedListener);
         return this;
     }
 
@@ -59,7 +59,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * The scroll id to use to continue scrolling.
      */
     public SearchScrollRequestBuilder setScrollId(String scrollId) {
-        request.scrollId(scrollId);
+        request.setScrollId(scrollId);
         return this;
     }
 
@@ -67,7 +67,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * If set, will enable scrolling of the search request.
      */
     public SearchScrollRequestBuilder setScroll(Scroll scroll) {
-        request.scroll(scroll);
+        request.setScroll(scroll);
         return this;
     }
 
@@ -75,7 +75,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchScrollRequestBuilder setScroll(TimeValue keepAlive) {
-        request.scroll(keepAlive);
+        request.setScroll(keepAlive);
         return this;
     }
 
@@ -83,7 +83,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * If set, will enable scrolling of the search request for the specified timeout.
      */
     public SearchScrollRequestBuilder setScroll(String keepAlive) {
-        request.scroll(keepAlive);
+        request.setScroll(keepAlive);
         return this;
     }
 

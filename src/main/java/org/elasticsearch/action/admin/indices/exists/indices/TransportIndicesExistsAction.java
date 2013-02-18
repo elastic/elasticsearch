@@ -71,13 +71,13 @@ public class TransportIndicesExistsAction extends TransportMasterNodeOperationAc
 
     @Override
     protected ClusterBlockException checkBlock(IndicesExistsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.getIndices());
     }
 
     @Override
     protected IndicesExistsResponse masterOperation(IndicesExistsRequest request, ClusterState state) throws ElasticSearchException {
         boolean exists = true;
-        for (String index : request.indices()) {
+        for (String index : request.getIndices()) {
             if (!state.metaData().hasConcreteIndex(index)) {
                 exists = false;
             }

@@ -58,12 +58,12 @@ public class RestNodesRestartAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field("cluster_name", result.clusterName().value());
+                    builder.field("cluster_name", result.getClusterName().value());
 
                     builder.startObject("nodes");
                     for (NodesRestartResponse.NodeRestartResponse nodeInfo : result) {
-                        builder.startObject(nodeInfo.node().id());
-                        builder.field("name", nodeInfo.node().name());
+                        builder.startObject(nodeInfo.getNode().id());
+                        builder.field("name", nodeInfo.getNode().name());
                         builder.endObject();
                     }
                     builder.endObject();

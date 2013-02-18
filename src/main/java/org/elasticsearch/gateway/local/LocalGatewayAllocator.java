@@ -397,7 +397,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
         for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeShardState : response) {
             // -1 version means it does not exists, which is what the API returns, and what we expect to
-            shardStates.put(nodeShardState.node(), nodeShardState.version());
+            shardStates.put(nodeShardState.getNode(), nodeShardState.version());
         }
         return shardStates;
     }
@@ -444,7 +444,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
             for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
                 if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {
-                    shardStores.put(nodeStoreFilesMetaData.node(), nodeStoreFilesMetaData.storeFilesMetaData());
+                    shardStores.put(nodeStoreFilesMetaData.getNode(), nodeStoreFilesMetaData.storeFilesMetaData());
                 }
             }
         }

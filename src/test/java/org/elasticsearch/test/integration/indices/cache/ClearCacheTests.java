@@ -65,15 +65,15 @@ public class ClearCacheTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         NodesStatsResponse nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.nodes()[0].getIndices().getCache().filterSizeInBytes(), equalTo(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getCache().filterSizeInBytes(), equalTo(0l));
 
         SearchResponse searchResponse = client.prepareSearch().setQuery(filteredQuery(matchAllQuery(), FilterBuilders.termFilter("field", "value").cacheKey("test_key"))).execute().actionGet();
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
         nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.nodes()[0].getIndices().getCache().filterSizeInBytes(), greaterThan(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getCache().filterSizeInBytes(), greaterThan(0l));
 
         client.admin().indices().prepareClearCache().setFilterKeys("test_key").execute().actionGet();
         nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
-        assertThat(nodesStats.nodes()[0].getIndices().getCache().filterSizeInBytes(), equalTo(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getCache().filterSizeInBytes(), equalTo(0l));
     }
 }

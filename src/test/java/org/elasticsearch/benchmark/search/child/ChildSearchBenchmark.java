@@ -139,8 +139,8 @@ public class ChildSearchBenchmark {
 
         NodesStatsResponse statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).execute().actionGet();
-        System.out.println("--> Committed heap size: " + statsResponse.nodes()[0].getJvm().getMem().getHeapCommitted());
-        System.out.println("--> Used heap size: " + statsResponse.nodes()[0].getJvm().getMem().getHeapUsed());
+        System.out.println("--> Committed heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapCommitted());
+        System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         // run parent child constant query
         for (int j = 0; j < QUERY_WARMUP; j++) {
@@ -303,8 +303,8 @@ public class ChildSearchBenchmark {
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.nodes()[0].getIndices().getCache().getIdCacheSize());
-        System.out.println("--> Used heap size: " + statsResponse.nodes()[0].getJvm().getMem().getHeapUsed());
+        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getCache().getIdCacheSize());
+        System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         System.out.println("--> Running has_child query with score type");
         // run parent child score query
@@ -369,8 +369,8 @@ public class ChildSearchBenchmark {
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 
-        System.out.println("--> Id cache size: " + statsResponse.nodes()[0].getIndices().getCache().getIdCacheSize());
-        System.out.println("--> Used heap size: " + statsResponse.nodes()[0].getJvm().getMem().getHeapUsed());
+        System.out.println("--> Id cache size: " + statsResponse.getNodes()[0].getIndices().getCache().getIdCacheSize());
+        System.out.println("--> Used heap size: " + statsResponse.getNodes()[0].getJvm().getMem().getHeapUsed());
 
         client.close();
         node1.close();

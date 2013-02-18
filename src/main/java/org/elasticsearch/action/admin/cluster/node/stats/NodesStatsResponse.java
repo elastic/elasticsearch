@@ -61,23 +61,23 @@ public class NodesStatsResponse extends NodesOperationResponse<NodeStats> implem
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cluster_name", clusterName().value());
+        builder.field("cluster_name", getClusterName().value());
 
         builder.startObject("nodes");
         for (NodeStats nodeStats : this) {
-            builder.startObject(nodeStats.node().id(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(nodeStats.getNode().id(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.field("timestamp", nodeStats.getTimestamp());
-            builder.field("name", nodeStats.node().name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("transport_address", nodeStats.node().address().toString());
+            builder.field("name", nodeStats.getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("transport_address", nodeStats.getNode().address().toString());
 
             if (nodeStats.getHostname() != null) {
                 builder.field("hostname", nodeStats.getHostname(), XContentBuilder.FieldCaseConversion.NONE);
             }
 
-            if (!nodeStats.node().attributes().isEmpty()) {
+            if (!nodeStats.getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : nodeStats.node().attributes().entrySet()) {
+                for (Map.Entry<String, String> attr : nodeStats.getNode().attributes().entrySet()) {
                     builder.field(attr.getKey(), attr.getValue());
                 }
                 builder.endObject();

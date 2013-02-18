@@ -119,7 +119,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             this.request = request;
             this.listener = listener;
             clusterState = clusterService.state();
-            String[] nodesIds = clusterState.nodes().resolveNodesIds(request.nodesIds());
+            String[] nodesIds = clusterState.nodes().resolveNodesIds(request.getNodesIds());
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
             this.responses = new AtomicReferenceArray<Object>(this.nodesIds.length);
         }
@@ -136,8 +136,8 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                 return;
             }
             TransportRequestOptions transportRequestOptions = TransportRequestOptions.options();
-            if (request.timeout() != null) {
-                transportRequestOptions.withTimeout(request.timeout());
+            if (request.getTimeout() != null) {
+                transportRequestOptions.withTimeout(request.getTimeout());
             }
             transportRequestOptions.withCompress(transportCompress());
             for (final String nodeId : nodesIds) {

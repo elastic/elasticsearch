@@ -98,7 +98,7 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
         // Check that node info is correct
         NodesInfoResponse nodesInfoResponse = client2.admin().cluster().prepareNodesInfo().all().execute().actionGet();
         for (int i = 0; i < 2; i++) {
-            NodeInfo nodeInfo = nodesInfoResponse.nodes()[i];
+            NodeInfo nodeInfo = nodesInfoResponse.getNodes()[i];
             boolean found = false;
             for (ThreadPool.Info info : nodeInfo.getThreadPool()) {
                 if (info.name().equals(Names.SEARCH)) {
@@ -125,7 +125,7 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
         Thread.sleep(200);
         nodesInfoResponse = client2.admin().cluster().prepareNodesInfo().all().execute().actionGet();
         for (int i = 0; i < 2; i++) {
-            NodeInfo nodeInfo = nodesInfoResponse.nodes()[i];
+            NodeInfo nodeInfo = nodesInfoResponse.getNodes()[i];
             boolean found = false;
             for (ThreadPool.Info info : nodeInfo.getThreadPool()) {
                 if (info.name().equals(Names.SEARCH)) {

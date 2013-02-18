@@ -70,14 +70,14 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cluster_name", clusterName().value());
+        builder.field("cluster_name", getClusterName().value());
 
         builder.startObject("nodes");
         for (NodeInfo nodeInfo : this) {
-            builder.startObject(nodeInfo.node().id(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(nodeInfo.getNode().id(), XContentBuilder.FieldCaseConversion.NONE);
 
-            builder.field("name", nodeInfo.node().name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("transport_address", nodeInfo.node().address().toString());
+            builder.field("name", nodeInfo.getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("transport_address", nodeInfo.getNode().address().toString());
 
             if (nodeInfo.getHostname() != null) {
                 builder.field("hostname", nodeInfo.getHostname(), XContentBuilder.FieldCaseConversion.NONE);
@@ -93,9 +93,9 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
                 }
             }
 
-            if (!nodeInfo.node().attributes().isEmpty()) {
+            if (!nodeInfo.getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : nodeInfo.node().attributes().entrySet()) {
+                for (Map.Entry<String, String> attr : nodeInfo.getNode().attributes().entrySet()) {
                     builder.field(attr.getKey(), attr.getValue());
                 }
                 builder.endObject();

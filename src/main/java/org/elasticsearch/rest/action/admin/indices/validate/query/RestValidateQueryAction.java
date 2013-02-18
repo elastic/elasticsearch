@@ -62,7 +62,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
-        validateQueryRequest.listenerThreaded(false);
+        validateQueryRequest.setListenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
             validateQueryRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }

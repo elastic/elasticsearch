@@ -212,7 +212,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             // if we have a local operation, execute it on a thread since we don't spawn
             request.setOperationThreaded(true);
             execute(request, new ActionListener<Response>() {

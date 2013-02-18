@@ -50,7 +50,7 @@ public class RestGetAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
-        getRequest.listenerThreaded(false);
+        getRequest.setListenerThreaded(false);
         getRequest.setOperationThreaded(true);
         getRequest.setRefresh(request.paramAsBoolean("refresh", getRequest.isRefresh()));
         getRequest.setParent(request.param("parent"));

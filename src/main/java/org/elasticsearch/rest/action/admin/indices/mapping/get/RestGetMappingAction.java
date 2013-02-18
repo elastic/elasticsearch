@@ -69,7 +69,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                 .setFilterNodes(true)
                 .setFilteredIndices(indices);
 
-        clusterStateRequest.listenerThreaded(false);
+        clusterStateRequest.setListenerThreaded(false);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override

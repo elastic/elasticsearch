@@ -49,7 +49,7 @@ public class RestOpenIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(request.param("index"));
-        openIndexRequest.listenerThreaded(false);
+        openIndexRequest.setListenerThreaded(false);
         openIndexRequest.setTimeout(request.paramAsTime("timeout", timeValueSeconds(10)));
         client.admin().indices().open(openIndexRequest, new ActionListener<OpenIndexResponse>() {
             @Override

@@ -55,7 +55,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        indicesAliasesRequest.listenerThreaded(false);
+        indicesAliasesRequest.setListenerThreaded(false);
         XContentParser parser = null;
         try {
             // {

@@ -51,11 +51,11 @@ public class RestPercolateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PercolateRequest percolateRequest = new PercolateRequest(request.param("index"), request.param("type"));
-        percolateRequest.listenerThreaded(false);
+        percolateRequest.setListenerThreaded(false);
         percolateRequest.setSource(request.content(), request.contentUnsafe());
 
         // we just send a response, no need to fork
-        percolateRequest.listenerThreaded(false);
+        percolateRequest.setListenerThreaded(false);
         // we don't spawn, then fork if local
         percolateRequest.setOperationThreaded(true);
 

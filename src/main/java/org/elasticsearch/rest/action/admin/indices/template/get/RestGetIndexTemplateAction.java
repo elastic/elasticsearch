@@ -66,7 +66,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
                 .setFilteredIndexTemplates(request.param("name"))
                 .setFilteredIndices("_na");
 
-        clusterStateRequest.listenerThreaded(false);
+        clusterStateRequest.setListenerThreaded(false);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override

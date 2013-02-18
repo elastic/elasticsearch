@@ -52,7 +52,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(splitIndices(request.param("index")));
-        indicesSegmentsRequest.listenerThreaded(false);
+        indicesSegmentsRequest.setListenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
             indicesSegmentsRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }

@@ -58,7 +58,7 @@ public class RestOptimizeAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         OptimizeRequest optimizeRequest = new OptimizeRequest(RestActions.splitIndices(request.param("index")));
-        optimizeRequest.listenerThreaded(false);
+        optimizeRequest.setListenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
             optimizeRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }

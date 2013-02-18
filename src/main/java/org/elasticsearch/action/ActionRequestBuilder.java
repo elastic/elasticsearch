@@ -42,7 +42,7 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setListenerThreaded(boolean listenerThreaded) {
-        request.listenerThreaded(listenerThreaded);
+        request.setListenerThreaded(listenerThreaded);
         return (RequestBuilder) this;
     }
 
@@ -53,7 +53,7 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     }
 
     public ListenableActionFuture<Response> execute() {
-        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<Response>(request.listenerThreaded(), client.threadPool());
+        PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<Response>(request.isListenerThreaded(), client.threadPool());
         execute(future);
         return future;
     }

@@ -94,7 +94,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
             }
             IndexRequest indexRequest = newIndexRequestInstance(request, index, routing);
             // no threading needed, all is done on the index replication one
-            indexRequest.listenerThreaded(false);
+            indexRequest.setListenerThreaded(false);
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse result) {
@@ -148,7 +148,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // no need for a threaded listener, since we just send a response
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response result) {

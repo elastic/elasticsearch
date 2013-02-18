@@ -126,7 +126,7 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
         @Override
         public void messageReceived(final MultiGetRequest request, final TransportChannel channel) throws Exception {
             // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             execute(request, new ActionListener<MultiGetResponse>() {
                 @Override
                 public void onResponse(MultiGetResponse response) {

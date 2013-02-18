@@ -50,7 +50,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ClusterRerouteRequest clusterRerouteRequest = Requests.clusterRerouteRequest();
-        clusterRerouteRequest.listenerThreaded(false);
+        clusterRerouteRequest.setListenerThreaded(false);
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
         if (request.hasContent()) {
             try {

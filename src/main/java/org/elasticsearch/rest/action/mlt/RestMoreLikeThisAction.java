@@ -57,7 +57,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
         MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).setType(request.param("type")).setId(request.param("id"));
         mltRequest.setRouting(request.param("routing"));
 
-        mltRequest.listenerThreaded(false);
+        mltRequest.setListenerThreaded(false);
         try {
             mltRequest.setFields(request.paramAsStringArray("mlt_fields", null));
             mltRequest.setPercentTermsToMatch(request.paramAsFloat("percent_terms_to_match", -1));

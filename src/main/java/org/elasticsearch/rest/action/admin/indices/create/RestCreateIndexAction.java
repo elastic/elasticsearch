@@ -50,7 +50,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
-        createIndexRequest.listenerThreaded(false);
+        createIndexRequest.setListenerThreaded(false);
         if (request.hasContent()) {
             try {
                 createIndexRequest.setSource(request.content());

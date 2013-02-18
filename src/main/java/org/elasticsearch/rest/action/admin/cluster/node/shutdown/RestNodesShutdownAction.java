@@ -52,7 +52,7 @@ public class RestNodesShutdownAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] nodesIds = RestActions.splitNodes(request.param("nodeId"));
         NodesShutdownRequest nodesShutdownRequest = new NodesShutdownRequest(nodesIds);
-        nodesShutdownRequest.listenerThreaded(false);
+        nodesShutdownRequest.setListenerThreaded(false);
         nodesShutdownRequest.setDelay(request.paramAsTime("delay", nodesShutdownRequest.getDelay()));
         nodesShutdownRequest.setExit(request.paramAsBoolean("exit", nodesShutdownRequest.isExit()));
         client.admin().cluster().nodesShutdown(nodesShutdownRequest, new ActionListener<NodesShutdownResponse>() {

@@ -51,7 +51,7 @@ public class RestTypesExistsAction extends BaseRestHandler {
         TypesExistsRequest typesExistsRequest = new TypesExistsRequest(
                 splitIndices(request.param("index")), splitTypes(request.param("type"))
         );
-        typesExistsRequest.listenerThreaded(false);
+        typesExistsRequest.setListenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
             typesExistsRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }

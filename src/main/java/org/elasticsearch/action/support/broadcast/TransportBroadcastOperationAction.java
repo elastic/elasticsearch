@@ -354,7 +354,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         @Override
         public void messageReceived(Request request, final TransportChannel channel) throws Exception {
             // we just send back a response, no need to fork a listener
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             // we don't spawn, so if we get a request with no threading, change it to single threaded
             if (request.getOperationThreading() == BroadcastOperationThreading.NO_THREADS) {
                 request.setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD);

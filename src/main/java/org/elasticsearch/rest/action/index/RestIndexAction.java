@@ -66,7 +66,7 @@ public class RestIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
-        indexRequest.listenerThreaded(false);
+        indexRequest.setListenerThreaded(false);
         indexRequest.setOperationThreaded(true);
         indexRequest.setRouting(request.param("routing"));
         indexRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing

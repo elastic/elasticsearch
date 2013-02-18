@@ -55,7 +55,7 @@ public class RestDeleteAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
 
-        deleteRequest.listenerThreaded(false);
+        deleteRequest.setListenerThreaded(false);
         deleteRequest.setOperationThreaded(true);
 
         deleteRequest.setParent(request.param("parent"));

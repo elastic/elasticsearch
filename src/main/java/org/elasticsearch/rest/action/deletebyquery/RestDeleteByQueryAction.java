@@ -58,7 +58,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(splitIndices(request.param("index")));
-        deleteByQueryRequest.listenerThreaded(false);
+        deleteByQueryRequest.setListenerThreaded(false);
         try {
             if (request.hasContent()) {
                 deleteByQueryRequest.setQuery(request.content(), request.contentUnsafe());

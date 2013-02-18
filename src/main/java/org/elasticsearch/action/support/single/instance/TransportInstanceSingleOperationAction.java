@@ -300,7 +300,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
         @Override
         public void messageReceived(Request request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response result) {

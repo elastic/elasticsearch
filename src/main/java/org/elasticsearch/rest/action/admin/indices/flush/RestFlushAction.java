@@ -57,7 +57,7 @@ public class RestFlushAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         FlushRequest flushRequest = new FlushRequest(RestActions.splitIndices(request.param("index")));
-        flushRequest.listenerThreaded(false);
+        flushRequest.setListenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
             flushRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }

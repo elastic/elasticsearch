@@ -51,7 +51,7 @@ public class SearchScrollRequestBuilder extends ActionRequestBuilder<SearchScrol
      * Should the listener be called on a separate thread if needed.
      */
     public SearchScrollRequestBuilder listenerThreaded(boolean threadedListener) {
-        request.listenerThreaded(threadedListener);
+        request.setListenerThreaded(threadedListener);
         return this;
     }
 

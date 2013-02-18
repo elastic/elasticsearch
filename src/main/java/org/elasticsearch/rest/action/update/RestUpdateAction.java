@@ -56,7 +56,7 @@ public class RestUpdateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
-        updateRequest.listenerThreaded(false);
+        updateRequest.setListenerThreaded(false);
         updateRequest.setRouting(request.param("routing"));
         updateRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         updateRequest.setTimeout(request.paramAsTime("timeout", updateRequest.getTimeout()));

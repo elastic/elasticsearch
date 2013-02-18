@@ -46,7 +46,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .listenerThreaded(false)
+                .setListenerThreaded(false)
                 .setFilterRoutingTable(true)
                 .setFilterNodes(true);
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {

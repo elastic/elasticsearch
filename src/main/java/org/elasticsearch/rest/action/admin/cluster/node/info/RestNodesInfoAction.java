@@ -102,7 +102,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
     }
 
     void executeNodeRequest(final RestRequest request, final RestChannel channel, NodesInfoRequest nodesInfoRequest) {
-        nodesInfoRequest.listenerThreaded(false);
+        nodesInfoRequest.setListenerThreaded(false);
         client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
             @Override
             public void onResponse(NodesInfoResponse response) {

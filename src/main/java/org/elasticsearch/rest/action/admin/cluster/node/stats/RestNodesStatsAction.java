@@ -126,7 +126,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
     }
 
     void executeNodeStats(final RestRequest request, final RestChannel channel, final NodesStatsRequest nodesStatsRequest) {
-        nodesStatsRequest.listenerThreaded(false);
+        nodesStatsRequest.setListenerThreaded(false);
         client.admin().cluster().nodesStats(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
             @Override
             public void onResponse(NodesStatsResponse response) {

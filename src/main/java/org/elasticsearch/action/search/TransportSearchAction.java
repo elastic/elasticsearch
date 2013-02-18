@@ -127,7 +127,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
         @Override
         public void messageReceived(SearchRequest request, final TransportChannel channel) throws Exception {
             // no need for a threaded listener
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             // we don't spawn, so if we get a request with no threading, change it to single threaded
             if (request.getOperationThreading() == SearchOperationThreading.NO_THREADS) {
                 request.setOperationThreading(SearchOperationThreading.SINGLE_THREAD);

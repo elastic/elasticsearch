@@ -268,7 +268,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
         @Override
         public void messageReceived(final BulkRequest request, final TransportChannel channel) throws Exception {
             // no need to use threaded listener, since we just send a response
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             execute(request, new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse result) {

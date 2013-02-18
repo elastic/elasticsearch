@@ -50,7 +50,7 @@ public class RestNodesRestartAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] nodesIds = RestActions.splitNodes(request.param("nodeId"));
         NodesRestartRequest nodesRestartRequest = new NodesRestartRequest(nodesIds);
-        nodesRestartRequest.listenerThreaded(false);
+        nodesRestartRequest.setListenerThreaded(false);
         nodesRestartRequest.setDelay(request.paramAsTime("delay", nodesRestartRequest.getDelay()));
         client.admin().cluster().nodesRestart(nodesRestartRequest, new ActionListener<NodesRestartResponse>() {
             @Override

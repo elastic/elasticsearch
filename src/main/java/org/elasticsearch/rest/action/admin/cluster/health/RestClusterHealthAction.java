@@ -52,7 +52,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(RestActions.splitIndices(request.param("index")));
         clusterHealthRequest.setLocal(request.paramAsBoolean("local", clusterHealthRequest.getLocal()));
-        clusterHealthRequest.listenerThreaded(false);
+        clusterHealthRequest.setListenerThreaded(false);
         int level = 0;
         try {
             clusterHealthRequest.setMasterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.getMasterNodeTimeout()));

@@ -123,7 +123,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 .setType(request.getType())
                 .setId(request.getId())
                 .setRouting(request.getRouting())
-                .listenerThreaded(true)
+                .setListenerThreaded(true)
                 .setOperationThreaded(true);
 
         request.beforeLocalFork();
@@ -206,7 +206,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                                 .from(from)
                                 .size(size)
                         )
-                        .listenerThreaded(request.listenerThreaded());
+                        .setListenerThreaded(request.isListenerThreaded());
 
                 if (request.getSearchSource() != null) {
                     searchRequest.setSource(request.getSearchSource(), request.isSearchSourceUnsafe());
@@ -330,7 +330,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         @Override
         public void messageReceived(MoreLikeThisRequest request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             execute(request, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse result) {

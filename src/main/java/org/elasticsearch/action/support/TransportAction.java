@@ -43,13 +43,13 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         PlainActionFuture<Response> future = newFuture();
         // since we don't have a listener, and we release a possible lock with the future
         // there is no need to execute it under a listener thread
-        request.listenerThreaded(false);
+        request.setListenerThreaded(false);
         execute(request, future);
         return future;
     }
 
     public void execute(Request request, ActionListener<Response> listener) {
-        if (request.listenerThreaded()) {
+        if (request.isListenerThreaded()) {
             listener = new ThreadedActionListener<Response>(threadPool, listener);
         }
         ActionRequestValidationException validationException = request.validate();

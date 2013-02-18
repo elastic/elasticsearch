@@ -65,7 +65,7 @@ public class RestCountAction extends BaseRestHandler {
         if (request.hasParam("ignore_indices")) {
             countRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
-        countRequest.listenerThreaded(false);
+        countRequest.setListenerThreaded(false);
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {

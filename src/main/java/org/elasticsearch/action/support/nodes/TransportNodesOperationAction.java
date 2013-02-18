@@ -230,7 +230,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            request.listenerThreaded(false);
+            request.setListenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

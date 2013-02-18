@@ -68,7 +68,7 @@ public class RestSearchAction extends BaseRestHandler {
         SearchRequest searchRequest;
         try {
             searchRequest = parseSearchRequest(request);
-            searchRequest.listenerThreaded(false);
+            searchRequest.setListenerThreaded(false);
             SearchOperationThreading operationThreading = SearchOperationThreading.fromString(request.param("operation_threading"), null);
             if (operationThreading != null) {
                 if (operationThreading == SearchOperationThreading.NO_THREADS) {

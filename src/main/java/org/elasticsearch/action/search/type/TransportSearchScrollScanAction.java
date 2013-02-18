@@ -104,8 +104,8 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             this.listener = listener;
             this.scrollId = scrollId;
             this.nodes = clusterService.state().nodes();
-            this.successfulOps = new AtomicInteger(scrollId.context().length);
-            this.counter = new AtomicInteger(scrollId.context().length);
+            this.successfulOps = new AtomicInteger(scrollId.getContext().length);
+            this.counter = new AtomicInteger(scrollId.getContext().length);
         }
 
         protected final ShardSearchFailure[] buildShardFailures() {
@@ -126,15 +126,15 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
         }
 
         public void start() {
-            if (scrollId.context().length == 0) {
-                final InternalSearchResponse internalResponse = new InternalSearchResponse(new InternalSearchHits(InternalSearchHits.EMPTY, Long.parseLong(this.scrollId.attributes().get("total_hits")), 0.0f), null, null, false);
+            if (scrollId.getContext().length == 0) {
+                final InternalSearchResponse internalResponse = new InternalSearchResponse(new InternalSearchHits(InternalSearchHits.EMPTY, Long.parseLong(this.scrollId.getAttributes().get("total_hits")), 0.0f), null, null, false);
                 searchCache.releaseQueryFetchResults(queryFetchResults);
                 listener.onResponse(new SearchResponse(internalResponse, request.scrollId(), 0, 0, 0l, buildShardFailures()));
                 return;
             }
 
             int localOperations = 0;
-            for (Tuple<String, Long> target : scrollId.context()) {
+            for (Tuple<String, Long> target : scrollId.getContext()) {
                 DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
                     if (nodes.localNodeId().equals(node.id())) {
@@ -144,7 +144,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                     }
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.source() + "]");
+                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.getSource() + "]");
                     }
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
@@ -158,7 +158,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
-                            for (Tuple<String, Long> target : scrollId.context()) {
+                            for (Tuple<String, Long> target : scrollId.getContext()) {
                                 DiscoveryNode node = nodes.get(target.v1());
                                 if (node != null && nodes.localNodeId().equals(node.id())) {
                                     executePhase(node, target.v2());
@@ -168,7 +168,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                     });
                 } else {
                     boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
-                    for (final Tuple<String, Long> target : scrollId.context()) {
+                    for (final Tuple<String, Long> target : scrollId.getContext()) {
                         final DiscoveryNode node = nodes.get(target.v1());
                         if (node != null && nodes.localNodeId().equals(node.id())) {
                             if (localAsync) {
@@ -186,11 +186,11 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                 }
             }
 
-            for (Tuple<String, Long> target : scrollId.context()) {
+            for (Tuple<String, Long> target : scrollId.getContext()) {
                 DiscoveryNode node = nodes.get(target.v1());
                 if (node == null) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.source() + "]");
+                        logger.debug("Node [" + target.v1() + "] not available for scroll request [" + scrollId.getSource() + "]");
                     }
                     successfulOps.decrementAndGet();
                     if (counter.decrementAndGet() == 0) {
@@ -253,7 +253,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                 }
             }
             final InternalSearchResponse internalResponse = searchPhaseController.merge(docs, queryFetchResults, queryFetchResults);
-            ((InternalSearchHits) internalResponse.hits()).totalHits = Long.parseLong(this.scrollId.attributes().get("total_hits"));
+            ((InternalSearchHits) internalResponse.hits()).totalHits = Long.parseLong(this.scrollId.getAttributes().get("total_hits"));
 
 
             for (QueryFetchSearchResult shardResult : queryFetchResults.values()) {
@@ -266,9 +266,9 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             String scrollId = null;
             if (request.scroll() != null) {
                 // we rebuild the scroll id since we remove shards that we finished scrolling on
-                scrollId = TransportSearchHelper.buildScrollId(this.scrollId.type(), queryFetchResults.values(), this.scrollId.attributes()); // continue moving the total_hits
+                scrollId = TransportSearchHelper.buildScrollId(this.scrollId.getType(), queryFetchResults.values(), this.scrollId.getAttributes()); // continue moving the total_hits
             }
-            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.context().length, successfulOps.get(),
+            listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
                     System.currentTimeMillis() - startTime, buildShardFailures()));
         }
     }

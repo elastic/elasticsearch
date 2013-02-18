@@ -48,7 +48,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the type of the indexed document.
      */
     public UpdateRequestBuilder setType(String type) {
-        request.type(type);
+        request.setType(type);
         return this;
     }
 
@@ -56,7 +56,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the id of the indexed document.
      */
     public UpdateRequestBuilder setId(String id) {
-        request.id(id);
+        request.setId(id);
         return this;
     }
 
@@ -65,12 +65,12 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * and not the id.
      */
     public UpdateRequestBuilder setRouting(String routing) {
-        request.routing(routing);
+        request.setRouting(routing);
         return this;
     }
 
     public UpdateRequestBuilder setParent(String parent) {
-        request.parent(parent);
+        request.setParent(parent);
         return this;
     }
 
@@ -79,7 +79,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * use script params if possible with the same (automatically compiled) script.
      */
     public UpdateRequestBuilder setScript(String script) {
-        request.script(script);
+        request.setScript(script);
         return this;
     }
 
@@ -87,7 +87,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * The language of the script to execute.
      */
     public UpdateRequestBuilder setScriptLang(String scriptLang) {
-        request.scriptLang(scriptLang);
+        request.setScriptLang(scriptLang);
         return this;
     }
 
@@ -95,7 +95,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the script parameters to use with the script.
      */
     public UpdateRequestBuilder setScriptParams(Map<String, Object> scriptParams) {
-        request.scriptParams(scriptParams);
+        request.setScriptParams(scriptParams);
         return this;
     }
 
@@ -111,7 +111,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Explicitly specify the fields that will be returned. By default, nothing is returned.
      */
     public UpdateRequestBuilder setFields(String... fields) {
-        request.fields(fields);
+        request.setFields(fields);
         return this;
     }
 
@@ -120,7 +120,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * getting it and updating it. Defaults to 1.
      */
     public UpdateRequestBuilder setRetryOnConflict(int retryOnConflict) {
-        request.retryOnConflict(retryOnConflict);
+        request.setRetryOnConflict(retryOnConflict);
         return this;
     }
 
@@ -130,7 +130,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * to <tt>false</tt>.
      */
     public UpdateRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+        request.setRefresh(refresh);
         return this;
     }
 
@@ -138,7 +138,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the replication type.
      */
     public UpdateRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.replicationType(replicationType);
+        request.setReplicationType(replicationType);
         return this;
     }
 
@@ -146,7 +146,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
     public UpdateRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.consistencyLevel(consistencyLevel);
+        request.setConsistencyLevel(consistencyLevel);
         return this;
     }
 
@@ -156,7 +156,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * set to <tt>*</tt> to indicate that all percolate queries should be run.
      */
     public UpdateRequestBuilder setPercolate(String percolate) {
-        request.percolate(percolate);
+        request.setPercolate(percolate);
         return this;
     }
 
@@ -164,7 +164,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(IndexRequest indexRequest) {
-        request.doc(indexRequest);
+        request.setDoc(indexRequest);
         return this;
     }
 
@@ -172,7 +172,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(XContentBuilder source) {
-        request.doc(source);
+        request.setDoc(source);
         return this;
     }
 
@@ -180,7 +180,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(Map source) {
-        request.doc(source);
+        request.setDoc(source);
         return this;
     }
 
@@ -188,7 +188,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(Map source, XContentType contentType) {
-        request.doc(source, contentType);
+        request.setDoc(source, contentType);
         return this;
     }
 
@@ -196,7 +196,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(String source) {
-        request.doc(source);
+        request.setDoc(source);
         return this;
     }
 
@@ -204,7 +204,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(byte[] source) {
-        request.doc(source);
+        request.setDoc(source);
         return this;
     }
 
@@ -212,7 +212,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(byte[] source, int offset, int length) {
-        request.doc(source, offset, length);
+        request.setDoc(source, offset, length);
         return this;
     }
 
@@ -220,76 +220,76 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
      */
-    public UpdateRequestBuilder setUpsert(IndexRequest indexRequest) {
-        request.upsert(indexRequest);
+    public UpdateRequestBuilder setUpsertRequest(IndexRequest indexRequest) {
+        request.setUpsertRequest(indexRequest);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(XContentBuilder source) {
-        request.upsert(source);
+    public UpdateRequestBuilder setUpsertRequest(XContentBuilder source) {
+        request.setUpsertRequest(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(Map source) {
-        request.upsert(source);
+    public UpdateRequestBuilder setUpsertRequest(Map source) {
+        request.setUpsertRequest(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(Map source, XContentType contentType) {
-        request.upsert(source, contentType);
+    public UpdateRequestBuilder setUpsertRequest(Map source, XContentType contentType) {
+        request.setUpsertRequest(source, contentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(String source) {
-        request.upsert(source);
+    public UpdateRequestBuilder setUpsertRequest(String source) {
+        request.setUpsertRequest(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source) {
-        request.upsert(source);
+    public UpdateRequestBuilder setUpsertRequest(byte[] source) {
+        request.setUpsertRequest(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length) {
-        request.upsert(source, offset, length);
+    public UpdateRequestBuilder setUpsertRequest(byte[] source, int offset, int length) {
+        request.setUpsertRequest(source, offset, length);
         return this;
     }
 
     public UpdateRequestBuilder setSource(XContentBuilder source) throws Exception {
-        request.source(source);
+        request.setSource(source);
         return this;
     }
 
     public UpdateRequestBuilder setSource(byte[] source) throws Exception {
-        request.source(source);
+        request.setSource(source);
         return this;
     }
 
     public UpdateRequestBuilder setSource(byte[] source, int offset, int length) throws Exception {
-        request.source(source, offset, length);
+        request.setSource(source, offset, length);
         return this;
     }
 
     public UpdateRequestBuilder setSource(BytesReference source) throws Exception {
-        request.source(source);
+        request.setSource(source);
         return this;
     }
 

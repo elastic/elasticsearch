@@ -90,7 +90,7 @@ public class AliasRoutingTests extends AbstractNodesTests {
 
         logger.info("--> updating with id [1] and routing through alias");
         client.prepareUpdate("alias0", "type1", "1")
-                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field = 'value2'")
                 .execute().actionGet();
         for (int i = 0; i < 5; i++) {

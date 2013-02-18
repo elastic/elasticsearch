@@ -38,7 +38,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
     }
 
     public ExplainRequestBuilder(Client client, String index, String type, String id) {
-        super((InternalClient) client, new ExplainRequest().index(index).setType(type).setId(id));
+        super((InternalClient) client, new ExplainRequest().setIndex(index).setType(type).setId(id));
     }
 
     /**
@@ -117,7 +117,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets whether the actual explain action should occur in a different thread if executed locally.
      */
     public ExplainRequestBuilder operationThreaded(boolean threadedOperation) {
-        request().operationThreaded(threadedOperation);
+        request().setOperationThreaded(threadedOperation);
         return this;
     }
 

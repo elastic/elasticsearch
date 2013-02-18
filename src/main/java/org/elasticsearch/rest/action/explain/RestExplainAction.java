@@ -106,7 +106,7 @@ public class RestExplainAction extends BaseRestHandler {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
                     builder.field(Fields.OK, response.isExists())
-                            .field(Fields._INDEX, explainRequest.index())
+                            .field(Fields._INDEX, explainRequest.getIndex())
                             .field(Fields._TYPE, explainRequest.getType())
                             .field(Fields._ID, explainRequest.getId())
                             .field(Fields.MATCHED, response.isMatch());

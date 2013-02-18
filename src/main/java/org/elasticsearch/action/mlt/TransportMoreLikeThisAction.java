@@ -124,7 +124,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 .setId(request.getId())
                 .setRouting(request.getRouting())
                 .listenerThreaded(true)
-                .operationThreaded(true);
+                .setOperationThreaded(true);
 
         request.beforeLocalFork();
         getAction.execute(getRequest, new ActionListener<GetResponse>() {

@@ -80,13 +80,13 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     @Override
     protected void resolveRequest(ClusterState state, ExplainRequest request) {
-        String concreteIndex = state.metaData().concreteIndex(request.index());
-        request.setFilteringAlias(state.metaData().filteringAliases(concreteIndex, request.index()));
-        request.index(state.metaData().concreteIndex(request.index()));
+        String concreteIndex = state.metaData().concreteIndex(request.getIndex());
+        request.setFilteringAlias(state.metaData().filteringAliases(concreteIndex, request.getIndex()));
+        request.setIndex(state.metaData().concreteIndex(request.getIndex()));
     }
 
     protected ExplainResponse shardOperation(ExplainRequest request, int shardId) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexService(request.index());
+        IndexService indexService = indicesService.indexService(request.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId);
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.getType(), request.getId()));
         Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));
@@ -170,12 +170,12 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
     }
 
     protected ClusterBlockException checkRequestBlock(ClusterState state, ExplainRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.getIndex());
     }
 
     protected ShardIterator shards(ClusterState state, ExplainRequest request) throws ElasticSearchException {
         return clusterService.operationRouting().getShards(
-                clusterService.state(), request.index(), request.getType(), request.getId(), request.getRouting(), request.getPreference()
+                clusterService.state(), request.getIndex(), request.getType(), request.getId(), request.getRouting(), request.getPreference()
         );
     }
 }

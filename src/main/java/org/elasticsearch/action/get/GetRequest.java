@@ -33,7 +33,7 @@ import java.io.IOException;
  * A request to get a document (its source) from an index based on its type (optional) and id. Best created using
  * {@link org.elasticsearch.client.Requests#getRequest(String)}.
  * <p/>
- * <p>The operation requires the {@link #index()}, {@link #setType(String)} and {@link #setId(String)}
+ * <p>The operation requires the {@link #getIndex()}, {@link #setType(String)} and {@link #setId(String)}
  * to be set.
  *
  * @see org.elasticsearch.action.get.GetResponse

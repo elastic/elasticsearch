@@ -48,7 +48,7 @@ public class RestHeadAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.listenerThreaded(false);
-        getRequest.operationThreaded(true);
+        getRequest.setOperationThreaded(true);
         getRequest.setRefresh(request.paramAsBoolean("refresh", getRequest.isRefresh()));
         getRequest.setParent(request.param("parent"));
         getRequest.setRouting(request.param("routing"));

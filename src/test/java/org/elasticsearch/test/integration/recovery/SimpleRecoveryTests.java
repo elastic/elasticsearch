@@ -82,13 +82,13 @@ public class SimpleRecoveryTests extends AbstractNodesTests {
         GetResponse getResult;
 
         for (int i = 0; i < 5; i++) {
-            getResult = client("server1").get(getRequest("test").setType("type1").setId("1").operationThreaded(false)).actionGet(1000);
+            getResult = client("server1").get(getRequest("test").setType("type1").setId("1").setOperationThreaded(false)).actionGet(1000);
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client("server2").get(getRequest("test").setType("type1").setId("1").operationThreaded(false)).actionGet(1000);
+            getResult = client("server2").get(getRequest("test").setType("type1").setId("1").setOperationThreaded(false)).actionGet(1000);
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client("server1").get(getRequest("test").setType("type1").setId("2").operationThreaded(true)).actionGet(1000);
+            getResult = client("server1").get(getRequest("test").setType("type1").setId("2").setOperationThreaded(true)).actionGet(1000);
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client("server2").get(getRequest("test").setType("type1").setId("2").operationThreaded(true)).actionGet(1000);
+            getResult = client("server2").get(getRequest("test").setType("type1").setId("2").setOperationThreaded(true)).actionGet(1000);
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
 
@@ -108,11 +108,11 @@ public class SimpleRecoveryTests extends AbstractNodesTests {
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
             getResult = client("server3").get(getRequest("test").setType("type1").setId("1")).actionGet(1000);
             assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
-            getResult = client("server1").get(getRequest("test").setType("type1").setId("2").operationThreaded(true)).actionGet(1000);
+            getResult = client("server1").get(getRequest("test").setType("type1").setId("2").setOperationThreaded(true)).actionGet(1000);
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client("server2").get(getRequest("test").setType("type1").setId("2").operationThreaded(true)).actionGet(1000);
+            getResult = client("server2").get(getRequest("test").setType("type1").setId("2").setOperationThreaded(true)).actionGet(1000);
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
-            getResult = client("server3").get(getRequest("test").setType("type1").setId("2").operationThreaded(true)).actionGet(1000);
+            getResult = client("server3").get(getRequest("test").setType("type1").setId("2").setOperationThreaded(true)).actionGet(1000);
             assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
     }

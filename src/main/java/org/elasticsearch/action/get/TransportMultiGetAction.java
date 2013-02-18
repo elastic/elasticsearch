@@ -101,7 +101,7 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
                     synchronized (responses) {
                         for (int i = 0; i < shardRequest.locations.size(); i++) {
                             responses[shardRequest.locations.get(i)] = new MultiGetItemResponse(null,
-                                    new MultiGetResponse.Failure(shardRequest.index(), shardRequest.types.get(i), shardRequest.ids.get(i), message));
+                                    new MultiGetResponse.Failure(shardRequest.getIndex(), shardRequest.types.get(i), shardRequest.ids.get(i), message));
                         }
                     }
                     if (counter.decrementAndGet() == 0) {

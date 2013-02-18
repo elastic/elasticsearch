@@ -161,7 +161,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
             request.beforeLocalFork(); // we fork on another thread...
-            createIndexAction.execute(new CreateIndexRequest(request.index()).setCause("auto(update api)").masterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
+            createIndexAction.execute(new CreateIndexRequest(request.index()).setCause("auto(update api)").setMasterNodeTimeout(request.timeout()), new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse result) {
                     innerExecute(request, listener);

@@ -41,7 +41,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
     }
 
     public MoreLikeThisRequestBuilder(Client client, String index, String type, String id) {
-        super((InternalClient) client, new MoreLikeThisRequest(index).type(type).id(id));
+        super((InternalClient) client, new MoreLikeThisRequest(index).setType(type).setId(id));
     }
 
     /**
@@ -49,7 +49,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * against all the document fields.
      */
     public MoreLikeThisRequestBuilder setField(String... fields) {
-        request.fields(fields);
+        request.setFields(fields);
         return this;
     }
 
@@ -57,7 +57,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * Sets the routing. Required if routing isn't id based.
      */
     public MoreLikeThisRequestBuilder setRouting(String routing) {
-        request.routing(routing);
+        request.setRouting(routing);
         return this;
     }
 
@@ -65,7 +65,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
      */
     public MoreLikeThisRequestBuilder setPercentTermsToMatch(float percentTermsToMatch) {
-        request.percentTermsToMatch(percentTermsToMatch);
+        request.setPercentTermsToMatch(percentTermsToMatch);
         return this;
     }
 
@@ -73,7 +73,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The frequency below which terms will be ignored in the source doc. Defaults to <tt>2</tt>.
      */
     public MoreLikeThisRequestBuilder setMinTermFreq(int minTermFreq) {
-        request.minTermFreq(minTermFreq);
+        request.setMinTermFreq(minTermFreq);
         return this;
     }
 
@@ -81,7 +81,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The maximum number of query terms that will be included in any generated query. Defaults to <tt>25</tt>.
      */
     public MoreLikeThisRequestBuilder maxQueryTerms(int maxQueryTerms) {
-        request.maxQueryTerms(maxQueryTerms);
+        request.setMaxQueryTerms(maxQueryTerms);
         return this;
     }
 
@@ -94,7 +94,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * <p>Defaults to no stop words.
      */
     public MoreLikeThisRequestBuilder setStopWords(String... stopWords) {
-        request.stopWords(stopWords);
+        request.setStopWords(stopWords);
         return this;
     }
 
@@ -103,7 +103,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * many docs. Defaults to <tt>5</tt>.
      */
     public MoreLikeThisRequestBuilder setMinDocFreq(int minDocFreq) {
-        request.minDocFreq(minDocFreq);
+        request.setMinDocFreq(minDocFreq);
         return this;
     }
 
@@ -112,7 +112,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * in more than this many docs will be ignored. Defaults to unbounded.
      */
     public MoreLikeThisRequestBuilder setMaxDocFreq(int maxDocFreq) {
-        request.maxDocFreq(maxDocFreq);
+        request.setMaxDocFreq(maxDocFreq);
         return this;
     }
 
@@ -120,7 +120,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The minimum word length below which words will be ignored. Defaults to <tt>0</tt>.
      */
     public MoreLikeThisRequestBuilder setMinWordLen(int minWordLen) {
-        request.minWordLen(minWordLen);
+        request.setMinWordLen(minWordLen);
         return this;
     }
 
@@ -128,7 +128,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The maximum word length above which words will be ignored. Defaults to unbounded.
      */
     public MoreLikeThisRequestBuilder setMaxWordLen(int maxWordLen) {
-        request().maxWordLen(maxWordLen);
+        request().setMaxWordLen(maxWordLen);
         return this;
     }
 
@@ -136,7 +136,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The boost factor to use when boosting terms. Defaults to <tt>1</tt>.
      */
     public MoreLikeThisRequestBuilder setBoostTerms(float boostTerms) {
-        request.boostTerms(boostTerms);
+        request.setBoostTerms(boostTerms);
         return this;
     }
 
@@ -145,7 +145,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * more like this documents.
      */
     public MoreLikeThisRequestBuilder setSearchSource(SearchSourceBuilder sourceBuilder) {
-        request.searchSource(sourceBuilder);
+        request.setSearchSource(sourceBuilder);
         return this;
     }
 
@@ -154,7 +154,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * more like this documents.
      */
     public MoreLikeThisRequestBuilder setSearchSource(String searchSource) {
-        request.searchSource(searchSource);
+        request.setSearchSource(searchSource);
         return this;
     }
 
@@ -163,7 +163,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * more like this documents.
      */
     public MoreLikeThisRequestBuilder setSearchSource(Map searchSource) {
-        request.searchSource(searchSource);
+        request.setSearchSource(searchSource);
         return this;
     }
 
@@ -172,7 +172,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * more like this documents.
      */
     public MoreLikeThisRequestBuilder setSearchSource(XContentBuilder builder) {
-        request.searchSource(builder);
+        request.setSearchSource(builder);
         return this;
     }
 
@@ -181,7 +181,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * more like this documents.
      */
     public MoreLikeThisRequestBuilder setSearchSource(byte[] searchSource) {
-        request.searchSource(searchSource);
+        request.setSearchSource(searchSource);
         return this;
     }
 
@@ -189,7 +189,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The search type of the mlt search query.
      */
     public MoreLikeThisRequestBuilder setSearchType(SearchType searchType) {
-        request.searchType(searchType);
+        request.setSearchType(searchType);
         return this;
     }
 
@@ -197,7 +197,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The search type of the mlt search query.
      */
     public MoreLikeThisRequestBuilder setSearchType(String searchType) throws ElasticSearchIllegalArgumentException {
-        request.searchType(searchType);
+        request.setSearchType(searchType);
         return this;
     }
 
@@ -206,7 +206,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * against the index the document was fetched from.
      */
     public MoreLikeThisRequestBuilder setSearchIndices(String... searchIndices) {
-        request.searchIndices(searchIndices);
+        request.setSearchIndices(searchIndices);
         return this;
     }
 
@@ -215,7 +215,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * against the type of the document fetched.
      */
     public MoreLikeThisRequestBuilder setSearchTypes(String... searchTypes) {
-        request.searchTypes(searchTypes);
+        request.setSearchTypes(searchTypes);
         return this;
     }
 
@@ -224,7 +224,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * operation.
      */
     public MoreLikeThisRequestBuilder setSearchScroll(Scroll searchScroll) {
-        request.searchScroll(searchScroll);
+        request.setSearchScroll(searchScroll);
         return this;
     }
 
@@ -232,7 +232,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * The number of documents to return, defaults to 10.
      */
     public MoreLikeThisRequestBuilder setSearchSize(int size) {
-        request.searchSize(size);
+        request.setSearchSize(size);
         return this;
     }
 
@@ -240,7 +240,7 @@ public class MoreLikeThisRequestBuilder extends ActionRequestBuilder<MoreLikeThi
      * From which search result set to return.
      */
     public MoreLikeThisRequestBuilder setSearchFrom(int from) {
-        request.searchFrom(from);
+        request.setSearchFrom(from);
         return this;
     }
 

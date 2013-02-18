@@ -47,7 +47,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * A more like this request allowing to search for documents that a "like" the provided document. The document
  * to check against to fetched based on the index, type and id provided. Best created with {@link org.elasticsearch.client.Requests#moreLikeThisRequest(String)}.
  * <p/>
- * <p>Note, the {@link #index()}, {@link #type(String)} and {@link #id(String)} are required.
+ * <p>Note, the {@link #getIndex()}, {@link #setType(String)} and {@link #setId(String)} are required.
  *
  * @see org.elasticsearch.client.Client#moreLikeThis(MoreLikeThisRequest)
  * @see org.elasticsearch.client.Requests#moreLikeThisRequest(String)
@@ -93,7 +93,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
     /**
      * Constructs a new more like this request for a document that will be fetch from the provided index.
-     * Use {@link #type(String)} and {@link #id(String)} to specify the document to load.
+     * Use {@link #setType(String)} and {@link #setId(String)} to specify the document to load.
      */
     public MoreLikeThisRequest(String index) {
         this.index = index;
@@ -102,18 +102,18 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The index to load the document from which the "like" query will run with.
      */
-    public String index() {
+    public String getIndex() {
         return index;
     }
 
     /**
-     * The type of document to load from which the "like" query will rutn with.
+     * The type of document to load from which the "like" query will run with.
      */
-    public String type() {
+    public String getType() {
         return type;
     }
 
-    void index(String index) {
+    public void setIndex(String index) {
         this.index = index;
     }
 
@@ -121,7 +121,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The type of document to load from which the "like" query will execute with.
      */
     @Required
-    public MoreLikeThisRequest type(String type) {
+    public MoreLikeThisRequest setType(String type) {
         this.type = type;
         return this;
     }
@@ -129,7 +129,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The id of document to load from which the "like" query will execute with.
      */
-    public String id() {
+    public String getId() {
         return id;
     }
 
@@ -137,7 +137,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The id of document to load from which the "like" query will execute with.
      */
     @Required
-    public MoreLikeThisRequest id(String id) {
+    public MoreLikeThisRequest setId(String id) {
         this.id = id;
         return this;
     }
@@ -145,11 +145,11 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * @return The routing for this request. This used for the `get` part of the mlt request.
      */
-    public String routing() {
+    public String getRouting() {
         return routing;
     }
 
-    public void routing(String routing) {
+    public void setRouting(String routing) {
         this.routing = routing;
     }
 
@@ -157,7 +157,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The fields of the document to use in order to find documents "like" this one. Defaults to run
      * against all the document fields.
      */
-    public String[] fields() {
+    public String[] getFields() {
         return this.fields;
     }
 
@@ -165,7 +165,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The fields of the document to use in order to find documents "like" this one. Defaults to run
      * against all the document fields.
      */
-    public MoreLikeThisRequest fields(String... fields) {
+    public MoreLikeThisRequest setFields(String... fields) {
         this.fields = fields;
         return this;
     }
@@ -173,7 +173,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
      */
-    public MoreLikeThisRequest percentTermsToMatch(float percentTermsToMatch) {
+    public MoreLikeThisRequest setPercentTermsToMatch(float percentTermsToMatch) {
         this.percentTermsToMatch = percentTermsToMatch;
         return this;
     }
@@ -181,14 +181,14 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
      */
-    public float percentTermsToMatch() {
+    public float getPercentTermsToMatch() {
         return this.percentTermsToMatch;
     }
 
     /**
      * The frequency below which terms will be ignored in the source doc. Defaults to <tt>2</tt>.
      */
-    public MoreLikeThisRequest minTermFreq(int minTermFreq) {
+    public MoreLikeThisRequest setMinTermFreq(int minTermFreq) {
         this.minTermFreq = minTermFreq;
         return this;
     }
@@ -196,14 +196,14 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The frequency below which terms will be ignored in the source doc. Defaults to <tt>2</tt>.
      */
-    public int minTermFreq() {
+    public int getMinTermFreq() {
         return this.minTermFreq;
     }
 
     /**
      * The maximum number of query terms that will be included in any generated query. Defaults to <tt>25</tt>.
      */
-    public MoreLikeThisRequest maxQueryTerms(int maxQueryTerms) {
+    public MoreLikeThisRequest setMaxQueryTerms(int maxQueryTerms) {
         this.maxQueryTerms = maxQueryTerms;
         return this;
     }
@@ -211,7 +211,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The maximum number of query terms that will be included in any generated query. Defaults to <tt>25</tt>.
      */
-    public int maxQueryTerms() {
+    public int getMaxQueryTerms() {
         return this.maxQueryTerms;
     }
 
@@ -223,7 +223,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * <p/>
      * <p>Defaults to no stop words.
      */
-    public MoreLikeThisRequest stopWords(String... stopWords) {
+    public MoreLikeThisRequest setStopWords(String... stopWords) {
         this.stopWords = stopWords;
         return this;
     }
@@ -236,7 +236,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * <p/>
      * <p>Defaults to no stop words.
      */
-    public String[] stopWords() {
+    public String[] getStopWords() {
         return this.stopWords;
     }
 
@@ -244,7 +244,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The frequency at which words will be ignored which do not occur in at least this
      * many docs. Defaults to <tt>5</tt>.
      */
-    public MoreLikeThisRequest minDocFreq(int minDocFreq) {
+    public MoreLikeThisRequest setMinDocFreq(int minDocFreq) {
         this.minDocFreq = minDocFreq;
         return this;
     }
@@ -253,7 +253,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The frequency at which words will be ignored which do not occur in at least this
      * many docs. Defaults to <tt>5</tt>.
      */
-    public int minDocFreq() {
+    public int getMinDocFreq() {
         return this.minDocFreq;
     }
 
@@ -261,7 +261,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The maximum frequency in which words may still appear. Words that appear
      * in more than this many docs will be ignored. Defaults to unbounded.
      */
-    public MoreLikeThisRequest maxDocFreq(int maxDocFreq) {
+    public MoreLikeThisRequest setMaxDocFreq(int maxDocFreq) {
         this.maxDocFreq = maxDocFreq;
         return this;
     }
@@ -270,14 +270,14 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The maximum frequency in which words may still appear. Words that appear
      * in more than this many docs will be ignored. Defaults to unbounded.
      */
-    public int maxDocFreq() {
+    public int getMaxDocFreq() {
         return this.maxDocFreq;
     }
 
     /**
      * The minimum word length below which words will be ignored. Defaults to <tt>0</tt>.
      */
-    public MoreLikeThisRequest minWordLen(int minWordLen) {
+    public MoreLikeThisRequest setMinWordLen(int minWordLen) {
         this.minWordLen = minWordLen;
         return this;
     }
@@ -285,14 +285,14 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The minimum word length below which words will be ignored. Defaults to <tt>0</tt>.
      */
-    public int minWordLen() {
+    public int getMinWordLen() {
         return this.minWordLen;
     }
 
     /**
      * The maximum word length above which words will be ignored. Defaults to unbounded.
      */
-    public MoreLikeThisRequest maxWordLen(int maxWordLen) {
+    public MoreLikeThisRequest setMaxWordLen(int maxWordLen) {
         this.maxWordLen = maxWordLen;
         return this;
     }
@@ -300,14 +300,14 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The maximum word length above which words will be ignored. Defaults to unbounded.
      */
-    public int maxWordLen() {
+    public int getMaxWordLen() {
         return this.maxWordLen;
     }
 
     /**
      * The boost factor to use when boosting terms. Defaults to <tt>1</tt>.
      */
-    public MoreLikeThisRequest boostTerms(float boostTerms) {
+    public MoreLikeThisRequest setBoostTerms(float boostTerms) {
         this.boostTerms = boostTerms;
         return this;
     }
@@ -315,7 +315,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The boost factor to use when boosting terms. Defaults to <tt>1</tt>.
      */
-    public float boostTerms() {
+    public float getBoostTerms() {
         return this.boostTerms;
     }
 
@@ -330,7 +330,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(SearchSourceBuilder sourceBuilder) {
+    public MoreLikeThisRequest setSearchSource(SearchSourceBuilder sourceBuilder) {
         this.searchSource = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
         this.searchSourceUnsafe = false;
         return this;
@@ -340,23 +340,23 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(String searchSource) {
+    public MoreLikeThisRequest setSearchSource(String searchSource) {
         this.searchSource = new BytesArray(searchSource);
         this.searchSourceUnsafe = false;
         return this;
     }
 
-    public MoreLikeThisRequest searchSource(Map searchSource) {
+    public MoreLikeThisRequest setSearchSource(Map searchSource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(searchSource);
-            return searchSource(builder);
+            return setSearchSource(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + searchSource + "]", e);
         }
     }
 
-    public MoreLikeThisRequest searchSource(XContentBuilder builder) {
+    public MoreLikeThisRequest setSearchSource(XContentBuilder builder) {
         this.searchSource = builder.bytes();
         this.searchSourceUnsafe = false;
         return this;
@@ -366,23 +366,23 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(byte[] searchSource) {
-        return searchSource(searchSource, 0, searchSource.length, false);
+    public MoreLikeThisRequest setSearchSource(byte[] searchSource) {
+        return setSearchSource(searchSource, 0, searchSource.length, false);
     }
 
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(byte[] searchSource, int offset, int length, boolean unsafe) {
-        return searchSource(new BytesArray(searchSource, offset, length), unsafe);
+    public MoreLikeThisRequest setSearchSource(byte[] searchSource, int offset, int length, boolean unsafe) {
+        return setSearchSource(new BytesArray(searchSource, offset, length), unsafe);
     }
 
     /**
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public MoreLikeThisRequest searchSource(BytesReference searchSource, boolean unsafe) {
+    public MoreLikeThisRequest setSearchSource(BytesReference searchSource, boolean unsafe) {
         this.searchSource = searchSource;
         this.searchSourceUnsafe = unsafe;
         return this;
@@ -392,18 +392,18 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * An optional search source request allowing to control the search request for the
      * more like this documents.
      */
-    public BytesReference searchSource() {
+    public BytesReference getSearchSource() {
         return this.searchSource;
     }
 
-    public boolean searchSourceUnsafe() {
+    public boolean isSearchSourceUnsafe() {
         return searchSourceUnsafe;
     }
 
     /**
      * The search type of the mlt search query.
      */
-    public MoreLikeThisRequest searchType(SearchType searchType) {
+    public MoreLikeThisRequest setSearchType(SearchType searchType) {
         this.searchType = searchType;
         return this;
     }
@@ -411,14 +411,14 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * The search type of the mlt search query.
      */
-    public MoreLikeThisRequest searchType(String searchType) throws ElasticSearchIllegalArgumentException {
-        return searchType(SearchType.fromString(searchType));
+    public MoreLikeThisRequest setSearchType(String searchType) throws ElasticSearchIllegalArgumentException {
+        return setSearchType(SearchType.fromString(searchType));
     }
 
     /**
      * The search type of the mlt search query.
      */
-    public SearchType searchType() {
+    public SearchType getSearchType() {
         return this.searchType;
     }
 
@@ -426,7 +426,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The indices the resulting mlt query will run against. If not set, will run
      * against the index the document was fetched from.
      */
-    public MoreLikeThisRequest searchIndices(String... searchIndices) {
+    public MoreLikeThisRequest setSearchIndices(String... searchIndices) {
         this.searchIndices = searchIndices;
         return this;
     }
@@ -435,7 +435,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The indices the resulting mlt query will run against. If not set, will run
      * against the index the document was fetched from.
      */
-    public String[] searchIndices() {
+    public String[] getSearchIndices() {
         return this.searchIndices;
     }
 
@@ -443,7 +443,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The types the resulting mlt query will run against. If not set, will run
      * against the type of the document fetched.
      */
-    public MoreLikeThisRequest searchTypes(String... searchTypes) {
+    public MoreLikeThisRequest setSearchTypes(String... searchTypes) {
         this.searchTypes = searchTypes;
         return this;
     }
@@ -452,14 +452,14 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * The types the resulting mlt query will run against. If not set, will run
      * against the type of the document fetched.
      */
-    public String[] searchTypes() {
+    public String[] getSearchTypes() {
         return this.searchTypes;
     }
 
     /**
      * Optional search query hint.
      */
-    public MoreLikeThisRequest searchQueryHint(String searchQueryHint) {
+    public MoreLikeThisRequest setSearchQueryHint(String searchQueryHint) {
         this.searchQueryHint = searchQueryHint;
         return this;
     }
@@ -467,7 +467,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     /**
      * Optional search query hint.
      */
-    public String searchQueryHint() {
+    public String getSearchQueryHint() {
         return this.searchQueryHint;
     }
 
@@ -475,7 +475,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * An optional search scroll request to be able to continue and scroll the search
      * operation.
      */
-    public MoreLikeThisRequest searchScroll(Scroll searchScroll) {
+    public MoreLikeThisRequest setSearchScroll(Scroll searchScroll) {
         this.searchScroll = searchScroll;
         return this;
     }
@@ -484,31 +484,31 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
      * An optional search scroll request to be able to continue and scroll the search
      * operation.
      */
-    public Scroll searchScroll() {
+    public Scroll getSearchScroll() {
         return this.searchScroll;
     }
 
     /**
      * The number of documents to return, defaults to 10.
      */
-    public MoreLikeThisRequest searchSize(int size) {
+    public MoreLikeThisRequest setSearchSize(int size) {
         this.searchSize = size;
         return this;
     }
 
-    public int searchSize() {
+    public int getSearchSize() {
         return this.searchSize;
     }
 
     /**
      * From which search result set to return.
      */
-    public MoreLikeThisRequest searchFrom(int from) {
+    public MoreLikeThisRequest setSearchFrom(int from) {
         this.searchFrom = from;
         return this;
     }
 
-    public int searchFrom() {
+    public int getSearchFrom() {
         return this.searchFrom;
     }
 

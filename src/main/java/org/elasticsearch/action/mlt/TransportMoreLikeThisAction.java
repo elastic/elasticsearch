@@ -93,7 +93,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         // update to actual index name
         ClusterState clusterState = clusterService.state();
         // update to the concrete index
-        final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
+        final String concreteIndex = clusterState.metaData().concreteIndex(request.getIndex());
 
         RoutingNode routingNode = clusterState.getRoutingNodes().nodesToShards().get(clusterService.localNode().getId());
         if (routingNode == null) {
@@ -112,17 +112,17 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
             return;
         }
         Set<String> getFields = newHashSet();
-        if (request.fields() != null) {
-            Collections.addAll(getFields, request.fields());
+        if (request.getFields() != null) {
+            Collections.addAll(getFields, request.getFields());
         }
         // add the source, in case we need to parse it to get fields
         getFields.add(SourceFieldMapper.NAME);
 
         GetRequest getRequest = getRequest(concreteIndex)
                 .setFields(getFields.toArray(new String[getFields.size()]))
-                .setType(request.type())
-                .setId(request.id())
-                .setRouting(request.routing())
+                .setType(request.getType())
+                .setId(request.getId())
+                .setRouting(request.getRouting())
                 .listenerThreaded(true)
                 .operationThreaded(true);
 
@@ -136,13 +136,13 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 }
                 final BoolQueryBuilder boolBuilder = boolQuery();
                 try {
-                    final DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
+                    final DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.getType());
                     if (docMapper == null) {
-                        throw new ElasticSearchException("No DocumentMapper found for type [" + request.type() + "]");
+                        throw new ElasticSearchException("No DocumentMapper found for type [" + request.getType() + "]");
                     }
                     final Set<String> fields = newHashSet();
-                    if (request.fields() != null) {
-                        for (String field : request.fields()) {
+                    if (request.getFields() != null) {
+                        for (String field : request.getFields()) {
                             FieldMappers fieldMappers = docMapper.mappers().smartName(field);
                             if (fieldMappers != null) {
                                 fields.add(fieldMappers.mapper().names().indexName());
@@ -180,27 +180,27 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                     }
 
                     // exclude myself
-                    Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
+                    Term uidTerm = docMapper.uidMapper().term(request.getType(), request.getId());
                     boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return;
                 }
 
-                String[] searchIndices = request.searchIndices();
+                String[] searchIndices = request.getSearchIndices();
                 if (searchIndices == null) {
-                    searchIndices = new String[]{request.index()};
+                    searchIndices = new String[]{request.getIndex()};
                 }
-                String[] searchTypes = request.searchTypes();
+                String[] searchTypes = request.getSearchTypes();
                 if (searchTypes == null) {
-                    searchTypes = new String[]{request.type()};
+                    searchTypes = new String[]{request.getType()};
                 }
-                int size = request.searchSize() != 0 ? request.searchSize() : 10;
-                int from = request.searchFrom() != 0 ? request.searchFrom() : 0;
+                int size = request.getSearchSize() != 0 ? request.getSearchSize() : 10;
+                int from = request.getSearchFrom() != 0 ? request.getSearchFrom() : 0;
                 SearchRequest searchRequest = searchRequest(searchIndices)
                         .types(searchTypes)
-                        .searchType(request.searchType())
-                        .scroll(request.searchScroll())
+                        .searchType(request.getSearchType())
+                        .scroll(request.getSearchScroll())
                         .extraSource(searchSource()
                                 .query(boolBuilder)
                                 .from(from)
@@ -208,8 +208,8 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                         )
                         .listenerThreaded(request.listenerThreaded());
 
-                if (request.searchSource() != null) {
-                    searchRequest.source(request.searchSource(), request.searchSourceUnsafe());
+                if (request.getSearchSource() != null) {
+                    searchRequest.source(request.getSearchSource(), request.isSearchSourceUnsafe());
                 }
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override
@@ -234,10 +234,10 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
     // Redirects the request to a data node, that has the index meta data locally available.
     private void redirect(MoreLikeThisRequest request, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
-        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.index(), request.type(), request.id(), null, null);
+        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.getIndex(), request.getType(), request.getId(), null, null);
         ShardRouting shardRouting = shardIterator.firstOrNull();
         if (shardRouting == null) {
-            throw new ElasticSearchException("No shards for index " + request.index());
+            throw new ElasticSearchException("No shards for index " + request.getIndex());
         }
         String nodeId = shardRouting.currentNodeId();
         DiscoveryNode discoveryNode = clusterState.nodes().get(nodeId);
@@ -269,7 +269,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         if (getResponse.isSourceEmpty()) {
             return;
         }
-        docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
+        docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.getType()).id(request.getId()), new DocumentMapper.ParseListenerAdapter() {
             @Override
             public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
                 if (fieldMapper instanceof InternalMapper) {
@@ -308,15 +308,15 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText) {
         MoreLikeThisFieldQueryBuilder mlt = moreLikeThisFieldQuery(fieldName)
                 .likeText(likeText)
-                .percentTermsToMatch(request.percentTermsToMatch())
-                .boostTerms(request.boostTerms())
-                .minDocFreq(request.minDocFreq())
-                .maxDocFreq(request.maxDocFreq())
-                .minWordLen(request.minWordLen())
-                .maxWordLen(request.maxWordLen())
-                .minTermFreq(request.minTermFreq())
-                .maxQueryTerms(request.maxQueryTerms())
-                .stopWords(request.stopWords());
+                .percentTermsToMatch(request.getPercentTermsToMatch())
+                .boostTerms(request.getBoostTerms())
+                .minDocFreq(request.getMinDocFreq())
+                .maxDocFreq(request.getMaxDocFreq())
+                .minWordLen(request.getMinWordLen())
+                .maxWordLen(request.getMaxWordLen())
+                .minTermFreq(request.getMinTermFreq())
+                .maxQueryTerms(request.getMaxQueryTerms())
+                .stopWords(request.getStopWords());
         boolBuilder.should(mlt);
     }
 

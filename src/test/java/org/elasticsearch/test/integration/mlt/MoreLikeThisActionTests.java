@@ -90,7 +90,7 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         client1.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis");
-        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").setType("type1").setId("1").setMinTermFreq(1).setMinDocFreq(1)).actionGet();
         assertThat(mltResponse.getSuccessfulShards(), equalTo(5));
         assertThat(mltResponse.getFailedShards(), equalTo(0));
         assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
@@ -124,16 +124,16 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         client1.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis on index");
-        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        SearchResponse mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").setType("type1").setId("1").setMinTermFreq(1).setMinDocFreq(1)).actionGet();
         assertThat(mltResponse.getHits().totalHits(), equalTo(2l));
 
         logger.info("Running moreLikeThis on beta shard");
-        mltResponse = client1.moreLikeThis(moreLikeThisRequest("beta").type("type1").id("1").minTermFreq(1).minDocFreq(1)).actionGet();
+        mltResponse = client1.moreLikeThis(moreLikeThisRequest("beta").setType("type1").setId("1").setMinTermFreq(1).setMinDocFreq(1)).actionGet();
         assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
         assertThat(mltResponse.getHits().getAt(0).id(), equalTo("3"));
 
         logger.info("Running moreLikeThis on release shard");
-        mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").type("type1").id("1").minTermFreq(1).minDocFreq(1).searchIndices("release")).actionGet();
+        mltResponse = client1.moreLikeThis(moreLikeThisRequest("test").setType("type1").setId("1").setMinTermFreq(1).setMinDocFreq(1).setSearchIndices("release")).actionGet();
         assertThat(mltResponse.getHits().totalHits(), equalTo(1l));
         assertThat(mltResponse.getHits().getAt(0).id(), equalTo("2"));
     }

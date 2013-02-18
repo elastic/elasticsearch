@@ -226,24 +226,24 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 return;
             }
             final IndexRequest indexRequest = request.upsertRequest();
-            indexRequest.index(request.index()).type(request.type()).id(request.id())
+            indexRequest.index(request.index()).setType(request.type()).setId(request.id())
                     // it has to be a "create!"
-                    .create(true)
-                    .routing(request.routing())
-                    .percolate(request.percolate())
-                    .refresh(request.refresh())
+                    .setCreate(true)
+                    .setRouting(request.routing())
+                    .setPercolate(request.percolate())
+                    .setRefresh(request.refresh())
                     .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
             // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-            final BytesReference updateSourceBytes = indexRequest.source();
+            final BytesReference updateSourceBytes = indexRequest.getSource();
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
-                    UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
-                    update.matches(response.matches());
+                    UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
+                    update.matches(response.getMatches());
                     if (request.fields() != null && request.fields().length > 0) {
                         Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(updateSourceBytes, true);
-                        update.getResult(extractGetResult(request, response.version(), sourceAndContent.v2(), sourceAndContent.v1(), updateSourceBytes));
+                        update.getResult(extractGetResult(request, response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), updateSourceBytes));
                     } else {
                         update.getResult(null);
                     }
@@ -289,17 +289,17 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         if (request.script() == null && request.doc() != null) {
             IndexRequest indexRequest = request.doc();
             updatedSourceAsMap = sourceAndContent.v2();
-            if (indexRequest.ttl() > 0) {
-                ttl = indexRequest.ttl();
+            if (indexRequest.getTtl() > 0) {
+                ttl = indexRequest.getTtl();
             }
-            timestamp = indexRequest.timestamp();
-            if (indexRequest.routing() != null) {
-                routing = indexRequest.routing();
+            timestamp = indexRequest.getTimestamp();
+            if (indexRequest.getRouting() != null) {
+                routing = indexRequest.getRouting();
             }
-            if (indexRequest.parent() != null) {
-                parent = indexRequest.parent();
+            if (indexRequest.getParent() != null) {
+                parent = indexRequest.getParent();
             }
-            XContentHelper.update(updatedSourceAsMap, indexRequest.sourceAsMap());
+            XContentHelper.update(updatedSourceAsMap, indexRequest.getSourceAsMap());
         } else {
             Map<String, Object> ctx = new HashMap<String, Object>(2);
             ctx.put("_source", sourceAndContent.v2());
@@ -340,21 +340,21 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         // TODO: external version type, does it make sense here? does not seem like it...
 
         if (operation == null || "index".equals(operation)) {
-            final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
-                    .source(updatedSourceAsMap, updateSourceContentType)
-                    .version(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
-                    .timestamp(timestamp).ttl(ttl)
-                    .percolate(request.percolate())
-                    .refresh(request.refresh());
+            final IndexRequest indexRequest = Requests.indexRequest(request.index()).setType(request.type()).setId(request.id()).setRouting(routing).setParent(parent)
+                    .setSource(updatedSourceAsMap, updateSourceContentType)
+                    .setVersion(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
+                    .setTimestamp(timestamp).setTtl(ttl)
+                    .setPercolate(request.percolate())
+                    .setRefresh(request.refresh());
             indexRequest.operationThreaded(false);
             // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
-            final BytesReference updateSourceBytes = indexRequest.source();
+            final BytesReference updateSourceBytes = indexRequest.getSource();
             indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
-                    UpdateResponse update = new UpdateResponse(response.index(), response.type(), response.id(), response.version());
-                    update.matches(response.matches());
-                    update.getResult(extractGetResult(request, response.version(), updatedSourceAsMap, updateSourceContentType, updateSourceBytes));
+                    UpdateResponse update = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
+                    update.matches(response.getMatches());
+                    update.getResult(extractGetResult(request, response.getVersion(), updatedSourceAsMap, updateSourceContentType, updateSourceBytes));
                     listener.onResponse(update);
                 }
 

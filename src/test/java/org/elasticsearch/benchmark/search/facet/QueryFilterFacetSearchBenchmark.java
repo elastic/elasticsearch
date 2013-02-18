@@ -90,8 +90,8 @@ public class QueryFilterFacetSearchBenchmark {
 
                     builder.endObject();
 
-                    request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(counter))
-                            .source(builder));
+                    request.add(Requests.indexRequest("test").setType("type1").setId(Integer.toString(counter))
+                            .setSource(builder));
                 }
                 BulkResponse response = request.execute().actionGet();
                 if (response.hasFailures()) {

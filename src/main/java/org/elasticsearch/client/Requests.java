@@ -74,8 +74,8 @@ public class Requests {
     }
 
     /**
-     * Create an index request against a specific index. Note the {@link IndexRequest#type(String)} must be
-     * set as well and optionally the {@link IndexRequest#id(String)}.
+     * Create an index request against a specific index. Note the {@link IndexRequest#setType(String)} must be
+     * set as well and optionally the {@link IndexRequest#setId(String)}.
      *
      * @param index The index name to index the request against
      * @return The index request

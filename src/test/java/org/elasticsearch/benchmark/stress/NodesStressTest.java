@@ -247,8 +247,8 @@ public class NodesStressTest {
                 for (; counter < max; counter++) {
                     Client client = client(counter);
                     long id = idGenerator.incrementAndGet();
-                    client.index(Requests.indexRequest().index("test").type("type1").id(Long.toString(id))
-                            .source(XContentFactory.jsonBuilder().startObject()
+                    client.index(Requests.indexRequest().index("test").setType("type1").setId(Long.toString(id))
+                            .setSource(XContentFactory.jsonBuilder().startObject()
                                     .field("num", id % fieldNumLimit)
                                     .endObject()))
                             .actionGet();

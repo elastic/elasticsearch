@@ -187,7 +187,7 @@ public class FullRestartStressTest {
 
                     json.endObject();
 
-                    bulk.add(Requests.indexRequest("test" + (Math.abs(ThreadLocalRandom.current().nextInt()) % numberOfIndices)).type("type1").source(json));
+                    bulk.add(Requests.indexRequest("test" + (Math.abs(ThreadLocalRandom.current().nextInt()) % numberOfIndices)).setType("type1").setSource(json));
                     indexCounter.incrementAndGet();
                 }
                 bulk.execute().actionGet();

@@ -141,43 +141,43 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 try {
 
                     // validate, if routing is required, that we got routing
-                    MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mappingOrDefault(indexRequest.type());
+                    MappingMetaData mappingMd = clusterState.metaData().index(request.index()).mappingOrDefault(indexRequest.getType());
                     if (mappingMd != null && mappingMd.routing().required()) {
-                        if (indexRequest.routing() == null) {
-                            throw new RoutingMissingException(indexRequest.index(), indexRequest.type(), indexRequest.id());
+                        if (indexRequest.getRouting() == null) {
+                            throw new RoutingMissingException(indexRequest.index(), indexRequest.getType(), indexRequest.getId());
                         }
                     }
 
-                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
-                            .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
+                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.getSource()).type(indexRequest.getType()).id(indexRequest.getId())
+                            .routing(indexRequest.getRouting()).parent(indexRequest.getParent()).timestamp(indexRequest.getTimestamp()).ttl(indexRequest.getTtl());
 
                     long version;
                     Engine.IndexingOperation op;
-                    if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
+                    if (indexRequest.getOpType() == IndexRequest.OpType.INDEX) {
+                        Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.getVersion()).versionType(indexRequest.getVersionType()).origin(Engine.Operation.Origin.PRIMARY);
                         indexShard.index(index);
                         version = index.version();
                         op = index;
                     } else {
-                        Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
+                        Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.getVersion()).versionType(indexRequest.getVersionType()).origin(Engine.Operation.Origin.PRIMARY);
                         indexShard.create(create);
                         version = create.version();
                         op = create;
                     }
-                    versions[i] = indexRequest.version();
+                    versions[i] = indexRequest.getVersion();
                     // update the version on request so it will happen on the replicas
-                    indexRequest.version(version);
+                    indexRequest.setVersion(version);
 
                     // update mapping on master if needed, we won't update changes to the same type, since once its changed, it won't have mappers added
                     if (op.parsedDoc().mappingsModified()) {
                         if (mappingsToUpdate == null) {
                             mappingsToUpdate = Sets.newHashSet();
                         }
-                        mappingsToUpdate.add(Tuple.tuple(indexRequest.index(), indexRequest.type()));
+                        mappingsToUpdate.add(Tuple.tuple(indexRequest.index(), indexRequest.getType()));
                     }
 
                     // if we are going to percolate, then we need to keep this op for the postPrimary operation
-                    if (Strings.hasLength(indexRequest.percolate())) {
+                    if (Strings.hasLength(indexRequest.getPercolate())) {
                         if (ops == null) {
                             ops = new Engine.IndexingOperation[request.getItems().length];
                         }
@@ -185,8 +185,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     }
 
                     // add the response
-                    responses[i] = new BulkItemResponse(item.getId(), indexRequest.opType().lowercase(),
-                            new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version));
+                    responses[i] = new BulkItemResponse(item.getId(), indexRequest.getOpType().lowercase(),
+                            new IndexResponse(indexRequest.index(), indexRequest.getType(), indexRequest.getId(), version));
                 } catch (Exception e) {
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
@@ -201,8 +201,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                     } else {
                         logger.debug("[{}][{}] failed to execute bulk item (index) {}", e, shardRequest.request.index(), shardRequest.shardId, indexRequest);
                     }
-                    responses[i] = new BulkItemResponse(item.getId(), indexRequest.opType().lowercase(),
-                            new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), ExceptionsHelper.detailedMessage(e)));
+                    responses[i] = new BulkItemResponse(item.getId(), indexRequest.getOpType().lowercase(),
+                            new BulkItemResponse.Failure(indexRequest.index(), indexRequest.getType(), indexRequest.getId(), ExceptionsHelper.detailedMessage(e)));
                     // nullify the request so it won't execute on the replicas
                     request.getItems()[i] = null;
                 }
@@ -276,12 +276,12 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
             if (itemRequest.getRequest() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) itemRequest.getRequest();
-                if (!Strings.hasLength(indexRequest.percolate())) {
+                if (!Strings.hasLength(indexRequest.getPercolate())) {
                     continue;
                 }
                 try {
-                    PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), indexRequest.percolate()));
-                    ((IndexResponse) itemResponse.getResponse()).matches(percolate.matches());
+                    PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), indexRequest.getPercolate()));
+                    ((IndexResponse) itemResponse.getResponse()).setMatches(percolate.matches());
                 } catch (Exception e) {
                     logger.warn("failed to percolate [{}]", e, itemRequest.getRequest());
                 }
@@ -301,14 +301,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             if (item.getRequest() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.getRequest();
                 try {
-                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
-                            .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
+                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.getSource()).type(indexRequest.getType()).id(indexRequest.getId())
+                            .routing(indexRequest.getRouting()).parent(indexRequest.getParent()).timestamp(indexRequest.getTimestamp()).ttl(indexRequest.getTtl());
 
-                    if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                    if (indexRequest.getOpType() == IndexRequest.OpType.INDEX) {
+                        Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.getVersion()).origin(Engine.Operation.Origin.REPLICA);
                         indexShard.index(index);
                     } else {
-                        Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                        Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.getVersion()).origin(Engine.Operation.Origin.REPLICA);
                         indexShard.create(create);
                     }
                 } catch (Exception e) {
@@ -365,7 +365,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     private void applyVersion(BulkItemRequest item, long version) {
         if (item.getRequest() instanceof IndexRequest) {
-            ((IndexRequest) item.getRequest()).version(version);
+            ((IndexRequest) item.getRequest()).setVersion(version);
         } else if (item.getRequest() instanceof DeleteRequest) {
             ((DeleteRequest) item.getRequest()).setVersion(version);
         } else {

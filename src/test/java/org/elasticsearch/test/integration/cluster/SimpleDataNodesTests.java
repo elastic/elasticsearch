@@ -47,7 +47,7 @@ public class SimpleDataNodesTests extends AbstractNodesTests {
         startNode("nonData1", settingsBuilder().put("node.data", false).build());
         client("nonData1").admin().indices().create(createIndexRequest("test")).actionGet();
         try {
-            client("nonData1").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
+            client("nonData1").index(Requests.indexRequest("test").setType("type1").setId("1").setSource(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
             assert false : "no allocation should happen";
         } catch (UnavailableShardsException e) {
             // all is well
@@ -58,7 +58,7 @@ public class SimpleDataNodesTests extends AbstractNodesTests {
 
         // still no shard should be allocated
         try {
-            client("nonData2").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
+            client("nonData2").index(Requests.indexRequest("test").setType("type1").setId("1").setSource(source("1", "test")).timeout(timeValueSeconds(1))).actionGet();
             assert false : "no allocation should happen";
         } catch (UnavailableShardsException e) {
             // all is well
@@ -68,9 +68,9 @@ public class SimpleDataNodesTests extends AbstractNodesTests {
         startNode("data1", settingsBuilder().put("node.data", true).build());
         assertThat(client("nonData1").admin().cluster().prepareHealth().setWaitForNodes("3").execute().actionGet().isTimedOut(), equalTo(false));
 
-        IndexResponse indexResponse = client("nonData2").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
-        assertThat(indexResponse.id(), equalTo("1"));
-        assertThat(indexResponse.type(), equalTo("type1"));
+        IndexResponse indexResponse = client("nonData2").index(Requests.indexRequest("test").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
+        assertThat(indexResponse.getId(), equalTo("1"));
+        assertThat(indexResponse.getType(), equalTo("type1"));
     }
 
     private String source(String id, String nameValue) {

@@ -339,7 +339,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(XContentBuilder source) {
-        safeDoc().source(source);
+        safeDoc().setSource(source);
         return this;
     }
 
@@ -347,7 +347,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(Map source) {
-        safeDoc().source(source);
+        safeDoc().setSource(source);
         return this;
     }
 
@@ -355,7 +355,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(Map source, XContentType contentType) {
-        safeDoc().source(source, contentType);
+        safeDoc().setSource(source, contentType);
         return this;
     }
 
@@ -363,7 +363,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(String source) {
-        safeDoc().source(source);
+        safeDoc().setSource(source);
         return this;
     }
 
@@ -371,7 +371,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(byte[] source) {
-        safeDoc().source(source);
+        safeDoc().setSource(source);
         return this;
     }
 
@@ -379,7 +379,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(byte[] source, int offset, int length) {
-        safeDoc().source(source, offset, length);
+        safeDoc().setSource(source, offset, length);
         return this;
     }
 
@@ -407,7 +407,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequest upsert(XContentBuilder source) {
-        safeUpsertRequest().source(source);
+        safeUpsertRequest().setSource(source);
         return this;
     }
 
@@ -415,7 +415,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequest upsert(Map source) {
-        safeUpsertRequest().source(source);
+        safeUpsertRequest().setSource(source);
         return this;
     }
 
@@ -423,7 +423,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequest upsert(Map source, XContentType contentType) {
-        safeUpsertRequest().source(source, contentType);
+        safeUpsertRequest().setSource(source, contentType);
         return this;
     }
 
@@ -431,7 +431,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequest upsert(String source) {
-        safeUpsertRequest().source(source);
+        safeUpsertRequest().setSource(source);
         return this;
     }
 
@@ -439,7 +439,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequest upsert(byte[] source) {
-        safeUpsertRequest().source(source);
+        safeUpsertRequest().setSource(source);
         return this;
     }
 
@@ -447,7 +447,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public UpdateRequest upsert(byte[] source, int offset, int length) {
-        safeUpsertRequest().source(source, offset, length);
+        safeUpsertRequest().setSource(source, offset, length);
         return this;
     }
 
@@ -495,11 +495,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 } else if ("upsert".equals(currentFieldName)) {
                     XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
                     builder.copyCurrentStructure(parser);
-                    safeUpsertRequest().source(builder);
+                    safeUpsertRequest().setSource(builder);
                 } else if ("doc".equals(currentFieldName)) {
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
-                    safeDoc().source(docBuilder);
+                    safeDoc().setSource(docBuilder);
                 }
             }
         } finally {
@@ -559,8 +559,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             out.writeBoolean(true);
             // make sure the basics are set
             doc.index(index);
-            doc.type(type);
-            doc.id(id);
+            doc.setType(type);
+            doc.setId(id);
             doc.writeTo(out);
         }
         if (fields == null) {
@@ -577,8 +577,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             out.writeBoolean(true);
             // make sure the basics are set
             upsertRequest.index(index);
-            upsertRequest.type(type);
-            upsertRequest.id(id);
+            upsertRequest.setType(type);
+            upsertRequest.setId(id);
             upsertRequest.writeTo(out);
         }
     }

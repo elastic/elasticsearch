@@ -127,7 +127,7 @@ public class BulkItemResponse implements Streamable {
             return failure.getIndex();
         }
         if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).index();
+            return ((IndexResponse) response).getIndex();
         } else if (response instanceof DeleteResponse) {
             return ((DeleteResponse) response).getIndex();
         }
@@ -142,7 +142,7 @@ public class BulkItemResponse implements Streamable {
             return failure.getType();
         }
         if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).type();
+            return ((IndexResponse) response).getType();
         } else if (response instanceof DeleteResponse) {
             return ((DeleteResponse) response).getType();
         }
@@ -157,7 +157,7 @@ public class BulkItemResponse implements Streamable {
             return failure.getId();
         }
         if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).id();
+            return ((IndexResponse) response).getId();
         } else if (response instanceof DeleteResponse) {
             return ((DeleteResponse) response).getId();
         }
@@ -172,7 +172,7 @@ public class BulkItemResponse implements Streamable {
             return -1;
         }
         if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).version();
+            return ((IndexResponse) response).getVersion();
         } else if (response instanceof DeleteResponse) {
             return ((DeleteResponse) response).getVersion();
         }

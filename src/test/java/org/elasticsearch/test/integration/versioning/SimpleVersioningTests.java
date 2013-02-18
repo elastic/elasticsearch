@@ -94,10 +94,10 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(12l));
+        assertThat(indexResponse.getVersion(), equalTo(12l));
 
         indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(14).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(14l));
+        assertThat(indexResponse.getVersion(), equalTo(14l));
 
         try {
             client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -136,10 +136,10 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(1l));
+        assertThat(indexResponse.getVersion(), equalTo(1l));
 
         indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(2l));
+        assertThat(indexResponse.getVersion(), equalTo(2l));
 
         try {
             client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute().actionGet();
@@ -220,12 +220,12 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(1l));
+        assertThat(indexResponse.getVersion(), equalTo(1l));
 
         client.admin().indices().prepareFlush().execute().actionGet();
 
         indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(2l));
+        assertThat(indexResponse.getVersion(), equalTo(2l));
 
         client.admin().indices().prepareFlush().execute().actionGet();
 
@@ -290,6 +290,6 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         assertThat(bulkResponse.getItems().length, equalTo(1));
         IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
-        assertThat(indexResponse.version(), equalTo(1l));
+        assertThat(indexResponse.getVersion(), equalTo(1l));
     }
 }

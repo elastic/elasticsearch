@@ -225,21 +225,21 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             IndexResponse index = client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
                     .setPercolate("*").execute().actionGet();
-            assertThat(index.matches().size(), equalTo(1));
-            assertThat(index.matches(), hasItem("kuku"));
+            assertThat(index.getMatches().size(), equalTo(1));
+            assertThat(index.getMatches(), hasItem("kuku"));
         }
 
         for (int i = 0; i < 10; i++) {
             IndexResponse index = client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
                     .setPercolate("color:blue").execute().actionGet();
-            assertThat(index.matches().size(), equalTo(1));
-            assertThat(index.matches(), hasItem("kuku"));
+            assertThat(index.getMatches().size(), equalTo(1));
+            assertThat(index.getMatches(), hasItem("kuku"));
         }
 
         for (int i = 0; i < 10; i++) {
             IndexResponse index = client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
                     .setPercolate("color:green").execute().actionGet();
-            assertThat(index.matches().size(), equalTo(0));
+            assertThat(index.getMatches().size(), equalTo(0));
         }
 
         // test bulk
@@ -252,8 +252,8 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         assertThat(bulkResponse.hasFailures(), equalTo(false));
         for (BulkItemResponse bulkItemResponse : bulkResponse) {
             IndexResponse index = bulkItemResponse.getResponse();
-            assertThat(index.matches().size(), equalTo(1));
-            assertThat(index.matches(), hasItem("kuku"));
+            assertThat(index.getMatches().size(), equalTo(1));
+            assertThat(index.getMatches(), hasItem("kuku"));
         }
     }
 

@@ -116,7 +116,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
     }
 
     private void index(Client client, String id, String nameValue, int age) throws IOException {
-        client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age)).consistencyLevel(WriteConsistencyLevel.ONE)).actionGet();
+        client.index(Requests.indexRequest("test").setType("type1").setId(id).setSource(source(id, nameValue, age)).consistencyLevel(WriteConsistencyLevel.ONE)).actionGet();
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {

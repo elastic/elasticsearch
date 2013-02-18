@@ -93,9 +93,9 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         // create two and delete the first
         logger.info("Indexing #1");
-        client("server1").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        client("server1").index(Requests.indexRequest("test").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
         logger.info("Indexing #2");
-        client("server1").index(Requests.indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
+        client("server1").index(Requests.indexRequest("test").setType("type1").setId("2").setSource(source("2", "test"))).actionGet();
 
         // perform snapshot to the index
         logger.info("Gateway Snapshot");
@@ -137,7 +137,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         logger.info("Flushing, so we have actual content in the index files (#2 should be in the index)");
         client("server1").admin().indices().flush(flushRequest("test")).actionGet();
         logger.info("Indexing #3, so we have something in the translog as well");
-        client("server1").index(Requests.indexRequest("test").type("type1").id("3").source(source("3", "test"))).actionGet();
+        client("server1").index(Requests.indexRequest("test").setType("type1").setId("3").setSource(source("3", "test"))).actionGet();
 
         logger.info("Gateway Snapshot");
         client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();

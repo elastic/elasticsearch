@@ -84,10 +84,10 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         client.admin().indices().create(createIndexRequest("test1")).actionGet();
         client.admin().indices().create(createIndexRequest("test2")).actionGet();
-        client.index(indexRequest("test1").type("type1").id("1")
-                .source(jsonBuilder().startObject().field("test", "value check").endObject())).actionGet();
-        client.index(indexRequest("test2").type("type1").id("1")
-                .source(jsonBuilder().startObject().field("test", "value beck").endObject())).actionGet();
+        client.index(indexRequest("test1").setType("type1").setId("1")
+                .setSource(jsonBuilder().startObject().field("test", "value check").endObject())).actionGet();
+        client.index(indexRequest("test2").setType("type1").setId("1")
+                .setSource(jsonBuilder().startObject().field("test", "value beck").endObject())).actionGet();
         client.admin().indices().refresh(refreshRequest()).actionGet();
 
         float indexBoost = 1.1f;

@@ -95,8 +95,8 @@ public class HistogramFacetSearchBenchmark {
                             .field("l_value", lValues[counter % lValues.length])
                             .field("date", new Date())
                             .endObject();
-                    request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(counter))
-                            .source(source));
+                    request.add(Requests.indexRequest("test").setType("type1").setId(Integer.toString(counter))
+                            .setSource(source));
                 }
                 BulkResponse response = request.execute().actionGet();
                 if (response.hasFailures()) {

@@ -92,25 +92,25 @@ public class RestUpdateAction extends BaseRestHandler {
                 updateRequest.source(request.content());
                 IndexRequest upsertRequest = updateRequest.upsertRequest();
                 if (upsertRequest != null) {
-                    upsertRequest.routing(request.param("routing"));
-                    upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    upsertRequest.timestamp(request.param("timestamp"));
+                    upsertRequest.setRouting(request.param("routing"));
+                    upsertRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    upsertRequest.setTimestamp(request.param("timestamp"));
                     if (request.hasParam("ttl")) {
-                        upsertRequest.ttl(request.paramAsTime("ttl", null).millis());
+                        upsertRequest.setTtl(request.paramAsTime("ttl", null).millis());
                     }
-                    upsertRequest.version(RestActions.parseVersion(request));
-                    upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
+                    upsertRequest.setVersion(RestActions.parseVersion(request));
+                    upsertRequest.setVersionType(VersionType.fromString(request.param("version_type"), upsertRequest.getVersionType()));
                 }
                 IndexRequest doc = updateRequest.doc();
                 if (doc != null) {
-                    doc.routing(request.param("routing"));
-                    doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    doc.timestamp(request.param("timestamp"));
+                    doc.setRouting(request.param("routing"));
+                    doc.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    doc.setTimestamp(request.param("timestamp"));
                     if (request.hasParam("ttl")) {
-                        doc.ttl(request.paramAsTime("ttl", null).millis());
+                        doc.setTtl(request.paramAsTime("ttl", null).millis());
                     }
-                    doc.version(RestActions.parseVersion(request));
-                    doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
+                    doc.setVersion(RestActions.parseVersion(request));
+                    doc.setVersionType(VersionType.fromString(request.param("version_type"), doc.getVersionType()));
                 }
             } catch (Exception e) {
                 try {

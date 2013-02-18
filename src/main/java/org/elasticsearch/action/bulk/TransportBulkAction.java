@@ -153,7 +153,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
 
                 MappingMetaData mappingMd = null;
                 if (metaData.hasIndex(indexRequest.index())) {
-                    mappingMd = metaData.index(indexRequest.index()).mappingOrDefault(indexRequest.type());
+                    mappingMd = metaData.index(indexRequest.index()).mappingOrDefault(indexRequest.getType());
                 }
                 indexRequest.process(metaData, aliasOrIndex, mappingMd, allowIdGeneration);
             } else if (request instanceof DeleteRequest) {
@@ -171,7 +171,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             ActionRequest request = bulkRequest.requests.get(i);
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
-                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.routing()).shardId();
+                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.index(), indexRequest.getType(), indexRequest.getId(), indexRequest.getRouting()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {
                     list = Lists.newArrayList();
@@ -237,8 +237,8 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                         for (BulkItemRequest request : requests) {
                             if (request.getRequest() instanceof IndexRequest) {
                                 IndexRequest indexRequest = (IndexRequest) request.getRequest();
-                                responses[request.getId()] = new BulkItemResponse(request.getId(), indexRequest.opType().toString().toLowerCase(Locale.ENGLISH),
-                                        new BulkItemResponse.Failure(indexRequest.index(), indexRequest.type(), indexRequest.id(), message));
+                                responses[request.getId()] = new BulkItemResponse(request.getId(), indexRequest.getOpType().toString().toLowerCase(Locale.ENGLISH),
+                                        new BulkItemResponse.Failure(indexRequest.index(), indexRequest.getType(), indexRequest.getId(), message));
                             } else if (request.getRequest() instanceof DeleteRequest) {
                                 DeleteRequest deleteRequest = (DeleteRequest) request.getRequest();
                                 responses[request.getId()] = new BulkItemResponse(request.getId(), "delete",

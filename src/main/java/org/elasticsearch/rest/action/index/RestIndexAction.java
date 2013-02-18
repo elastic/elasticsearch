@@ -68,24 +68,24 @@ public class RestIndexAction extends BaseRestHandler {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.listenerThreaded(false);
         indexRequest.operationThreaded(true);
-        indexRequest.routing(request.param("routing"));
-        indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-        indexRequest.timestamp(request.param("timestamp"));
+        indexRequest.setRouting(request.param("routing"));
+        indexRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+        indexRequest.setTimestamp(request.param("timestamp"));
         if (request.hasParam("ttl")) {
-            indexRequest.ttl(request.paramAsTime("ttl", null).millis());
+            indexRequest.setTtl(request.paramAsTime("ttl", null).millis());
         }
-        indexRequest.source(request.content(), request.contentUnsafe());
+        indexRequest.setSource(request.content(), request.contentUnsafe());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
-        indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
-        indexRequest.version(RestActions.parseVersion(request));
-        indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
-        indexRequest.percolate(request.param("percolate", null));
+        indexRequest.setRefresh(request.paramAsBoolean("refresh", indexRequest.isRefresh()));
+        indexRequest.setVersion(RestActions.parseVersion(request));
+        indexRequest.setVersionType(VersionType.fromString(request.param("version_type"), indexRequest.getVersionType()));
+        indexRequest.setPercolate(request.param("percolate", null));
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             if ("index".equals(sOpType)) {
-                indexRequest.opType(IndexRequest.OpType.INDEX);
+                indexRequest.setOpType(IndexRequest.OpType.INDEX);
             } else if ("create".equals(sOpType)) {
-                indexRequest.opType(IndexRequest.OpType.CREATE);
+                indexRequest.setOpType(IndexRequest.OpType.CREATE);
             } else {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -111,20 +111,20 @@ public class RestIndexAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields._INDEX, response.index())
-                            .field(Fields._TYPE, response.type())
-                            .field(Fields._ID, response.id())
-                            .field(Fields._VERSION, response.version());
-                    if (response.matches() != null) {
+                            .field(Fields._INDEX, response.getIndex())
+                            .field(Fields._TYPE, response.getType())
+                            .field(Fields._ID, response.getId())
+                            .field(Fields._VERSION, response.getVersion());
+                    if (response.getMatches() != null) {
                         builder.startArray(Fields.MATCHES);
-                        for (String match : response.matches()) {
+                        for (String match : response.getMatches()) {
                             builder.value(match);
                         }
                         builder.endArray();
                     }
                     builder.endObject();
                     RestStatus status = OK;
-                    if (response.version() == 1) {
+                    if (response.getVersion() == 1) {
                         status = CREATED;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));

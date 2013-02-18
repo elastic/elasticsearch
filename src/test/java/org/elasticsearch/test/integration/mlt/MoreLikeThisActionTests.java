@@ -85,8 +85,8 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client1.index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
-        client1.index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("1").setSource(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("2").setSource(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
         client1.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis");
@@ -117,10 +117,10 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
-        client1.index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene beta").endObject())).actionGet();
-        client1.index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
-        client1.index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("text", "elasticsearch beta").endObject())).actionGet();
-        client1.index(indexRequest("test").type("type1").id("4").source(jsonBuilder().startObject().field("text", "elasticsearch release").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("1").setSource(jsonBuilder().startObject().field("text", "lucene beta").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("2").setSource(jsonBuilder().startObject().field("text", "lucene release").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("3").setSource(jsonBuilder().startObject().field("text", "elasticsearch beta").endObject())).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("4").setSource(jsonBuilder().startObject().field("text", "elasticsearch release").endObject())).actionGet();
         client1.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("Running moreLikeThis on index");

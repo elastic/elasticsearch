@@ -63,12 +63,12 @@ public class BroadcastActionsTests extends AbstractNodesTests {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        client("server1").index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        client("server1").index(indexRequest("test").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
         FlushResponse flushResponse = client("server1").admin().indices().flush(flushRequest("test")).actionGet();
         assertThat(flushResponse.totalShards(), equalTo(10));
         assertThat(flushResponse.successfulShards(), equalTo(5));
         assertThat(flushResponse.failedShards(), equalTo(0));
-        client("server1").index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
+        client("server1").index(indexRequest("test").setType("type1").setId("2").setSource(source("2", "test"))).actionGet();
         RefreshResponse refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
         assertThat(refreshResponse.totalShards(), equalTo(10));
         assertThat(refreshResponse.successfulShards(), equalTo(5));

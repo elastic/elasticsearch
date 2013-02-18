@@ -118,9 +118,9 @@ public class RestBulkAction extends BaseRestHandler {
                         }
                         if (itemResponse.getResponse() instanceof IndexResponse) {
                             IndexResponse indexResponse = itemResponse.getResponse();
-                            if (indexResponse.matches() != null) {
+                            if (indexResponse.getMatches() != null) {
                                 builder.startArray(Fields.MATCHES);
-                                for (String match : indexResponse.matches()) {
+                                for (String match : indexResponse.getMatches()) {
                                     builder.value(match);
                                 }
                                 builder.endArray();

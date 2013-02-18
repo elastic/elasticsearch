@@ -123,9 +123,9 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Indexing [type1/1]");
         IndexResponse indexResponse = client1.prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")).setRefresh(true).execute().actionGet();
-        assertThat(indexResponse.index(), equalTo(getConcreteIndexName()));
-        assertThat(indexResponse.id(), equalTo("1"));
-        assertThat(indexResponse.type(), equalTo("type1"));
+        assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(indexResponse.getId(), equalTo("1"));
+        assertThat(indexResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
         assertThat(refreshResponse.successfulShards(), equalTo(10));
@@ -192,9 +192,9 @@ public class DocumentActionsTests extends AbstractNodesTests {
         }
 
         logger.info("Index [type1/1]");
-        client1.index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
         logger.info("Index [type1/2]");
-        client1.index(indexRequest("test").type("type1").id("2").source(source("2", "test2"))).actionGet();
+        client1.index(indexRequest("test").setType("type1").setId("2").setSource(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
         FlushResponse flushResult = client1.admin().indices().prepareFlush("test").execute().actionGet();

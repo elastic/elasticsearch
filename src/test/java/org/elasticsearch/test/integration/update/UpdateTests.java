@@ -124,7 +124,7 @@ public class UpdateTests extends AbstractNodesTests {
                 .endObject());
         assertThat(request.script(), equalTo("script1"));
         assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-        Map<String, Object> upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
+        Map<String, Object> upsertDoc = XContentHelper.convertToMap(request.upsertRequest().getSource(), true).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
@@ -136,7 +136,7 @@ public class UpdateTests extends AbstractNodesTests {
                 .endObject());
         assertThat(request.script(), equalTo("script1"));
         assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
+        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().getSource(), true).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
@@ -148,7 +148,7 @@ public class UpdateTests extends AbstractNodesTests {
                 .endObject());
         assertThat(request.script(), equalTo("script1"));
         assertThat(request.scriptParams().get("param1").toString(), equalTo("value1"));
-        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().source(), true).v2();
+        upsertDoc = XContentHelper.convertToMap(request.upsertRequest().getSource(), true).v2();
         assertThat(upsertDoc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
@@ -157,7 +157,7 @@ public class UpdateTests extends AbstractNodesTests {
         request.source(XContentFactory.jsonBuilder().startObject()
                 .startObject("doc").field("field1", "value1").startObject("compound").field("field2", "value2").endObject().endObject()
                 .endObject());
-        Map<String, Object> doc = request.doc().sourceAsMap();
+        Map<String, Object> doc = request.doc().getSourceAsMap();
         assertThat(doc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }

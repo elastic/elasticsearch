@@ -89,7 +89,7 @@ public class SuggestSearchBenchMark {
                 int termCounter = 0;
                 BulkRequestBuilder request = client.prepareBulk();
                 for (int j = 0; j < BATCH; j++) {
-                    request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(idCounter++)).source(source("prefix" + character + termCounter++)));
+                    request.add(Requests.indexRequest("test").setType("type1").setId(Integer.toString(idCounter++)).setSource(source("prefix" + character + termCounter++)));
                 }
                 character++;
                 BulkResponse response = request.execute().actionGet();

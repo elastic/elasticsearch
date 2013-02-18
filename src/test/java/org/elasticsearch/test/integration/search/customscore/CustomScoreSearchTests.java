@@ -147,10 +147,10 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
-        client.index(indexRequest("test").type("type1").id("1")
-                .source(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())).actionGet();
-        client.index(indexRequest("test").type("type1").id("2")
-                .source(jsonBuilder().startObject().field("test", "value check").field("num1", 2.0f).endObject())).actionGet();
+        client.index(indexRequest("test").setType("type1").setId("1")
+                .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 1.0f).endObject())).actionGet();
+        client.index(indexRequest("test").setType("type1").setId("2")
+                .setSource(jsonBuilder().startObject().field("test", "value check").field("num1", 2.0f).endObject())).actionGet();
         client.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("--- QUERY_THEN_FETCH");

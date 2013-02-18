@@ -80,7 +80,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.getMatches().size(), equalTo(1));
 
         client.close();
         closeNode("node1");
@@ -98,7 +98,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.getMatches().size(), equalTo(1));
     }
 
     @Test
@@ -128,7 +128,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.getMatches().size(), equalTo(1));
 
         client.close();
         closeNode("node1");
@@ -157,7 +157,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(0));
+        assertThat(percolate.getMatches().size(), equalTo(0));
 
         logger.info("--> register a query");
         client.prepareIndex("_percolator", "test", "kuku")
@@ -174,6 +174,6 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
                 .field("field1", "value1")
                 .endObject().endObject())
                 .execute().actionGet();
-        assertThat(percolate.matches().size(), equalTo(1));
+        assertThat(percolate.getMatches().size(), equalTo(1));
     }
 }

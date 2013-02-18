@@ -31,6 +31,7 @@ import org.elasticsearch.common.lucene.docset.ContextDocIdSet;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
+import org.elasticsearch.search.facet.nested.NestedFacetExecutor;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
@@ -66,9 +67,21 @@ public class FacetPhase implements SearchPhase {
                     continue;
                 }
                 if (entry.getMode() == FacetExecutor.Mode.COLLECTOR) {
+                    // TODO: We can pass the filter as param to collector method, then this filter wrapper logic can
+                    // be moved to NestedFacetExecutor impl, the other implementations would just wrap it into
+                    // FilteredCollector.
                     Collector collector = entry.getFacetExecutor().collector();
+
                     if (entry.getFilter() != null) {
-                        collector = new FilteredCollector(collector, entry.getFilter());
+                        if (collector instanceof NestedFacetExecutor.Collector) {
+                            // We get rootDoc ids as hits in the collect method, so we need to first translate from
+                            // rootDoc hit to nested doc hit and then apply filter.
+                            collector = new NestedFacetExecutor.Collector((NestedFacetExecutor.Collector) collector, entry.getFilter());
+                            // If we would first apply the filter on the rootDoc level and then translate it back to the
+                            // nested docs we ignore the facet filter and all nested docs are passed to facet collector
+                        } else {
+                            collector = new FilteredCollector(collector, entry.getFilter());
+                        }
                     }
                     context.searcher().addMainQueryCollector(collector);
                 } else if (entry.getMode() == FacetExecutor.Mode.POST) {
@@ -98,7 +111,11 @@ public class FacetPhase implements SearchPhase {
                 if (entry.getMode() == FacetExecutor.Mode.POST) {
                     FacetExecutor.Post post = entry.getFacetExecutor().post();
                     if (entry.getFilter() != null) {
-                        post = new FacetExecutor.Post.Filtered(post, entry.getFilter());
+                        if (post instanceof NestedFacetExecutor.Post) {
+                            post = new NestedFacetExecutor.Post((NestedFacetExecutor.Post) post, entry.getFilter());
+                        } else {
+                            post = new FacetExecutor.Post.Filtered(post, entry.getFilter());
+                        }
                     }
                     try {
                         post.executePost(context.searcher().mainDocIdSetCollector().docSets());
@@ -122,7 +139,11 @@ public class FacetPhase implements SearchPhase {
                     try {
                         FacetExecutor.Post post = entry.getFacetExecutor().post();
                         if (entry.getFilter() != null) {
-                            post = new FacetExecutor.Post.Filtered(post, entry.getFilter());
+                            if (post instanceof NestedFacetExecutor.Post) {
+                                post = new NestedFacetExecutor.Post((NestedFacetExecutor.Post) post, entry.getFilter());
+                            } else {
+                                post = new FacetExecutor.Post.Filtered(post, entry.getFilter());
+                            }
                         }
                         post.executePost(globalDocSets);
                     } catch (Exception e) {
@@ -130,8 +151,13 @@ public class FacetPhase implements SearchPhase {
                     }
                 } else if (entry.getMode() == FacetExecutor.Mode.COLLECTOR) {
                     Filter filter = Queries.MATCH_ALL_FILTER;
+                    Collector collector = entry.getFacetExecutor().collector();
                     if (entry.getFilter() != null) {
-                        filter = entry.getFilter();
+                        if (collector instanceof NestedFacetExecutor.Collector) {
+                            collector = new NestedFacetExecutor.Collector((NestedFacetExecutor.Collector) collector, entry.getFilter());
+                        } else {
+                            collector = new FilteredCollector(collector, entry.getFilter());
+                        }
                     }
                     if (filtersByCollector == null) {
                         filtersByCollector = Maps.newHashMap();
@@ -141,7 +167,7 @@ public class FacetPhase implements SearchPhase {
                         list = new ArrayList<Collector>();
                         filtersByCollector.put(filter, list);
                     }
-                    list.add(entry.getFacetExecutor().collector());
+                    list.add(collector);
                 }
             }
         }

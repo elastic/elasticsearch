@@ -20,11 +20,14 @@ package org.elasticsearch.test.integration.rest.helper;
 
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -32,12 +35,25 @@ public class HttpClient {
 
     private final URL baseUrl;
 
+    public HttpClient(TransportAddress transportAddress) {
+        InetSocketAddress address = ((InetSocketTransportAddress) transportAddress).address();
+        try {
+            baseUrl = new URL("http", address.getHostName(), address.getPort(), "/");
+        } catch (MalformedURLException e) {
+            throw new ElasticSearchException("", e);
+        }
+    }
+
     public HttpClient(String url) {
         try {
             baseUrl = new URL(url);
         } catch (MalformedURLException e) {
             throw new ElasticSearchException("", e);
         }
+    }
+
+    public HttpClient(URL url) {
+        baseUrl = url;
     }
 
     public HttpClientResponse request(String path) {

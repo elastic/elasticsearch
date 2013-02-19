@@ -182,6 +182,9 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     }
 
     private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("Calculating health based on state version [{}]", clusterState.version());
+        }
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
         ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), validation.failures());
         response.numberOfNodes = clusterState.nodes().size();

@@ -78,4 +78,13 @@ public class SitePluginTests extends AbstractNodesTests {
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.response(), containsString("<title>Dummy Site Plugin</title>"));
     }
+
+    @Test
+    public void testListSitePlugin() throws Exception {
+        // We use an HTTP Client to test redirection
+        HttpClientResponse response = httpClient("test").request("/_plugin/");
+        assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
+        assertThat(response.response(), containsString("dummy"));
+        assertThat(response.response(), containsString("anotherplugin"));
+    }
 }

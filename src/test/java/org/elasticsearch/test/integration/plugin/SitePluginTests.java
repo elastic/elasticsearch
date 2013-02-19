@@ -19,12 +19,15 @@
 
 package org.elasticsearch.test.integration.plugin;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.test.integration.rest.helper.HttpClient;
 import org.elasticsearch.test.integration.rest.helper.HttpClientResponse;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -37,23 +40,38 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class SitePluginTests extends AbstractNodesTests {
 
+
+    @BeforeClass
+    public void setupPluginDirectory() {
+        putDefaultSettings(settingsBuilder()
+                .put("path.plugins", "target/test-classes/org/elasticsearch/test/integration/plugin/")
+                .build());
+    }
+
+    @BeforeMethod
+    public void startNodes() {
+        startNode("test");
+    }
+
+    @AfterMethod
+    public void closeNodes() {
+        closeAllNodes();
+    }
+
+    public HttpClient httpClient(String id) {
+        HttpServerTransport httpServerTransport = ((InternalNode) node(id)).injector().getInstance(HttpServerTransport.class);
+        return new HttpClient(httpServerTransport.boundAddress().publishAddress());
+    }
+
     @Test
     public void testRedirectSitePlugin() throws Exception {
-
-        Settings settings = settingsBuilder()
-                .put("path.plugins", "target/test-classes/org/elasticsearch/test/integration/plugin/")
-                .build();
-
-        InternalNode node = (InternalNode) buildNode("test", settings);
-        node.start();
-
         // We use an HTTP Client to test redirection
-        HttpClientResponse response = new HttpClient("http://localhost:9200").request("/_plugin/dummy");
+        HttpClientResponse response = httpClient("test").request("/_plugin/dummy");
         assertThat(response.errorCode(), equalTo(RestStatus.MOVED_PERMANENTLY.getStatus()));
         assertThat(response.response(), containsString("/_plugin/dummy/"));
 
         // We test the real URL
-        response = new HttpClient("http://localhost:9200").request("/_plugin/dummy/");
+        response = httpClient("test").request("/_plugin/dummy/");
         assertThat(response.errorCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(response.response(), containsString("<title>Dummy Site Plugin</title>"));
     }

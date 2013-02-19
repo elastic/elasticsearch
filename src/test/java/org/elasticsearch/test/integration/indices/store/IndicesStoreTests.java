@@ -97,7 +97,7 @@ public class IndicesStoreTests extends AbstractNodesTests {
         assertThat(server2Shard.exists(), equalTo(true));
 
         logger.info("--> running cluster_health");
-        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForNodes("2")).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         logger.info("--> making sure that shard and it's replica exist on server1, server2 and server3");

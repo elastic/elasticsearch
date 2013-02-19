@@ -30,6 +30,8 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.File;
+
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -42,9 +44,10 @@ public class SitePluginTests extends AbstractNodesTests {
 
 
     @BeforeClass
-    public void setupPluginDirectory() {
+    public void setupPluginDirectory() throws Exception {
+        File pluginDir = new File(SitePluginTests.class.getResource("/org/elasticsearch/test/integration/plugin").toURI());
         putDefaultSettings(settingsBuilder()
-                .put("path.plugins", "target/test-classes/org/elasticsearch/test/integration/plugin/")
+                .put("path.plugins", pluginDir.getAbsolutePath())
                 .build());
     }
 

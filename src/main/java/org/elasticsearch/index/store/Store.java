@@ -22,7 +22,6 @@ package org.elasticsearch.index.store;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.store.*;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.support.ForceSyncDirectory;
 
 import java.io.File;
@@ -73,12 +73,12 @@ public class Store extends AbstractIndexShardComponent {
     private final boolean sync;
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, DirectoryService directoryService) throws IOException {
+    public Store(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore, DirectoryService directoryService, Distributor distributor) throws IOException {
         super(shardId, indexSettings);
         this.indexStore = indexStore;
         this.directoryService = directoryService;
         this.sync = componentSettings.getAsBoolean("sync", true); // TODO we don't really need to fsync when using shared gateway...
-        this.directory = new StoreDirectory(directoryService.build());
+        this.directory = new StoreDirectory(distributor);
     }
 
     public IndexStore indexStore() {
@@ -297,14 +297,14 @@ public class Store extends AbstractIndexShardComponent {
      */
     class StoreDirectory extends Directory implements ForceSyncDirectory {
 
-        private final Directory[] delegates;
+        private final Distributor distributor;
 
-        StoreDirectory(Directory[] delegates) throws IOException {
-            this.delegates = delegates;
+        StoreDirectory(Distributor distributor) throws IOException {
+            this.distributor = distributor;
             synchronized (mutex) {
                 MapBuilder<String, StoreFileMetaData> builder = MapBuilder.newMapBuilder();
-                Map<String, String> checksums = readChecksums(delegates, new HashMap<String, String>());
-                for (Directory delegate : delegates) {
+                Map<String, String> checksums = readChecksums(distributor.all(), new HashMap<String, String>());
+                for (Directory delegate : distributor.all()) {
                     for (String file : delegate.listAll()) {
                         String checksum = checksums.get(file);
                         builder.put(file, new StoreFileMetaData(file, delegate.fileLength(file), checksum, delegate));
@@ -316,7 +316,7 @@ public class Store extends AbstractIndexShardComponent {
         }
 
         public Directory[] delegates() {
-            return delegates;
+            return distributor.all();
         }
 
         @Override
@@ -397,29 +397,11 @@ public class Store extends AbstractIndexShardComponent {
         }
 
         public IndexOutput createOutput(String name, IOContext context, boolean raw) throws IOException {
-            Directory directory = null;
+            Directory directory;
             if (isChecksum(name)) {
-                directory = delegates[0];
+                directory = distributor.primary();
             } else {
-                if (delegates.length == 1) {
-                    directory = delegates[0];
-                } else {
-                    long size = Long.MIN_VALUE;
-                    for (Directory delegate : delegates) {
-                        if (delegate instanceof FSDirectory) {
-                            long currentSize = ((FSDirectory) delegate).getDirectory().getUsableSpace();
-                            if (currentSize > size) {
-                                size = currentSize;
-                                directory = delegate;
-                            } else if (currentSize == size && ThreadLocalRandom.current().nextBoolean()) {
-                                directory = delegate;
-                            } else {
-                            }
-                        } else {
-                            directory = delegate; // really, make sense to have multiple directories for FS
-                        }
-                    }
-                }
+                directory = distributor.any();
             }
             IndexOutput out = directory.createOutput(name, context);
             synchronized (mutex) {
@@ -474,7 +456,7 @@ public class Store extends AbstractIndexShardComponent {
 
         @Override
         public void close() throws IOException {
-            for (Directory delegate : delegates) {
+            for (Directory delegate : distributor.all()) {
                 delegate.close();
             }
             synchronized (mutex) {
@@ -485,27 +467,27 @@ public class Store extends AbstractIndexShardComponent {
 
         @Override
         public Lock makeLock(String name) {
-            return delegates[0].makeLock(name);
+            return distributor.primary().makeLock(name);
         }
 
         @Override
         public void clearLock(String name) throws IOException {
-            delegates[0].clearLock(name);
+            distributor.primary().clearLock(name);
         }
 
         @Override
         public void setLockFactory(LockFactory lockFactory) throws IOException {
-            delegates[0].setLockFactory(lockFactory);
+            distributor.primary().setLockFactory(lockFactory);
         }
 
         @Override
         public LockFactory getLockFactory() {
-            return delegates[0].getLockFactory();
+            return distributor.primary().getLockFactory();
         }
 
         @Override
         public String getLockID() {
-            return delegates[0].getLockID();
+            return distributor.primary().getLockID();
         }
 
         @Override

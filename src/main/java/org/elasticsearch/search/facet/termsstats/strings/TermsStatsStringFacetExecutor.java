@@ -72,11 +72,6 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         if (entries.isEmpty()) {
             return new InternalTermsStatsStringFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsStringFacet.StringEntry>of(), missing);

@@ -48,11 +48,6 @@ public class RangeFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         return new InternalRangeFacet(facetName, entries);
     }

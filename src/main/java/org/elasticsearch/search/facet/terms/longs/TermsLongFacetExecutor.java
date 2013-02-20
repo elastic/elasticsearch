@@ -88,11 +88,6 @@ public class TermsLongFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         if (facets.isEmpty()) {
             CacheRecycler.pushLongIntMap(facets);

@@ -50,11 +50,6 @@ public class ScriptGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
         return new Collector();
     }
 
-    @Override
-    public Post post() {
-        return null;
-    }
-
     class Collector extends GeoDistanceFacetExecutor.Collector {
 
         private Aggregator scriptAggregator;

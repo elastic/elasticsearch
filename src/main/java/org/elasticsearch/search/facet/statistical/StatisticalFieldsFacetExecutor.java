@@ -52,11 +52,6 @@ public class StatisticalFieldsFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         return new InternalStatisticalFacet(facetName, min, max, total, sumOfSquares, count);
     }

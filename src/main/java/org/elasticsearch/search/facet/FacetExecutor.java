@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet;
 
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.docset.AndDocIdSet;
@@ -34,8 +35,8 @@ import java.util.List;
  * A facet processor ends up actually executing the relevant facet for a specific
  * search request.
  * <p/>
- * The facet executor requires at least one of the {@link #collector()} or {@link #post()} methods to be
- * implemented.
+ * The facet executor requires at least the {@link #collector()} method to be implemented,
+ * with an optional {@link #post()} implementation if specific optimizations can be done.
  */
 public abstract class FacetExecutor {
 
@@ -46,6 +47,9 @@ public abstract class FacetExecutor {
 
         public abstract void executePost(List<ContextDocIdSet> docSets) throws IOException;
 
+        /**
+         * A filtered post execution.
+         */
         public static class Filtered extends Post {
 
             private final Post post;
@@ -69,6 +73,32 @@ public abstract class FacetExecutor {
                     ));
                 }
                 post.executePost(filteredEntries);
+            }
+        }
+
+        /**
+         * A {@link FacetExecutor.Collector} based post.
+         */
+        public static class Collector extends Post {
+
+            private final FacetExecutor.Collector collector;
+
+            public Collector(FacetExecutor.Collector collector) {
+                this.collector = collector;
+            }
+
+            @Override
+            public void executePost(List<ContextDocIdSet> docSets) throws IOException {
+                for (int i = 0; i < docSets.size(); i++) {
+                    ContextDocIdSet docSet = docSets.get(i);
+                    collector.setNextReader(docSet.context);
+                    DocIdSetIterator it = docSet.docSet.iterator();
+                    int doc;
+                    while ((doc = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                        collector.collect(doc);
+                    }
+                }
+                collector.postCollection();
             }
         }
     }
@@ -117,7 +147,12 @@ public abstract class FacetExecutor {
     public abstract Collector collector();
 
     /**
-     * A post based facet that executes the facet using the aggregated docs relevant.
+     * A post based facet that executes the facet using the aggregated docs. By default
+     * uses the {@link Post.Collector} based implementation.
+     * <p/>
+     * Can be overridden if a more optimized non collector based implementation can be implemented.
      */
-    public abstract Post post();
+    public Post post() {
+        return new Post.Collector(collector());
+    }
 }

@@ -43,7 +43,9 @@ import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.SerialMergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.ram.RamDirectoryService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.fs.FsTranslog;
@@ -122,11 +124,13 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     protected Store createStore() throws IOException {
-        return new Store(shardId, EMPTY_SETTINGS, null, new RamDirectoryService(shardId, EMPTY_SETTINGS));
+        DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService));
     }
 
     protected Store createStoreReplica() throws IOException {
-        return new Store(shardId, EMPTY_SETTINGS, null, new RamDirectoryService(shardId, EMPTY_SETTINGS));
+        DirectoryService directoryService = new RamDirectoryService(shardId, EMPTY_SETTINGS);
+        return new Store(shardId, EMPTY_SETTINGS, null, directoryService, new LeastUsedDistributor(directoryService));
     }
 
     protected Translog createTranslog() {

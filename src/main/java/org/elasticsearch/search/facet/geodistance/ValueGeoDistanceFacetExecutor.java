@@ -48,11 +48,6 @@ public class ValueGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
         return new Collector();
     }
 
-    @Override
-    public Post post() {
-        return null;
-    }
-
     class Collector extends GeoDistanceFacetExecutor.Collector {
 
         Collector() {

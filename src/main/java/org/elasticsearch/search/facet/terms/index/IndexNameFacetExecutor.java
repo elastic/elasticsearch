@@ -51,11 +51,6 @@ public class IndexNameFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         return new InternalStringTermsFacet(facetName, comparatorType, size, Sets.newHashSet(new InternalStringTermsFacet.TermEntry(indexName, count)), 0, count);
     }

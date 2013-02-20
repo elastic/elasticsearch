@@ -89,11 +89,6 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         AggregatorPriorityQueue queue = new AggregatorPriorityQueue(aggregators.size());
 

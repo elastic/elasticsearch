@@ -61,11 +61,6 @@ public class GeoDistanceFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         return new InternalGeoDistanceFacet(facetName, entries);
     }

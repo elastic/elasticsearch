@@ -75,11 +75,6 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         if (facets.isEmpty()) {
             CacheRecycler.pushObjectIntMap(facets);

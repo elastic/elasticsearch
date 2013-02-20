@@ -56,11 +56,6 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         return new InternalCountHistogramFacet(facetName, comparatorType, counts, true);
     }

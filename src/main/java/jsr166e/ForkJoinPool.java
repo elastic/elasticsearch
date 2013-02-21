@@ -4,7 +4,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-package jsr166y;
+package jsr166e;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -4,7 +4,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-package jsr166e;
+package jsr166e.extra;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
@@ -40,7 +40,7 @@ import java.io.IOException;
  * threads invoke short read-only methods much more frequently than
  * fully locked methods.
  *
- * <p> Methods {@code awaitAvailability} and {@code getSequence} can
+ * <p>Methods {@code awaitAvailability} and {@code getSequence} can
  * be used together to define (partially) optimistic read-only methods
  * that are usually more efficient than ReadWriteLocks when they
  * apply.  These methods should in general be structured as loops that
@@ -109,7 +109,7 @@ public class SequenceLock implements Lock, java.io.Serializable {
     private static final long serialVersionUID = 7373984872572414699L;
 
     static final class Sync extends AbstractQueuedLongSynchronizer {
-        static final long serialVersionUID = 2540673546047039555L;
+        private static final long serialVersionUID = 2540673546047039555L;
 
         /**
          * The number of times to spin in lock() and awaitAvailability().
@@ -483,7 +483,6 @@ public class SequenceLock implements Lock, java.io.Serializable {
      *         the lock could be acquired
      * @throws InterruptedException if the current thread is interrupted
      * @throws NullPointerException if the time unit is null
-     *
      */
     public boolean tryLock(long timeout, TimeUnit unit)
         throws InterruptedException {
@@ -636,4 +635,3 @@ public class SequenceLock implements Lock, java.io.Serializable {
     }
 
 }
-

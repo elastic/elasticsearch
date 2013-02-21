@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.update.PartialDocumentUpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
@@ -213,6 +214,14 @@ public class BulkProcessor {
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkProcessor add(IndexRequest request) {
+        return add((ActionRequest) request);
+    }
+    
+    /**
+     * Adds an {@link PartialDocumentUpdateRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
+     * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     */
+    public BulkProcessor add(PartialDocumentUpdateRequest request) {
         return add((ActionRequest) request);
     }
 

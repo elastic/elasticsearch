@@ -27,6 +27,7 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.action.update.PartialDocumentUpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -122,6 +123,27 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         requests.add(request);
         addPayload(payload);
         sizeInBytes += request.getSource().length() + REQUEST_OVERHEAD;
+        return this;
+    }
+    
+    /**
+     * Adds an {@link PartialDocumentUpdateRequest} to the list of actions to execute. Follows the same behavior of {@link PartialDocumentUpdateRequest}
+     * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     */
+    public BulkRequest add(PartialDocumentUpdateRequest request) {
+        request.beforeLocalFork();
+        return internalAdd(request, null);
+    }
+
+    public BulkRequest add(PartialDocumentUpdateRequest request, @Nullable Object payload) {
+        request.beforeLocalFork();
+        return internalAdd(request, payload);
+    }
+
+    BulkRequest internalAdd(PartialDocumentUpdateRequest request, @Nullable Object payload) {
+        requests.add(request);
+        addPayload(payload);
+        sizeInBytes += request.getDoc().getSource().length() + REQUEST_OVERHEAD;
         return this;
     }
 
@@ -394,13 +416,17 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
-            byte type = in.readByte();
-            if (type == 0) {
+            int type = in.readInt();
+            if (type == 1) {
                 IndexRequest request = new IndexRequest();
                 request.readFrom(in);
                 requests.add(request);
-            } else if (type == 1) {
+            } else if (type == 2) {
                 DeleteRequest request = new DeleteRequest();
+                request.readFrom(in);
+                requests.add(request);
+            } else if (type == 3) {
+                PartialDocumentUpdateRequest request = new PartialDocumentUpdateRequest();
                 request.readFrom(in);
                 requests.add(request);
             }
@@ -416,9 +442,11 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         out.writeVInt(requests.size());
         for (ActionRequest request : requests) {
             if (request instanceof IndexRequest) {
-                out.writeByte((byte) 0);
+                out.writeInt(1);
             } else if (request instanceof DeleteRequest) {
-                out.writeByte((byte) 1);
+                out.writeInt(2);
+            } else if (request instanceof PartialDocumentUpdateRequest) { 
+            	out.writeInt(3);
             }
             request.writeTo(out);
         }

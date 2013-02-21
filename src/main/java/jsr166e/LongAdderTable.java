@@ -18,7 +18,7 @@ import java.io.Serializable;
  * explicitly using method {@link #install}.
  *
  * <p><em>jsr166e note: This class is targeted to be placed in
- * java.util.concurrent.atomic<em>
+ * java.util.concurrent.atomic.</em>
  *
  * @since 1.8
  * @author Doug Lea
@@ -31,8 +31,8 @@ public class LongAdderTable<K> implements Serializable {
     private final ConcurrentHashMapV8<K, LongAdder> map;
 
     static final class CreateAdder
-        implements ConcurrentHashMapV8.MappingFunction<Object, LongAdder> {
-        public LongAdder map(Object unused) { return new LongAdder(); }
+        implements ConcurrentHashMapV8.Fun<Object, LongAdder> {
+        public LongAdder apply(Object unused) { return new LongAdder(); }
     }
 
     private static final CreateAdder createAdder = new CreateAdder();

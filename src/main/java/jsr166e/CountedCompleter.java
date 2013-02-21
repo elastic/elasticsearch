@@ -4,7 +4,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-package jsr166y;
+package jsr166e;
 
 /**
  * A {@link ForkJoinTask} with a completion action performed when
@@ -15,11 +15,11 @@ package jsr166y;
  * CountedCompleter are similar to those of other completion based
  * components (such as {@link java.nio.channels.CompletionHandler})
  * except that multiple <em>pending</em> completions may be necessary
- * to trigger the completion action {@link #onCompletion}, not just one.
- * Unless initialized otherwise, the {@linkplain #getPendingCount pending
- * count} starts at zero, but may be (atomically) changed using
- * methods {@link #setPendingCount}, {@link #addToPendingCount}, and
- * {@link #compareAndSetPendingCount}. Upon invocation of {@link
+ * to trigger the {@link #onCompletion} action, not just one. Unless
+ * initialized otherwise, the {@link #getPendingCount pending count}
+ * starts at zero, but may be (atomically) changed using methods
+ * {@link #setPendingCount}, {@link #addToPendingCount}, and {@link
+ * #compareAndSetPendingCount}. Upon invocation of {@link
  * #tryComplete}, if the pending action count is nonzero, it is
  * decremented; otherwise, the completion action is performed, and if
  * this completer itself has a completer, the process is continued

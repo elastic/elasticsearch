@@ -5,7 +5,7 @@
  */
 
 package jsr166e.extra;
-import jsr166e.*;
+import jsr166e.StampedLock;
 import java.util.*;
 
 /**
@@ -14,7 +14,7 @@ import java.util.*;
  * throughput when invocations of read-only methods by multiple
  * threads are most common.
  *
- * <p> The iterators returned by this class's {@link #iterator()
+ * <p>The iterators returned by this class's {@link #iterator()
  * iterator} and {@link #listIterator(int) listIterator} methods are
  * best-effort in the presence of concurrent modifications, and do
  * <em>NOT</em> throw {@link ConcurrentModificationException}.  An
@@ -63,9 +63,9 @@ public class ReadMostlyVector<E>
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
 
     // fields are non-private to simplify nested class access
-    volatile Object[] array;
-    final SequenceLock lock;
-    volatile int count;
+    Object[] array;
+    final StampedLock lock;
+    int count;
     final int capacityIncrement;
 
     /**
@@ -86,14 +86,13 @@ public class ReadMostlyVector<E>
                                                initialCapacity);
         this.array = new Object[initialCapacity];
         this.capacityIncrement = capacityIncrement;
-        this.lock = new SequenceLock();
+        this.lock = new StampedLock();
     }
 
     /**
      * Creates an empty vector with the given initial capacity.
      *
      * @param initialCapacity the initial capacity of the underlying array
-     *
      * @throws IllegalArgumentException if initial capacity is negative
      */
     public ReadMostlyVector(int initialCapacity) {
@@ -101,10 +100,11 @@ public class ReadMostlyVector<E>
     }
 
     /**
-     * Creates an empty vector with an underlying array of size {@code 10}.
+     * Creates an empty vector.
      */
     public ReadMostlyVector() {
-        this(10, 0);
+        this.capacityIncrement = 0;
+        this.lock = new StampedLock();
     }
 
     /**
@@ -123,7 +123,7 @@ public class ReadMostlyVector<E>
         this.array = elements;
         this.count = elements.length;
         this.capacityIncrement = 0;
-        this.lock = new SequenceLock();
+        this.lock = new StampedLock();
     }
 
     // internal constructor for clone
@@ -131,27 +131,35 @@ public class ReadMostlyVector<E>
         this.array = array;
         this.count = count;
         this.capacityIncrement = capacityIncrement;
-        this.lock = new SequenceLock();
+        this.lock = new StampedLock();
     }
+
+    static final int INITIAL_CAP = 16;
 
     // For explanation, see CopyOnWriteArrayList
     final Object[] grow(int minCapacity) {
-        int oldCapacity = array.length;
-        int newCapacity = oldCapacity + ((capacityIncrement > 0) ?
+        Object[] items;
+        int newCapacity;
+        if ((items = array) == null)
+            newCapacity = INITIAL_CAP;
+        else {
+            int oldCapacity = array.length;
+            newCapacity = oldCapacity + ((capacityIncrement > 0) ?
                                          capacityIncrement : oldCapacity);
+        }
         if (newCapacity - minCapacity < 0)
             newCapacity = minCapacity;
-        if (newCapacity - MAX_ARRAY_SIZE > 0)
-            newCapacity = hugeCapacity(minCapacity);
-        return array = Arrays.copyOf(array, newCapacity);
-    }
-
-    static int hugeCapacity(int minCapacity) {
-        if (minCapacity < 0) // overflow
-            throw new OutOfMemoryError();
-        return (minCapacity > MAX_ARRAY_SIZE) ?
-            Integer.MAX_VALUE :
-            MAX_ARRAY_SIZE;
+        if (newCapacity - MAX_ARRAY_SIZE > 0) {
+            if (minCapacity < 0) // overflow
+                throw new OutOfMemoryError();
+            else if (minCapacity > MAX_ARRAY_SIZE)
+                newCapacity = Integer.MAX_VALUE;
+            else
+                newCapacity = MAX_ARRAY_SIZE;
+        }
+        return array = ((items == null) ?
+                        new Object[newCapacity] :
+                        Arrays.copyOf(items, newCapacity));
     }
 
     /*
@@ -160,54 +168,30 @@ public class ReadMostlyVector<E>
      * as well as sublist and iterator classes.
      */
 
-    /**
-     * Version of indexOf that returns -1 if either not present or invalid.
-     *
-     * @throws ArrayIndexOutOfBoundsException if index is negative
-     */
-    final int validatedIndexOf(Object x, Object[] items, int index, int fence,
-                               long seq) {
-        for (int i = index; i < fence; ++i) {
-            Object e = items[i];
-            if (lock.getSequence() != seq)
-                break;
-            if ((x == null) ? e == null : x.equals(e))
-                return i;
+    static int findFirstIndex(Object[] items, Object x, int index, int fence) {
+        int len;
+        if (items != null && (len = items.length) > 0) {
+            int start = (index < 0) ? 0 : index;
+            int bound = (fence < len) ? fence : len;
+            for (int i = start; i < bound; ++i) {
+                Object e = items[i];
+                if ((x == null) ? e == null : x.equals(e))
+                    return i;
+            }
         }
         return -1;
     }
 
-    /**
-     * @throws ArrayIndexOutOfBoundsException if index is negative
-     */
-    final int rawIndexOf(Object x, int index, int fence) {
-        Object[] items = array;
-        for (int i = index; i < fence; ++i) {
-            Object e = items[i];
-            if ((x == null) ? e == null : x.equals(e))
-                return i;
-        }
-        return -1;
-    }
-
-    final int validatedLastIndexOf(Object x, Object[] items,
-                                   int index, int origin, long seq) {
-        for (int i = index; i >= origin; --i) {
-            Object e = items[i];
-            if (lock.getSequence() != seq)
-                break;
-            if ((x == null) ? e == null : x.equals(e))
-                return i;
-        }
-        return -1;
-    }
-
-    final int rawLastIndexOf(Object x, int index, int origin) {
-        Object[] items = array;
-        for (int i = index; i >= origin; --i) {
-            Object e = items[i];
-            if ((x == null) ? e == null : x.equals(e))
-                return i;
+    static int findLastIndex(Object[] items, Object x, int index, int origin) {
+        int len;
+        if (items != null && (len = items.length) > 0) {
+            int last = (index < len) ? index : len - 1;
+            int start = (origin < 0) ? 0 : origin;
+            for (int i = last; i >= start; --i) {
+                Object e = items[i];
+                if ((x == null) ? e == null : x.equals(e))
+                    return i;
+            }
         }
         return -1;
     }
@@ -215,7 +199,7 @@ public class ReadMostlyVector<E>
     final void rawAdd(E e) {
         int n = count;
         Object[] items = array;
-        if (n >= items.length)
+        if (items == null || n >= items.length)
             items = grow(n + 1);
         items[n] = e;
         count = n + 1;
@@ -226,7 +210,7 @@ public class ReadMostlyVector<E>
         Object[] items = array;
         if (index > n)
             throw new ArrayIndexOutOfBoundsException(index);
-        if (n >= items.length)
+        if (items == null || n >= items.length)
             items = grow(n + 1);
         if (index < n)
             System.arraycopy(items, index, items, index + 1, n - index);
@@ -243,7 +227,7 @@ public class ReadMostlyVector<E>
         if (len == 0)
             return false;
         int newCount = n + len;
-        if (newCount >= items.length)
+        if (items == null || newCount >= items.length)
             items = grow(newCount);
         int mv = n - index;
         if (mv > 0)
@@ -256,7 +240,7 @@ public class ReadMostlyVector<E>
     final boolean rawRemoveAt(int index) {
         int n = count - 1;
         Object[] items = array;
-        if (index < 0 || index > n)
+        if (items == null || index < 0 || index > n)
             return false;
         int mv = n - index;
         if (mv > 0)
@@ -273,61 +257,67 @@ public class ReadMostlyVector<E>
      * is left negative if the bound should be determined via count
      * field under lock.
      */
-    final boolean internalRemoveAll(Collection<?> c, int origin, int bound) {
-        final SequenceLock lock = this.lock;
+    final boolean lockedRemoveAll(Collection<?> c, int origin, int bound) {
         boolean removed = false;
-        lock.lock();
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
             int n = count;
             int fence = bound < 0 || bound > n ? n : bound;
             if (origin >= 0 && origin < fence) {
                 for (Object x : c) {
-                    while (rawRemoveAt(rawIndexOf(x, origin, fence)))
+                    while (rawRemoveAt(findFirstIndex(array, x, origin, fence)))
                         removed = true;
                 }
             }
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
         return removed;
     }
 
-    final boolean internalRetainAll(Collection<?> c, int origin, int bound) {
-        final SequenceLock lock = this.lock;
+    final boolean lockedRetainAll(Collection<?> c, int origin, int bound) {
+        final StampedLock lock = this.lock;
         boolean removed = false;
         if (c != this) {
-            lock.lock();
+            long stamp = lock.writeLock();
             try {
-                Object[] items = array;
-                int i = origin;
-                int n = count;
-                int fence = bound < 0 || bound > n ? n : bound;
-                while (i >= 0 && i < fence) {
-                    if (c.contains(items[i]))
-                        ++i;
-                    else {
-                        --fence;
-                        int mv = --n - i;
-                        if (mv > 0)
-                            System.arraycopy(items, i + 1, items, i, mv);
+                Object[] items;
+                int i, n;
+                if ((items = array) != null && (n = count) > 0 &&
+                    n < items.length && (i = origin) >= 0) {
+                    int fence = bound < 0 || bound > n ? n : bound;
+                    while (i < fence) {
+                        if (c.contains(items[i]))
+                            ++i;
+                        else {
+                            --fence;
+                            int mv = --n - i;
+                            if (mv > 0)
+                                System.arraycopy(items, i + 1, items, i, mv);
+                        }
+                    }
+                    if (count != n) {
+                        count = n;
+                        removed = true;
                     }
                 }
-                if (count != n) {
-                    count = n;
-                    removed = true;
-                }
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
         }
         return removed;
     }
 
     final void internalClear(int origin, int bound) {
-        int n = count;
-        int fence = bound < 0 || bound > n ? n : bound;
-        if (origin >= 0 && origin < fence) {
-            Object[] items = array;
+        Object[] items;
+        int n, len;
+        if ((items = array) != null && (len = items.length) > 0) {
+            if (origin < 0)
+                origin = 0;
+            if ((n = count) > len)
+                n = len;
+            int fence = bound < 0 || bound > n ? n : bound;
             int removed = fence - origin;
             int newCount = n - removed;
             int mv = n - (origin + removed);
@@ -340,253 +330,156 @@ public class ReadMostlyVector<E>
     }
 
     final boolean internalContainsAll(Collection<?> c, int origin, int bound) {
-        final SequenceLock lock = this.lock;
-        boolean contained;
-        boolean locked = false;
-        try {
-            for (;;) {
-                long seq = lock.awaitAvailability();
-                int n = count;
-                Object[] items = array;
-                int len = items.length;
-                if (n > len)
-                    continue;
-                int fence = bound < 0 || bound > n ? n : bound;
-                if (origin < 0)
-                    contained = false;
-                else {
-                    contained = true;
-                    for (Object e : c) {
-                        int idx = (locked ?
-                                   rawIndexOf(e, origin, fence) :
-                                   validatedIndexOf(e, items, origin,
-                                                    fence, seq));
-                        if (idx < 0) {
-                            contained = false;
-                            break;
-                        }
-                    }
-                }
-                if (lock.getSequence() == seq)
-                    break;
-                lock.lock();
-                locked = true;
+        Object[] items;
+        int n, len;
+        if ((items = array) != null && (len = items.length) > 0) {
+            if (origin < 0)
+                origin = 0;
+            if ((n = count) > len)
+                n = len;
+            int fence = bound < 0 || bound > n ? n : bound;
+            for (Object e : c) {
+                if (findFirstIndex(items, e, origin, fence) < 0)
+                    return false;
             }
-        } finally {
-            if (locked)
-                lock.unlock();
         }
-        return contained;
+        else if (!c.isEmpty())
+            return false;
+        return true;
     }
 
     final boolean internalEquals(List<?> list, int origin, int bound) {
-        final SequenceLock lock = this.lock;
-        boolean locked = false;
-        boolean equal;
-        try {
-            for (;;) {
-                long seq = lock.awaitAvailability();
-                Object[] items = array;
-                int n = count;
-                if (n > items.length || origin < 0)
-                    equal = false;
-                else {
-                    equal = true;
-                    int fence = bound < 0 || bound > n ? n : bound;
-                    Iterator<?> it = list.iterator();
-                    for (int i = origin; i < fence; ++i) {
-                        Object x = items[i];
-                        Object y;
-                        if ((!locked && lock.getSequence() != seq) ||
-                            !it.hasNext() ||
-                            (y = it.next()) == null ?
-                            x != null : !y.equals(x)) {
-                            equal = false;
-                            break;
-                        }
-                    }
-                    if (equal && it.hasNext())
-                        equal = false;
-                }
-                if (lock.getSequence() == seq)
-                    break;
-                lock.lock();
-                locked = true;
+        Object[] items;
+        int n, len;
+        if ((items = array) != null && (len = items.length) > 0) {
+            if (origin < 0)
+                origin = 0;
+            if ((n = count) > len)
+                n = len;
+            int fence = bound < 0 || bound > n ? n : bound;
+            Iterator<?> it = list.iterator();
+            for (int i = origin; i < fence; ++i) {
+                if (!it.hasNext())
+                    return false;
+                Object y = it.next();
+                Object x = items[i];
+                if (x != y && (x == null || !x.equals(y)))
+                    return false;
             }
-        } finally {
-            if (locked)
-                lock.unlock();
+            if (it.hasNext())
+                return false;
         }
-        return equal;
+        else if (!list.isEmpty())
+            return false;
+        return true;
     }
 
     final int internalHashCode(int origin, int bound) {
-        final SequenceLock lock = this.lock;
-        int hash;
-        boolean locked = false;
-        try {
-            for (;;) {
-                hash = 1;
-                long seq = lock.awaitAvailability();
-                Object[] items = array;
-                int n = count;
-                int len = items.length;
-                if (n > len)
-                    continue;
-                int fence = bound < 0 || bound > n ? n : bound;
-                if (origin >= 0) {
-                    for (int i = origin; i < fence; ++i) {
-                        Object e = items[i];
-                        hash = 31*hash + (e == null ? 0 : e.hashCode());
-                    }
-                }
-                if (lock.getSequence() == seq)
-                    break;
-                lock.lock();
-                locked = true;
+        int hash = 1;
+        Object[] items;
+        int n, len;
+        if ((items = array) != null && (len = items.length) > 0) {
+            if (origin < 0)
+                origin = 0;
+            if ((n = count) > len)
+                n = len;
+            int fence = bound < 0 || bound > n ? n : bound;
+            for (int i = origin; i < fence; ++i) {
+                Object e = items[i];
+                hash = 31*hash + (e == null ? 0 : e.hashCode());
             }
-        } finally {
-            if (locked)
-                lock.unlock();
         }
         return hash;
     }
 
     final String internalToString(int origin, int bound) {
-        final SequenceLock lock = this.lock;
-        String ret;
-        boolean locked = false;
-        try {
-            outer:for (;;) {
-                long seq = lock.awaitAvailability();
-                Object[] items = array;
-                int n = count;
-                int len = items.length;
-                if (n > len)
-                    continue;
-                int fence = bound < 0 || bound > n ? n : bound;
-                if (origin < 0 || origin == fence)
-                    ret = "[]";
-                else {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append('[');
-                    for (int i = origin;;) {
-                        Object e = items[i];
-                        if (e == this)
-                            sb.append("(this Collection)");
-                        else if (!locked && lock.getSequence() != seq)
-                            continue outer;
-                        else
-                            sb.append(e.toString());
-                        if (++i < fence)
-                            sb.append(',').append(' ');
-                        else {
-                            ret = sb.append(']').toString();
-                            break;
-                        }
-                    }
+        Object[] items;
+        int n, len;
+        if ((items = array) != null && (len = items.length) > 0) {
+            if ((n = count) > len)
+                n = len;
+            int fence = bound < 0 || bound > n ? n : bound;
+            int i = (origin < 0) ? 0 : origin;
+            if (i != fence) {
+                StringBuilder sb = new StringBuilder();
+                sb.append('[');
+                for (;;) {
+                    Object e = items[i];
+                    sb.append((e == this) ? "(this Collection)" : e.toString());
+                    if (++i < fence)
+                        sb.append(',').append(' ');
+                    else
+                        return sb.append(']').toString();
                 }
-                if (lock.getSequence() == seq)
-                    break;
-                lock.lock();
-                locked = true;
             }
-        } finally {
-            if (locked)
-                lock.unlock();
         }
-        return ret;
+        return "[]";
     }
 
     final Object[] internalToArray(int origin, int bound) {
-        Object[] result;
-        final SequenceLock lock = this.lock;
-        boolean locked = false;
-        try {
-            for (;;) {
-                result = null;
-                long seq = lock.awaitAvailability();
-                Object[] items = array;
-                int n = count;
-                int len = items.length;
-                if (n > len)
-                    continue;
-                int fence = bound < 0 || bound > n ? n : bound;
-                if (origin >= 0)
-                    result = Arrays.copyOfRange(items, origin, fence,
-                                                Object[].class);
-                if (lock.getSequence() == seq)
-                    break;
-                lock.lock();
-                locked = true;
-            }
-        } finally {
-            if (locked)
-                lock.unlock();
+        Object[] items;
+        int n, len;
+        if ((items = array) != null && (len = items.length) > 0) {
+            if (origin < 0)
+                origin = 0;
+            if ((n = count) > len)
+                n = len;
+            int fence = bound < 0 || bound > n ? n : bound;
+            int i = (origin < 0) ? 0 : origin;
+            if (i != fence)
+                return Arrays.copyOfRange(items, i, fence, Object[].class);
         }
-        return result;
+        return new Object[0];
     }
 
     @SuppressWarnings("unchecked")
     final <T> T[] internalToArray(T[] a, int origin, int bound) {
         int alen = a.length;
-        T[] result;
-        final SequenceLock lock = this.lock;
-        boolean locked = false;
-        try {
-            for (;;) {
-                long seq = lock.awaitAvailability();
-                Object[] items = array;
-                int n = count;
-                int len = items.length;
-                if (n > len)
-                    continue;
-                int fence = bound < 0 || bound > n ? n : bound;
-                int rlen = fence - origin;
-                if (rlen < 0)
-                    rlen = 0;
-                if (origin < 0 || alen >= rlen) {
-                    if (rlen > 0)
-                        System.arraycopy(items, 0, a, origin, rlen);
+        Object[] items;
+        int n, len;
+        if ((items = array) != null && (len = items.length) > 0) {
+            if (origin < 0)
+                origin = 0;
+            if ((n = count) > len)
+                n = len;
+            int fence = bound < 0 || bound > n ? n : bound;
+            int i = (origin < 0) ? 0 : origin;
+            int rlen = fence - origin;
+            if (rlen > 0) {
+                if (alen >= rlen) {
+                    System.arraycopy(items, 0, a, origin, rlen);
                     if (alen > rlen)
                         a[rlen] = null;
-                    result = a;
+                    return a;
                 }
-                else
-                    result = (T[]) Arrays.copyOfRange(items, origin,
-                                                      fence, a.getClass());
-                if (lock.getSequence() == seq)
-                    break;
-                lock.lock();
-                locked = true;
+                return (T[]) Arrays.copyOfRange(items, i, fence, a.getClass());
             }
-        } finally {
-            if (locked)
-                lock.unlock();
         }
-        return result;
+        if (alen > 0)
+            a[0] = null;
+        return a;
     }
 
     // public List methods
 
     public boolean add(E e) {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
             rawAdd(e);
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
         return true;
     }
 
     public void add(int index, E element) {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
             rawAddAt(index, element);
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
     }
 
@@ -595,46 +488,48 @@ public class ReadMostlyVector<E>
         int len = elements.length;
         if (len == 0)
             return false;
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
             Object[] items = array;
             int n = count;
             int newCount = n + len;
-            if (newCount >= items.length)
+            if (items == null || newCount >= items.length)
                 items = grow(newCount);
             System.arraycopy(elements, 0, items, n, len);
             count = newCount;
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
         return true;
     }
 
     public boolean addAll(int index, Collection<? extends E> c) {
-        final SequenceLock lock = this.lock;
-        boolean ret;
         Object[] elements = c.toArray();
-        lock.lock();
+        boolean ret;
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
             ret = rawAddAllAt(index, elements);
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
         return ret;
     }
 
     public void clear() {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
             int n = count;
             Object[] items = array;
-            for (int i = 0; i < n; i++)
-                items[i] = null;
+            if (items != null) {
+                for (int i = 0; i < n; i++)
+                    items[i] = null;
+            }
             count = 0;
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
     }
 
@@ -643,7 +538,15 @@ public class ReadMostlyVector<E>
     }
 
     public boolean containsAll(Collection<?> c) {
-        return internalContainsAll(c, 0, -1);
+        boolean ret;
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            ret = internalContainsAll(c, 0, -1);
+        } finally {
+            lock.unlockRead(stamp);
+        }
+        return ret;
     }
 
     public boolean equals(Object o) {
@@ -651,35 +554,76 @@ public class ReadMostlyVector<E>
             return true;
         if (!(o instanceof List))
             return false;
-        return internalEquals((List<?>)o, 0, -1);
-    }
-
-    public E get(int index) {
-        final SequenceLock lock = this.lock;
-        for (;;) {
-            long seq = lock.awaitAvailability();
-            int n = count;
-            Object[] items = array;
-            @SuppressWarnings("unchecked")
-            E e = (index < items.length) ? (E) items[index] : null;
-            if (lock.getSequence() == seq) {
-                if (index >= n)
-                    throw new ArrayIndexOutOfBoundsException(index);
-                return e;
-            }
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            return internalEquals((List<?>)o, 0, -1);
+        } finally {
+            lock.unlockRead(stamp);
         }
     }
 
+    public E get(int index) {
+        final StampedLock lock = this.lock;
+        long stamp = lock.tryOptimisticRead();
+        Object[] items;
+        if (index >= 0 && (items = array) != null &&
+            index < count && index < items.length) {
+            @SuppressWarnings("unchecked") E e = (E)items[index];
+            if (lock.validate(stamp))
+                return e;
+        }
+        return lockedGet(index);
+    }
+
+    @SuppressWarnings("unchecked") private E lockedGet(int index) {
+        boolean oobe = false;
+        E e = null;
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            Object[] items;
+            if ((items = array) != null && index < items.length &&
+                index < count && index >= 0)
+                e = (E)items[index];
+            else
+                oobe = true;
+        } finally {
+            lock.unlockRead(stamp);
+        }
+        if (oobe)
+            throw new ArrayIndexOutOfBoundsException(index);
+        return e;
+    }
+
     public int hashCode() {
-        return internalHashCode(0, -1);
+        int h;
+        final StampedLock lock = this.lock;
+        long s = lock.readLock();
+        try {
+            h = internalHashCode(0, -1);
+        } finally {
+            lock.unlockRead(s);
+        }
+        return h;
     }
 
     public int indexOf(Object o) {
-        return indexOf(o, 0);
+        int idx;
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            idx = findFirstIndex(array, o, 0, count);
+        } finally {
+            lock.unlockRead(stamp);
+        }
+        return idx;
     }
 
     public boolean isEmpty() {
-        return count == 0;
+        final StampedLock lock = this.lock;
+        long stamp = lock.tryOptimisticRead();
+        return count == 0; // no need for validation
     }
 
     public Iterator<E> iterator() {
@@ -687,28 +631,15 @@ public class ReadMostlyVector<E>
     }
 
     public int lastIndexOf(Object o) {
-        final SequenceLock lock = this.lock;
-        for (;;) {
-            long seq = lock.awaitAvailability();
-            Object[] items = array;
-            int n = count;
-            if (n <= items.length) {
-                for (int i = n - 1; i >= 0; --i) {
-                    Object e = items[i];
-                    if (lock.getSequence() != seq) {
-                        lock.lock();
-                        try {
-                            return rawLastIndexOf(o, count - 1, 0);
-                        } finally {
-                            lock.unlock();
-                        }
-                    }
-                    else if ((o == null) ? e == null : o.equals(e))
-                        return i;
-                }
-                return -1;
-            }
+        int idx;
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            idx = findLastIndex(array, o, count - 1, 0);
+        } finally {
+            lock.unlockRead(stamp);
         }
+        return idx;
     }
 
     public ListIterator<E> listIterator() {
@@ -719,77 +650,130 @@ public class ReadMostlyVector<E>
         return new Itr<E>(this, index);
     }
 
-    public E remove(int index) {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+    @SuppressWarnings("unchecked") public E remove(int index) {
+        E oldValue = null;
+        boolean oobe = false;
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
             if (index < 0 || index >= count)
-                throw new ArrayIndexOutOfBoundsException(index);
-            @SuppressWarnings("unchecked")
-            E oldValue = (E) array[index];
-            rawRemoveAt(index);
-            return oldValue;
+                oobe = true;
+            else {
+                oldValue = (E) array[index];
+                rawRemoveAt(index);
+            }
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
+        if (oobe)
+            throw new ArrayIndexOutOfBoundsException(index);
+        return oldValue;
     }
 
     public boolean remove(Object o) {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
-            return rawRemoveAt(rawIndexOf(o, 0, count));
+            return rawRemoveAt(findFirstIndex(array, o, 0, count));
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
     }
 
     public boolean removeAll(Collection<?> c) {
-        return internalRemoveAll(c, 0, -1);
+        return lockedRemoveAll(c, 0, -1);
     }
 
     public boolean retainAll(Collection<?> c) {
-        return internalRetainAll(c, 0, -1);
+        return lockedRetainAll(c, 0, -1);
     }
 
-    public E set(int index, E element) {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+    @SuppressWarnings("unchecked") public E set(int index, E element) {
+        E oldValue = null;
+        boolean oobe = false;
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
             Object[] items = array;
-            if (index < 0 || index >= count)
-                throw new ArrayIndexOutOfBoundsException(index);
-            @SuppressWarnings("unchecked")
-            E oldValue = (E) items[index];
-            items[index] = element;
-            return oldValue;
+            if (items == null || index < 0 || index >= count)
+                oobe = true;
+            else {
+                oldValue = (E) items[index];
+                items[index] = element;
+            }
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
+        if (oobe)
+            throw new ArrayIndexOutOfBoundsException(index);
+        return oldValue;
     }
 
     public int size() {
-        return count;
+        final StampedLock lock = this.lock;
+        long stamp = lock.tryOptimisticRead();
+        return count; // no need for validation
+    }
+
+    private int lockedSize() {
+        int n;
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            n = count;
+        } finally {
+            lock.unlockRead(stamp);
+        }
+        return n;
     }
 
     public List<E> subList(int fromIndex, int toIndex) {
-        int c = size();
         int ssize = toIndex - fromIndex;
-        if (fromIndex < 0 || toIndex > c || ssize < 0)
-            throw new IndexOutOfBoundsException();
-        return new ReadMostlyVectorSublist<E>(this, fromIndex, ssize);
+        if (ssize >= 0 && fromIndex >= 0) {
+            ReadMostlyVectorSublist<E> ret = null;
+            final StampedLock lock = this.lock;
+            long stamp = lock.readLock();
+            try {
+                if (toIndex <= count)
+                    ret = new ReadMostlyVectorSublist<E>(this, fromIndex, ssize);
+            } finally {
+                lock.unlockRead(stamp);
+            }
+            if (ret != null)
+                return ret;
+        }
+
+        throw new ArrayIndexOutOfBoundsException(fromIndex < 0 ? fromIndex : toIndex);
     }
 
     public Object[] toArray() {
-        return internalToArray(0, -1);
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            return internalToArray(0, -1);
+        } finally {
+            lock.unlockRead(stamp);
+        }
     }
 
     public <T> T[] toArray(T[] a) {
-        return internalToArray(a, 0, -1);
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            return internalToArray(a, 0, -1);
+        } finally {
+            lock.unlockRead(stamp);
+        }
     }
 
     public String toString() {
-        return internalToString(0, -1);
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            return internalToString(0, -1);
+        } finally {
+            lock.unlockRead(stamp);
+        }
     }
 
     // ReadMostlyVector-only methods
@@ -801,18 +785,20 @@ public class ReadMostlyVector<E>
      * @return {@code true} if the element was added
      */
     public boolean addIfAbsent(E e) {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        boolean ret;
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
-            if (rawIndexOf(e, 0, count) < 0) {
+            if (findFirstIndex(array, e, 0, count) < 0) {
                 rawAdd(e);
-                return true;
+                ret = true;
             }
             else
-                return false;
+                ret = false;
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
+        return ret;
     }
 
     /**
@@ -831,18 +817,18 @@ public class ReadMostlyVector<E>
         Object[] cs = c.toArray();
         int clen = cs.length;
         if (clen != 0) {
-            lock.lock();
+            long stamp = lock.writeLock();
             try {
                 for (int i = 0; i < clen; ++i) {
                     @SuppressWarnings("unchecked")
                     E e = (E) cs[i];
-                    if (rawIndexOf(e, 0, count) < 0) {
+                    if (findFirstIndex(array, e, 0, count) < 0) {
                         rawAdd(e);
                         ++added;
                     }
                 }
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
         }
         return added;
@@ -865,8 +851,7 @@ public class ReadMostlyVector<E>
         private int cursor;
         SnapshotIterator(ReadMostlyVector<E> v) { items = v.toArray(); }
         public boolean hasNext() { return cursor < items.length; }
-        @SuppressWarnings("unchecked")
-        public E next() {
+        @SuppressWarnings("unchecked") public E next() {
             if (cursor < items.length)
                 return (E) items[cursor++];
             throw new NoSuchElementException();
@@ -874,84 +859,127 @@ public class ReadMostlyVector<E>
         public void remove() { throw new UnsupportedOperationException() ; }
     }
 
+    /** Interface describing a void action of one argument */
+    public interface Action<A> { void apply(A a); }
+
+    public void forEachReadOnly(Action<E> action) {
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            Object[] items;
+            int len, n;
+            if ((items = array) != null && (len = items.length) > 0 &&
+                (n = count) <= len) {
+                for (int i = 0; i < n; ++i) {
+                    @SuppressWarnings("unchecked") E e = (E)items[i];
+                    action.apply(e);
+                }
+            }
+        } finally {
+            lock.unlockRead(stamp);
+        }
+    }
+
     // Vector-only methods
 
     /** See {@link Vector#firstElement} */
     public E firstElement() {
-        final SequenceLock lock = this.lock;
-        for (;;) {
-            long seq = lock.awaitAvailability();
-            Object[] items = array;
-            int n = count;
-            @SuppressWarnings("unchecked")
-            E e = (items.length > 0) ? (E) items[0] : null;
-            if (lock.getSequence() == seq) {
-                if (n <= 0)
-                    throw new NoSuchElementException();
+        final StampedLock lock = this.lock;
+        long stamp = lock.tryOptimisticRead();
+        Object[] items;
+        if ((items = array) != null && count > 0 && items.length > 0) {
+            @SuppressWarnings("unchecked") E e = (E)items[0];
+            if (lock.validate(stamp))
                 return e;
-            }
         }
+        return lockedFirstElement();
+    }
+
+    @SuppressWarnings("unchecked") private E lockedFirstElement() {
+        Object e = null;
+        boolean oobe = false;
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            Object[] items = array;
+            if (items != null && count > 0 && items.length > 0)
+                e = items[0];
+            else
+                oobe = true;
+        } finally {
+            lock.unlockRead(stamp);
+        }
+        if (oobe)
+            throw new NoSuchElementException();
+        return (E) e;
     }
 
     /** See {@link Vector#lastElement} */
     public E lastElement() {
-        final SequenceLock lock = this.lock;
-        for (;;) {
-            long seq = lock.awaitAvailability();
-            Object[] items = array;
-            int n = count;
-            @SuppressWarnings("unchecked")
-            E e = (n > 0 && items.length >= n) ? (E) items[n - 1] : null;
-            if (lock.getSequence() == seq) {
-                if (n <= 0)
-                    throw new NoSuchElementException();
+        final StampedLock lock = this.lock;
+        long stamp = lock.tryOptimisticRead();
+        Object[] items;
+        int i;
+        if ((items = array) != null && (i = count - 1) >= 0 &&
+            i < items.length) {
+            @SuppressWarnings("unchecked") E e = (E)items[i];
+            if (lock.validate(stamp))
                 return e;
-            }
         }
+        return lockedLastElement();
+    }
+
+    @SuppressWarnings("unchecked") private E lockedLastElement() {
+        Object e = null;
+        boolean oobe = false;
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            Object[] items = array;
+            int i = count - 1;
+            if (items != null && i >= 0 && i < items.length)
+                e = items[i];
+            else
+                oobe = true;
+        } finally {
+            lock.unlockRead(stamp);
+        }
+        if (oobe)
+            throw new NoSuchElementException();
+        return (E) e;
     }
 
     /** See {@link Vector#indexOf(Object, int)} */
     public int indexOf(Object o, int index) {
-        final SequenceLock lock = this.lock;
-        long seq = lock.awaitAvailability();
-        Object[] items = array;
-        int n = count;
-        int idx = -1;
-        if (n <= items.length)
-            idx = validatedIndexOf(o, items, index, n, seq);
-        if (lock.getSequence() != seq) {
-            lock.lock();
-            try {
-                idx = rawIndexOf(o, index, count);
-            } finally {
-                lock.unlock();
-            }
+        if (index < 0)
+            throw new ArrayIndexOutOfBoundsException(index);
+        int idx;
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            idx = findFirstIndex(array, o, index, count);
+        } finally {
+            lock.unlockRead(stamp);
         }
-        // Above code will throw AIOOBE when index < 0
         return idx;
     }
 
     /** See {@link Vector#lastIndexOf(Object, int)} */
     public int lastIndexOf(Object o, int index) {
-        final SequenceLock lock = this.lock;
-        long seq = lock.awaitAvailability();
-        Object[] items = array;
-        int n = count;
+        boolean oobe = false;
         int idx = -1;
-        if (index < Math.min(n, items.length))
-            idx = validatedLastIndexOf(o, items, index, 0, seq);
-        if (lock.getSequence() != seq) {
-            lock.lock();
-            try {
-                n = count;
-                if (index < n)
-                    idx = rawLastIndexOf(o, index, 0);
-            } finally {
-                lock.unlock();
-            }
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            if (index < count)
+                idx = findLastIndex(array, o, index, 0);
+            else
+                oobe = true;
+        } finally {
+            lock.unlockRead(stamp);
         }
-        if (index >= n)
-            throw new IndexOutOfBoundsException(index + " >= " + n);
+        if (oobe)
+            throw new ArrayIndexOutOfBoundsException(index);
         return idx;
     }
 
@@ -959,58 +987,62 @@ public class ReadMostlyVector<E>
     public void setSize(int newSize) {
         if (newSize < 0)
             throw new ArrayIndexOutOfBoundsException(newSize);
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
+            Object[] items;
             int n = count;
             if (newSize > n)
                 grow(newSize);
-            else {
-                Object[] items = array;
+            else if ((items = array) != null) {
                 for (int i = newSize ; i < n ; i++)
                     items[i] = null;
             }
             count = newSize;
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
     }
 
     /** See {@link Vector#copyInto} */
     public void copyInto(Object[] anArray) {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
-            System.arraycopy(array, 0, anArray, 0, count);
+            Object[] items;
+            if ((items = array) != null)
+                System.arraycopy(items, 0, anArray, 0, count);
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
     }
 
     /** See {@link Vector#trimToSize} */
     public void trimToSize() {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        final StampedLock lock = this.lock;
+        long stamp = lock.writeLock();
         try {
             Object[] items = array;
             int n = count;
-            if (n < items.length)
+            if (items != null && n < items.length)
                 array = Arrays.copyOf(items, n);
         } finally {
-            lock.unlock();
+            lock.unlockWrite(stamp);
         }
     }
 
     /** See {@link Vector#ensureCapacity} */
     public void ensureCapacity(int minCapacity) {
         if (minCapacity > 0) {
-            final SequenceLock lock = this.lock;
-            lock.lock();
+            final StampedLock lock = this.lock;
+            long stamp = lock.writeLock();
             try {
-                if (minCapacity - array.length > 0)
+                Object[] items = array;
+                int cap = (items == null) ? 0 : items.length;
+                if (minCapacity - cap > 0)
                     grow(minCapacity);
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
         }
     }
@@ -1063,180 +1095,159 @@ public class ReadMostlyVector<E>
     // other methods
 
     public ReadMostlyVector<E> clone() {
-        final SequenceLock lock = this.lock;
         Object[] a = null;
-        boolean retry = false;
-        long seq = lock.awaitAvailability();
-        Object[] items = array;
-        int n = count;
-        if (n <= items.length)
-            a = Arrays.copyOf(items, n);
-        else
-            retry = true;
-        if (retry || lock.getSequence() != seq) {
-            lock.lock();
-            try {
-                n = count;
-                a = Arrays.copyOf(array, n);
-            } finally {
-                lock.unlock();
+        int n;
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
+        try {
+            Object[] items = array;
+            if (items == null)
+                n = 0;
+            else {
+                int len = items.length;
+                if ((n = count) > len)
+                    n = len;
+                a = Arrays.copyOf(items, n);
             }
+        } finally {
+            lock.unlockRead(stamp);
         }
         return new ReadMostlyVector<E>(a, n, capacityIncrement);
     }
 
     private void writeObject(java.io.ObjectOutputStream s)
-            throws java.io.IOException {
-        final SequenceLock lock = this.lock;
-        lock.lock();
+        throws java.io.IOException {
+        final StampedLock lock = this.lock;
+        long stamp = lock.readLock();
         try {
             s.defaultWriteObject();
         } finally {
-            lock.unlock();
+            lock.unlockRead(stamp);
         }
     }
 
     static final class Itr<E> implements ListIterator<E>, Enumeration<E> {
+        final StampedLock lock;
         final ReadMostlyVector<E> list;
-        final SequenceLock lock;
         Object[] items;
-        E next, prev;
         long seq;
         int cursor;
         int fence;
         int lastRet;
-        boolean validNext, validPrev;
 
         Itr(ReadMostlyVector<E> list, int index) {
-            this.list = list;
-            this.lock = list.lock;
-            this.cursor = index;
-            this.lastRet = -1;
-            refresh();
+            final StampedLock lock = list.lock;
+            long stamp = lock.readLock();
+            try {
+                this.list = list;
+                this.lock = lock;
+                this.items = list.array;
+                this.fence = list.count;
+                this.cursor = index;
+                this.lastRet = -1;
+            } finally {
+                this.seq = lock.tryConvertToOptimisticRead(stamp);
+            }
             if (index < 0 || index > fence)
                 throw new ArrayIndexOutOfBoundsException(index);
         }
 
-        private void refresh() {
-            validNext = validPrev = false;
-            do {
-                seq = lock.awaitAvailability();
-                items = list.array;
-            } while ((fence = list.count) > items.length ||
-                     lock.getSequence() != seq);
-        }
-
-        @SuppressWarnings("unchecked")
-        public boolean hasNext() {
-            boolean valid;
-            int i = cursor;
-            for (;;) {
-                if (i >= fence || i < 0 || i >= items.length) {
-                    valid = false;
-                    break;
-                }
-                next = (E) items[i];
-                if (lock.getSequence() == seq) {
-                    valid = true;
-                    break;
-                }
-                refresh();
-            }
-            return validNext = valid;
-        }
-
-        @SuppressWarnings("unchecked")
         public boolean hasPrevious() {
-            boolean valid;
-            int i = cursor - 1;
-            for (;;) {
-                if (i >= fence || i < 0 || i >= items.length) {
-                    valid = false;
-                    break;
-                }
-                prev = (E) items[i];
-                if (lock.getSequence() == seq) {
-                    valid = true;
-                    break;
-                }
-                refresh();
-            }
-            return validPrev = valid;
+            return cursor > 0;
+        }
+
+        public int nextIndex() {
+            return cursor;
+        }
+
+        public int previousIndex() {
+            return cursor - 1;
+        }
+
+        public boolean hasNext() {
+            return cursor < fence;
         }
 
         public E next() {
-            if (validNext || hasNext()) {
-                validNext = false;
-                lastRet = cursor++;
-                return next;
-            }
-            throw new NoSuchElementException();
+            int i = cursor;
+            Object[] es = items;
+            if (es == null || i < 0 || i >= fence || i >= es.length)
+                throw new NoSuchElementException();
+            @SuppressWarnings("unchecked") E e = (E)es[i];
+            lastRet = i;
+            cursor = i + 1;
+            if (!lock.validate(seq))
+                throw new ConcurrentModificationException();
+            return e;
         }
 
         public E previous() {
-            if (validPrev || hasPrevious()) {
-                validPrev = false;
-                lastRet = cursor--;
-                return prev;
-            }
-            throw new NoSuchElementException();
+            int i = cursor - 1;
+            Object[] es = items;
+            if (es == null || i < 0 || i >= fence || i >= es.length)
+                throw new NoSuchElementException();
+            @SuppressWarnings("unchecked") E e = (E)es[i];
+            lastRet = i;
+            cursor = i;
+            if (!lock.validate(seq))
+                throw new ConcurrentModificationException();
+            return e;
         }
 
         public void remove() {
             int i = lastRet;
             if (i < 0)
                 throw new IllegalStateException();
-            lock.lock();
+            if ((seq = lock.tryConvertToWriteLock(seq)) == 0)
+                throw new ConcurrentModificationException();
             try {
-                if (i < list.count)
-                    list.remove(i);
+                list.rawRemoveAt(i);
+                fence = list.count;
+                cursor = i;
+                lastRet = -1;
             } finally {
-                lock.unlock();
+                seq = lock.tryConvertToOptimisticRead(seq);
             }
-            cursor = i;
-            lastRet = -1;
-            refresh();
         }
 
         public void set(E e) {
             int i = lastRet;
-            if (i < 0)
+            Object[] es = items;
+            if (es == null || i < 0 | i >= fence)
                 throw new IllegalStateException();
-            lock.lock();
+            if ((seq = lock.tryConvertToWriteLock(seq)) == 0)
+                throw new ConcurrentModificationException();
             try {
-                if (i < list.count)
-                    list.set(i, e);
+                es[i] = e;
             } finally {
-                lock.unlock();
+                seq = lock.tryConvertToOptimisticRead(seq);
             }
-            refresh();
         }
 
         public void add(E e) {
             int i = cursor;
             if (i < 0)
                 throw new IllegalStateException();
-            lock.lock();
+            if ((seq = lock.tryConvertToWriteLock(seq)) == 0)
+                throw new ConcurrentModificationException();
             try {
-                if (i <= list.count)
-                    list.add(i, e);
+                list.rawAddAt(i, e);
+                items = list.array;
+                fence = list.count;
+                cursor = i + 1;
+                lastRet = -1;
             } finally {
-                lock.unlock();
+                seq = lock.tryConvertToOptimisticRead(seq);
             }
-            cursor = i + 1;
-            lastRet = -1;
-            refresh();
         }
 
         public boolean hasMoreElements() { return hasNext(); }
         public E nextElement() { return next(); }
-        public int nextIndex() { return cursor; }
-        public int previousIndex() { return cursor - 1; }
     }
 
     static final class ReadMostlyVectorSublist<E>
             implements List<E>, RandomAccess, java.io.Serializable {
-        static final long serialVersionUID = 3041673470172026059L;
+        private static final long serialVersionUID = 3041673470172026059L;
 
         final ReadMostlyVector<E> list;
         final int offset;
@@ -1255,35 +1266,35 @@ public class ReadMostlyVector<E>
         }
 
         public boolean add(E element) {
-            final SequenceLock lock = list.lock;
-            lock.lock();
+            final StampedLock lock = list.lock;
+            long stamp = lock.writeLock();
             try {
                 int c = size;
                 list.rawAddAt(c + offset, element);
                 size = c + 1;
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
             return true;
         }
 
         public void add(int index, E element) {
-            final SequenceLock lock = list.lock;
-            lock.lock();
+            final StampedLock lock = list.lock;
+            long stamp = lock.writeLock();
             try {
                 if (index < 0 || index > size)
                     throw new ArrayIndexOutOfBoundsException(index);
                 list.rawAddAt(index + offset, element);
                 ++size;
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
         }
 
         public boolean addAll(Collection<? extends E> c) {
             Object[] elements = c.toArray();
-            final SequenceLock lock = list.lock;
-            lock.lock();
+            final StampedLock lock = list.lock;
+            long stamp = lock.writeLock();
             try {
                 int s = size;
                 int pc = list.count;
@@ -1292,14 +1303,14 @@ public class ReadMostlyVector<E>
                 size = s + added;
                 return added != 0;
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
         }
 
         public boolean addAll(int index, Collection<? extends E> c) {
             Object[] elements = c.toArray();
-            final SequenceLock lock = list.lock;
-            lock.lock();
+            final StampedLock lock = list.lock;
+            long stamp = lock.writeLock();
             try {
                 int s = size;
                 if (index < 0 || index > s)
@@ -1310,18 +1321,18 @@ public class ReadMostlyVector<E>
                 size = s + added;
                 return added != 0;
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
         }
 
         public void clear() {
-            final SequenceLock lock = list.lock;
-            lock.lock();
+            final StampedLock lock = list.lock;
+            long stamp = lock.writeLock();
             try {
                 list.internalClear(offset, offset + size);
                 size = 0;
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
         }
 
@@ -1330,7 +1341,13 @@ public class ReadMostlyVector<E>
         }
 
         public boolean containsAll(Collection<?> c) {
-            return list.internalContainsAll(c, offset, offset + size);
+            final StampedLock lock = list.lock;
+            long stamp = lock.readLock();
+            try {
+                return list.internalContainsAll(c, offset, offset + size);
+            } finally {
+                lock.unlockRead(stamp);
+            }
         }
 
         public boolean equals(Object o) {
@@ -1338,7 +1355,13 @@ public class ReadMostlyVector<E>
                 return true;
             if (!(o instanceof List))
                 return false;
-            return list.internalEquals((List<?>)(o), offset, offset + size);
+            final StampedLock lock = list.lock;
+            long stamp = lock.readLock();
+            try {
+                return list.internalEquals((List<?>)(o), offset, offset + size);
+            } finally {
+                lock.unlockRead(stamp);
+            }
         }
 
         public E get(int index) {
@@ -1348,31 +1371,28 @@ public class ReadMostlyVector<E>
         }
 
         public int hashCode() {
-            return list.internalHashCode(offset, offset + size);
+            final StampedLock lock = list.lock;
+            long stamp = lock.readLock();
+            try {
+                return list.internalHashCode(offset, offset + size);
+            } finally {
+                lock.unlockRead(stamp);
+            }
         }
 
         public int indexOf(Object o) {
-            final SequenceLock lock = list.lock;
-            long seq = lock.awaitAvailability();
-            Object[] items = list.array;
-            int c = list.count;
-            if (c <= items.length) {
-                int idx = list.validatedIndexOf(o, items, offset,
-                                                offset + size, seq);
-                if (lock.getSequence() == seq)
-                    return idx < 0 ? -1 : idx - offset;
-            }
-            lock.lock();
+            final StampedLock lock = list.lock;
+            long stamp = lock.readLock();
             try {
-                int idx = list.rawIndexOf(o, offset, offset + size);
+                int idx = findFirstIndex(list.array, o, offset, offset + size);
                 return idx < 0 ? -1 : idx - offset;
             } finally {
-                lock.unlock();
+                lock.unlockRead(stamp);
             }
         }
 
         public boolean isEmpty() {
-            return size == 0;
+            return size() == 0;
         }
 
         public Iterator<E> iterator() {
@@ -1380,22 +1400,13 @@ public class ReadMostlyVector<E>
         }
 
         public int lastIndexOf(Object o) {
-            final SequenceLock lock = list.lock;
-            long seq = lock.awaitAvailability();
-            Object[] items = list.array;
-            int c = list.count;
-            if (c <= items.length) {
-                int idx = list.validatedLastIndexOf(o, items, offset+size-1,
-                                                    offset, seq);
-                if (lock.getSequence() == seq)
-                    return idx < 0 ? -1 : idx - offset;
-            }
-            lock.lock();
+            final StampedLock lock = list.lock;
+            long stamp = lock.readLock();
             try {
-                int idx = list.rawLastIndexOf(o, offset + size - 1, offset);
+                int idx = findLastIndex(list.array, o, offset + size - 1, offset);
                 return idx < 0 ? -1 : idx - offset;
             } finally {
-                lock.unlock();
+                lock.unlockRead(stamp);
             }
         }
 
@@ -1408,45 +1419,44 @@ public class ReadMostlyVector<E>
         }
 
         public E remove(int index) {
-            final SequenceLock lock = list.lock;
-            lock.lock();
+            final StampedLock lock = list.lock;
+            long stamp = lock.writeLock();
             try {
                 Object[] items = list.array;
                 int i = index + offset;
-                if (index < 0 || index >= size || i >= items.length)
+                if (items == null || index < 0 || index >= size || i >= items.length)
                     throw new ArrayIndexOutOfBoundsException(index);
-                @SuppressWarnings("unchecked")
-                E result = (E) items[i];
+                @SuppressWarnings("unchecked") E result = (E)items[i];
                 list.rawRemoveAt(i);
                 size--;
                 return result;
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
         }
 
         public boolean remove(Object o) {
-            final SequenceLock lock = list.lock;
-            lock.lock();
+            final StampedLock lock = list.lock;
+            long stamp = lock.writeLock();
             try {
-                if (list.rawRemoveAt(list.rawIndexOf(o, offset,
-                                                     offset + size))) {
+                if (list.rawRemoveAt(findFirstIndex(list.array, o, offset,
+                                                    offset + size))) {
                     --size;
                     return true;
                 }
                 else
                     return false;
             } finally {
-                lock.unlock();
+                lock.unlockWrite(stamp);
             }
         }
 
         public boolean removeAll(Collection<?> c) {
-            return list.internalRemoveAll(c, offset, offset + size);
+            return list.lockedRemoveAll(c, offset, offset + size);
         }
 
         public boolean retainAll(Collection<?> c) {
-            return list.internalRetainAll(c, offset, offset + size);
+            return list.lockedRetainAll(c, offset, offset + size);
         }
 
         public E set(int index, E element) {
@@ -1462,21 +1472,41 @@ public class ReadMostlyVector<E>
         public List<E> subList(int fromIndex, int toIndex) {
             int c = size;
             int ssize = toIndex - fromIndex;
-            if (fromIndex < 0 || toIndex > c || ssize < 0)
-                throw new IndexOutOfBoundsException();
+            if (fromIndex < 0)
+                throw new ArrayIndexOutOfBoundsException(fromIndex);
+            if (toIndex > c || ssize < 0)
+                throw new ArrayIndexOutOfBoundsException(toIndex);
             return new ReadMostlyVectorSublist<E>(list, offset+fromIndex, ssize);
         }
 
         public Object[] toArray() {
-            return list.internalToArray(offset, offset + size);
+            final StampedLock lock = list.lock;
+            long stamp = lock.readLock();
+            try {
+                return list.internalToArray(offset, offset + size);
+            } finally {
+                lock.unlockRead(stamp);
+            }
         }
 
         public <T> T[] toArray(T[] a) {
-            return list.internalToArray(a, offset, offset + size);
+            final StampedLock lock = list.lock;
+            long stamp = lock.readLock();
+            try {
+                return list.internalToArray(a, offset, offset + size);
+            } finally {
+                lock.unlockRead(stamp);
+            }
         }
 
         public String toString() {
-            return list.internalToString(offset, offset + size);
+            final StampedLock lock = list.lock;
+            long stamp = lock.readLock();
+            try {
+                return list.internalToString(offset, offset + size);
+            } finally {
+                lock.unlockRead(stamp);
+            }
         }
 
     }
@@ -1484,153 +1514,118 @@ public class ReadMostlyVector<E>
     static final class SubItr<E> implements ListIterator<E> {
         final ReadMostlyVectorSublist<E> sublist;
         final ReadMostlyVector<E> list;
-        final SequenceLock lock;
+        final StampedLock lock;
         Object[] items;
-        E next, prev;
         long seq;
         int cursor;
+        int origin;
         int fence;
         int lastRet;
-        boolean validNext, validPrev;
 
         SubItr(ReadMostlyVectorSublist<E> sublist, int index) {
-            this.sublist = sublist;
-            this.list = sublist.list;
-            this.lock = list.lock;
-            this.cursor = index;
-            this.lastRet = -1;
-            refresh();
-            if (index < 0 || index > fence)
+            final StampedLock lock = sublist.list.lock;
+            long stamp = lock.readLock();
+            try {
+                this.sublist = sublist;
+                this.list = sublist.list;
+                this.lock = lock;
+                this.cursor = index;
+                this.origin = sublist.offset;
+                this.fence = origin + sublist.size;
+                this.lastRet = -1;
+            } finally {
+                this.seq = lock.tryConvertToOptimisticRead(stamp);
+            }
+            if (index < 0 || cursor > fence)
                 throw new ArrayIndexOutOfBoundsException(index);
         }
 
-        private void refresh() {
-            validNext = validPrev = false;
-            do {
-                int n;
-                seq = lock.awaitAvailability();
-                items = list.array;
-                if ((n = list.count) > items.length)
-                    continue;
-                int b = sublist.offset + sublist.size;
-                fence = b < n ? b : n;
-            } while (lock.getSequence() != seq);
-        }
-
-        @SuppressWarnings("unchecked")
-        public boolean hasNext() {
-            boolean valid;
-            int i = cursor;
-            for (;;) {
-                if (i >= fence || i < 0 || i >= items.length) {
-                    valid = false;
-                    break;
-                }
-                next = (E) items[i];
-                if (lock.getSequence() == seq) {
-                    valid = true;
-                    break;
-                }
-                refresh();
-            }
-            return validNext = valid;
-        }
-
-        @SuppressWarnings("unchecked")
-        public boolean hasPrevious() {
-            boolean valid;
-            int i = cursor - 1;
-            for (;;) {
-                if (i >= fence || i < 0 || i >= items.length) {
-                    valid = false;
-                    break;
-                }
-                prev = (E) items[i];
-                if (lock.getSequence() == seq) {
-                    valid = true;
-                    break;
-                }
-                refresh();
-            }
-            return validPrev = valid;
-        }
-
-        public E next() {
-            if (validNext || hasNext()) {
-                validNext = false;
-                lastRet = cursor++;
-                return next;
-            }
-            throw new NoSuchElementException();
-        }
-
-        public E previous() {
-            if (validPrev || hasPrevious()) {
-                validPrev = false;
-                lastRet = cursor--;
-                return prev;
-            }
-            throw new NoSuchElementException();
-        }
-
         public int nextIndex() {
-            return cursor - sublist.offset;
+            return cursor - origin;
         }
 
         public int previousIndex() {
-            return cursor - 1 - sublist.offset;
+            return cursor - origin - 1;
+        }
+
+        public boolean hasNext() {
+            return cursor < fence;
+        }
+
+        public boolean hasPrevious() {
+            return cursor > origin;
+        }
+
+        public E next() {
+            int i = cursor;
+            Object[] es = items;
+            if (es == null || i < origin || i >= fence || i >= es.length)
+                throw new NoSuchElementException();
+            @SuppressWarnings("unchecked") E e = (E)es[i];
+            lastRet = i;
+            cursor = i + 1;
+            if (!lock.validate(seq))
+                throw new ConcurrentModificationException();
+            return e;
+        }
+
+        public E previous() {
+            int i = cursor - 1;
+            Object[] es = items;
+            if (es == null || i < 0 || i >= fence || i >= es.length)
+                throw new NoSuchElementException();
+            @SuppressWarnings("unchecked") E e = (E)es[i];
+            lastRet = i;
+            cursor = i;
+            if (!lock.validate(seq))
+                throw new ConcurrentModificationException();
+            return e;
         }
 
         public void remove() {
             int i = lastRet;
             if (i < 0)
                 throw new IllegalStateException();
-            cursor = i;
-            lastRet = -1;
-            lock.lock();
+            if ((seq = lock.tryConvertToWriteLock(seq)) == 0)
+                throw new ConcurrentModificationException();
             try {
-                if (i < list.count) {
-                    list.remove(i);
-                    --sublist.size;
-                }
+                list.rawRemoveAt(i);
+                fence = origin + sublist.size;
+                cursor = i;
+                lastRet = -1;
             } finally {
-                lock.unlock();
+                seq = lock.tryConvertToOptimisticRead(seq);
             }
-            refresh();
         }
 
         public void set(E e) {
             int i = lastRet;
-            if (i < 0)
+            if (i < origin || i >= fence)
                 throw new IllegalStateException();
-            lock.lock();
+            if ((seq = lock.tryConvertToWriteLock(seq)) == 0)
+                throw new ConcurrentModificationException();
             try {
-                if (i < list.count)
-                    list.set(i, e);
+                list.set(i, e);
             } finally {
-                lock.unlock();
+                seq = lock.tryConvertToOptimisticRead(seq);
             }
-            refresh();
         }
 
         public void add(E e) {
             int i = cursor;
-            if (i < 0)
+            if (i < origin || i >= fence)
                 throw new IllegalStateException();
-            cursor = i + 1;
-            lastRet = -1;
-            lock.lock();
+            if ((seq = lock.tryConvertToWriteLock(seq)) == 0)
+                throw new ConcurrentModificationException();
             try {
-                if (i <= list.count) {
-                    list.add(i, e);
-                    ++sublist.size;
-                }
+                list.rawAddAt(i, e);
+                items = list.array;
+                fence = origin + sublist.size;
+                cursor = i + 1;
+                lastRet = -1;
             } finally {
-                lock.unlock();
+                seq = lock.tryConvertToOptimisticRead(seq);
             }
-            refresh();
         }
-
     }
 }
-

@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -359,8 +358,12 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> shutting down the nodes");
-        client("node1").admin().cluster().prepareNodesShutdown().setDelay("10ms").setExit(false).execute().actionGet();
-        assertThat(waitForNodesToShutdown(TimeValue.timeValueSeconds(30), "node1", "node2", "node3", "node4"), equalTo(true));
+        // Disable allocations while we are closing nodes
+        client("node1").admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.disable_allocation", true)).execute().actionGet();
+        for (int i = 1; i < 5; i++) {
+            closeNode("node" + i);
+        }
+
         logger.info("--> start the nodes back up");
         startNode("node1", settings);
         startNode("node2", settings);
@@ -374,8 +377,11 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> shutting down the nodes");
-        client("node1").admin().cluster().prepareNodesShutdown().setDelay("10ms").setExit(false).execute().actionGet();
-        assertThat(waitForNodesToShutdown(TimeValue.timeValueSeconds(30), "node1", "node2", "node3", "node4"), equalTo(true));
+        // Disable allocations while we are closing nodes
+        client("node1").admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.disable_allocation", true)).execute().actionGet();
+        for (int i = 1; i < 5; i++) {
+            closeNode("node" + i);
+        }
 
         logger.info("--> start the nodes back up");
         startNode("node1", settings);

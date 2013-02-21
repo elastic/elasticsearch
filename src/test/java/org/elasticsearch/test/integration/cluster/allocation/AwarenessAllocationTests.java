@@ -69,22 +69,28 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
         logger.info("--> starting 1 node on a different rack");
         startNode("node3", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2"));
 
-        Thread.sleep(500);
+        long start = System.currentTimeMillis();
+        TObjectIntHashMap<String> counts;
+        // On slow machines the initial relocation might be delayed
+        do {
+            Thread.sleep(100);
+            logger.info("--> waiting for no relocation");
+            health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
+            assertThat(health.isTimedOut(), equalTo(false));
 
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
-        assertThat(health.isTimedOut(), equalTo(false));
-
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
-        //System.out.println(clusterState.routingTable().prettyPrint());
-        // verify that we have 10 shards on node3
-        TObjectIntHashMap<String> counts = new TObjectIntHashMap<String>();
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+            logger.info("--> checking current state");
+            ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+            //System.out.println(clusterState.routingTable().prettyPrint());
+            // verify that we have 10 shards on node3
+            counts = new TObjectIntHashMap<String>();
+            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                    for (ShardRouting shardRouting : indexShardRoutingTable) {
+                        counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+                    }
                 }
             }
-        }
+        } while (counts.get("node3") != 10 && (System.currentTimeMillis() - start) < 10000);
         assertThat(counts.get("node3"), equalTo(10));
     }
 }

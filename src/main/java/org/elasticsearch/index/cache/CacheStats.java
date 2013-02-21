@@ -56,15 +56,7 @@ public class CacheStats implements Streamable, ToXContent {
         this.idCacheSize += stats.idCacheSize;
     }
 
-    public long filterEvictions() {
-        return this.filterEvictions;
-    }
-
     public long getFilterEvictions() {
-        return this.filterEvictions;
-    }
-
-    public long filterMemEvictions() {
         return this.filterEvictions;
     }
 
@@ -72,44 +64,24 @@ public class CacheStats implements Streamable, ToXContent {
         return this.filterEvictions;
     }
 
-    public long filterCount() {
+    public long getFilterCount() {
         return this.filterCount;
     }
 
-    public long getFilterCount() {
-        return filterCount;
-    }
-
-    public long filterSizeInBytes() {
+    public long getFilterSizeInBytes() {
         return this.filterSize;
     }
 
-    public long getFilterSizeInBytes() {
-        return this.filterSizeInBytes();
-    }
-
-    public ByteSizeValue filterSize() {
+    public ByteSizeValue getFilterSize() {
         return new ByteSizeValue(filterSize);
     }
 
-    public ByteSizeValue getFilterSize() {
-        return filterSize();
-    }
-
-    public long idCacheSizeInBytes() {
+    public long getIdCacheSizeInBytes() {
         return idCacheSize;
     }
 
-    public long getIdCacheSizeInBytes() {
-        return idCacheSizeInBytes();
-    }
-
-    public ByteSizeValue idCacheSize() {
-        return new ByteSizeValue(idCacheSize);
-    }
-
     public ByteSizeValue getIdCacheSize() {
-        return idCacheSize();
+        return new ByteSizeValue(idCacheSize);
     }
 
     @Override
@@ -117,9 +89,9 @@ public class CacheStats implements Streamable, ToXContent {
         builder.startObject(Fields.CACHE);
         builder.field(Fields.FILTER_COUNT, filterCount);
         builder.field(Fields.FILTER_EVICTIONS, filterEvictions);
-        builder.field(Fields.FILTER_SIZE, filterSize().toString());
+        builder.field(Fields.FILTER_SIZE, getFilterSize().toString());
         builder.field(Fields.FILTER_SIZE_IN_BYTES, filterSize);
-        builder.field(Fields.ID_CACHE_SIZE, idCacheSize().toString());
+        builder.field(Fields.ID_CACHE_SIZE, getIdCacheSize().toString());
         builder.field(Fields.ID_CACHE_SIZE_IN_BYTES, idCacheSize);
         builder.endObject();
         return builder;

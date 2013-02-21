@@ -78,21 +78,21 @@ public class SearchStatsTests extends AbstractNodesTests {
         }
 
         IndicesStats indicesStats = client.admin().indices().prepareStats().execute().actionGet();
-        assertThat(indicesStats.getTotal().getSearch().total().queryCount(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().total().queryTimeInMillis(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().total().fetchCount(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().total().fetchTimeInMillis(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().groupStats(), nullValue());
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchCount(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchTimeInMillis(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats(), nullValue());
 
         indicesStats = client.admin().indices().prepareStats().setGroups("group1").execute().actionGet();
-        assertThat(indicesStats.getTotal().getSearch().groupStats(), notNullValue());
-        assertThat(indicesStats.getTotal().getSearch().groupStats().get("group1").queryCount(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().groupStats().get("group1").queryTimeInMillis(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().groupStats().get("group1").fetchCount(), greaterThan(0l));
-        assertThat(indicesStats.getTotal().getSearch().groupStats().get("group1").fetchTimeInMillis(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats(), notNullValue());
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryCount(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryTimeInMillis(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchCount(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchTimeInMillis(), greaterThan(0l));
 
         NodesStatsResponse nodeStats = client.admin().cluster().prepareNodesStats().execute().actionGet();
-        assertThat(nodeStats.getNodes()[0].getIndices().getSearch().total().queryCount(), greaterThan(0l));
-        assertThat(nodeStats.getNodes()[0].getIndices().getSearch().total().queryTimeInMillis(), greaterThan(0l));
+        assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryCount(), greaterThan(0l));
+        assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0l));
     }
 }

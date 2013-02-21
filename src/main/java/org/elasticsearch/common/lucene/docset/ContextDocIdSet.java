@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 
 /**
+ * A holder for a {@link DocIdSet} and the {@link AtomicReaderContext} it is associated with.
  */
 public class ContextDocIdSet {
 

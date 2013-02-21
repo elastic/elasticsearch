@@ -20,10 +20,8 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.joda.TimeZoneRounding;
-import org.elasticsearch.common.lucene.docset.ContextDocIdSet;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -32,7 +30,6 @@ import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 
 import java.io.IOException;
-import java.util.List;
 
 /**
  * A histogram facet collector that uses different fields for the key and the value.
@@ -61,31 +58,8 @@ public class ValueDateHistogramFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return new Post();
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         return new InternalFullDateHistogramFacet(facetName, comparatorType, entries, true);
-    }
-
-    class Post extends FacetExecutor.Post {
-
-        @Override
-        public void executePost(List<ContextDocIdSet> docSets) throws IOException {
-            DateHistogramProc histoProc = new DateHistogramProc(tzRounding, ValueDateHistogramFacetExecutor.this.entries);
-            for (ContextDocIdSet docSet : docSets) {
-                LongValues keyValues = keyIndexFieldData.load(docSet.context).getLongValues();
-                histoProc.valueValues = valueIndexFieldData.load(docSet.context).getDoubleValues();
-
-                DocIdSetIterator it = docSet.docSet.iterator();
-                int doc;
-                while ((doc = it.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                    keyValues.forEachValueInDoc(doc, histoProc);
-                }
-            }
-        }
     }
 
     class Collector extends FacetExecutor.Collector {

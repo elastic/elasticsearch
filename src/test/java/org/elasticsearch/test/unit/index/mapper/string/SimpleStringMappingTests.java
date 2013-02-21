@@ -83,6 +83,10 @@ public class SimpleStringMappingTests {
 
         assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(false));
         assertThat(doc.rootDoc().getField("field").fieldType().indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectors(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorOffsets(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPositions(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPayloads(), equalTo(false));
     }
 
     @Test
@@ -101,6 +105,10 @@ public class SimpleStringMappingTests {
 
         assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(true));
         assertThat(doc.rootDoc().getField("field").fieldType().indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_ONLY));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectors(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorOffsets(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPositions(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPayloads(), equalTo(false));
 
         // now test it explicitly set
 
@@ -118,5 +126,85 @@ public class SimpleStringMappingTests {
 
         assertThat(doc.rootDoc().getField("field").fieldType().omitNorms(), equalTo(false));
         assertThat(doc.rootDoc().getField("field").fieldType().indexOptions(), equalTo(FieldInfo.IndexOptions.DOCS_AND_FREQS));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectors(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorOffsets(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPositions(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field").fieldType().storeTermVectorPayloads(), equalTo(false));
     }
+
+    @Test
+    public void testTermVectors() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                    .field("type", "string")
+                    .field("term_vector", "no")
+                .endObject()
+                .startObject("field2")
+                    .field("type", "string")
+                    .field("term_vector", "yes")
+                .endObject()
+                .startObject("field3")
+                    .field("type", "string")
+                    .field("term_vector", "with_offsets")
+                .endObject()
+                .startObject("field4")
+                    .field("type", "string")
+                    .field("term_vector", "with_positions")
+                .endObject()
+                .startObject("field5")
+                    .field("type", "string")
+                    .field("term_vector", "with_positions_offsets")
+                .endObject()
+                .startObject("field6")
+                    .field("type", "string")
+                    .field("term_vector", "with_positions_offsets_payloads")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("field1", "1234")
+                .field("field2", "1234")
+                .field("field3", "1234")
+                .field("field4", "1234")
+                .field("field5", "1234")
+                .field("field6", "1234")
+                .endObject()
+                .bytes());
+
+        assertThat(doc.rootDoc().getField("field1").fieldType().storeTermVectors(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field1").fieldType().storeTermVectorOffsets(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field1").fieldType().storeTermVectorPositions(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field1").fieldType().storeTermVectorPayloads(), equalTo(false));
+
+        assertThat(doc.rootDoc().getField("field2").fieldType().storeTermVectors(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field2").fieldType().storeTermVectorOffsets(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field2").fieldType().storeTermVectorPositions(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field2").fieldType().storeTermVectorPayloads(), equalTo(false));
+
+        assertThat(doc.rootDoc().getField("field3").fieldType().storeTermVectors(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field3").fieldType().storeTermVectorOffsets(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field3").fieldType().storeTermVectorPositions(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field3").fieldType().storeTermVectorPayloads(), equalTo(false));
+
+        assertThat(doc.rootDoc().getField("field4").fieldType().storeTermVectors(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field4").fieldType().storeTermVectorOffsets(), equalTo(false));
+        assertThat(doc.rootDoc().getField("field4").fieldType().storeTermVectorPositions(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field4").fieldType().storeTermVectorPayloads(), equalTo(false));
+
+        assertThat(doc.rootDoc().getField("field5").fieldType().storeTermVectors(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field5").fieldType().storeTermVectorOffsets(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field5").fieldType().storeTermVectorPositions(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field5").fieldType().storeTermVectorPayloads(), equalTo(false));
+
+        assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectors(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorOffsets(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPositions(), equalTo(true));
+        assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
+    }
+
 }

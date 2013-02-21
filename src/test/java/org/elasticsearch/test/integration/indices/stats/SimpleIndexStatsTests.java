@@ -72,31 +72,31 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         IndicesStats stats = client.admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.getPrimaries().getDocs().count(), equalTo(3l));
-        assertThat(stats.getTotal().getDocs().count(), equalTo(6l));
-        assertThat(stats.getPrimaries().getIndexing().total().indexCount(), equalTo(3l));
-        assertThat(stats.getTotal().getIndexing().total().indexCount(), equalTo(6l));
+        assertThat(stats.getPrimaries().getDocs().getCount(), equalTo(3l));
+        assertThat(stats.getTotal().getDocs().getCount(), equalTo(6l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
+        assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(6l));
         assertThat(stats.getTotal().getStore(), notNullValue());
         // verify nulls
         assertThat(stats.getTotal().getMerge(), nullValue());
         assertThat(stats.getTotal().getFlush(), nullValue());
         assertThat(stats.getTotal().getRefresh(), nullValue());
 
-        assertThat(stats.getIndex("test1").getPrimaries().getDocs().count(), equalTo(2l));
-        assertThat(stats.getIndex("test1").getTotal().getDocs().count(), equalTo(4l));
+        assertThat(stats.getIndex("test1").getPrimaries().getDocs().getCount(), equalTo(2l));
+        assertThat(stats.getIndex("test1").getTotal().getDocs().getCount(), equalTo(4l));
         assertThat(stats.getIndex("test1").getPrimaries().getStore(), notNullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getMerge(), nullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getFlush(), nullValue());
         assertThat(stats.getIndex("test1").getPrimaries().getRefresh(), nullValue());
 
-        assertThat(stats.getIndex("test2").getPrimaries().getDocs().count(), equalTo(1l));
-        assertThat(stats.getIndex("test2").getTotal().getDocs().count(), equalTo(2l));
+        assertThat(stats.getIndex("test2").getPrimaries().getDocs().getCount(), equalTo(1l));
+        assertThat(stats.getIndex("test2").getTotal().getDocs().getCount(), equalTo(2l));
 
         // make sure that number of requests in progress is 0
-        assertThat(stats.getIndex("test1").getTotal().getIndexing().total().indexCurrent(), equalTo(0l));
-        assertThat(stats.getIndex("test1").getTotal().getIndexing().total().deleteCurrent(), equalTo(0l));
-        assertThat(stats.getIndex("test1").getTotal().getSearch().total().fetchCurrent(), equalTo(0l));
-        assertThat(stats.getIndex("test1").getTotal().getSearch().total().queryCurrent(), equalTo(0l));
+        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexCurrent(), equalTo(0l));
+        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getDeleteCurrent(), equalTo(0l));
+        assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getFetchCurrent(), equalTo(0l));
+        assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getQueryCurrent(), equalTo(0l));
 
         // check flags
         stats = client.admin().indices().prepareStats()
@@ -117,11 +117,11 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
 
         // check types
         stats = client.admin().indices().prepareStats().setTypes("type1", "type").execute().actionGet();
-        assertThat(stats.getPrimaries().getIndexing().typeStats().get("type1").indexCount(), equalTo(1l));
-        assertThat(stats.getPrimaries().getIndexing().typeStats().get("type").indexCount(), equalTo(1l));
-        assertThat(stats.getPrimaries().getIndexing().typeStats().get("type2"), nullValue());
-        assertThat(stats.getPrimaries().getIndexing().typeStats().get("type1").indexCurrent(), equalTo(0l));
-        assertThat(stats.getPrimaries().getIndexing().typeStats().get("type1").deleteCurrent(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCount(), equalTo(1l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type").getIndexCount(), equalTo(1l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2"), nullValue());
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCurrent(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getDeleteCurrent(), equalTo(0l));
 
         assertThat(stats.getTotal().getGet().getCount(), equalTo(0l));
         // check get

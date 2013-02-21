@@ -155,6 +155,10 @@ public class TypeParsers {
         } else if ("with_positions_offsets".equals(termVector)) {
             builder.storeTermVectorPositions(true);
             builder.storeTermVectorOffsets(true);
+        } else if ("with_positions_offsets_payloads".equals(termVector)) {
+            builder.storeTermVectorPositions(true);
+            builder.storeTermVectorOffsets(true);
+            builder.storeTermVectorPayloads(true);
         } else {
             throw new MapperParsingException("Wrong value for termVector [" + termVector + "] for field [" + fieldName + "]");
         }

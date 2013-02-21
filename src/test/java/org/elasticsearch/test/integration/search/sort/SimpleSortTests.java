@@ -607,7 +607,7 @@ public class SimpleSortTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testSortLongMVField() throws Exception {
+    public void testSortMVField() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {

@@ -34,7 +34,7 @@ package jsr166y;
  *     }
  *   }
  *   // implementation details follow:
- *   final static int THRESHOLD = 1000;
+ *   static final int THRESHOLD = 1000;
  *   void sortSequentially(int lo, int hi) {
  *     Arrays.sort(array, lo, hi);
  *   }
@@ -111,21 +111,21 @@ package jsr166y;
  *     int h = hi;
  *     Applyer right = null;
  *     while (h - l > 1 && getSurplusQueuedTaskCount() <= 3) {
- *        int mid = (l + h) >>> 1;
- *        right = new Applyer(array, mid, h, right);
- *        right.fork();
- *        h = mid;
+ *       int mid = (l + h) >>> 1;
+ *       right = new Applyer(array, mid, h, right);
+ *       right.fork();
+ *       h = mid;
  *     }
  *     double sum = atLeaf(l, h);
  *     while (right != null) {
- *        if (right.tryUnfork()) // directly calculate if not stolen
- *          sum += right.atLeaf(right.lo, right.hi);
+ *       if (right.tryUnfork()) // directly calculate if not stolen
+ *         sum += right.atLeaf(right.lo, right.hi);
  *       else {
- *          right.join();
- *          sum += right.result;
- *        }
- *        right = right.next;
- *      }
+ *         right.join();
+ *         sum += right.result;
+ *       }
+ *       right = right.next;
+ *     }
  *     result = sum;
  *   }
  * }}</pre>

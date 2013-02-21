@@ -5,10 +5,7 @@
  */
 
 package jsr166e;
-import java.io.IOException;
 import java.io.Serializable;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 
 /**
  * One or more variables that together maintain an initially zero
@@ -19,12 +16,12 @@ import java.io.ObjectOutputStream;
  * variables maintaining the sum.
  *
  * <p>This class extends {@link Number}, but does <em>not</em> define
- * methods such as {@code hashCode} and {@code compareTo} because
- * instances are expected to be mutated, and so are not useful as
- * collection keys.
+ * methods such as {@code equals}, {@code hashCode} and {@code
+ * compareTo} because instances are expected to be mutated, and so are
+ * not useful as collection keys.
  *
  * <p><em>jsr166e note: This class is targeted to be placed in
- * java.util.concurrent.atomic<em>
+ * java.util.concurrent.atomic.</em>
  *
  * @since 1.8
  * @author Doug Lea
@@ -80,10 +77,10 @@ public class DoubleAdder extends Striped64 implements Serializable {
 
     /**
      * Returns the current sum.  The returned value is <em>NOT</em> an
-     * atomic snapshot: Invocation in the absence of concurrent
+     * atomic snapshot; invocation in the absence of concurrent
      * updates returns an accurate result, but concurrent updates that
      * occur while the sum is being calculated might not be
-     * incorporated.  Also, because double-precision arithmetic is not
+     * incorporated.  Also, because floating-point arithmetic is not
      * strictly associative, the returned result need not be identical
      * to the value that would be obtained in a sequential series of
      * updates to a single variable.
@@ -190,8 +187,8 @@ public class DoubleAdder extends Striped64 implements Serializable {
         s.writeDouble(sum());
     }
 
-    private void readObject(ObjectInputStream s)
-        throws IOException, ClassNotFoundException {
+    private void readObject(java.io.ObjectInputStream s)
+        throws java.io.IOException, ClassNotFoundException {
         s.defaultReadObject();
         busy = 0;
         cells = null;

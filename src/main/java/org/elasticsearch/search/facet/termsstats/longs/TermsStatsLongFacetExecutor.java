@@ -70,11 +70,6 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
     }
 
     @Override
-    public Post post() {
-        return null;
-    }
-
-    @Override
     public InternalFacet buildFacet(String facetName) {
         if (entries.isEmpty()) {
             return new InternalTermsStatsLongFacet(facetName, comparatorType, size, ImmutableList.<InternalTermsStatsLongFacet.LongEntry>of(), missing);

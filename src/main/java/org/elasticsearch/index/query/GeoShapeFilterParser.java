@@ -21,6 +21,8 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
 import org.elasticsearch.common.geo.GeoJSONShapeParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.inject.Inject;
@@ -163,7 +165,7 @@ public class GeoShapeFilterParser implements FilterParser {
         }
 
         GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        Filter filter = shapeFieldMapper.spatialStrategy().createFilter(shape, shapeRelation);
+        Filter filter = shapeFieldMapper.spatialStrategy().makeFilter(GeoShapeQueryParser.getArgs(shape, shapeRelation));
 
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

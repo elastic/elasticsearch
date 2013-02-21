@@ -42,16 +42,8 @@ public class HttpStats implements Streamable, ToXContent {
         this.totalOpen = totalOpen;
     }
 
-    public long serverOpen() {
-        return this.serverOpen;
-    }
-
     public long getServerOpen() {
-        return serverOpen();
-    }
-
-    public long totalOpen() {
-        return this.totalOpen;
+        return this.serverOpen;
     }
 
     public long getTotalOpen() {

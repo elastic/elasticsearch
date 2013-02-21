@@ -86,93 +86,50 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             out.writeDouble(diskServiceTime);
         }
 
-        public ByteSizeValue total() {
+        public ByteSizeValue getTotal() {
             return new ByteSizeValue(total);
         }
 
-        public ByteSizeValue getTotal() {
-            return total();
-        }
-
-        public ByteSizeValue free() {
+        public ByteSizeValue getFree() {
             return new ByteSizeValue(free);
         }
 
-        public ByteSizeValue getFree() {
-            return free();
-        }
-
-        public ByteSizeValue available() {
-            return new ByteSizeValue(available);
-        }
-
         public ByteSizeValue getAvailable() {
-            return available();
-        }
-
-        public long diskReads() {
-            return this.diskReads;
+            return new ByteSizeValue(available);
         }
 
         public long getDiskReads() {
             return this.diskReads;
         }
 
-        public long diskWrites() {
-            return this.diskWrites;
-        }
-
         public long getDiskWrites() {
             return this.diskWrites;
-        }
-
-        public long diskReadSizeInBytes() {
-            return diskReadBytes;
         }
 
         public long getDiskReadSizeInBytes() {
             return diskReadBytes;
         }
 
-        public ByteSizeValue diskReadSizeSize() {
-            return new ByteSizeValue(diskReadBytes);
-        }
-
         public ByteSizeValue getDiskReadSizeSize() {
             return new ByteSizeValue(diskReadBytes);
-        }
-
-        public long diskWriteSizeInBytes() {
-            return diskWriteBytes;
         }
 
         public long getDiskWriteSizeInBytes() {
             return diskWriteBytes;
         }
 
-        public ByteSizeValue diskWriteSizeSize() {
-            return new ByteSizeValue(diskWriteBytes);
-        }
-
         public ByteSizeValue getDiskWriteSizeSize() {
             return new ByteSizeValue(diskWriteBytes);
-        }
-
-        public double diskQueue() {
-            return diskQueue;
         }
 
         public double getDiskQueue() {
             return diskQueue;
         }
 
-        public double diskServiceTime() {
-            return diskServiceTime;
-        }
-
         public double getDiskServiceTime() {
             return diskServiceTime;
         }
+
     }
 
     long timestamp;
@@ -187,12 +144,8 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
         this.infos = infos;
     }
 
-    public long timestamp() {
-        return timestamp;
-    }
-
     public long getTimestamp() {
-        return timestamp();
+        return timestamp;
     }
 
     @Override
@@ -264,15 +217,15 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             }
 
             if (info.total != -1) {
-                builder.field(Fields.TOTAL, info.total().toString());
+                builder.field(Fields.TOTAL, info.getTotal().toString());
                 builder.field(Fields.TOTAL_IN_BYTES, info.total);
             }
             if (info.free != -1) {
-                builder.field(Fields.FREE, info.free().toString());
+                builder.field(Fields.FREE, info.getFree().toString());
                 builder.field(Fields.FREE_IN_BYTES, info.free);
             }
             if (info.available != -1) {
-                builder.field(Fields.AVAILABLE, info.available().toString());
+                builder.field(Fields.AVAILABLE, info.getAvailable().toString());
                 builder.field(Fields.AVAILABLE_IN_BYTES, info.available);
             }
 
@@ -284,12 +237,12 @@ public class FsStats implements Iterable<FsStats.Info>, Streamable, ToXContent {
             }
 
             if (info.diskReadBytes != -1) {
-                builder.field(Fields.DISK_READ_SIZE, info.diskReadSizeSize().toString());
-                builder.field(Fields.DISK_READ_SIZE_IN_BYTES, info.diskReadSizeInBytes());
+                builder.field(Fields.DISK_READ_SIZE, info.getDiskReadSizeSize().toString());
+                builder.field(Fields.DISK_READ_SIZE_IN_BYTES, info.getDiskReadSizeInBytes());
             }
             if (info.diskWriteBytes != -1) {
-                builder.field(Fields.DISK_WRITE_SIZE, info.diskWriteSizeSize().toString());
-                builder.field(Fields.DISK_WRITE_SIZE_IN_BYTES, info.diskWriteSizeInBytes());
+                builder.field(Fields.DISK_WRITE_SIZE, info.getDiskWriteSizeSize().toString());
+                builder.field(Fields.DISK_WRITE_SIZE_IN_BYTES, info.getDiskWriteSizeInBytes());
             }
 
             if (info.diskQueue != -1) {

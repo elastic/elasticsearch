@@ -175,7 +175,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         closeNode("node3");
 
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").setWaitForActiveShards(4).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -187,7 +187,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         closeNode("node2");
 
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(2).execute().actionGet();
+        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("1").setWaitForActiveShards(2).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -226,7 +226,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         closeNode("node3");
 
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").setWaitForActiveShards(4).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -238,7 +238,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         closeNode("node2");
 
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForActiveShards(2).execute().actionGet();
+        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForNodes("1").setWaitForActiveShards(2).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));

@@ -4,7 +4,7 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-package jsr166y;
+package jsr166e;
 
 import java.io.Serializable;
 import java.util.Collection;
@@ -134,7 +134,8 @@ import java.lang.reflect.Constructor;
  * (DAG). Otherwise, executions may encounter a form of deadlock as
  * tasks cyclically wait for each other.  However, this framework
  * supports other methods and techniques (for example the use of
- * {@link Phaser}, {@link #helpQuiesce}, and {@link #complete}) that
+ * {@link java.util.concurrent.Phaser}, {@link #helpQuiesce}, and
+ * {@link #complete}) that
  * may be of use in constructing custom subclasses for problems that
  * are not statically structured as DAGs. To support such usages a
  * ForkJoinTask may be atomically <em>tagged</em> with a {@code short}

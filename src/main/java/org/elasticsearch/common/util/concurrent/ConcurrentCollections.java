@@ -26,6 +26,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -33,7 +34,8 @@ import java.util.concurrent.ConcurrentMap;
  */
 public abstract class ConcurrentCollections {
 
-    private final static boolean useNonBlockingMap = Boolean.parseBoolean(System.getProperty("elasticsearch.useNonBlockingMap", "false"));
+    private final static boolean useNonBlockingMap = Boolean.parseBoolean(System.getProperty("es.useNonBlockingMap", "false"));
+    private final static boolean useLinkedTransferQueue = Boolean.parseBoolean(System.getProperty("es.useLinkedTransferQueue", "false"));
 
     public static <K, V> ConcurrentMap<K, V> newConcurrentMap() {
 //        if (useNonBlockingMap) {
@@ -57,7 +59,10 @@ public abstract class ConcurrentCollections {
     }
 
     public static <T> Queue<T> newQueue() {
-        return new LinkedTransferQueue<T>();
+        if (useLinkedTransferQueue) {
+            return new LinkedTransferQueue<T>();
+        }
+        return new ConcurrentLinkedQueue<T>();
     }
 
     public static <T> BlockingQueue<T> newBlockingQueue() {

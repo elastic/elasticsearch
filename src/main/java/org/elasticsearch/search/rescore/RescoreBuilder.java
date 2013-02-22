@@ -37,12 +37,12 @@ public class RescoreBuilder implements ToXContent {
         return new QueryRescorer(queryBuilder);
     }
     
-    public RescoreBuilder setRescorer(Rescorer rescorer) {
+    public RescoreBuilder rescorer(Rescorer rescorer) {
         this.rescorer = rescorer;
         return this;
     }
 
-    public RescoreBuilder setWindowSize(int windowSize) {
+    public RescoreBuilder windowSize(int windowSize) {
         this.windowSize = windowSize;
         return this;
     }

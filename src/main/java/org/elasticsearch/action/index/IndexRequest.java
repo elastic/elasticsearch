@@ -308,6 +308,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     public BytesReference getSafeSource() {
         if (sourceUnsafe) {
             source = source.copyBytesArray();
+            sourceUnsafe = false;
         }
         return source;
     }

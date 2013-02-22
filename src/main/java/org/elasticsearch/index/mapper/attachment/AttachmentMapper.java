@@ -295,6 +295,11 @@ public class AttachmentMapper implements Mapper {
             }
         }
 
+        // Throw clean exception when no content is provided Fix #23
+        if (content == null) {
+            throw new MapperParsingException("No content is provided.");
+        }
+
         Metadata metadata = new Metadata();
         if (contentType != null) {
             metadata.add(Metadata.CONTENT_TYPE, contentType);

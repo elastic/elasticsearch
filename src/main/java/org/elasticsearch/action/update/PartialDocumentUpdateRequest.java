@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationType;
-import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
+import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,7 +41,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class PartialDocumentUpdateRequest extends InstanceShardOperationRequest<PartialDocumentUpdateRequest> {
+public class PartialDocumentUpdateRequest extends ShardReplicationOperationRequest<PartialDocumentUpdateRequest> {
 
     private String type;
     private String id;
@@ -151,11 +151,6 @@ public class PartialDocumentUpdateRequest extends InstanceShardOperationRequest<
         return this.routing;
     }
 
-    public int getShardId() {
-        return this.shardId;
-    }
-
-
     /**
      * Explicitly specify the fields that will be returned. By default, nothing is returned.
      */
@@ -219,24 +214,8 @@ public class PartialDocumentUpdateRequest extends InstanceShardOperationRequest<
         return this.replicationType;
     }
 
-    /**
-     * Sets the replication type.
-     */
-    public PartialDocumentUpdateRequest setReplicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return this;
-    }
-
     public WriteConsistencyLevel getConsistencyLevel() {
         return this.consistencyLevel;
-    }
-
-    /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
-     */
-    public PartialDocumentUpdateRequest setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        this.consistencyLevel = consistencyLevel;
-        return this;
     }
 
     /**

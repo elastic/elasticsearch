@@ -123,7 +123,9 @@ public class SourceToParse {
     }
 
     public SourceToParse timestamp(String timestamp) {
-        this.timestamp = Long.parseLong(timestamp);
+    	if(timestamp != null){
+    		this.timestamp = Long.parseLong(timestamp);
+    	}
         return this;
     }
 

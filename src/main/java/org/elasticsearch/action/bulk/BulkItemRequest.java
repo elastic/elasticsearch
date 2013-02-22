@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.update.PartialDocumentUpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -63,11 +64,13 @@ public class BulkItemRequest implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         id = in.readVInt();
-        byte type = in.readByte();
+        int type = in.readInt();
         if (type == 0) {
             request = new IndexRequest();
         } else if (type == 1) {
             request = new DeleteRequest();
+        } else if (type == 2) { 
+        	request = new PartialDocumentUpdateRequest();
         }
         request.readFrom(in);
     }
@@ -76,9 +79,11 @@ public class BulkItemRequest implements Streamable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
         if (request instanceof IndexRequest) {
-            out.writeByte((byte) 0);
+            out.writeInt(0);
         } else if (request instanceof DeleteRequest) {
-            out.writeByte((byte) 1);
+            out.writeInt(1);
+        } else if (request instanceof PartialDocumentUpdateRequest){
+        	out.writeInt(2);
         }
         request.writeTo(out);
     }

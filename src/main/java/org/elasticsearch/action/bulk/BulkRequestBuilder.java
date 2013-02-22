@@ -27,6 +27,7 @@ import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.action.update.PartialDocumentUpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
@@ -48,6 +49,15 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     public BulkRequestBuilder add(IndexRequest request) {
         super.request.add(request);
         return this;
+    }
+    
+    /**
+     * Adds an {@link PartialDocumentUpdateRequest} to the list of actions to execute. Follows the same behavior of {@link PartialDocumentUpdateRequest}
+     * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     */
+    public BulkRequestBuilder add(PartialDocumentUpdateRequest request) { 
+    	super.request.add(request);
+    	return this;
     }
 
     /**

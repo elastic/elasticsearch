@@ -83,6 +83,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
             add((IndexRequest) request, payload);
         } else if (request instanceof DeleteRequest) {
             add((DeleteRequest) request, payload);
+        } else if (request instanceof PartialDocumentUpdateRequest) { 
+        	add((PartialDocumentUpdateRequest) request,payload);
         } else {
             throw new ElasticSearchIllegalArgumentException("No support for request [" + request + "]");
         }
@@ -98,6 +100,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 add((IndexRequest) request);
             } else if (request instanceof DeleteRequest) {
                 add((DeleteRequest) request);
+            } else if (request instanceof PartialDocumentUpdateRequest) {
+                add((PartialDocumentUpdateRequest) request);
             } else {
                 throw new ElasticSearchIllegalArgumentException("No support for request [" + request + "]");
             }
@@ -417,15 +421,15 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             int type = in.readInt();
-            if (type == 1) {
+            if (type == 0) {
                 IndexRequest request = new IndexRequest();
                 request.readFrom(in);
                 requests.add(request);
-            } else if (type == 2) {
+            } else if (type == 1) {
                 DeleteRequest request = new DeleteRequest();
                 request.readFrom(in);
                 requests.add(request);
-            } else if (type == 3) {
+            } else if (type == 2) {
                 PartialDocumentUpdateRequest request = new PartialDocumentUpdateRequest();
                 request.readFrom(in);
                 requests.add(request);
@@ -442,11 +446,11 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         out.writeVInt(requests.size());
         for (ActionRequest request : requests) {
             if (request instanceof IndexRequest) {
-                out.writeInt(1);
+                out.writeInt(0);
             } else if (request instanceof DeleteRequest) {
-                out.writeInt(2);
+                out.writeInt(1);
             } else if (request instanceof PartialDocumentUpdateRequest) { 
-            	out.writeInt(3);
+            	out.writeInt(2);
             }
             request.writeTo(out);
         }

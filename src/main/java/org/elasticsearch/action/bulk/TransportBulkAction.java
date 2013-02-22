@@ -32,6 +32,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.update.PartialDocumentUpdateRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -99,6 +100,11 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 if (!indices.contains(deleteRequest.getIndex())) {
                     indices.add(deleteRequest.getIndex());
                 }
+            } else if (request instanceof PartialDocumentUpdateRequest) {
+                PartialDocumentUpdateRequest updateRequest = (PartialDocumentUpdateRequest) request;
+                if (!indices.contains(updateRequest.getIndex())) {
+                    indices.add(updateRequest.getIndex());
+                }
             }
         }
 
@@ -160,6 +166,10 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 DeleteRequest deleteRequest = (DeleteRequest) request;
                 deleteRequest.setRouting(clusterState.metaData().resolveIndexRouting(deleteRequest.getRouting(), deleteRequest.getIndex()));
                 deleteRequest.setIndex(clusterState.metaData().concreteIndex(deleteRequest.getIndex()));
+            } else if(request instanceof PartialDocumentUpdateRequest) { 
+            	PartialDocumentUpdateRequest updateRequest = (PartialDocumentUpdateRequest) request;
+                updateRequest.setIndex(clusterState.metaData().concreteIndex(updateRequest.getIndex()));
+
             }
         }
         final BulkItemResponse[] responses = new BulkItemResponse[bulkRequest.requests.size()];
@@ -172,6 +182,15 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
             if (request instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) request;
                 ShardId shardId = clusterService.operationRouting().indexShards(clusterState, indexRequest.getIndex(), indexRequest.getType(), indexRequest.getId(), indexRequest.getRouting()).shardId();
+                List<BulkItemRequest> list = requestsByShard.get(shardId);
+                if (list == null) {
+                    list = Lists.newArrayList();
+                    requestsByShard.put(shardId, list);
+                }
+                list.add(new BulkItemRequest(i, request));
+            } else if (request instanceof PartialDocumentUpdateRequest) {
+                PartialDocumentUpdateRequest updateRequest = (PartialDocumentUpdateRequest) request;
+                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, updateRequest.getIndex(), updateRequest.getType(), updateRequest.getId(), updateRequest.getRouting()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {
                     list = Lists.newArrayList();

@@ -134,7 +134,7 @@ public class ClusterHealthRequest extends MasterNodeOperationRequest<ClusterHeal
         return this;
     }
 
-    public boolean getLocal() {
+    public boolean isLocal() {
         return this.local;
     }
 

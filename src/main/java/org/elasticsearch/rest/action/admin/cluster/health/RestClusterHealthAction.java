@@ -51,7 +51,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(RestActions.splitIndices(request.param("index")));
-        clusterHealthRequest.setLocal(request.paramAsBoolean("local", clusterHealthRequest.getLocal()));
+        clusterHealthRequest.setLocal(request.paramAsBoolean("local", clusterHealthRequest.isLocal()));
         clusterHealthRequest.setListenerThreaded(false);
         int level = 0;
         try {

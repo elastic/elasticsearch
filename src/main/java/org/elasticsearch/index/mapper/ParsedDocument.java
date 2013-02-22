@@ -24,7 +24,6 @@ import org.apache.lucene.document.Document;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.UidField;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -53,10 +52,6 @@ public class ParsedDocument {
     private boolean mappingsModified;
 
     private String parent;
-
-    public ParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, Analyzer analyzer, BytesReference source, boolean mappingsModified) {
-        this(new UidField(uid), id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, mappingsModified);
-    }
 
     public ParsedDocument(UidField uid, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, Analyzer analyzer, BytesReference source, boolean mappingsModified) {
         this.uid = uid;

@@ -75,7 +75,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         }
     }
 
-    public synchronized void invalidateCache() {
+    public synchronized void invalidateStatsCache() {
         FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
         latestCacheStats = new CacheStats(filterCache.evictions(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, idCache.sizeInBytes());
         latestCacheStatsTimestamp = System.currentTimeMillis();

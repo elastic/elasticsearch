@@ -23,11 +23,13 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.hamcrest.Matchers;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -703,5 +705,95 @@ public class SimpleQueryTests extends AbstractNodesTests {
                 .execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+
+    @Test
+    public void testTermsLookupFilter() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}).execute().actionGet();
+        client.prepareIndex("lookup", "type", "2").setSource("terms", new String[]{"2"}).execute().actionGet();
+        client.prepareIndex("lookup", "type", "3").setSource("terms", new String[]{"2", "4"}).execute().actionGet();
+
+        client.prepareIndex("lookup2", "type", "1").setSource(XContentFactory.jsonBuilder().startObject()
+                .startArray("arr")
+                .startObject().field("term", "1").endObject()
+                .startObject().field("term", "3").endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client.prepareIndex("lookup2", "type", "2").setSource(XContentFactory.jsonBuilder().startObject()
+                .startArray("arr")
+                .startObject().field("term", "2").endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client.prepareIndex("lookup2", "type", "3").setSource(XContentFactory.jsonBuilder().startObject()
+                .startArray("arr")
+                .startObject().field("term", "2").endObject()
+                .startObject().field("term", "4").endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type", "1").setSource("term", "1").execute().actionGet();
+        client.prepareIndex("test", "type", "2").setSource("term", "2").execute().actionGet();
+        client.prepareIndex("test", "type", "3").setSource("term", "3").execute().actionGet();
+        client.prepareIndex("test", "type", "4").setSource("term", "4").execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), anyOf(equalTo("1"), equalTo("3")));
+
+        // another search with same parameters...
+        searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), anyOf(equalTo("1"), equalTo("3")));
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("2").lookupPath("terms"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("1"), equalTo("2")));
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("3").lookupPath("terms"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("2"), equalTo("4")));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), anyOf(equalTo("2"), equalTo("4")));
+
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("1").lookupPath("arr.term"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), anyOf(equalTo("1"), equalTo("3")));
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("2").lookupPath("arr.term"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("1"), equalTo("2")));
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("2"), equalTo("4")));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), anyOf(equalTo("2"), equalTo("4")));
     }
 }

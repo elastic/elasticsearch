@@ -665,12 +665,12 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     public SearchRequestBuilder setRescorer(RescoreBuilder.Rescorer rescorer) {
-        rescoreBuilder().setRescorer(rescorer);
+        rescoreBuilder().rescorer(rescorer);
         return this;
     }
 
     public SearchRequestBuilder setRescoreWindow(int window) {
-        rescoreBuilder().setWindowSize(window);
+        rescoreBuilder().windowSize(window);
         return this;
     }
 

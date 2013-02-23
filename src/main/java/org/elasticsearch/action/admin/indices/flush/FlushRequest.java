@@ -56,20 +56,20 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     public FlushRequest(String... indices) {
         super(indices);
         // we want to do the refresh in parallel on local shards...
-        setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
+        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     /**
      * Should a refresh be performed once the flush is done. Defaults to <tt>false</tt>.
      */
-    public boolean isRefresh() {
+    public boolean refresh() {
         return this.refresh;
     }
 
     /**
      * Should a refresh be performed once the flush is done. Defaults to <tt>false</tt>.
      */
-    public FlushRequest setRefresh(boolean refresh) {
+    public FlushRequest refresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }
@@ -77,14 +77,14 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     /**
      * Should a "full" flush be performed.
      */
-    public boolean isFull() {
+    public boolean full() {
         return this.full;
     }
 
     /**
      * Should a "full" flush be performed.
      */
-    public FlushRequest setFull(boolean full) {
+    public FlushRequest full(boolean full) {
         this.full = full;
         return this;
     }
@@ -92,14 +92,14 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
     /**
      * Force flushing, even if one is possibly not needed.
      */
-    public boolean isForce() {
+    public boolean force() {
         return force;
     }
 
     /**
      * Force flushing, even if one is possibly not needed.
      */
-    public FlushRequest setForce(boolean force) {
+    public FlushRequest force(boolean force) {
         this.force = force;
         return this;
     }

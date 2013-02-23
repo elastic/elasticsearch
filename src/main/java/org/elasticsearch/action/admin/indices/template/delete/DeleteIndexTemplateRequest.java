@@ -62,7 +62,7 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest<Delet
     /**
      * The index template name to delete.
      */
-    public String getName() {
+    String name() {
         return name;
     }
 
@@ -70,7 +70,7 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest<Delet
      * Timeout to wait for the index deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    public TimeValue getTimeout() {
+    TimeValue timeout() {
         return timeout;
     }
 
@@ -78,7 +78,7 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest<Delet
      * Timeout to wait for the index template deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    public DeleteIndexTemplateRequest setTimeout(TimeValue timeout) {
+    public DeleteIndexTemplateRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
@@ -87,8 +87,8 @@ public class DeleteIndexTemplateRequest extends MasterNodeOperationRequest<Delet
      * Timeout to wait for the index template deletion to be acknowledged by current cluster nodes. Defaults
      * to <tt>10s</tt>.
      */
-    public DeleteIndexTemplateRequest setTimeout(String timeout) {
-        return setTimeout(TimeValue.parseTimeValue(timeout, null));
+    public DeleteIndexTemplateRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     @Override

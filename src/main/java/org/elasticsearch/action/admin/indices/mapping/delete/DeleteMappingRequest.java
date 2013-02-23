@@ -60,7 +60,7 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest<DeleteMappi
     /**
      * Sets the indices this put mapping operation will execute on.
      */
-    public DeleteMappingRequest setIndices(String[] indices) {
+    public DeleteMappingRequest indices(String[] indices) {
         this.indices = indices;
         return this;
     }
@@ -68,21 +68,21 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest<DeleteMappi
     /**
      * The indices the mappings will be put.
      */
-    public String[] setIndices() {
+    public String[] indices() {
         return indices;
     }
 
     /**
      * The mapping type.
      */
-    public String getType() {
+    public String type() {
         return type;
     }
 
     /**
      * The type of the mappings to remove.
      */
-    public DeleteMappingRequest setType(String type) {
+    public DeleteMappingRequest type(String type) {
         this.type = type;
         return this;
     }

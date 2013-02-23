@@ -90,7 +90,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -102,7 +102,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -134,7 +134,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -150,7 +150,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -181,7 +181,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -194,7 +194,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -220,7 +220,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(2)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -241,7 +241,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(2)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -267,7 +267,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(2)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -310,7 +310,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node2 = startNode("node2", settingsBuilder().put("gateway.type", "local").put("gateway.recover_after_nodes", 2).build());
 
         logger.info("--> running cluster_health (wait for the shards to startup)");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(2)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(2)).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -352,7 +352,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
             }
         }
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForRelocatingShards(0)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -371,7 +371,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         startNode("node4", settings);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(10)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(10)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -390,7 +390,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         startNode("node4", settings);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus().setWaitForActiveShards(10)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForActiveShards(10)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

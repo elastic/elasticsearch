@@ -54,38 +54,38 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).setType(request.param("type")).setId(request.param("id"));
-        mltRequest.setRouting(request.param("routing"));
+        MoreLikeThisRequest mltRequest = moreLikeThisRequest(request.param("index")).type(request.param("type")).id(request.param("id"));
+        mltRequest.routing(request.param("routing"));
 
-        mltRequest.setListenerThreaded(false);
+        mltRequest.listenerThreaded(false);
         try {
-            mltRequest.setFields(request.paramAsStringArray("mlt_fields", null));
-            mltRequest.setPercentTermsToMatch(request.paramAsFloat("percent_terms_to_match", -1));
-            mltRequest.setMinTermFreq(request.paramAsInt("min_term_freq", -1));
-            mltRequest.setMaxQueryTerms(request.paramAsInt("max_query_terms", -1));
-            mltRequest.setStopWords(request.paramAsStringArray("stop_words", null));
-            mltRequest.setMinDocFreq(request.paramAsInt("min_doc_freq", -1));
-            mltRequest.setMaxDocFreq(request.paramAsInt("max_doc_freq", -1));
-            mltRequest.setMinWordLen(request.paramAsInt("min_word_len", -1));
-            mltRequest.setMaxWordLen(request.paramAsInt("max_word_len", -1));
-            mltRequest.setBoostTerms(request.paramAsFloat("boost_terms", -1));
+            mltRequest.fields(request.paramAsStringArray("mlt_fields", null));
+            mltRequest.percentTermsToMatch(request.paramAsFloat("percent_terms_to_match", -1));
+            mltRequest.minTermFreq(request.paramAsInt("min_term_freq", -1));
+            mltRequest.maxQueryTerms(request.paramAsInt("max_query_terms", -1));
+            mltRequest.stopWords(request.paramAsStringArray("stop_words", null));
+            mltRequest.minDocFreq(request.paramAsInt("min_doc_freq", -1));
+            mltRequest.maxDocFreq(request.paramAsInt("max_doc_freq", -1));
+            mltRequest.minWordLen(request.paramAsInt("min_word_len", -1));
+            mltRequest.maxWordLen(request.paramAsInt("max_word_len", -1));
+            mltRequest.boostTerms(request.paramAsFloat("boost_terms", -1));
 
-            mltRequest.setSearchType(SearchType.fromString(request.param("search_type")));
-            mltRequest.setSearchIndices(request.paramAsStringArray("search_indices", null));
-            mltRequest.setSearchTypes(request.paramAsStringArray("search_types", null));
-            mltRequest.setSearchQueryHint(request.param("search_query_hint"));
-            mltRequest.setSearchSize(request.paramAsInt("search_size", mltRequest.getSearchSize()));
-            mltRequest.setSearchFrom(request.paramAsInt("search_from", mltRequest.getSearchFrom()));
+            mltRequest.searchType(SearchType.fromString(request.param("search_type")));
+            mltRequest.searchIndices(request.paramAsStringArray("search_indices", null));
+            mltRequest.searchTypes(request.paramAsStringArray("search_types", null));
+            mltRequest.searchQueryHint(request.param("search_query_hint"));
+            mltRequest.searchSize(request.paramAsInt("search_size", mltRequest.searchSize()));
+            mltRequest.searchFrom(request.paramAsInt("search_from", mltRequest.searchFrom()));
             String searchScroll = request.param("search_scroll");
             if (searchScroll != null) {
-                mltRequest.setSearchScroll(new Scroll(parseTimeValue(searchScroll, null)));
+                mltRequest.searchScroll(new Scroll(parseTimeValue(searchScroll, null)));
             }
             if (request.hasContent()) {
-                mltRequest.setSearchSource(request.content(), request.contentUnsafe());
+                mltRequest.searchSource(request.content(), request.contentUnsafe());
             } else {
                 String searchSource = request.param("search_source");
                 if (searchSource != null) {
-                    mltRequest.setSearchSource(searchSource);
+                    mltRequest.searchSource(searchSource);
                 }
             }
         } catch (Exception e) {

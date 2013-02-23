@@ -55,10 +55,10 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         String[] nodesIds = RestActions.splitNodes(request.param("nodeId"));
         NodesHotThreadsRequest nodesHotThreadsRequest = new NodesHotThreadsRequest(nodesIds);
-        nodesHotThreadsRequest.setThreads(request.paramAsInt("threads", nodesHotThreadsRequest.getThreads()));
-        nodesHotThreadsRequest.setType(request.param("type", nodesHotThreadsRequest.getType()));
-        nodesHotThreadsRequest.setInterval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.getInterval()));
-        nodesHotThreadsRequest.setSnapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.getSnapshots()));
+        nodesHotThreadsRequest.threads(request.paramAsInt("threads", nodesHotThreadsRequest.threads()));
+        nodesHotThreadsRequest.type(request.param("type", nodesHotThreadsRequest.type()));
+        nodesHotThreadsRequest.interval(TimeValue.parseTimeValue(request.param("interval"), nodesHotThreadsRequest.interval()));
+        nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));
         client.admin().cluster().nodesHotThreads(nodesHotThreadsRequest, new ActionListener<NodesHotThreadsResponse>() {
             @Override
             public void onResponse(NodesHotThreadsResponse response) {

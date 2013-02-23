@@ -58,15 +58,15 @@ public class RestExplainAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("type"), request.param("id"));
-        explainRequest.setParent(request.param("parent"));
-        explainRequest.setRouting(request.param("routing"));
-        explainRequest.setPreference(request.param("preference"));
+        explainRequest.parent(request.param("parent"));
+        explainRequest.routing(request.param("routing"));
+        explainRequest.preference(request.param("preference"));
         String sourceString = request.param("source");
         String queryString = request.param("q");
         if (request.hasContent()) {
-            explainRequest.setSource(request.content(), request.contentUnsafe());
+            explainRequest.source(request.content(), request.contentUnsafe());
         } else if (sourceString != null) {
-            explainRequest.setSource(new BytesArray(request.param("source")), false);
+            explainRequest.source(new BytesArray(request.param("source")), false);
         } else if (queryString != null) {
             QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryString(queryString);
             queryStringBuilder.defaultField(request.param("df"));
@@ -87,14 +87,14 @@ public class RestExplainAction extends BaseRestHandler {
 
             ExplainSourceBuilder explainSourceBuilder = new ExplainSourceBuilder();
             explainSourceBuilder.setQuery(queryStringBuilder);
-            explainRequest.setSource(explainSourceBuilder);
+            explainRequest.source(explainSourceBuilder);
         }
 
         String sField = request.param("fields");
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);
             if (sFields != null) {
-                explainRequest.setFields(sFields);
+                explainRequest.fields(sFields);
             }
         }
 
@@ -106,9 +106,9 @@ public class RestExplainAction extends BaseRestHandler {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
                     builder.field(Fields.OK, response.isExists())
-                            .field(Fields._INDEX, explainRequest.getIndex())
-                            .field(Fields._TYPE, explainRequest.getType())
-                            .field(Fields._ID, explainRequest.getId())
+                            .field(Fields._INDEX, explainRequest.index())
+                            .field(Fields._TYPE, explainRequest.type())
+                            .field(Fields._ID, explainRequest.id())
                             .field(Fields.MATCHED, response.isMatch());
 
                     if (response.hasExplanation()) {

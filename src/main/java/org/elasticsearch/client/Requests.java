@@ -74,8 +74,8 @@ public class Requests {
     }
 
     /**
-     * Create an index request against a specific index. Note the {@link IndexRequest#setType(String)} must be
-     * set as well and optionally the {@link IndexRequest#setId(String)}.
+     * Create an index request against a specific index. Note the {@link IndexRequest#type(String)} must be
+     * set as well and optionally the {@link IndexRequest#id(String)}.
      *
      * @param index The index name to index the request against
      * @return The index request
@@ -86,8 +86,8 @@ public class Requests {
     }
 
     /**
-     * Creates a delete request against a specific index. Note the {@link DeleteRequest#setType(String)} and
-     * {@link DeleteRequest#setId(String)} must be set.
+     * Creates a delete request against a specific index. Note the {@link DeleteRequest#type(String)} and
+     * {@link DeleteRequest#id(String)} must be set.
      *
      * @param index The index name to delete from
      * @return The delete request
@@ -118,7 +118,7 @@ public class Requests {
 
     /**
      * Creates a get request to get the JSON source from an index based on a type and id. Note, the
-     * {@link GetRequest#setType(String)} and {@link GetRequest#setId(String)} must be set.
+     * {@link GetRequest#type(String)} and {@link GetRequest#id(String)} must be set.
      *
      * @param index The index to get the JSON source from
      * @return The get request

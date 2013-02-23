@@ -35,7 +35,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to delete a document from an index based on its type and id. Best created using
  * {@link org.elasticsearch.client.Requests#deleteRequest(String)}.
  * <p/>
- * <p>The operation requires the {@link #getIndex()}, {@link #setType(String)} and {@link #setId(String)} to
+ * <p>The operation requires the {@link #index()}, {@link #type(String)} and {@link #id(String)} to
  * be set.
  *
  * @see DeleteResponse
@@ -53,7 +53,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     private VersionType versionType = VersionType.INTERNAL;
 
     /**
-     * Constructs a new delete request against the specified index. The {@link #setType(String)} and {@link #setId(String)}
+     * Constructs a new delete request against the specified index. The {@link #type(String)} and {@link #id(String)}
      * must be set.
      */
     public DeleteRequest(String index) {
@@ -75,12 +75,12 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
 
     public DeleteRequest(DeleteRequest request) {
         super(request);
-        this.type = request.getType();
-        this.id = request.getId();
-        this.routing = request.getRouting();
-        this.refresh = request.isRefresh();
-        this.version = request.getVersion();
-        this.versionType = request.getVersionType();
+        this.type = request.type();
+        this.id = request.id();
+        this.routing = request.routing();
+        this.refresh = request.refresh();
+        this.version = request.version();
+        this.versionType = request.versionType();
     }
 
     public DeleteRequest() {
@@ -101,7 +101,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     /**
      * The type of the document to delete.
      */
-    public String getType() {
+    public String type() {
         return type;
     }
 
@@ -109,7 +109,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Sets the type of the document to delete.
      */
     @Required
-    public DeleteRequest setType(String type) {
+    public DeleteRequest type(String type) {
         this.type = type;
         return this;
     }
@@ -117,7 +117,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     /**
      * The id of the document to delete.
      */
-    public String getId() {
+    public String id() {
         return id;
     }
 
@@ -125,7 +125,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Sets the id of the document to delete.
      */
     @Required
-    public DeleteRequest setId(String id) {
+    public DeleteRequest id(String id) {
         this.id = id;
         return this;
     }
@@ -134,7 +134,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Sets the parent id of this document. Will simply set the routing to this value, as it is only
      * used for routing with delete requests.
      */
-    public DeleteRequest setParent(String parent) {
+    public DeleteRequest parent(String parent) {
         if (routing == null) {
             routing = parent;
         }
@@ -145,7 +145,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
-    public DeleteRequest setRouting(String routing) {
+    public DeleteRequest routing(String routing) {
         if (routing != null && routing.length() == 0) {
             this.routing = null;
         } else {
@@ -158,7 +158,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Controls the shard routing of the delete request. Using this value to hash the shard
      * and not the id.
      */
-    public String getRouting() {
+    public String routing() {
         return this.routing;
     }
 
@@ -167,12 +167,12 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
      * to <tt>false</tt>.
      */
-    public DeleteRequest setRefresh(boolean refresh) {
+    public DeleteRequest refresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }
 
-    public boolean isRefresh() {
+    public boolean refresh() {
         return this.refresh;
     }
 
@@ -180,21 +180,21 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Sets the version, which will cause the delete operation to only be performed if a matching
      * version exists and no changes happened on the doc since then.
      */
-    public DeleteRequest setVersion(long version) {
+    public DeleteRequest version(long version) {
         this.version = version;
         return this;
     }
 
-    public long getVersion() {
+    public long version() {
         return this.version;
     }
 
-    public DeleteRequest setVersionType(VersionType versionType) {
+    public DeleteRequest versionType(VersionType versionType) {
         this.versionType = versionType;
         return this;
     }
 
-    public VersionType getVersionType() {
+    public VersionType versionType() {
         return this.versionType;
     }
 
@@ -214,7 +214,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         super.writeTo(out);
         out.writeString(type);
         out.writeString(id);
-        out.writeOptionalString(getRouting());
+        out.writeOptionalString(routing());
         out.writeBoolean(refresh);
         out.writeLong(version);
         out.writeByte(versionType.getValue());

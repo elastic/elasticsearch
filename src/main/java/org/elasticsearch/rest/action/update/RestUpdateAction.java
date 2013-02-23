@@ -56,22 +56,22 @@ public class RestUpdateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
-        updateRequest.setListenerThreaded(false);
-        updateRequest.setRouting(request.param("routing"));
-        updateRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-        updateRequest.setTimeout(request.paramAsTime("timeout", updateRequest.getTimeout()));
-        updateRequest.setRefresh(request.paramAsBoolean("refresh", updateRequest.isRefresh()));
+        updateRequest.listenerThreaded(false);
+        updateRequest.routing(request.param("routing"));
+        updateRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+        updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
+        updateRequest.refresh(request.paramAsBoolean("refresh", updateRequest.refresh()));
         String replicationType = request.param("replication");
         if (replicationType != null) {
-            updateRequest.setReplicationType(ReplicationType.fromString(replicationType));
+            updateRequest.replicationType(ReplicationType.fromString(replicationType));
         }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
-            updateRequest.setConsistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+            updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
-        updateRequest.setPercolate(request.param("percolate", null));
-        updateRequest.setScript(request.param("script"));
-        updateRequest.setScriptLang(request.param("lang"));
+        updateRequest.percolate(request.param("percolate", null));
+        updateRequest.script(request.param("script"));
+        updateRequest.scriptLang(request.param("lang"));
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
             if (entry.getKey().startsWith("sp_")) {
                 updateRequest.addScriptParam(entry.getKey().substring(3), entry.getValue());
@@ -81,36 +81,36 @@ public class RestUpdateAction extends BaseRestHandler {
         if (sField != null) {
             String[] sFields = Strings.splitStringByCommaToArray(sField);
             if (sFields != null) {
-                updateRequest.setFields(sFields);
+                updateRequest.fields(sFields);
             }
         }
-        updateRequest.setRetryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.getRetryOnConflict()));
+        updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
 
         // see if we have it in the body
         if (request.hasContent()) {
             try {
-                updateRequest.setSource(request.content());
-                IndexRequest upsertRequest = updateRequest.getUpsertRequest();
+                updateRequest.source(request.content());
+                IndexRequest upsertRequest = updateRequest.upsertRequest();
                 if (upsertRequest != null) {
-                    upsertRequest.setRouting(request.param("routing"));
-                    upsertRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    upsertRequest.setTimestamp(request.param("timestamp"));
+                    upsertRequest.routing(request.param("routing"));
+                    upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    upsertRequest.timestamp(request.param("timestamp"));
                     if (request.hasParam("ttl")) {
-                        upsertRequest.setTtl(request.paramAsTime("ttl", null).millis());
+                        upsertRequest.ttl(request.paramAsTime("ttl", null).millis());
                     }
-                    upsertRequest.setVersion(RestActions.parseVersion(request));
-                    upsertRequest.setVersionType(VersionType.fromString(request.param("version_type"), upsertRequest.getVersionType()));
+                    upsertRequest.version(RestActions.parseVersion(request));
+                    upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
                 }
-                IndexRequest doc = updateRequest.getDoc();
+                IndexRequest doc = updateRequest.doc();
                 if (doc != null) {
-                    doc.setRouting(request.param("routing"));
-                    doc.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    doc.setTimestamp(request.param("timestamp"));
+                    doc.routing(request.param("routing"));
+                    doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                    doc.timestamp(request.param("timestamp"));
                     if (request.hasParam("ttl")) {
-                        doc.setTtl(request.paramAsTime("ttl", null).millis());
+                        doc.ttl(request.paramAsTime("ttl", null).millis());
                     }
-                    doc.setVersion(RestActions.parseVersion(request));
-                    doc.setVersionType(VersionType.fromString(request.param("version_type"), doc.getVersionType()));
+                    doc.version(RestActions.parseVersion(request));
+                    doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
                 }
             } catch (Exception e) {
                 try {

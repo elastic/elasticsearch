@@ -41,30 +41,30 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
 
     public ShardOptimizeRequest(String index, int shardId, OptimizeRequest request) {
         super(index, shardId, request);
-        waitForMerge = request.isWaitForMerge();
-        maxNumSegments = request.getMaxNumSegments();
-        onlyExpungeDeletes = request.isOnlyExpungeDeletes();
-        flush = request.isFlush();
-        refresh = request.isRefresh();
+        waitForMerge = request.waitForMerge();
+        maxNumSegments = request.maxNumSegments();
+        onlyExpungeDeletes = request.onlyExpungeDeletes();
+        flush = request.flush();
+        refresh = request.refresh();
     }
 
-    public boolean isWaitForMerge() {
+    boolean waitForMerge() {
         return waitForMerge;
     }
 
-    public int getMaxNumSegments() {
+    int maxNumSegments() {
         return maxNumSegments;
     }
 
-    public boolean isOnlyExpungeDeletes() {
+    public boolean onlyExpungeDeletes() {
         return onlyExpungeDeletes;
     }
 
-    public boolean isFlush() {
+    public boolean flush() {
         return flush;
     }
 
-    public boolean isRefresh() {
+    public boolean refresh() {
         return refresh;
     }
 

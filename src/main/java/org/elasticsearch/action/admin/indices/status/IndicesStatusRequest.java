@@ -46,24 +46,24 @@ public class IndicesStatusRequest extends BroadcastOperationRequest<IndicesStatu
     /**
      * Should the status include recovery information. Defaults to <tt>false</tt>.
      */
-    public IndicesStatusRequest setRecovery(boolean recovery) {
+    public IndicesStatusRequest recovery(boolean recovery) {
         this.recovery = recovery;
         return this;
     }
 
-    public boolean isRecovery() {
+    public boolean recovery() {
         return this.recovery;
     }
 
     /**
      * Should the status include recovery information. Defaults to <tt>false</tt>.
      */
-    public IndicesStatusRequest setSnapshot(boolean snapshot) {
+    public IndicesStatusRequest snapshot(boolean snapshot) {
         this.snapshot = snapshot;
         return this;
     }
 
-    public boolean isSnapshot() {
+    public boolean snapshot() {
         return this.snapshot;
     }
 

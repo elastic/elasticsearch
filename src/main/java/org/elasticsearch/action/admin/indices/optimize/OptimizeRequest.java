@@ -30,10 +30,10 @@ import java.io.IOException;
  * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
  * <tt>null</tt> for the indices.
  * <p/>
- * <p>{@link #setWaitForMerge(boolean)} allows to control if the call will block until the optimize completes and
+ * <p>{@link #waitForMerge(boolean)} allows to control if the call will block until the optimize completes and
  * defaults to <tt>true</tt>.
  * <p/>
- * <p>{@link #setMaxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
+ * <p>{@link #maxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  *
  * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
@@ -68,7 +68,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
     public OptimizeRequest(String... indices) {
         super(indices);
         // we want to do the optimize in parallel on local shards...
-        setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
+        operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD);
     }
 
     public OptimizeRequest() {
@@ -78,14 +78,14 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
     /**
      * Should the call block until the optimize completes. Defaults to <tt>true</tt>.
      */
-    public boolean isWaitForMerge() {
+    public boolean waitForMerge() {
         return waitForMerge;
     }
 
     /**
      * Should the call block until the optimize completes. Defaults to <tt>true</tt>.
      */
-    public OptimizeRequest setWaitForMerge(boolean waitForMerge) {
+    public OptimizeRequest waitForMerge(boolean waitForMerge) {
         this.waitForMerge = waitForMerge;
         return this;
     }
@@ -94,7 +94,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
      * Will optimize the index down to <= maxNumSegments. By default, will cause the optimize
      * process to optimize down to half the configured number of segments.
      */
-    public int getMaxNumSegments() {
+    public int maxNumSegments() {
         return maxNumSegments;
     }
 
@@ -102,7 +102,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
      * Will optimize the index down to <= maxNumSegments. By default, will cause the optimize
      * process to optimize down to half the configured number of segments.
      */
-    public OptimizeRequest setMaxNumSegments(int maxNumSegments) {
+    public OptimizeRequest maxNumSegments(int maxNumSegments) {
         this.maxNumSegments = maxNumSegments;
         return this;
     }
@@ -111,7 +111,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
      * Should the optimization only expunge deletes from the index, without full optimization.
      * Defaults to full optimization (<tt>false</tt>).
      */
-    public boolean isOnlyExpungeDeletes() {
+    public boolean onlyExpungeDeletes() {
         return onlyExpungeDeletes;
     }
 
@@ -119,7 +119,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
      * Should the optimization only expunge deletes from the index, without full optimization.
      * Defaults to full optimization (<tt>false</tt>).
      */
-    public OptimizeRequest setOnlyExpungeDeletes(boolean onlyExpungeDeletes) {
+    public OptimizeRequest onlyExpungeDeletes(boolean onlyExpungeDeletes) {
         this.onlyExpungeDeletes = onlyExpungeDeletes;
         return this;
     }
@@ -127,14 +127,14 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
     /**
      * Should flush be performed after the optimization. Defaults to <tt>true</tt>.
      */
-    public boolean isFlush() {
+    public boolean flush() {
         return flush;
     }
 
     /**
      * Should flush be performed after the optimization. Defaults to <tt>true</tt>.
      */
-    public OptimizeRequest setFlush(boolean flush) {
+    public OptimizeRequest flush(boolean flush) {
         this.flush = flush;
         return this;
     }
@@ -142,14 +142,14 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
     /**
      * Should refresh be performed after the optimization. Defaults to <tt>true</tt>.
      */
-    public boolean isRefresh() {
+    public boolean refresh() {
         return refresh;
     }
 
     /**
      * Should refresh be performed after the optimization. Defaults to <tt>true</tt>.
      */
-    public OptimizeRequest setRefresh(boolean refresh) {
+    public OptimizeRequest refresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }

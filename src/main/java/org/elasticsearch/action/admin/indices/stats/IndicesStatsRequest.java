@@ -28,7 +28,7 @@ import java.io.IOException;
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
  * <p/>
- * <p>By default, the {@link #setDocs(boolean)}, {@link #setStore(boolean)}, {@link #setIndexing(boolean)}
+ * <p>By default, the {@link #docs(boolean)}, {@link #store(boolean)}, {@link #indexing(boolean)}
  * are enabled. Other stats can be enabled as well.
  * <p/>
  * <p>All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
@@ -85,19 +85,19 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
     }
 
     /**
-     * Document types to return stats for. Mainly affects {@link #setIndexing(boolean)} when
+     * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
      * enabled, returning specific indexing stats for those types.
      */
-    public IndicesStatsRequest setTypes(String... types) {
+    public IndicesStatsRequest types(String... types) {
         this.types = types;
         return this;
     }
 
     /**
-     * Document types to return stats for. Mainly affects {@link #setIndexing(boolean)} when
+     * Document types to return stats for. Mainly affects {@link #indexing(boolean)} when
      * enabled, returning specific indexing stats for those types.
      */
-    public String[] getTypes() {
+    public String[] types() {
         return this.types;
     }
 
@@ -105,93 +105,93 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
      * Sets specific search group stats to retrieve the stats for. Mainly affects search
      * when enabled.
      */
-    public IndicesStatsRequest setGroups(String... groups) {
+    public IndicesStatsRequest groups(String... groups) {
         this.groups = groups;
         return this;
     }
 
-    public String[] getGroups() {
+    public String[] groups() {
         return this.groups;
     }
 
-    public IndicesStatsRequest setDocs(boolean docs) {
+    public IndicesStatsRequest docs(boolean docs) {
         this.docs = docs;
         return this;
     }
 
-    public boolean isDocs() {
+    public boolean docs() {
         return this.docs;
     }
 
-    public IndicesStatsRequest setStore(boolean store) {
+    public IndicesStatsRequest store(boolean store) {
         this.store = store;
         return this;
     }
 
-    public boolean isStore() {
+    public boolean store() {
         return this.store;
     }
 
-    public IndicesStatsRequest setIndexing(boolean indexing) {
+    public IndicesStatsRequest indexing(boolean indexing) {
         this.indexing = indexing;
         return this;
     }
 
-    public boolean isIndexing() {
+    public boolean indexing() {
         return this.indexing;
     }
 
-    public IndicesStatsRequest setGet(boolean get) {
+    public IndicesStatsRequest get(boolean get) {
         this.get = get;
         return this;
     }
 
-    public boolean isGet() {
+    public boolean get() {
         return this.get;
     }
 
-    public IndicesStatsRequest setSearch(boolean search) {
+    public IndicesStatsRequest search(boolean search) {
         this.search = search;
         return this;
     }
 
-    public boolean isSearch() {
+    public boolean search() {
         return this.search;
     }
 
-    public IndicesStatsRequest setMerge(boolean merge) {
+    public IndicesStatsRequest merge(boolean merge) {
         this.merge = merge;
         return this;
     }
 
-    public boolean isMerge() {
+    public boolean merge() {
         return this.merge;
     }
 
-    public IndicesStatsRequest setRefresh(boolean refresh) {
+    public IndicesStatsRequest refresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }
 
-    public boolean isRefresh() {
+    public boolean refresh() {
         return this.refresh;
     }
 
-    public IndicesStatsRequest setFlush(boolean flush) {
+    public IndicesStatsRequest flush(boolean flush) {
         this.flush = flush;
         return this;
     }
 
-    public boolean isFlush() {
+    public boolean flush() {
         return this.flush;
     }
 
-    public IndicesStatsRequest setWarmer(boolean warmer) {
+    public IndicesStatsRequest warmer(boolean warmer) {
         this.warmer = warmer;
         return this;
     }
 
-    public boolean isWarmer() {
+    public boolean warmer() {
         return this.warmer;
     }
 

@@ -89,20 +89,20 @@ public class RestNodesInfoAction extends BaseRestHandler {
         if (all) {
             nodesInfoRequest.all();
         }
-        nodesInfoRequest.setSettings(request.paramAsBoolean("settings", nodesInfoRequest.isSettings()));
-        nodesInfoRequest.setOs(request.paramAsBoolean("os", nodesInfoRequest.isOs()));
-        nodesInfoRequest.setProcess(request.paramAsBoolean("process", nodesInfoRequest.isProcess()));
-        nodesInfoRequest.setJvm(request.paramAsBoolean("jvm", nodesInfoRequest.isJvm()));
-        nodesInfoRequest.setThreadPool(request.paramAsBoolean("thread_pool", nodesInfoRequest.isThreadPool()));
-        nodesInfoRequest.setNetwork(request.paramAsBoolean("network", nodesInfoRequest.isNetwork()));
-        nodesInfoRequest.setTransport(request.paramAsBoolean("transport", nodesInfoRequest.isTransport()));
-        nodesInfoRequest.setHttp(request.paramAsBoolean("http", nodesInfoRequest.isHttp()));
+        nodesInfoRequest.settings(request.paramAsBoolean("settings", nodesInfoRequest.settings()));
+        nodesInfoRequest.os(request.paramAsBoolean("os", nodesInfoRequest.os()));
+        nodesInfoRequest.process(request.paramAsBoolean("process", nodesInfoRequest.process()));
+        nodesInfoRequest.jvm(request.paramAsBoolean("jvm", nodesInfoRequest.jvm()));
+        nodesInfoRequest.threadPool(request.paramAsBoolean("thread_pool", nodesInfoRequest.threadPool()));
+        nodesInfoRequest.network(request.paramAsBoolean("network", nodesInfoRequest.network()));
+        nodesInfoRequest.transport(request.paramAsBoolean("transport", nodesInfoRequest.transport()));
+        nodesInfoRequest.http(request.paramAsBoolean("http", nodesInfoRequest.http()));
 
         executeNodeRequest(request, channel, nodesInfoRequest);
     }
 
     void executeNodeRequest(final RestRequest request, final RestChannel channel, NodesInfoRequest nodesInfoRequest) {
-        nodesInfoRequest.setListenerThreaded(false);
+        nodesInfoRequest.listenerThreaded(false);
         client.admin().cluster().nodesInfo(nodesInfoRequest, new ActionListener<NodesInfoResponse>() {
             @Override
             public void onResponse(NodesInfoResponse response) {
@@ -134,7 +134,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesInfoRequest.clear().setSettings(true);
+            nodesInfoRequest.clear().settings(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }
@@ -143,7 +143,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesInfoRequest.clear().setOs(true);
+            nodesInfoRequest.clear().os(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }
@@ -152,7 +152,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesInfoRequest.clear().setProcess(true);
+            nodesInfoRequest.clear().process(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }
@@ -161,7 +161,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesInfoRequest.clear().setJvm(true);
+            nodesInfoRequest.clear().jvm(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }
@@ -170,7 +170,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesInfoRequest.clear().setThreadPool(true);
+            nodesInfoRequest.clear().threadPool(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }
@@ -179,7 +179,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesInfoRequest.clear().setNetwork(true);
+            nodesInfoRequest.clear().network(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }
@@ -188,7 +188,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesInfoRequest.clear().setTransport(true);
+            nodesInfoRequest.clear().transport(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }
@@ -197,7 +197,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesInfoRequest.clear().setHttp(true);
+            nodesInfoRequest.clear().http(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }

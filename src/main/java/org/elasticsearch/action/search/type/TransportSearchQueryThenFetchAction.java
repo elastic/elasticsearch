@@ -110,7 +110,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
             }
 
             if (localOperations > 0) {
-                if (request.getOperationThreading() == SearchOperationThreading.SINGLE_THREAD) {
+                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
@@ -124,7 +124,7 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
                         }
                     });
                 } else {
-                    boolean localAsync = request.getOperationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
+                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
                         final DiscoveryNode node = nodes.get(entry.getKey().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
@@ -189,8 +189,8 @@ public class TransportSearchQueryThenFetchAction extends TransportSearchTypeActi
         void innerFinishHim() throws Exception {
             InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryResults, fetchResults);
             String scrollId = null;
-            if (request.getScroll() != null) {
-                scrollId = TransportSearchHelper.buildScrollId(request.getSearchType(), queryResults.values(), null);
+            if (request.scroll() != null) {
+                scrollId = TransportSearchHelper.buildScrollId(request.searchType(), queryResults.values(), null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }

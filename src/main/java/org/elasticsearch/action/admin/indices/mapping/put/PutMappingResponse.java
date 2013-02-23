@@ -42,7 +42,7 @@ public class PutMappingResponse extends ActionResponse {
 
     /**
      * Has the put mapping creation been acknowledged by all current cluster nodes within the
-     * provided {@link PutMappingRequest#setTimeout(org.elasticsearch.common.unit.TimeValue)}.
+     * provided {@link PutMappingRequest#timeout(org.elasticsearch.common.unit.TimeValue)}.
      */
     public boolean isAcknowledged() {
         return acknowledged;

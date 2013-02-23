@@ -63,7 +63,7 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
     @Override
     protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
-            ParsedScrollId scrollId = parseScrollId(request.getScrollId());
+            ParsedScrollId scrollId = parseScrollId(request.scrollId());
             if (scrollId.getType().equals(QUERY_THEN_FETCH_TYPE)) {
                 queryThenFetchAction.execute(request, scrollId, listener);
             } else if (scrollId.getType().equals(QUERY_AND_FETCH_TYPE)) {
@@ -88,7 +88,7 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
         @Override
         public void messageReceived(SearchScrollRequest request, final TransportChannel channel) throws Exception {
             // no need for a threaded listener
-            request.setListenerThreaded(false);
+            request.listenerThreaded(false);
             execute(request, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse result) {

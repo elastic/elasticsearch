@@ -91,12 +91,12 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
 
             SearchRequest searchRequest = new SearchRequest(indices);
             if (ignoreIndices != null) {
-                searchRequest.setIgnoreIndices(ignoreIndices);
+                searchRequest.ignoreIndices(ignoreIndices);
             }
             if (types != null && types.length > 0) {
-                searchRequest.setTypes(types);
+                searchRequest.types(types);
             }
-            searchRequest.setSearchType(searchType);
+            searchRequest.searchType(searchType);
 
             // now parse the action
             if (nextMarker - from > 0) {
@@ -112,23 +112,23 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                                 currentFieldName = parser.currentName();
                             } else if (token.isValue()) {
                                 if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
-                                    searchRequest.setIndices(Strings.splitStringByCommaToArray(parser.text()));
+                                    searchRequest.indices(Strings.splitStringByCommaToArray(parser.text()));
                                 } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
-                                    searchRequest.setTypes(Strings.splitStringByCommaToArray(parser.text()));
+                                    searchRequest.types(Strings.splitStringByCommaToArray(parser.text()));
                                 } else if ("search_type".equals(currentFieldName) || "searchType".equals(currentFieldName)) {
-                                    searchRequest.setSearchType(parser.text());
+                                    searchRequest.searchType(parser.text());
                                 } else if ("preference".equals(currentFieldName)) {
-                                    searchRequest.setPreference(parser.text());
+                                    searchRequest.preference(parser.text());
                                 } else if ("routing".equals(currentFieldName)) {
-                                    searchRequest.setRouting(parser.text());
+                                    searchRequest.routing(parser.text());
                                 } else if ("ignore_indices".equals(currentFieldName) || "ignoreIndices".equals(currentFieldName)) {
-                                    searchRequest.setIgnoreIndices(IgnoreIndices.fromString(parser.text()));
+                                    searchRequest.ignoreIndices(IgnoreIndices.fromString(parser.text()));
                                 }
                             } else if (token == XContentParser.Token.START_ARRAY) {
                                 if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
-                                    searchRequest.setIndices(parseArray(parser));
+                                    searchRequest.indices(parseArray(parser));
                                 } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
-                                    searchRequest.setTypes(parseArray(parser));
+                                    searchRequest.types(parseArray(parser));
                                 } else {
                                     throw new ElasticSearchParseException(currentFieldName + " doesn't support arrays");
                                 }
@@ -148,7 +148,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                 break;
             }
 
-            searchRequest.setSource(data.slice(from, nextMarker - from), contentUnsafe);
+            searchRequest.source(data.slice(from, nextMarker - from), contentUnsafe);
             // move pointers
             from = nextMarker + 1;
 
@@ -176,7 +176,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
         return -1;
     }
 
-    public List<SearchRequest> getRequests() {
+    public List<SearchRequest> requests() {
         return this.requests;
     }
 
@@ -199,11 +199,11 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
         return validationException;
     }
 
-    public IgnoreIndices getIgnoreIndices() {
+    public IgnoreIndices ignoreIndices() {
         return ignoreIndices;
     }
 
-    public MultiSearchRequest setIgnoreIndices(IgnoreIndices ignoreIndices) {
+    public MultiSearchRequest ignoreIndices(IgnoreIndices ignoreIndices) {
         this.ignoreIndices = ignoreIndices;
         return this;
     }

@@ -42,8 +42,8 @@ import java.util.Map;
 /**
  * A request to validate a specific query.
  * <p/>
- * <p>The request requires the query source to be set either using {@link #setQuery(org.elasticsearch.index.query.QueryBuilder)},
- * or {@link #setQuery(byte[])}.
+ * <p>The request requires the query source to be set either using {@link #query(org.elasticsearch.index.query.QueryBuilder)},
+ * or {@link #query(byte[])}.
  */
 public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQueryRequest> {
 
@@ -84,7 +84,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     /**
      * The query source to execute.
      */
-    public BytesReference getQuerySource() {
+    BytesReference querySource() {
         return querySource;
     }
 
@@ -94,7 +94,7 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     @Required
-    public ValidateQueryRequest setQuery(QueryBuilder queryBuilder) {
+    public ValidateQueryRequest query(QueryBuilder queryBuilder) {
         this.querySource = queryBuilder.buildAsBytes();
         this.querySourceUnsafe = false;
         return this;
@@ -104,29 +104,29 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
      * The query source to execute in the form of a map.
      */
     @Required
-    public ValidateQueryRequest setQuery(Map querySource) {
+    public ValidateQueryRequest query(Map querySource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(querySource);
-            return setQuery(builder);
+            return query(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + querySource + "]", e);
         }
     }
 
     @Required
-    public ValidateQueryRequest setQuery(XContentBuilder builder) {
+    public ValidateQueryRequest query(XContentBuilder builder) {
         this.querySource = builder.bytes();
         this.querySourceUnsafe = false;
         return this;
     }
 
     /**
-     * The query source to validate. It is preferable to use either {@link #setQuery(byte[])}
-     * or {@link #setQuery(org.elasticsearch.index.query.QueryBuilder)}.
+     * The query source to validate. It is preferable to use either {@link #query(byte[])}
+     * or {@link #query(org.elasticsearch.index.query.QueryBuilder)}.
      */
     @Required
-    public ValidateQueryRequest setQuery(String querySource) {
+    public ValidateQueryRequest query(String querySource) {
         this.querySource = new BytesArray(querySource);
         ;
         this.querySourceUnsafe = false;
@@ -137,23 +137,23 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
      * The query source to validate.
      */
     @Required
-    public ValidateQueryRequest setQuery(byte[] querySource) {
-        return setQuery(querySource, 0, querySource.length, false);
+    public ValidateQueryRequest query(byte[] querySource) {
+        return query(querySource, 0, querySource.length, false);
     }
 
     /**
      * The query source to validate.
      */
     @Required
-    public ValidateQueryRequest setQuery(byte[] querySource, int offset, int length, boolean unsafe) {
-        return setQuery(new BytesArray(querySource, offset, length), unsafe);
+    public ValidateQueryRequest query(byte[] querySource, int offset, int length, boolean unsafe) {
+        return query(new BytesArray(querySource, offset, length), unsafe);
     }
 
     /**
      * The query source to validate.
      */
     @Required
-    public ValidateQueryRequest setQuery(BytesReference querySource, boolean unsafe) {
+    public ValidateQueryRequest query(BytesReference querySource, boolean unsafe) {
         this.querySource = querySource;
         this.querySourceUnsafe = unsafe;
         return this;
@@ -162,14 +162,14 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    public String[] getTypes() {
+    String[] types() {
         return this.types;
     }
 
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    public ValidateQueryRequest setTypes(String... types) {
+    public ValidateQueryRequest types(String... types) {
         this.types = types;
         return this;
     }
@@ -177,14 +177,14 @@ public class ValidateQueryRequest extends BroadcastOperationRequest<ValidateQuer
     /**
      * Indicate if detailed information about query is requested
      */
-    public void setExplain(boolean explain) {
+    public void explain(boolean explain) {
         this.explain = explain;
     }
 
     /**
      * Indicates if detailed information about query is requested
      */
-    public boolean isExplain() {
+    public boolean explain() {
         return explain;
     }
 

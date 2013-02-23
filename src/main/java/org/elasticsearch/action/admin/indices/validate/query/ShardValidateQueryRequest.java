@@ -46,9 +46,9 @@ class ShardValidateQueryRequest extends BroadcastShardOperationRequest {
 
     public ShardValidateQueryRequest(String index, int shardId, @Nullable String[] filteringAliases, ValidateQueryRequest request) {
         super(index, shardId, request);
-        this.querySource = request.getQuerySource();
-        this.types = request.getTypes();
-        this.explain = request.isExplain();
+        this.querySource = request.querySource();
+        this.types = request.types();
+        this.explain = request.explain();
         this.filteringAliases = filteringAliases;
     }
 

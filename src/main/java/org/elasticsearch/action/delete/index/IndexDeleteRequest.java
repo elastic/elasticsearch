@@ -40,29 +40,29 @@ public class IndexDeleteRequest extends IndexReplicationOperationRequest<IndexDe
     }
 
     public IndexDeleteRequest(DeleteRequest request) {
-        this.timeout = request.getTimeout();
-        this.consistencyLevel = request.getConsistencyLevel();
-        this.replicationType = request.getReplicationType();
-        this.index = request.getIndex();
-        this.type = request.getType();
-        this.id = request.getId();
-        this.refresh = request.isRefresh();
-        this.version = request.getVersion();
+        this.timeout = request.timeout();
+        this.consistencyLevel = request.consistencyLevel();
+        this.replicationType = request.replicationType();
+        this.index = request.index();
+        this.type = request.type();
+        this.id = request.id();
+        this.refresh = request.refresh();
+        this.version = request.version();
     }
 
-    public String getType() {
+    public String type() {
         return this.type;
     }
 
-    public String getId() {
+    public String id() {
         return this.id;
     }
 
-    public boolean isRefresh() {
+    public boolean refresh() {
         return this.refresh;
     }
 
-    public long getVersion() {
+    public long version() {
         return this.version;
     }
 

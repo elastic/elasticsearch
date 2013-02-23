@@ -97,7 +97,7 @@ public class TransportNodesStatsAction extends TransportNodesOperationAction<Nod
     @Override
     protected NodeStats nodeOperation(NodeStatsRequest nodeStatsRequest) throws ElasticSearchException {
         NodesStatsRequest request = nodeStatsRequest.request;
-        return nodeService.stats(request.isIndices(), request.isOs(), request.isProcess(), request.isJvm(), request.isThreadPool(), request.isNetwork(), request.isFs(), request.isTransport(), request.isHttp());
+        return nodeService.stats(request.indices(), request.os(), request.process(), request.jvm(), request.threadPool(), request.network(), request.fs(), request.transport(), request.http());
     }
 
     @Override

@@ -45,7 +45,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      * Sets the type of the document to delete.
      */
     public DeleteRequestBuilder setType(String type) {
-        request.setType(type);
+        request.type(type);
         return this;
     }
 
@@ -53,7 +53,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      * Sets the id of the document to delete.
      */
     public DeleteRequestBuilder setId(String id) {
-        request.setId(id);
+        request.id(id);
         return this;
     }
 
@@ -62,7 +62,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      * used for routing with delete requests.
      */
     public DeleteRequestBuilder setParent(String parent) {
-        request.setParent(parent);
+        request.parent(parent);
         return this;
     }
 
@@ -71,7 +71,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      * and not the id.
      */
     public DeleteRequestBuilder setRouting(String routing) {
-        request.setRouting(routing);
+        request.routing(routing);
         return this;
     }
 
@@ -81,7 +81,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      * to <tt>false</tt>.
      */
     public DeleteRequestBuilder setRefresh(boolean refresh) {
-        request.setRefresh(refresh);
+        request.refresh(refresh);
         return this;
     }
 
@@ -90,7 +90,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      * version exists and no changes happened on the doc since then.
      */
     public DeleteRequestBuilder setVersion(long version) {
-        request.setVersion(version);
+        request.version(version);
         return this;
     }
 
@@ -98,7 +98,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      * Sets the type of versioning to use. Defaults to {@link VersionType#INTERNAL}.
      */
     public DeleteRequestBuilder setVersionType(VersionType versionType) {
-        request.setVersionType(versionType);
+        request.versionType(versionType);
         return this;
     }
 
@@ -106,7 +106,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      * Set the replication type for this operation.
      */
     public DeleteRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.setReplicationType(replicationType);
+        request.replicationType(replicationType);
         return this;
     }
 
@@ -114,7 +114,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
      */
     public DeleteRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.setConsistencyLevel(consistencyLevel);
+        request.consistencyLevel(consistencyLevel);
         return this;
     }
 

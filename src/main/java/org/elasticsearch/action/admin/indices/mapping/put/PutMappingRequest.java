@@ -43,7 +43,7 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
  * {@link org.elasticsearch.client.Requests#putMappingRequest(String...)}.
  * <p/>
  * <p>If the mappings already exists, the new mappings will be merged with the new one. If there are elements
- * that can't be merged are detected, the request will be rejected unless the {@link #setIgnoreConflicts(boolean)}
+ * that can't be merged are detected, the request will be rejected unless the {@link #ignoreConflicts(boolean)}
  * is set. In such a case, the duplicate mappings will be rejected.
  *
  * @see org.elasticsearch.client.Requests#putMappingRequest(String...)
@@ -88,7 +88,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     /**
      * Sets the indices this put mapping operation will execute on.
      */
-    public PutMappingRequest setIndices(String[] indices) {
+    public PutMappingRequest indices(String[] indices) {
         this.indices = indices;
         return this;
     }
@@ -96,14 +96,14 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     /**
      * The indices the mappings will be put.
      */
-    public String[] getIndices() {
+    public String[] indices() {
         return indices;
     }
 
     /**
      * The mapping type.
      */
-    public String getType() {
+    public String type() {
         return type;
     }
 
@@ -111,7 +111,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      * The type of the mappings.
      */
     @Required
-    public PutMappingRequest setType(String type) {
+    public PutMappingRequest type(String type) {
         this.type = type;
         return this;
     }
@@ -119,7 +119,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     /**
      * The mapping source definition.
      */
-    public String getSource() {
+    public String source() {
         return source;
     }
 
@@ -127,9 +127,9 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      * The mapping source definition.
      */
     @Required
-    public PutMappingRequest setSource(XContentBuilder mappingBuilder) {
+    public PutMappingRequest source(XContentBuilder mappingBuilder) {
         try {
-            return setSource(mappingBuilder.string());
+            return source(mappingBuilder.string());
         } catch (IOException e) {
             throw new ElasticSearchIllegalArgumentException("Failed to build json for mapping request", e);
         }
@@ -139,11 +139,11 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      * The mapping source definition.
      */
     @Required
-    public PutMappingRequest setSource(Map mappingSource) {
+    public PutMappingRequest source(Map mappingSource) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return setSource(builder.string());
+            return source(builder.string());
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -153,7 +153,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      * The mapping source definition.
      */
     @Required
-    public PutMappingRequest setSource(String mappingSource) {
+    public PutMappingRequest source(String mappingSource) {
         this.source = mappingSource;
         return this;
     }
@@ -162,7 +162,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
      * <tt>10s</tt>.
      */
-    public TimeValue getTimeout() {
+    TimeValue timeout() {
         return timeout;
     }
 
@@ -170,7 +170,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
      * <tt>10s</tt>.
      */
-    public PutMappingRequest setTimeout(TimeValue timeout) {
+    public PutMappingRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
@@ -179,25 +179,25 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
      * <tt>10s</tt>.
      */
-    public PutMappingRequest setTimeout(String timeout) {
-        return setTimeout(TimeValue.parseTimeValue(timeout, null));
+    public PutMappingRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
     /**
      * If there is already a mapping definition registered against the type, then it will be merged. If there are
      * elements that can't be merged are detected, the request will be rejected unless the
-     * {@link #setIgnoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
+     * {@link #ignoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
      */
-    public boolean isIgnoreConflicts() {
+    public boolean ignoreConflicts() {
         return ignoreConflicts;
     }
 
     /**
      * If there is already a mapping definition registered against the type, then it will be merged. If there are
      * elements that can't be merged are detected, the request will be rejected unless the
-     * {@link #setIgnoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
+     * {@link #ignoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
      */
-    public PutMappingRequest setIgnoreConflicts(boolean ignoreDuplicates) {
+    public PutMappingRequest ignoreConflicts(boolean ignoreDuplicates) {
         this.ignoreConflicts = ignoreDuplicates;
         return this;
     }

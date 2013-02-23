@@ -118,39 +118,39 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
 
     @Override
     protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) throws ElasticSearchException {
-        IndexService service = indicesService.indexService(request.getIndex());
+        IndexService service = indicesService.indexService(request.index());
         if (service != null) {
             // we always clear the query cache
             service.cache().queryParserCache().clear();
             boolean clearedAtLeastOne = false;
-            if (request.isFilterCache()) {
+            if (request.filterCache()) {
                 clearedAtLeastOne = true;
                 service.cache().filter().clear("api");
                 termsFilterCache.clear("api");
             }
-            if (request.getFilterKeys() != null && request.getFilterKeys().length > 0) {
+            if (request.filterKeys() != null && request.filterKeys().length > 0) {
                 clearedAtLeastOne = true;
-                service.cache().filter().clear("api", request.getFilterKeys());
-                termsFilterCache.clear("api", request.getFilterKeys());
+                service.cache().filter().clear("api", request.filterKeys());
+                termsFilterCache.clear("api", request.filterKeys());
             }
-            if (request.isFieldDataCache()) {
+            if (request.fieldDataCache()) {
                 clearedAtLeastOne = true;
-                if (request.getFields() == null || request.getFields().length == 0) {
+                if (request.fields() == null || request.fields().length == 0) {
                     service.fieldData().clear();
                 } else {
-                    for (String field : request.getFields()) {
+                    for (String field : request.fields()) {
                         service.fieldData().clearField(field);
                     }
                 }
             }
-            if (request.isIdCache()) {
+            if (request.idCache()) {
                 clearedAtLeastOne = true;
                 service.cache().idCache().clear();
             }
             if (!clearedAtLeastOne) {
-                if (request.getFields() != null && request.getFields().length > 0) {
+                if (request.fields() != null && request.fields().length > 0) {
                     // only clear caches relating to the specified fields
-                    for (String field : request.getFields()) {
+                    for (String field : request.fields()) {
                         service.fieldData().clearField(field);
                     }
                 } else {
@@ -160,7 +160,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             }
             service.cache().invalidateStatsCache();
         }
-        return new ShardClearIndicesCacheResponse(request.getIndex(), request.getShardId());
+        return new ShardClearIndicesCacheResponse(request.index(), request.shardId());
     }
 
     /**

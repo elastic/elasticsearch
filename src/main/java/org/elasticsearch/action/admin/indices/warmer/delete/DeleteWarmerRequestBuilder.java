@@ -34,7 +34,7 @@ public class DeleteWarmerRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     public DeleteWarmerRequestBuilder setIndices(String... indices) {
-        request.setIndices(indices);
+        request.indices(indices);
         return this;
     }
 
@@ -43,7 +43,7 @@ public class DeleteWarmerRequestBuilder extends MasterNodeOperationRequestBuilde
      * to delete all warmers.
      */
     public DeleteWarmerRequestBuilder setName(String name) {
-        request.setName(name);
+        request.name(name);
         return this;
     }
 

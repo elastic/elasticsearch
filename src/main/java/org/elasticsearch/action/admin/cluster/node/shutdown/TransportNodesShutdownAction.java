@@ -297,7 +297,7 @@ public class TransportNodesShutdownAction extends TransportMasterNodeOperationAc
 
         NodeShutdownRequest(NodesShutdownRequest request) {
             super(request);
-            this.exit = request.isExit();
+            this.exit = request.exit();
         }
 
         @Override

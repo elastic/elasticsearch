@@ -85,20 +85,20 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ShardDeleteRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.getIndex());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override
     protected PrimaryResponse<ShardDeleteResponse, ShardDeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
-        Engine.Delete delete = indexShard.prepareDelete(request.getType(), request.getId(), request.getVersion())
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
         // update the version to happen on the replicas
-        request.setVersion(delete.version());
+        request.version(delete.version());
 
-        if (request.isRefresh()) {
+        if (request.refresh()) {
             try {
                 indexShard.refresh(new Engine.Refresh(false));
             } catch (Exception e) {
@@ -114,12 +114,12 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         ShardDeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.getIndex()).shardSafe(shardRequest.shardId);
-        Engine.Delete delete = indexShard.prepareDelete(request.getType(), request.getId(), request.getVersion())
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.request.index()).shardSafe(shardRequest.shardId);
+        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version())
                 .origin(Engine.Operation.Origin.REPLICA);
         indexShard.delete(delete);
 
-        if (request.isRefresh()) {
+        if (request.refresh()) {
             try {
                 indexShard.refresh(new Engine.Refresh(false));
             } catch (Exception e) {
@@ -131,12 +131,12 @@ public class TransportShardDeleteAction extends TransportShardReplicationOperati
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, ShardDeleteRequest request) {
-        GroupShardsIterator group = clusterService.operationRouting().broadcastDeleteShards(clusterService.state(), request.getIndex());
+        GroupShardsIterator group = clusterService.operationRouting().broadcastDeleteShards(clusterService.state(), request.index());
         for (ShardIterator shardIt : group) {
-            if (shardIt.shardId().id() == request.getShardId()) {
+            if (shardIt.shardId().id() == request.shardId()) {
                 return shardIt;
             }
         }
-        throw new ElasticSearchIllegalStateException("No shards iterator found for shard [" + request.getShardId() + "]");
+        throw new ElasticSearchIllegalStateException("No shards iterator found for shard [" + request.shardId() + "]");
     }
 }

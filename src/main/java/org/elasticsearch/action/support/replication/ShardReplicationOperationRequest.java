@@ -56,17 +56,17 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
 
     public ShardReplicationOperationRequest(T request) {
         super(request);
-        this.timeout = request.getTimeout();
-        this.index = request.getIndex();
-        this.threadedOperation = request.isOperationThreaded();
-        this.replicationType = request.getReplicationType();
-        this.consistencyLevel = request.getConsistencyLevel();
+        this.timeout = request.timeout();
+        this.index = request.index();
+        this.threadedOperation = request.operationThreaded();
+        this.replicationType = request.replicationType();
+        this.consistencyLevel = request.consistencyLevel();
     }
 
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    public final boolean isOperationThreaded() {
+    public final boolean operationThreaded() {
         return threadedOperation;
     }
 
@@ -75,7 +75,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
      * to <tt>true</tt> when running in embedded mode.
      */
     @SuppressWarnings("unchecked")
-    public final T setOperationThreaded(boolean threadedOperation) {
+    public final T operationThreaded(boolean threadedOperation) {
         this.threadedOperation = threadedOperation;
         return (T) this;
     }
@@ -84,7 +84,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     @SuppressWarnings("unchecked")
-    public final T setTimeout(TimeValue timeout) {
+    public final T timeout(TimeValue timeout) {
         this.timeout = timeout;
         return (T) this;
     }
@@ -92,20 +92,20 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
-    public final T setTimeout(String timeout) {
-        return setTimeout(TimeValue.parseTimeValue(timeout, null));
+    public final T timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, null));
     }
 
-    public TimeValue getTimeout() {
+    public TimeValue timeout() {
         return timeout;
     }
 
-    public String getIndex() {
+    public String index() {
         return this.index;
     }
 
     @SuppressWarnings("unchecked")
-    public final T setIndex(String index) {
+    public final T index(String index) {
         this.index = index;
         return (T) this;
     }
@@ -113,7 +113,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     /**
      * The replication type.
      */
-    public ReplicationType getReplicationType() {
+    public ReplicationType replicationType() {
         return this.replicationType;
     }
 
@@ -121,7 +121,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
      * Sets the replication type.
      */
     @SuppressWarnings("unchecked")
-    public final T setReplicationType(ReplicationType replicationType) {
+    public final T replicationType(ReplicationType replicationType) {
         this.replicationType = replicationType;
         return (T) this;
     }
@@ -129,11 +129,11 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     /**
      * Sets the replication type.
      */
-    public final T setReplicationType(String replicationType) {
-        return setReplicationType(ReplicationType.fromString(replicationType));
+    public final T replicationType(String replicationType) {
+        return replicationType(ReplicationType.fromString(replicationType));
     }
 
-    public WriteConsistencyLevel getConsistencyLevel() {
+    public WriteConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
     }
 
@@ -141,7 +141,7 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
     @SuppressWarnings("unchecked")
-    public final T setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public final T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
         return (T) this;
     }

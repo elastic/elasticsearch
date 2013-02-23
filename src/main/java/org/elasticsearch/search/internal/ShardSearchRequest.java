@@ -79,11 +79,11 @@ public class ShardSearchRequest extends TransportRequest {
         this.index = shardRouting.index();
         this.shardId = shardRouting.id();
         this.numberOfShards = numberOfShards;
-        this.searchType = searchRequest.getSearchType();
-        this.source = searchRequest.getSource();
-        this.extraSource = searchRequest.getExtraSource();
-        this.scroll = searchRequest.getScroll();
-        this.types = searchRequest.getTypes();
+        this.searchType = searchRequest.searchType();
+        this.source = searchRequest.source();
+        this.extraSource = searchRequest.extraSource();
+        this.scroll = searchRequest.scroll();
+        this.types = searchRequest.types();
 
     }
 

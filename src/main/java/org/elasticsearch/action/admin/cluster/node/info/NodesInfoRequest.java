@@ -83,14 +83,14 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     /**
      * Should the node settings be returned.
      */
-    public boolean isSettings() {
+    public boolean settings() {
         return this.settings;
     }
 
     /**
      * Should the node settings be returned.
      */
-    public NodesInfoRequest setSettings(boolean settings) {
+    public NodesInfoRequest settings(boolean settings) {
         this.settings = settings;
         return this;
     }
@@ -98,14 +98,14 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     /**
      * Should the node OS be returned.
      */
-    public boolean isOs() {
+    public boolean os() {
         return this.os;
     }
 
     /**
      * Should the node OS be returned.
      */
-    public NodesInfoRequest setOs(boolean os) {
+    public NodesInfoRequest os(boolean os) {
         this.os = os;
         return this;
     }
@@ -113,14 +113,14 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     /**
      * Should the node Process be returned.
      */
-    public boolean isProcess() {
+    public boolean process() {
         return this.process;
     }
 
     /**
      * Should the node Process be returned.
      */
-    public NodesInfoRequest setProcess(boolean process) {
+    public NodesInfoRequest process(boolean process) {
         this.process = process;
         return this;
     }
@@ -128,14 +128,14 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     /**
      * Should the node JVM be returned.
      */
-    public boolean isJvm() {
+    public boolean jvm() {
         return this.jvm;
     }
 
     /**
      * Should the node JVM be returned.
      */
-    public NodesInfoRequest setJvm(boolean jvm) {
+    public NodesInfoRequest jvm(boolean jvm) {
         this.jvm = jvm;
         return this;
     }
@@ -143,14 +143,14 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     /**
      * Should the node Thread Pool info be returned.
      */
-    public boolean isThreadPool() {
+    public boolean threadPool() {
         return this.threadPool;
     }
 
     /**
      * Should the node Thread Pool info be returned.
      */
-    public NodesInfoRequest setThreadPool(boolean threadPool) {
+    public NodesInfoRequest threadPool(boolean threadPool) {
         this.threadPool = threadPool;
         return this;
     }
@@ -158,14 +158,14 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     /**
      * Should the node Network be returned.
      */
-    public boolean isNetwork() {
+    public boolean network() {
         return this.network;
     }
 
     /**
      * Should the node Network be returned.
      */
-    public NodesInfoRequest setNetwork(boolean network) {
+    public NodesInfoRequest network(boolean network) {
         this.network = network;
         return this;
     }
@@ -173,14 +173,14 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     /**
      * Should the node Transport be returned.
      */
-    public boolean isTransport() {
+    public boolean transport() {
         return this.transport;
     }
 
     /**
      * Should the node Transport be returned.
      */
-    public NodesInfoRequest setTransport(boolean transport) {
+    public NodesInfoRequest transport(boolean transport) {
         this.transport = transport;
         return this;
     }
@@ -188,14 +188,14 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     /**
      * Should the node HTTP be returned.
      */
-    public boolean isHttp() {
+    public boolean http() {
         return this.http;
     }
 
     /**
      * Should the node HTTP be returned.
      */
-    public NodesInfoRequest setHttp(boolean http) {
+    public NodesInfoRequest http(boolean http) {
         this.http = http;
         return this;
     }

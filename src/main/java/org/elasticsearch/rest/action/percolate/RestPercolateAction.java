@@ -51,15 +51,15 @@ public class RestPercolateAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         PercolateRequest percolateRequest = new PercolateRequest(request.param("index"), request.param("type"));
-        percolateRequest.setListenerThreaded(false);
-        percolateRequest.setSource(request.content(), request.contentUnsafe());
+        percolateRequest.listenerThreaded(false);
+        percolateRequest.source(request.content(), request.contentUnsafe());
 
         // we just send a response, no need to fork
-        percolateRequest.setListenerThreaded(false);
+        percolateRequest.listenerThreaded(false);
         // we don't spawn, then fork if local
-        percolateRequest.setOperationThreaded(true);
+        percolateRequest.operationThreaded(true);
 
-        percolateRequest.setPreferLocal(request.paramAsBoolean("prefer_local", percolateRequest.isPreferLocal()));
+        percolateRequest.preferLocal(request.paramAsBoolean("prefer_local", percolateRequest.preferLocalShard()));
         client.percolate(percolateRequest, new ActionListener<PercolateResponse>() {
             @Override
             public void onResponse(PercolateResponse response) {

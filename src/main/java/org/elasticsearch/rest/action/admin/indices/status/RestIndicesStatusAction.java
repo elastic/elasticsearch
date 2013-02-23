@@ -59,18 +59,18 @@ public class RestIndicesStatusAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesStatusRequest indicesStatusRequest = new IndicesStatusRequest(splitIndices(request.param("index")));
-        indicesStatusRequest.setListenerThreaded(false);
+        indicesStatusRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
-            indicesStatusRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            indicesStatusRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
-        indicesStatusRequest.setRecovery(request.paramAsBoolean("recovery", indicesStatusRequest.isRecovery()));
-        indicesStatusRequest.setSnapshot(request.paramAsBoolean("snapshot", indicesStatusRequest.isSnapshot()));
+        indicesStatusRequest.recovery(request.paramAsBoolean("recovery", indicesStatusRequest.recovery()));
+        indicesStatusRequest.snapshot(request.paramAsBoolean("snapshot", indicesStatusRequest.snapshot()));
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread
             operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
         }
-        indicesStatusRequest.setOperationThreading(operationThreading);
+        indicesStatusRequest.operationThreading(operationThreading);
         client.admin().indices().status(indicesStatusRequest, new ActionListener<IndicesStatusResponse>() {
             @Override
             public void onResponse(IndicesStatusResponse response) {

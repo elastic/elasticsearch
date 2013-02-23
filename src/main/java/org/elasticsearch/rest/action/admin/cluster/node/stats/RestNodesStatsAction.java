@@ -113,20 +113,20 @@ public class RestNodesStatsAction extends BaseRestHandler {
         if (all) {
             nodesStatsRequest.all();
         }
-        nodesStatsRequest.setIndices(request.paramAsBoolean("indices", nodesStatsRequest.isIndices()));
-        nodesStatsRequest.setOs(request.paramAsBoolean("os", nodesStatsRequest.isOs()));
-        nodesStatsRequest.setProcess(request.paramAsBoolean("process", nodesStatsRequest.isProcess()));
-        nodesStatsRequest.setJvm(request.paramAsBoolean("jvm", nodesStatsRequest.isJvm()));
-        nodesStatsRequest.setThreadPool(request.paramAsBoolean("thread_pool", nodesStatsRequest.isThreadPool()));
-        nodesStatsRequest.setNetwork(request.paramAsBoolean("network", nodesStatsRequest.isNetwork()));
-        nodesStatsRequest.setFs(request.paramAsBoolean("fs", nodesStatsRequest.isFs()));
-        nodesStatsRequest.setTransport(request.paramAsBoolean("transport", nodesStatsRequest.isTransport()));
-        nodesStatsRequest.setHttp(request.paramAsBoolean("http", nodesStatsRequest.isHttp()));
+        nodesStatsRequest.indices(request.paramAsBoolean("indices", nodesStatsRequest.indices()));
+        nodesStatsRequest.os(request.paramAsBoolean("os", nodesStatsRequest.os()));
+        nodesStatsRequest.process(request.paramAsBoolean("process", nodesStatsRequest.process()));
+        nodesStatsRequest.jvm(request.paramAsBoolean("jvm", nodesStatsRequest.jvm()));
+        nodesStatsRequest.threadPool(request.paramAsBoolean("thread_pool", nodesStatsRequest.threadPool()));
+        nodesStatsRequest.network(request.paramAsBoolean("network", nodesStatsRequest.network()));
+        nodesStatsRequest.fs(request.paramAsBoolean("fs", nodesStatsRequest.fs()));
+        nodesStatsRequest.transport(request.paramAsBoolean("transport", nodesStatsRequest.transport()));
+        nodesStatsRequest.http(request.paramAsBoolean("http", nodesStatsRequest.http()));
         executeNodeStats(request, channel, nodesStatsRequest);
     }
 
     void executeNodeStats(final RestRequest request, final RestChannel channel, final NodesStatsRequest nodesStatsRequest) {
-        nodesStatsRequest.setListenerThreaded(false);
+        nodesStatsRequest.listenerThreaded(false);
         client.admin().cluster().nodesStats(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
             @Override
             public void onResponse(NodesStatsResponse response) {
@@ -156,7 +156,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().setIndices(true);
+            nodesStatsRequest.clear().indices(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }
@@ -165,7 +165,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().setOs(true);
+            nodesStatsRequest.clear().os(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }
@@ -174,7 +174,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().setProcess(true);
+            nodesStatsRequest.clear().process(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }
@@ -183,7 +183,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().setJvm(true);
+            nodesStatsRequest.clear().jvm(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }
@@ -192,7 +192,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().setThreadPool(true);
+            nodesStatsRequest.clear().threadPool(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }
@@ -201,7 +201,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().setNetwork(true);
+            nodesStatsRequest.clear().network(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }
@@ -210,7 +210,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().setFs(true);
+            nodesStatsRequest.clear().fs(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }
@@ -219,7 +219,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().setTransport(true);
+            nodesStatsRequest.clear().transport(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }
@@ -228,7 +228,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().setHttp(true);
+            nodesStatsRequest.clear().http(true);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }

@@ -59,7 +59,7 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
                 successfulShards++;
             }
         }
-        return new IndexDeleteByQueryResponse(request.getIndex(), successfulShards, failedShards);
+        return new IndexDeleteByQueryResponse(request.index(), successfulShards, failedShards);
     }
 
     @Override
@@ -79,12 +79,12 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, IndexDeleteByQueryRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.getIndex());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, request.index());
     }
 
     @Override
     protected GroupShardsIterator shards(IndexDeleteByQueryRequest request) {
-        return clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.getIndex(), request.getRouting());
+        return clusterService.operationRouting().deleteByQueryShards(clusterService.state(), request.index(), request.routing());
     }
 
     @Override

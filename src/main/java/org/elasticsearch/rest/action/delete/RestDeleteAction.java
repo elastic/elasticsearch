@@ -55,23 +55,23 @@ public class RestDeleteAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
 
-        deleteRequest.setListenerThreaded(false);
-        deleteRequest.setOperationThreaded(true);
+        deleteRequest.listenerThreaded(false);
+        deleteRequest.operationThreaded(true);
 
-        deleteRequest.setParent(request.param("parent"));
-        deleteRequest.setRouting(request.param("routing"));
-        deleteRequest.setTimeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
-        deleteRequest.setRefresh(request.paramAsBoolean("refresh", deleteRequest.isRefresh()));
-        deleteRequest.setVersion(RestActions.parseVersion(request));
-        deleteRequest.setVersionType(VersionType.fromString(request.param("version_type"), deleteRequest.getVersionType()));
+        deleteRequest.parent(request.param("parent"));
+        deleteRequest.routing(request.param("routing"));
+        deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
+        deleteRequest.refresh(request.paramAsBoolean("refresh", deleteRequest.refresh()));
+        deleteRequest.version(RestActions.parseVersion(request));
+        deleteRequest.versionType(VersionType.fromString(request.param("version_type"), deleteRequest.versionType()));
 
         String replicationType = request.param("replication");
         if (replicationType != null) {
-            deleteRequest.setReplicationType(ReplicationType.fromString(replicationType));
+            deleteRequest.replicationType(ReplicationType.fromString(replicationType));
         }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
-            deleteRequest.setConsistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+            deleteRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
 
         client.delete(deleteRequest, new ActionListener<DeleteResponse>() {

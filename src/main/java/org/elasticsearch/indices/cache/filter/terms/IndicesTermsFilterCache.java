@@ -94,7 +94,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
             return cache.get(cacheKey, new Callable<TermsFilterValue>() {
                 @Override
                 public TermsFilterValue call() throws Exception {
-                    GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).setPreference("_local")).actionGet();
+                    GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local")).actionGet();
                     if (!getResponse.isExists()) {
                         return NO_TERMS;
                     }

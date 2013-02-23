@@ -84,10 +84,10 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         client.admin().indices().create(createIndexRequest("test1")).actionGet();
         client.admin().indices().create(createIndexRequest("test2")).actionGet();
-        client.index(indexRequest("test1").setType("type1").setId("1")
-                .setSource(jsonBuilder().startObject().field("test", "value check").endObject())).actionGet();
-        client.index(indexRequest("test2").setType("type1").setId("1")
-                .setSource(jsonBuilder().startObject().field("test", "value beck").endObject())).actionGet();
+        client.index(indexRequest("test1").type("type1").id("1")
+                .source(jsonBuilder().startObject().field("test", "value check").endObject())).actionGet();
+        client.index(indexRequest("test2").type("type1").id("1")
+                .source(jsonBuilder().startObject().field("test", "value beck").endObject())).actionGet();
         client.admin().indices().refresh(refreshRequest()).actionGet();
 
         float indexBoost = 1.1f;
@@ -96,8 +96,8 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         logger.info("Query with test1 boosted");
         SearchResponse response = client.search(searchRequest()
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setSource(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
+                .searchType(SearchType.QUERY_THEN_FETCH)
+                .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -108,8 +108,8 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         logger.info("Query with test2 boosted");
         response = client.search(searchRequest()
-                .setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setSource(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
+                .searchType(SearchType.QUERY_THEN_FETCH)
+                .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -122,8 +122,8 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         logger.info("Query with test1 boosted");
         response = client.search(searchRequest()
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setSource(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
+                .searchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
@@ -134,8 +134,8 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
 
         logger.info("Query with test2 boosted");
         response = client.search(searchRequest()
-                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setSource(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
+                .searchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(2l));

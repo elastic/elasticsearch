@@ -137,7 +137,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -175,7 +175,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
 
         logger.info("Running Cluster Health");
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -271,7 +271,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

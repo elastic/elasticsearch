@@ -76,7 +76,7 @@ public class HistogramFacetSearchBenchmark {
 
         Thread.sleep(10000);
         try {
-            client.admin().indices().create(createIndexRequest("test").setSettings(
+            client.admin().indices().create(createIndexRequest("test").settings(
                     settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)))
                     .actionGet();
 
@@ -95,8 +95,8 @@ public class HistogramFacetSearchBenchmark {
                             .field("l_value", lValues[counter % lValues.length])
                             .field("date", new Date())
                             .endObject();
-                    request.add(Requests.indexRequest("test").setType("type1").setId(Integer.toString(counter))
-                            .setSource(source));
+                    request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(counter))
+                            .source(source));
                 }
                 BulkResponse response = request.execute().actionGet();
                 if (response.hasFailures()) {

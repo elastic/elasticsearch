@@ -114,10 +114,10 @@ public class TransportGatewaySnapshotAction extends TransportBroadcastOperationA
 
     @Override
     protected ShardGatewaySnapshotResponse shardOperation(ShardGatewaySnapshotRequest request) throws ElasticSearchException {
-        IndexShardGatewayService shardGatewayService = indicesService.indexServiceSafe(request.getIndex())
-                .shardInjectorSafe(request.getShardId()).getInstance(IndexShardGatewayService.class);
+        IndexShardGatewayService shardGatewayService = indicesService.indexServiceSafe(request.index())
+                .shardInjectorSafe(request.shardId()).getInstance(IndexShardGatewayService.class);
         shardGatewayService.snapshot("api");
-        return new ShardGatewaySnapshotResponse(request.getIndex(), request.getShardId());
+        return new ShardGatewaySnapshotResponse(request.index(), request.shardId());
     }
 
     /**

@@ -40,7 +40,7 @@ public abstract class ShardReplicationOperationRequestBuilder<Request extends Sh
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setOperationThreaded(boolean threadedOperation) {
-        request.setOperationThreaded(threadedOperation);
+        request.operationThreaded(threadedOperation);
         return (RequestBuilder) this;
     }
 
@@ -49,7 +49,7 @@ public abstract class ShardReplicationOperationRequestBuilder<Request extends Sh
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(TimeValue timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
 
@@ -58,13 +58,13 @@ public abstract class ShardReplicationOperationRequestBuilder<Request extends Sh
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(String timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIndex(String index) {
-        request.setIndex(index);
+        request.index(index);
         return (RequestBuilder) this;
     }
 
@@ -73,7 +73,7 @@ public abstract class ShardReplicationOperationRequestBuilder<Request extends Sh
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.setReplicationType(replicationType);
+        request.replicationType(replicationType);
         return (RequestBuilder) this;
     }
 
@@ -82,7 +82,7 @@ public abstract class ShardReplicationOperationRequestBuilder<Request extends Sh
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setReplicationType(String replicationType) {
-        request.setReplicationType(replicationType);
+        request.replicationType(replicationType);
         return (RequestBuilder) this;
     }
 
@@ -91,7 +91,7 @@ public abstract class ShardReplicationOperationRequestBuilder<Request extends Sh
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.setConsistencyLevel(consistencyLevel);
+        request.consistencyLevel(consistencyLevel);
         return (RequestBuilder) this;
     }
 }

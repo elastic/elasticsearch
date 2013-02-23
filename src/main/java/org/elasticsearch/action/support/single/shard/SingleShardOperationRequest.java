@@ -52,7 +52,7 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
         return validationException;
     }
 
-    public String getIndex() {
+    public String index() {
         return index;
     }
 
@@ -60,7 +60,7 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
      * Sets the index.
      */
     @SuppressWarnings("unchecked")
-    public final T setIndex(String index) {
+    public final T index(String index) {
         this.index = index;
         return (T) this;
     }
@@ -68,7 +68,7 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    public boolean isOperationThreaded() {
+    public boolean operationThreaded() {
         return threadedOperation;
     }
 
@@ -76,7 +76,7 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
     @SuppressWarnings("unchecked")
-    public final T setOperationThreaded(boolean threadedOperation) {
+    public final T operationThreaded(boolean threadedOperation) {
         this.threadedOperation = threadedOperation;
         return (T) this;
     }

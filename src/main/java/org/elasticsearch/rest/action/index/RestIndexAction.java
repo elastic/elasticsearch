@@ -66,26 +66,26 @@ public class RestIndexAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
-        indexRequest.setListenerThreaded(false);
-        indexRequest.setOperationThreaded(true);
-        indexRequest.setRouting(request.param("routing"));
-        indexRequest.setParent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-        indexRequest.setTimestamp(request.param("timestamp"));
+        indexRequest.listenerThreaded(false);
+        indexRequest.operationThreaded(true);
+        indexRequest.routing(request.param("routing"));
+        indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+        indexRequest.timestamp(request.param("timestamp"));
         if (request.hasParam("ttl")) {
-            indexRequest.setTtl(request.paramAsTime("ttl", null).millis());
+            indexRequest.ttl(request.paramAsTime("ttl", null).millis());
         }
-        indexRequest.setSource(request.content(), request.contentUnsafe());
-        indexRequest.setTimeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
-        indexRequest.setRefresh(request.paramAsBoolean("refresh", indexRequest.isRefresh()));
-        indexRequest.setVersion(RestActions.parseVersion(request));
-        indexRequest.setVersionType(VersionType.fromString(request.param("version_type"), indexRequest.getVersionType()));
-        indexRequest.setPercolate(request.param("percolate", null));
+        indexRequest.source(request.content(), request.contentUnsafe());
+        indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
+        indexRequest.refresh(request.paramAsBoolean("refresh", indexRequest.refresh()));
+        indexRequest.version(RestActions.parseVersion(request));
+        indexRequest.versionType(VersionType.fromString(request.param("version_type"), indexRequest.versionType()));
+        indexRequest.percolate(request.param("percolate", null));
         String sOpType = request.param("op_type");
         if (sOpType != null) {
             if ("index".equals(sOpType)) {
-                indexRequest.setOpType(IndexRequest.OpType.INDEX);
+                indexRequest.opType(IndexRequest.OpType.INDEX);
             } else if ("create".equals(sOpType)) {
-                indexRequest.setOpType(IndexRequest.OpType.CREATE);
+                indexRequest.opType(IndexRequest.OpType.CREATE);
             } else {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -98,11 +98,11 @@ public class RestIndexAction extends BaseRestHandler {
         }
         String replicationType = request.param("replication");
         if (replicationType != null) {
-            indexRequest.setReplicationType(ReplicationType.fromString(replicationType));
+            indexRequest.replicationType(ReplicationType.fromString(replicationType));
         }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
-            indexRequest.setConsistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+            indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         client.index(indexRequest, new ActionListener<IndexResponse>() {
             @Override

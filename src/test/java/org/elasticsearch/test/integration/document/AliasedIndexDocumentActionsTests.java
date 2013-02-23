@@ -38,7 +38,7 @@ public class AliasedIndexDocumentActionsTests extends DocumentActionsTests {
             // ignore
         }
         logger.info("--> creating index test");
-        client1.admin().indices().create(createIndexRequest("test1").setSettings(settingsBuilder().putArray("index.aliases", "test"))).actionGet();
+        client1.admin().indices().create(createIndexRequest("test1").settings(settingsBuilder().putArray("index.aliases", "test"))).actionGet();
     }
 
     @Override

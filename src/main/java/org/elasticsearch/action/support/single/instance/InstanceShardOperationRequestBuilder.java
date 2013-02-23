@@ -35,7 +35,7 @@ public abstract class InstanceShardOperationRequestBuilder<Request extends Insta
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIndex(String index) {
-        request.setIndex(index);
+        request.index(index);
         return (RequestBuilder) this;
     }
 
@@ -44,7 +44,7 @@ public abstract class InstanceShardOperationRequestBuilder<Request extends Insta
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(TimeValue timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
 
@@ -53,7 +53,7 @@ public abstract class InstanceShardOperationRequestBuilder<Request extends Insta
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(String timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
 }

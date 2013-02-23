@@ -62,9 +62,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(RestActions.splitIndices(request.param("index")));
-        validateQueryRequest.setListenerThreaded(false);
+        validateQueryRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
-            validateQueryRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            validateQueryRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         try {
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operation_threading"), BroadcastOperationThreading.SINGLE_THREAD);
@@ -72,25 +72,25 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 // since we don't spawn, don't allow no_threads, but change it to a single thread
                 operationThreading = BroadcastOperationThreading.SINGLE_THREAD;
             }
-            validateQueryRequest.setOperationThreading(operationThreading);
+            validateQueryRequest.operationThreading(operationThreading);
             if (request.hasContent()) {
-                validateQueryRequest.setQuery(request.content(), request.contentUnsafe());
+                validateQueryRequest.query(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    validateQueryRequest.setQuery(source);
+                    validateQueryRequest.query(source);
                 } else {
                     BytesReference querySource = RestActions.parseQuerySource(request);
                     if (querySource != null) {
-                        validateQueryRequest.setQuery(querySource, false);
+                        validateQueryRequest.query(querySource, false);
                     }
                 }
             }
-            validateQueryRequest.setTypes(splitTypes(request.param("type")));
+            validateQueryRequest.types(splitTypes(request.param("type")));
             if (request.paramAsBoolean("explain", false)) {
-                validateQueryRequest.setExplain(true);
+                validateQueryRequest.explain(true);
             } else {
-                validateQueryRequest.setExplain(false);
+                validateQueryRequest.explain(false);
             }
         } catch (Exception e) {
             try {

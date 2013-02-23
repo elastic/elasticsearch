@@ -119,7 +119,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
             this.request = request;
             this.listener = listener;
             clusterState = clusterService.state();
-            String[] nodesIds = clusterState.nodes().resolveNodesIds(request.getNodesIds());
+            String[] nodesIds = clusterState.nodes().resolveNodesIds(request.nodesIds());
             this.nodesIds = filterNodeIds(clusterState.nodes(), nodesIds);
             this.responses = new AtomicReferenceArray<Object>(this.nodesIds.length);
         }
@@ -136,8 +136,8 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
                 return;
             }
             TransportRequestOptions transportRequestOptions = TransportRequestOptions.options();
-            if (request.getTimeout() != null) {
-                transportRequestOptions.withTimeout(request.getTimeout());
+            if (request.timeout() != null) {
+                transportRequestOptions.withTimeout(request.timeout());
             }
             transportRequestOptions.withCompress(transportCompress());
             for (final String nodeId : nodesIds) {
@@ -230,7 +230,7 @@ public abstract class TransportNodesOperationAction<Request extends NodesOperati
 
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
-            request.setListenerThreaded(false);
+            request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

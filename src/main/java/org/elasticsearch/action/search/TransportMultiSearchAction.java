@@ -56,11 +56,11 @@ public class TransportMultiSearchAction extends TransportAction<MultiSearchReque
         ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
-        final MultiSearchResponse.Item[] responses = new MultiSearchResponse.Item[request.getRequests().size()];
+        final MultiSearchResponse.Item[] responses = new MultiSearchResponse.Item[request.requests().size()];
         final AtomicInteger counter = new AtomicInteger(responses.length);
         for (int i = 0; i < responses.length; i++) {
             final int index = i;
-            searchAction.execute(request.getRequests().get(i), new ActionListener<SearchResponse>() {
+            searchAction.execute(request.requests().get(i), new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     synchronized (responses) {
@@ -98,7 +98,7 @@ public class TransportMultiSearchAction extends TransportAction<MultiSearchReque
         @Override
         public void messageReceived(final MultiSearchRequest request, final TransportChannel channel) throws Exception {
             // no need to use threaded listener, since we just send a response
-            request.setListenerThreaded(false);
+            request.listenerThreaded(false);
             execute(request, new ActionListener<MultiSearchResponse>() {
                 @Override
                 public void onResponse(MultiSearchResponse response) {

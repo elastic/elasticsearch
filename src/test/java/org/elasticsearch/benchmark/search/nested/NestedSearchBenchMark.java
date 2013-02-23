@@ -98,7 +98,7 @@ public class NestedSearchBenchMark {
                     }
                     doc = doc.endArray();
                     request.add(
-                            Requests.indexRequest(indexName).setType("type").setId(Integer.toString(counter)).setSource(doc)
+                            Requests.indexRequest(indexName).type("type").id(Integer.toString(counter)).source(doc)
                     );
                 }
                 BulkResponse response = request.execute().actionGet();

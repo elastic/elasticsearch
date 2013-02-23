@@ -67,7 +67,7 @@ public class ClusterRerouteRequest extends MasterNodeOperationRequest<ClusterRer
     /**
      * Sets the source for the request.
      */
-    public ClusterRerouteRequest setSource(BytesReference source) throws Exception {
+    public ClusterRerouteRequest source(BytesReference source) throws Exception {
         XContentParser parser = XContentHelper.createParser(source);
         try {
             XContentParser.Token token;

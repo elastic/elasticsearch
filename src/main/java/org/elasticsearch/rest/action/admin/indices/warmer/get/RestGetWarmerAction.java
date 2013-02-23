@@ -64,10 +64,10 @@ public class RestGetWarmerAction extends BaseRestHandler {
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
                 .filterAll()
-                .setFilterMetaData(false)
-                .setFilteredIndices(indices);
+                .filterMetaData(false)
+                .filteredIndices(indices);
 
-        clusterStateRequest.setListenerThreaded(false);
+        clusterStateRequest.listenerThreaded(false);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override

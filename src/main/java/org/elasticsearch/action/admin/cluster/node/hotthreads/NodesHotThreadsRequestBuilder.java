@@ -34,17 +34,17 @@ public class NodesHotThreadsRequestBuilder extends NodesOperationRequestBuilder<
     }
 
     public NodesHotThreadsRequestBuilder setThreads(int threads) {
-        request.setThreads(threads);
+        request.threads(threads);
         return this;
     }
 
     public NodesHotThreadsRequestBuilder setType(String type) {
-        request.setType(type);
+        request.type(type);
         return this;
     }
 
     public NodesHotThreadsRequestBuilder setInterval(TimeValue interval) {
-        request.setInterval(interval);
+        request.interval(interval);
         return this;
     }
 

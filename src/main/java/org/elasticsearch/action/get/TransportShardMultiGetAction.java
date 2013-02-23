@@ -79,13 +79,13 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, MultiGetShardRequest request) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.getIndex());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
     }
 
     @Override
     protected ShardIterator shards(ClusterState state, MultiGetShardRequest request) {
         return clusterService.operationRouting()
-                .getShards(clusterService.state(), request.getIndex(), request.shardId(), request.getPreference());
+                .getShards(clusterService.state(), request.index(), request.shardId(), request.preference());
     }
 
     @Override
@@ -99,10 +99,10 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
 
     @Override
     protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, int shardId) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.getIndex());
+        IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardId);
 
-        if (request.isRefresh() && !request.isRealtime()) {
+        if (request.refresh() && !request.realtime()) {
             indexShard.refresh(new Engine.Refresh(false));
         }
 
@@ -113,11 +113,11 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
             String[] fields = request.fields.get(i);
 
             try {
-                GetResult getResult = indexShard.getService().get(type, id, fields, request.isRealtime());
+                GetResult getResult = indexShard.getService().get(type, id, fields, request.realtime());
                 response.add(request.locations.get(i), new GetResponse(getResult));
             } catch (Exception e) {
-                logger.debug("[{}][{}] failed to execute multi_get for [{}]/[{}]", e, request.getIndex(), shardId, type, id);
-                response.add(request.locations.get(i), new MultiGetResponse.Failure(request.getIndex(), type, id, ExceptionsHelper.detailedMessage(e)));
+                logger.debug("[{}][{}] failed to execute multi_get for [{}]/[{}]", e, request.index(), shardId, type, id);
+                response.add(request.locations.get(i), new MultiGetResponse.Failure(request.index(), type, id, ExceptionsHelper.detailedMessage(e)));
             }
         }
 

@@ -96,7 +96,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
     /**
      * Sets the name of the index template.
      */
-    public PutIndexTemplateRequest setName(String name) {
+    public PutIndexTemplateRequest name(String name) {
         this.name = name;
         return this;
     }
@@ -104,7 +104,7 @@ public class PutIndexTemplateRequest extends MasterNodeOperationRequest<PutIndex
     /**
      * The name of the index template.
      */
-    public String getName() {
+    public String name() {
         return this.name;
     }
 

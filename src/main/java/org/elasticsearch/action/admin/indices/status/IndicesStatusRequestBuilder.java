@@ -37,7 +37,7 @@ public class IndicesStatusRequestBuilder extends BroadcastOperationRequestBuilde
      * Should the status include recovery information. Defaults to <tt>false</tt>.
      */
     public IndicesStatusRequestBuilder setRecovery(boolean recovery) {
-        request.setRecovery(recovery);
+        request.recovery(recovery);
         return this;
     }
 
@@ -45,7 +45,7 @@ public class IndicesStatusRequestBuilder extends BroadcastOperationRequestBuilde
      * Should the status include recovery information. Defaults to <tt>false</tt>.
      */
     public IndicesStatusRequestBuilder setSnapshot(boolean snapshot) {
-        request.setSnapshot(snapshot);
+        request.snapshot(snapshot);
         return this;
     }
 

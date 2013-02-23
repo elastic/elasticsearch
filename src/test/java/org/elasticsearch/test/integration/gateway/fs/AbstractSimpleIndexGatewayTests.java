@@ -73,7 +73,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
 
         logger.info("Running Cluster Health (waiting for node to startup properly)");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -93,16 +93,16 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         // create two and delete the first
         logger.info("Indexing #1");
-        client("server1").index(Requests.indexRequest("test").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
+        client("server1").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         logger.info("Indexing #2");
-        client("server1").index(Requests.indexRequest("test").setType("type1").setId("2").setSource(source("2", "test"))).actionGet();
+        client("server1").index(Requests.indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
 
         // perform snapshot to the index
         logger.info("Gateway Snapshot");
         client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
 
         logger.info("Deleting #1");
-        client("server1").delete(deleteRequest("test").setType("type1").setId("1")).actionGet();
+        client("server1").delete(deleteRequest("test").type("type1").id("1")).actionGet();
 
         // perform snapshot to the index
         logger.info("Gateway Snapshot");
@@ -117,7 +117,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -127,17 +127,17 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         assertThat(clusterState.getState().metaData().index("test").mapping("type1"), notNullValue());
 
         logger.info("Getting #1, should not exists");
-        GetResponse getResponse = client("server1").get(getRequest("test").setType("type1").setId("1")).actionGet();
+        GetResponse getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("2")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
 
         // Now flush and add some data (so we have index recovery as well)
         logger.info("Flushing, so we have actual content in the index files (#2 should be in the index)");
         client("server1").admin().indices().flush(flushRequest("test")).actionGet();
         logger.info("Indexing #3, so we have something in the translog as well");
-        client("server1").index(Requests.indexRequest("test").setType("type1").setId("3").setSource(source("3", "test"))).actionGet();
+        client("server1").index(Requests.indexRequest("test").type("type1").id("3").source(source("3", "test"))).actionGet();
 
         logger.info("Gateway Snapshot");
         client("server1").admin().indices().gatewaySnapshot(gatewaySnapshotRequest("test")).actionGet();
@@ -150,19 +150,19 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("1")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("2")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (from the translog)");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("3")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
         logger.info("Closing the server");
@@ -173,19 +173,19 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("1")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("2")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (from the translog)");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("3")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
 
@@ -203,19 +203,19 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("1")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
         assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("2")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (not from the translog, but from the index)");
-        getResponse = client("server1").get(getRequest("test").setType("type1").setId("3")).actionGet();
+        getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
         assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
         logger.info("Deleting the index");
@@ -240,7 +240,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("Running Cluster Health (waiting for node to startup properly)");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -252,7 +252,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         client("server1").admin().indices().prepareCreate("test").execute().actionGet();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -294,7 +294,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
         startNode("server1");
 
         logger.info("--> running Cluster Health (wait for the shards to startup)");
-        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("--> done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));

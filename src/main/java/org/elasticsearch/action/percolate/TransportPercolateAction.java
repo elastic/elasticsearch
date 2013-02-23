@@ -76,21 +76,21 @@ public class TransportPercolateAction extends TransportSingleCustomOperationActi
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, PercolateRequest request) {
-        request.setIndex(state.metaData().concreteIndex(request.getIndex()));
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.getIndex());
+        request.index(state.metaData().concreteIndex(request.index()));
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, request.index());
     }
 
     @Override
     protected ShardsIterator shards(ClusterState clusterState, PercolateRequest request) {
-        return clusterState.routingTable().index(request.getIndex()).randomAllActiveShardsIt();
+        return clusterState.routingTable().index(request.index()).randomAllActiveShardsIt();
     }
 
     @Override
     protected PercolateResponse shardOperation(PercolateRequest request, int shardId) throws ElasticSearchException {
-        IndexService indexService = indicesService.indexServiceSafe(request.getIndex());
+        IndexService indexService = indicesService.indexServiceSafe(request.index());
         PercolatorService percolatorService = indexService.percolateService();
 
-        PercolatorExecutor.Response percolate = percolatorService.percolate(new PercolatorExecutor.SourceRequest(request.getType(), request.getSource()));
+        PercolatorExecutor.Response percolate = percolatorService.percolate(new PercolatorExecutor.SourceRequest(request.type(), request.source()));
         return new PercolateResponse(percolate.matches());
     }
 }

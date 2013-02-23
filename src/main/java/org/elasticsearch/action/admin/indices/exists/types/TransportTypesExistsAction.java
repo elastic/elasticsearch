@@ -65,12 +65,12 @@ public class TransportTypesExistsAction extends TransportMasterNodeOperationActi
 
     @Override
     protected ClusterBlockException checkBlock(TypesExistsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.getIndices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
     @Override
     protected TypesExistsResponse masterOperation(TypesExistsRequest request, ClusterState state) throws ElasticSearchException {
-        String[] concreteIndices = state.metaData().concreteIndices(request.getIndices(), request.getIgnoreIndices(), false);
+        String[] concreteIndices = state.metaData().concreteIndices(request.indices(), request.ignoreIndices(), false);
         if (concreteIndices.length == 0) {
             return new TypesExistsResponse(false);
         }
@@ -85,7 +85,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeOperationActi
                 return new TypesExistsResponse(false);
             }
 
-            for (String type : request.getTypes()) {
+            for (String type : request.types()) {
                 if (!mappings.containsKey(type)) {
                     return new TypesExistsResponse(false);
                 }

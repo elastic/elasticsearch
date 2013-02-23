@@ -45,7 +45,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
     }
 
     public CreateIndexRequestBuilder setIndex(String index) {
-        request.setIndex(index);
+        request.index(index);
         return this;
     }
 
@@ -53,7 +53,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * The settings to created the index with.
      */
     public CreateIndexRequestBuilder setSettings(Settings settings) {
-        request.setSettings(settings);
+        request.settings(settings);
         return this;
     }
 
@@ -61,7 +61,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * The settings to created the index with.
      */
     public CreateIndexRequestBuilder setSettings(Settings.Builder settings) {
-        request.setSettings(settings);
+        request.settings(settings);
         return this;
     }
 
@@ -69,7 +69,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * Allows to set the settings using a json builder.
      */
     public CreateIndexRequestBuilder setSettings(XContentBuilder builder) {
-        request.setSettings(builder);
+        request.settings(builder);
         return this;
     }
 
@@ -77,7 +77,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * The settings to crete the index with (either json/yaml/properties format)
      */
     public CreateIndexRequestBuilder setSettings(String source) {
-        request.setSettings(source);
+        request.settings(source);
         return this;
     }
 
@@ -85,7 +85,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * The settings to crete the index with (either json/yaml/properties format)
      */
     public CreateIndexRequestBuilder setSettings(Map<String, Object> source) {
-        request.setSettings(source);
+        request.settings(source);
         return this;
     }
 
@@ -96,7 +96,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * @param source The mapping source
      */
     public CreateIndexRequestBuilder addMapping(String type, String source) {
-        request.addMapping(type, source);
+        request.mapping(type, source);
         return this;
     }
 
@@ -104,7 +104,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * The cause for this index creation.
      */
     public CreateIndexRequestBuilder setCause(String cause) {
-        request.setCause(cause);
+        request.cause(cause);
         return this;
     }
 
@@ -115,7 +115,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * @param source The mapping source
      */
     public CreateIndexRequestBuilder addMapping(String type, XContentBuilder source) {
-        request.addMapping(type, source);
+        request.mapping(type, source);
         return this;
     }
 
@@ -126,7 +126,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * @param source The mapping source
      */
     public CreateIndexRequestBuilder addMapping(String type, Map<String, Object> source) {
-        request.addMapping(type, source);
+        request.mapping(type, source);
         return this;
     }
 
@@ -134,7 +134,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequestBuilder setSource(String source) {
-        request.setSource(source);
+        request.source(source);
         return this;
     }
 
@@ -142,7 +142,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequestBuilder setSource(BytesReference source) {
-        request.setSource(source);
+        request.source(source);
         return this;
     }
 
@@ -150,7 +150,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequestBuilder setSource(byte[] source) {
-        request.setSource(source);
+        request.source(source);
         return this;
     }
 
@@ -158,7 +158,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.setSource(source, offset, length);
+        request.source(source, offset, length);
         return this;
     }
 
@@ -166,12 +166,12 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequestBuilder setSource(Map<String, Object> source) {
-        request.setSource(source);
+        request.source(source);
         return this;
     }
 
     public CreateIndexRequestBuilder addCustom(IndexMetaData.Custom custom) {
-        request.addCustom(custom);
+        request.custom(custom);
         return this;
     }
 
@@ -179,7 +179,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * Sets the settings and mappings as a single source.
      */
     public CreateIndexRequestBuilder setSource(XContentBuilder source) {
-        request.setSource(source);
+        request.source(source);
         return this;
     }
 
@@ -188,7 +188,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * to <tt>10s</tt>.
      */
     public CreateIndexRequestBuilder setTimeout(TimeValue timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return this;
     }
 
@@ -197,7 +197,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * to <tt>10s</tt>.
      */
     public CreateIndexRequestBuilder setTimeout(String timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return this;
     }
 

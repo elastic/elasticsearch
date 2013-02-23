@@ -71,13 +71,13 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
 
     @Override
     protected void doExecute(PutMappingRequest request, ActionListener<PutMappingResponse> listener) {
-        request.setIndices(clusterService.state().metaData().concreteIndices(request.getIndices()));
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices()));
         super.doExecute(request, listener);
     }
 
     @Override
     protected ClusterBlockException checkBlock(PutMappingRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.getIndices());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
     @Override
@@ -85,12 +85,12 @@ public class TransportPutMappingAction extends TransportMasterNodeOperationActio
         ClusterState clusterState = clusterService.state();
 
         // update to concrete indices
-        request.setIndices(clusterState.metaData().concreteIndices(request.getIndices()));
+        request.indices(clusterState.metaData().concreteIndices(request.indices()));
 
         final AtomicReference<PutMappingResponse> responseRef = new AtomicReference<PutMappingResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        metaDataMappingService.putMapping(new MetaDataMappingService.PutRequest(request.getIndices(), request.getType(), request.getSource()).ignoreConflicts(request.isIgnoreConflicts()).timeout(request.getTimeout()), new MetaDataMappingService.Listener() {
+        metaDataMappingService.putMapping(new MetaDataMappingService.PutRequest(request.indices(), request.type(), request.source()).ignoreConflicts(request.ignoreConflicts()).timeout(request.timeout()), new MetaDataMappingService.Listener() {
             @Override
             public void onResponse(MetaDataMappingService.Response response) {
                 responseRef.set(new PutMappingResponse(response.acknowledged()));

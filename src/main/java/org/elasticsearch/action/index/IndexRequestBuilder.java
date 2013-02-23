@@ -50,7 +50,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the type to index the document to.
      */
     public IndexRequestBuilder setType(String type) {
-        request.setType(type);
+        request.type(type);
         return this;
     }
 
@@ -59,7 +59,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * generated.
      */
     public IndexRequestBuilder setId(String id) {
-        request.setId(id);
+        request.id(id);
         return this;
     }
 
@@ -68,7 +68,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * and not the id.
      */
     public IndexRequestBuilder setRouting(String routing) {
-        request.setRouting(routing);
+        request.routing(routing);
         return this;
     }
 
@@ -77,7 +77,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * routing as well.
      */
     public IndexRequestBuilder setParent(String parent) {
-        request.setParent(parent);
+        request.parent(parent);
         return this;
     }
 
@@ -85,7 +85,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the source.
      */
     public IndexRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request.setSource(source, unsafe);
+        request.source(source, unsafe);
         return this;
     }
 
@@ -93,7 +93,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the source.
      */
     public IndexRequestBuilder setSource(BytesReference source) {
-        request.setSource(source, false);
+        request.source(source, false);
         return this;
     }
 
@@ -103,7 +103,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * @param source The map to index
      */
     public IndexRequestBuilder setSource(Map<String, Object> source) {
-        request.setSource(source);
+        request.source(source);
         return this;
     }
 
@@ -113,7 +113,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * @param source The map to index
      */
     public IndexRequestBuilder setSource(Map<String, Object> source, XContentType contentType) {
-        request.setSource(source, contentType);
+        request.source(source, contentType);
         return this;
     }
 
@@ -124,7 +124,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * or using the {@link #setSource(byte[])}.
      */
     public IndexRequestBuilder setSource(String source) {
-        request.setSource(source);
+        request.source(source);
         return this;
     }
 
@@ -132,7 +132,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the content source to index.
      */
     public IndexRequestBuilder setSource(XContentBuilder sourceBuilder) {
-        request.setSource(sourceBuilder);
+        request.source(sourceBuilder);
         return this;
     }
 
@@ -140,7 +140,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the document to index in bytes form.
      */
     public IndexRequestBuilder setSource(byte[] source) {
-        request.setSource(source);
+        request.source(source);
         return this;
     }
 
@@ -153,7 +153,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * @param length The length of the data
      */
     public IndexRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.setSource(source, offset, length);
+        request.source(source, offset, length);
         return this;
     }
 
@@ -166,7 +166,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * @param unsafe Is the byte array safe to be used form a different thread
      */
     public IndexRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
-        request.setSource(source, offset, length, unsafe);
+        request.source(source, offset, length, unsafe);
         return this;
     }
 
@@ -174,7 +174,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Constructs a simple document with a field and a value.
      */
     public IndexRequestBuilder setSource(String field1, Object value1) {
-        request.setSource(field1, value1);
+        request.source(field1, value1);
         return this;
     }
 
@@ -182,7 +182,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Constructs a simple document with a field and value pairs.
      */
     public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2) {
-        request.setSource(field1, value1, field2, value2);
+        request.source(field1, value1, field2, value2);
         return this;
     }
 
@@ -190,7 +190,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Constructs a simple document with a field and value pairs.
      */
     public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
-        request.setSource(field1, value1, field2, value2, field3, value3);
+        request.source(field1, value1, field2, value2, field3, value3);
         return this;
     }
 
@@ -198,7 +198,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Constructs a simple document with a field and value pairs.
      */
     public IndexRequestBuilder setSource(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
-        request.setSource(field1, value1, field2, value2, field3, value3, field4, value4);
+        request.source(field1, value1, field2, value2, field3, value3, field4, value4);
         return this;
     }
 
@@ -206,7 +206,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * The content type that will be used to generate a document from user provided objects (like Map).
      */
     public IndexRequestBuilder setContentType(XContentType contentType) {
-        request.setContentType(contentType);
+        request.contentType(contentType);
         return this;
     }
 
@@ -214,7 +214,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the type of operation to perform.
      */
     public IndexRequestBuilder setOpType(IndexRequest.OpType opType) {
-        request.setOpType(opType);
+        request.opType(opType);
         return this;
     }
 
@@ -223,7 +223,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * be either "index" or "create".
      */
     public IndexRequestBuilder setOpType(String opType) {
-        request.setOpType(opType);
+        request.opType(opType);
         return this;
     }
 
@@ -231,7 +231,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Set to <tt>true</tt> to force this index to use {@link org.elasticsearch.action.index.IndexRequest.OpType#CREATE}.
      */
     public IndexRequestBuilder setCreate(boolean create) {
-        request.setCreate(create);
+        request.create(create);
         return this;
     }
 
@@ -241,7 +241,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * to <tt>false</tt>.
      */
     public IndexRequestBuilder setRefresh(boolean refresh) {
-        request.setRefresh(refresh);
+        request.refresh(refresh);
         return this;
     }
 
@@ -249,7 +249,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Set the replication type for this operation.
      */
     public IndexRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.setReplicationType(replicationType);
+        request.replicationType(replicationType);
         return this;
     }
 
@@ -257,7 +257,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
      */
     public IndexRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.setConsistencyLevel(consistencyLevel);
+        request.consistencyLevel(consistencyLevel);
         return this;
     }
 
@@ -265,7 +265,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Set the replication type for this operation.
      */
     public IndexRequestBuilder setReplicationType(String replicationType) {
-        request.setReplicationType(replicationType);
+        request.replicationType(replicationType);
         return this;
     }
 
@@ -274,7 +274,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * version exists and no changes happened on the doc since then.
      */
     public IndexRequestBuilder setVersion(long version) {
-        request.setVersion(version);
+        request.version(version);
         return this;
     }
 
@@ -282,7 +282,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
      */
     public IndexRequestBuilder setVersionType(VersionType versionType) {
-        request.setVersionType(versionType);
+        request.versionType(versionType);
         return this;
     }
 
@@ -292,7 +292,7 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * set to <tt>*</tt> to indicate that all percolate queries should be run.
      */
     public IndexRequestBuilder setPercolate(String percolate) {
-        request.setPercolate(percolate);
+        request.percolate(percolate);
         return this;
     }
 
@@ -300,13 +300,13 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      * Sets the timestamp either as millis since the epoch, or, in the configured date format.
      */
     public IndexRequestBuilder setTimestamp(String timestamp) {
-        request.setTimestamp(timestamp);
+        request.timestamp(timestamp);
         return this;
     }
 
     // Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise.
     public IndexRequestBuilder setTTL(long ttl) {
-        request.setTtl(ttl);
+        request.ttl(ttl);
         return this;
     }
 

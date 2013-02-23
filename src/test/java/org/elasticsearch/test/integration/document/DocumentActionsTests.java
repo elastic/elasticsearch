@@ -116,7 +116,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
     public void testIndexActions() throws Exception {
         createIndex();
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -157,7 +157,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
             assertThat("cycle(map) #" + i, (String) ((Map) getResult.getSourceAsMap().get("type1")).get("name"), equalTo("test"));
-            getResult = client1.get(getRequest("test").setType("type1").setId("1").setOperationThreaded(true)).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1").operationThreaded(true)).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
@@ -173,7 +173,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Get [type1/2] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").setType("type1").setId("2")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat(getResult.isExists(), equalTo(false));
         }
 
@@ -187,14 +187,14 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Get [type1/1] (should be empty)");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").setType("type1").setId("1")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat(getResult.isExists(), equalTo(false));
         }
 
         logger.info("Index [type1/1]");
-        client1.index(indexRequest("test").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
+        client1.index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         logger.info("Index [type1/2]");
-        client1.index(indexRequest("test").setType("type1").setId("2").setSource(source("2", "test2"))).actionGet();
+        client1.index(indexRequest("test").type("type1").id("2").source(source("2", "test2"))).actionGet();
 
         logger.info("Flushing");
         FlushResponse flushResult = client1.admin().indices().prepareFlush("test").execute().actionGet();
@@ -205,10 +205,10 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Get [type1/1] and [type1/2]");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").setType("type1").setId("1")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
-            getResult = client1.get(getRequest("test").setType("type1").setId("2")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             String ste1 = getResult.getSourceAsString();
             String ste2 = source("2", "test2").string();
             assertThat("cycle #" + i, ste1, equalTo(ste2));
@@ -225,18 +225,18 @@ public class DocumentActionsTests extends AbstractNodesTests {
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
-            countResponse = client1.count(countRequest("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
+            countResponse = client1.count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
-            countResponse = client1.count(countRequest("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
+            countResponse = client1.count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // test failed (simply query that can't be parsed)
-            countResponse = client1.count(countRequest("test").setQuery(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
+            countResponse = client1.count(countRequest("test").query(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
             assertThat(countResponse.getCount(), equalTo(0l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(0));
@@ -258,10 +258,10 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Get [type1/1] and [type1/2], should be empty");
         for (int i = 0; i < 5; i++) {
-            getResult = client1.get(getRequest("test").setType("type1").setId("1")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
-            getResult = client1.get(getRequest("test").setType("type1").setId("2")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
@@ -271,7 +271,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
     public void testBulk() throws Exception {
         createIndex();
         logger.info("-> running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -322,15 +322,15 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResult = client1.get(getRequest("test").setType("type1").setId("1")).actionGet();
+            GetResponse getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
 
-            getResult = client1.get(getRequest("test").setType("type1").setId("2")).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("2", "test").string()));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
-            getResult = client1.get(getRequest("test").setType("type1").setId(generatedId3)).actionGet();
+            getResult = client1.get(getRequest("test").type("type1").id(generatedId3)).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("3", "test").string()));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }

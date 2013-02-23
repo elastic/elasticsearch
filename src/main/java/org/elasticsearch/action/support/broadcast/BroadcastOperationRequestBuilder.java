@@ -34,7 +34,7 @@ public abstract class BroadcastOperationRequestBuilder<Request extends Broadcast
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIndices(String... indices) {
-        request.setIndices(indices);
+        request.indices(indices);
         return (RequestBuilder) this;
     }
 
@@ -43,7 +43,7 @@ public abstract class BroadcastOperationRequestBuilder<Request extends Broadcast
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setOperationThreading(BroadcastOperationThreading operationThreading) {
-        request.setOperationThreading(operationThreading);
+        request.operationThreading(operationThreading);
         return (RequestBuilder) this;
     }
 
@@ -52,13 +52,13 @@ public abstract class BroadcastOperationRequestBuilder<Request extends Broadcast
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setOperationThreading(String operationThreading) {
-        request.setOperationThreading(operationThreading);
+        request.operationThreading(operationThreading);
         return (RequestBuilder) this;
     }
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
-        request.setIgnoreIndices(ignoreIndices);
+        request.ignoreIndices(ignoreIndices);
         return (RequestBuilder) this;
     }
 }

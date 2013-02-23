@@ -39,7 +39,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      * The types of documents the query will run against. Defaults to all types.
      */
     public ValidateQueryRequestBuilder setTypes(String... types) {
-        request.setTypes(types);
+        request.types(types);
         return this;
     }
 
@@ -49,7 +49,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setQuery(QueryBuilder queryBuilder) {
-        request.setQuery(queryBuilder);
+        request.query(queryBuilder);
         return this;
     }
 
@@ -59,7 +59,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setQuery(BytesReference querySource) {
-        request.setQuery(querySource, false);
+        request.query(querySource, false);
         return this;
     }
 
@@ -69,7 +69,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setQuery(BytesReference querySource, boolean unsafe) {
-        request.setQuery(querySource, unsafe);
+        request.query(querySource, unsafe);
         return this;
     }
 
@@ -79,7 +79,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setQuery(byte[] querySource) {
-        request.setQuery(querySource);
+        request.query(querySource);
         return this;
     }
 
@@ -89,7 +89,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setExplain(boolean explain) {
-        request.setExplain(explain);
+        request.explain(explain);
         return this;
     }
 

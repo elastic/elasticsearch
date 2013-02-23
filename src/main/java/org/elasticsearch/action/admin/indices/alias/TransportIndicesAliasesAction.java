@@ -74,7 +74,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
     @Override
     protected ClusterBlockException checkBlock(IndicesAliasesRequest request, ClusterState state) {
         Set<String> indices = Sets.newHashSet();
-        for (AliasAction aliasAction : request.getAliasActions()) {
+        for (AliasAction aliasAction : request.aliasActions()) {
             indices.add(aliasAction.index());
         }
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, indices.toArray(new String[indices.size()]));
@@ -85,7 +85,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeOperationA
         final AtomicReference<IndicesAliasesResponse> responseRef = new AtomicReference<IndicesAliasesResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        indexAliasesService.indicesAliases(new MetaDataIndexAliasesService.Request(request.getAliasActions().toArray(new AliasAction[request.getAliasActions().size()]), request.getTimeout()), new MetaDataIndexAliasesService.Listener() {
+        indexAliasesService.indicesAliases(new MetaDataIndexAliasesService.Request(request.aliasActions().toArray(new AliasAction[request.aliasActions().size()]), request.timeout()), new MetaDataIndexAliasesService.Listener() {
             @Override
             public void onResponse(MetaDataIndexAliasesService.Response response) {
                 responseRef.set(new IndicesAliasesResponse(response.acknowledged()));

@@ -57,19 +57,19 @@ public class RestFlushAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         FlushRequest flushRequest = new FlushRequest(RestActions.splitIndices(request.param("index")));
-        flushRequest.setListenerThreaded(false);
+        flushRequest.listenerThreaded(false);
         if (request.hasParam("ignore_indices")) {
-            flushRequest.setIgnoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+            flushRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
         if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
             // since we don't spawn, don't allow no_threads, but change it to a single thread
             operationThreading = BroadcastOperationThreading.THREAD_PER_SHARD;
         }
-        flushRequest.setOperationThreading(operationThreading);
-        flushRequest.setRefresh(request.paramAsBoolean("refresh", flushRequest.isRefresh()));
-        flushRequest.setFull(request.paramAsBoolean("full", flushRequest.isFull()));
-        flushRequest.setForce(request.paramAsBoolean("force", flushRequest.isForce()));
+        flushRequest.operationThreading(operationThreading);
+        flushRequest.refresh(request.paramAsBoolean("refresh", flushRequest.refresh()));
+        flushRequest.full(request.paramAsBoolean("full", flushRequest.full()));
+        flushRequest.force(request.paramAsBoolean("force", flushRequest.force()));
         client.admin().indices().flush(flushRequest, new ActionListener<FlushResponse>() {
             @Override
             public void onResponse(FlushResponse response) {

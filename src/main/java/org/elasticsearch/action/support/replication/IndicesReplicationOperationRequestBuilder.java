@@ -39,7 +39,7 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(TimeValue timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
 
@@ -48,13 +48,13 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setTimeout(String timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIndices(String... indices) {
-        request.setIndices(indices);
+        request.indices(indices);
         return (RequestBuilder) this;
     }
 
@@ -63,7 +63,7 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.setReplicationType(replicationType);
+        request.replicationType(replicationType);
         return (RequestBuilder) this;
     }
 
@@ -72,7 +72,7 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setReplicationType(String replicationType) {
-        request.setReplicationType(replicationType);
+        request.replicationType(replicationType);
         return (RequestBuilder) this;
     }
 
@@ -81,7 +81,7 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
      */
     @SuppressWarnings("unchecked")
     public RequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.setConsistencyLevel(consistencyLevel);
+        request.consistencyLevel(consistencyLevel);
         return (RequestBuilder) this;
     }
 }

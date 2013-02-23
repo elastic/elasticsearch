@@ -51,19 +51,19 @@ public class RestClusterHealthAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         ClusterHealthRequest clusterHealthRequest = clusterHealthRequest(RestActions.splitIndices(request.param("index")));
-        clusterHealthRequest.setLocal(request.paramAsBoolean("local", clusterHealthRequest.isLocal()));
-        clusterHealthRequest.setListenerThreaded(false);
+        clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
+        clusterHealthRequest.listenerThreaded(false);
         int level = 0;
         try {
-            clusterHealthRequest.setMasterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.getMasterNodeTimeout()));
-            clusterHealthRequest.setTimeout(request.paramAsTime("timeout", clusterHealthRequest.getTimeout()));
+            clusterHealthRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterHealthRequest.masterNodeTimeout()));
+            clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
             String waitForStatus = request.param("wait_for_status");
             if (waitForStatus != null) {
-                clusterHealthRequest.setWaitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase()));
+                clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase()));
             }
-            clusterHealthRequest.setWaitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.getWaitForRelocatingShards()));
-            clusterHealthRequest.setWaitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.getWaitForActiveShards()));
-            clusterHealthRequest.setWaitForNodes(request.param("wait_for_nodes", clusterHealthRequest.getWaitForNodes()));
+            clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
+            clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
+            clusterHealthRequest.waitForNodes(request.param("wait_for_nodes", clusterHealthRequest.waitForNodes()));
             String sLevel = request.param("level");
             if (sLevel != null) {
                 if ("cluster".equals(sLevel)) {

@@ -89,7 +89,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         client = client("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -137,7 +137,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
         client = client("node1");
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -146,7 +146,7 @@ public class RecoveryPercolatorTests extends AbstractNodesTests {
 
         client.admin().indices().prepareDelete("test").execute().actionGet();
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().setWaitForYellowStatus().setWaitForActiveShards(1)).actionGet();
+        clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));

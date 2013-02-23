@@ -141,35 +141,35 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
     @Override
     protected ShardStats shardOperation(IndexShardStatsRequest request) throws ElasticSearchException {
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.getIndex());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.getShardId());
+        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.index());
+        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId());
         ShardStats stats = new ShardStats(indexShard.routingEntry());
 
-        if (request.request.isDocs()) {
+        if (request.request.docs()) {
             stats.stats.docs = indexShard.docStats();
         }
-        if (request.request.isStore()) {
+        if (request.request.store()) {
             stats.stats.store = indexShard.storeStats();
         }
-        if (request.request.isIndexing()) {
-            stats.stats.indexing = indexShard.indexingStats(request.request.getTypes());
+        if (request.request.indexing()) {
+            stats.stats.indexing = indexShard.indexingStats(request.request.types());
         }
-        if (request.request.isGet()) {
+        if (request.request.get()) {
             stats.stats.get = indexShard.getStats();
         }
-        if (request.request.isSearch()) {
-            stats.getStats().search = indexShard.searchStats(request.request.getGroups());
+        if (request.request.search()) {
+            stats.getStats().search = indexShard.searchStats(request.request.groups());
         }
-        if (request.request.isMerge()) {
+        if (request.request.merge()) {
             stats.stats.merge = indexShard.mergeStats();
         }
-        if (request.request.isRefresh()) {
+        if (request.request.refresh()) {
             stats.stats.refresh = indexShard.refreshStats();
         }
-        if (request.request.isFlush()) {
+        if (request.request.flush()) {
             stats.stats.flush = indexShard.flushStats();
         }
-        if (request.request.isWarmer()) {
+        if (request.request.warmer()) {
             stats.stats.warmer = indexShard.warmerStats();
         }
 

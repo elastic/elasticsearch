@@ -38,15 +38,15 @@ import java.util.Set;
 
 /**
  */
-public class IndicesStats extends BroadcastOperationResponse implements ToXContent {
+public class IndicesStatsResponse extends BroadcastOperationResponse implements ToXContent {
 
     private ShardStats[] shards;
 
-    IndicesStats() {
+    IndicesStatsResponse() {
 
     }
 
-    IndicesStats(ShardStats[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
+    IndicesStatsResponse(ShardStats[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
     }

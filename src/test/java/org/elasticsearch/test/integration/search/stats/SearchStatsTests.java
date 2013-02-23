@@ -20,7 +20,7 @@
 package org.elasticsearch.test.integration.search.stats;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -77,7 +77,7 @@ public class SearchStatsTests extends AbstractNodesTests {
             client.prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
         }
 
-        IndicesStats indicesStats = client.admin().indices().prepareStats().execute().actionGet();
+        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats().execute().actionGet();
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryCount(), greaterThan(0l));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0l));
         assertThat(indicesStats.getTotal().getSearch().getTotal().getFetchCount(), greaterThan(0l));

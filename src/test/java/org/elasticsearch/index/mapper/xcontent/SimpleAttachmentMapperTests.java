@@ -46,7 +46,7 @@ public class SimpleAttachmentMapperTests {
 
     @BeforeClass
     public void setupMapperParser() {
-        mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")));
+        mapperParser = new DocumentMapperParser(new Index("test"), new AnalysisService(new Index("test")), null, null);
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
     }
 

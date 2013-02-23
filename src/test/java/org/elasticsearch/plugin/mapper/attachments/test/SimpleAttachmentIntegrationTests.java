@@ -68,9 +68,9 @@ public class SimpleAttachmentIntegrationTests {
         node.client().admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0))).actionGet();
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = node.client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }
 
     @AfterMethod
@@ -91,10 +91,10 @@ public class SimpleAttachmentIntegrationTests {
         node.client().admin().indices().refresh(refreshRequest()).actionGet();
 
         CountResponse countResponse = node.client().count(countRequest("test").query(fieldQuery("file.title", "test document"))).actionGet();
-        assertThat(countResponse.count(), equalTo(1l));
+        assertThat(countResponse.getCount(), equalTo(1l));
 
         countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "tests the ability"))).actionGet();
-        assertThat(countResponse.count(), equalTo(1l));
+        assertThat(countResponse.getCount(), equalTo(1l));
     }
 
     @Test
@@ -110,10 +110,10 @@ public class SimpleAttachmentIntegrationTests {
         node.client().admin().indices().refresh(refreshRequest()).actionGet();
 
         CountResponse countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "BeforeLimit"))).actionGet();
-        assertThat(countResponse.count(), equalTo(1l));
+        assertThat(countResponse.getCount(), equalTo(1l));
 
         countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "AfterLimit"))).actionGet();
-        assertThat(countResponse.count(), equalTo(0l));
+        assertThat(countResponse.getCount(), equalTo(0l));
     }
 
     @Test
@@ -129,10 +129,10 @@ public class SimpleAttachmentIntegrationTests {
         node.client().admin().indices().refresh(refreshRequest()).actionGet();
 
         CountResponse countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "Begin"))).actionGet();
-        assertThat(countResponse.count(), equalTo(1l));
+        assertThat(countResponse.getCount(), equalTo(1l));
 
         countResponse = node.client().count(countRequest("test").query(fieldQuery("file", "End"))).actionGet();
-        assertThat(countResponse.count(), equalTo(1l));
+        assertThat(countResponse.getCount(), equalTo(1l));
     }
 
     /**

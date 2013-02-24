@@ -125,7 +125,7 @@ public class LookupScript extends AbstractSearchScript {
                         public Map<String, Object> call() throws Exception {
                             // This is not very efficient of doing this, but it demonstrates using injected client
                             // for record lookup
-                            GetResponse response = client.prepareGet(lookupIndex, lookupType, fieldValue).execute().actionGet();
+                            GetResponse response = client.prepareGet(lookupIndex, lookupType, fieldValue).setPreference("_local").execute().actionGet();
                             if (response.exists()) {
                                 return response.getSource();
                             }

@@ -26,10 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
-import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.settings.IndexSettings;
-
-import java.util.Set;
 
 /**
  */
@@ -40,9 +37,8 @@ public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Polish
     @Inject
     public PolishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        Set<?> stopWords = Analysis.parseStopWords(env, settings, PolishAnalyzer.getDefaultStopSet(), version);
 
-        analyzer = new PolishAnalyzer(version, stopWords);
+        analyzer = new PolishAnalyzer(version, PolishAnalyzer.getDefaultStopSet());
     }
 
     @Override

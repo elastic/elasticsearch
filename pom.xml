@@ -31,7 +31,8 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.19.3</elasticsearch.version>
+        <elasticsearch.version>0.21.0.Beta1-SNAPSHOT</elasticsearch.version>
+        <lucene.version>4.1.0</lucene.version>
     </properties>
 
     <repositories>
@@ -51,8 +52,8 @@
 
         <dependency>
             <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-phonetic</artifactId>
-            <version>3.6.0</version>
+            <artifactId>lucene-analyzers-phonetic</artifactId>
+            <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
 

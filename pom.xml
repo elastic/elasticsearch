@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.19.3</elasticsearch.version>
+        <elasticsearch.version>0.21.0.Beta1-SNAPSHOT</elasticsearch.version>
     </properties>
 
     <repositories>
@@ -51,8 +51,8 @@
 
         <dependency>
             <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-icu</artifactId>
-            <version>3.6.1</version>
+            <artifactId>lucene-analyzers-icu</artifactId>
+            <version>4.1.0</version>
             <scope>compile</scope>
         </dependency>
 

@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class KuromojiAnalysisTests {
 
     @Test
-    public void testDefaultsKuromojiAnalysis() {
+    public void testDefaultsKuromojiAnalysis() throws IOException {
         AnalysisService analysisService = createAnalysisService();
 
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_tokenizer");
@@ -74,7 +74,7 @@ public class KuromojiAnalysisTests {
 
         analyzer = analysisService.analyzer("my_analyzer");
         assertThat(analyzer.analyzer(), instanceOf(CustomAnalyzer.class));
-        assertThat(analyzer.analyzer().tokenStream(null, null), instanceOf(JapaneseTokenizer.class));
+        assertThat(analyzer.analyzer().tokenStream(null, new StringReader("")), instanceOf(JapaneseTokenizer.class));
     }
 
     @Test

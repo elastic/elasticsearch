@@ -32,6 +32,7 @@
 
     <properties>
         <elasticsearch.version>0.21.0.Beta1-SNAPSHOT</elasticsearch.version>
+        <lucene.version>4.1.0</lucene.version>
     </properties>
 
     <repositories>
@@ -52,7 +53,7 @@
         <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-analyzers-icu</artifactId>
-            <version>4.1.0</version>
+            <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
 
@@ -145,3 +146,4 @@
         </plugins>
     </build>
 </project>
+

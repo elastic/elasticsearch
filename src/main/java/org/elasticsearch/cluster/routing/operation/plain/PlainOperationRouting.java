@@ -169,6 +169,13 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                             set.add(iterator);
                         }
                     }
+                } else {
+                    for (IndexShardRoutingTable indexShard : indexRouting) {
+                        ShardIterator iterator = preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+                        if (iterator != null) {
+                            set.add(iterator);
+                        }
+                    }
                 }
             }
             return new GroupShardsIterator(set);

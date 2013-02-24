@@ -27,8 +27,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.Set;
-
 /**
  */
 public class SmartChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<SmartChineseAnalyzer> {
@@ -38,9 +36,8 @@ public class SmartChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<
     @Inject
     public SmartChineseAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        Set<?> stopWords = Analysis.parseStopWords(env, settings, SmartChineseAnalyzer.getDefaultStopSet(), version);
 
-        analyzer = new SmartChineseAnalyzer(version, stopWords);
+        analyzer = new SmartChineseAnalyzer(version, SmartChineseAnalyzer.getDefaultStopSet());
     }
 
     @Override

@@ -30,7 +30,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.19.0</elasticsearch.version>
+        <elasticsearch.version>0.21.0.Beta1-SNAPSHOT</elasticsearch.version>
     </properties>
 
     <repositories>

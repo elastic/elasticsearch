@@ -96,11 +96,11 @@ public class PythonScriptSearchTests {
                 .addScriptField("sNum1", "python", "doc['num1'].value", null)
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        assertThat(response.hits().getAt(0).id(), equalTo("2"));
-        assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.hits().getAt(1).id(), equalTo("3"));
-        assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(1).id(), equalTo("3"));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(3.0));
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
@@ -109,9 +109,9 @@ public class PythonScriptSearchTests {
                 .addScriptField("sNum1", "python", "doc['num1'].value", null)
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(1l));
-        assertThat(response.hits().getAt(0).id(), equalTo("3"));
-        assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(3.0));
 
         logger.info("running doc['num1'].value > param1");
         response = client.prepareSearch()
@@ -120,13 +120,13 @@ public class PythonScriptSearchTests {
                 .addScriptField("sNum1", "python", "doc['num1'].value", null)
                 .execute().actionGet();
 
-        assertThat(response.hits().totalHits(), equalTo(3l));
-        assertThat(response.hits().getAt(0).id(), equalTo("1"));
-        assertThat((Double) response.hits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
-        assertThat(response.hits().getAt(1).id(), equalTo("2"));
-        assertThat((Double) response.hits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.hits().getAt(2).id(), equalTo("3"));
-        assertThat((Double) response.hits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().totalHits(), equalTo(3l));
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat((Double) response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
+        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+        assertThat((Double) response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(2).id(), equalTo("3"));
+        assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
     }
 
     @Test
@@ -149,21 +149,21 @@ public class PythonScriptSearchTests {
                 .addScriptField("s_obj2_arr2", "python", "_source['obj2']['arr2']", null)
                 .execute().actionGet();
 
-        Map<String, Object> sObj1 = (Map<String, Object>) response.hits().getAt(0).field("_source.obj1").value();
+        Map<String, Object> sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("_source.obj1").value();
         assertThat(sObj1.get("test").toString(), equalTo("something"));
-        assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+        assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
-        sObj1 = (Map<String, Object>) response.hits().getAt(0).field("s_obj1").value();
+        sObj1 = (Map<String, Object>) response.getHits().getAt(0).field("s_obj1").value();
         assertThat(sObj1.get("test").toString(), equalTo("something"));
-        assertThat(response.hits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
+        assertThat(response.getHits().getAt(0).field("s_obj1_test").value().toString(), equalTo("something"));
 
-        Map<String, Object> sObj2 = (Map<String, Object>) response.hits().getAt(0).field("s_obj2").value();
+        Map<String, Object> sObj2 = (Map<String, Object>) response.getHits().getAt(0).field("s_obj2").value();
         List sObj2Arr2 = (List) sObj2.get("arr2");
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
 
-        sObj2Arr2 = (List) response.hits().getAt(0).field("s_obj2_arr2").value();
+        sObj2Arr2 = (List) response.getHits().getAt(0).field("s_obj2_arr2").value();
         assertThat(sObj2Arr2.size(), equalTo(2));
         assertThat(sObj2Arr2.get(0).toString(), equalTo("arr_value1"));
         assertThat(sObj2Arr2.get(1).toString(), equalTo("arr_value2"));
@@ -201,13 +201,13 @@ public class PythonScriptSearchTests {
                 .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value").lang("python")))
         ).actionGet();
 
-        assertThat("Failures " + Arrays.toString(response.shardFailures()), response.shardFailures().length, equalTo(0));
+        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        logger.info("Hit[0] {} Explanation {}", response.hits().getAt(0).id(), response.hits().getAt(0).explanation());
-        logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).id(), response.hits().getAt(1).explanation());
-        assertThat(response.hits().getAt(0).id(), equalTo("2"));
-        assertThat(response.hits().getAt(1).id(), equalTo("1"));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).id(), equalTo("1"));
 
         logger.info("running -doc['num1'].value");
         response = client.search(searchRequest()
@@ -215,13 +215,13 @@ public class PythonScriptSearchTests {
                 .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("-doc['num1'].value").lang("python")))
         ).actionGet();
 
-        assertThat("Failures " + Arrays.toString(response.shardFailures()), response.shardFailures().length, equalTo(0));
+        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        logger.info("Hit[0] {} Explanation {}", response.hits().getAt(0).id(), response.hits().getAt(0).explanation());
-        logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).id(), response.hits().getAt(1).explanation());
-        assertThat(response.hits().getAt(0).id(), equalTo("1"));
-        assertThat(response.hits().getAt(1).id(), equalTo("2"));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
 
 
         logger.info("running doc['num1'].value * _score");
@@ -230,13 +230,13 @@ public class PythonScriptSearchTests {
                 .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("doc['num1'].value * _score").lang("python")))
         ).actionGet();
 
-        assertThat("Failures " + Arrays.toString(response.shardFailures()), response.shardFailures().length, equalTo(0));
+        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        logger.info("Hit[0] {} Explanation {}", response.hits().getAt(0).id(), response.hits().getAt(0).explanation());
-        logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).id(), response.hits().getAt(1).explanation());
-        assertThat(response.hits().getAt(0).id(), equalTo("2"));
-        assertThat(response.hits().getAt(1).id(), equalTo("1"));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).id(), equalTo("1"));
 
         logger.info("running param1 * param2 * _score");
         response = client.search(searchRequest()
@@ -244,10 +244,10 @@ public class PythonScriptSearchTests {
                 .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value")).script("param1 * param2 * _score").param("param1", 2).param("param2", 2).lang("python")))
         ).actionGet();
 
-        assertThat("Failures " + Arrays.toString(response.shardFailures()), response.shardFailures().length, equalTo(0));
+        assertThat("Failures " + Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
 
-        assertThat(response.hits().totalHits(), equalTo(2l));
-        logger.info("Hit[0] {} Explanation {}", response.hits().getAt(0).id(), response.hits().getAt(0).explanation());
-        logger.info("Hit[1] {} Explanation {}", response.hits().getAt(1).id(), response.hits().getAt(1).explanation());
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
     }
 }

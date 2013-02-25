@@ -26,7 +26,6 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.search.DocIdSet;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -60,24 +59,20 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     private volatile boolean closed;
 
 
-    static {
-        MetaData.addDynamicSettings(
-                "indices.cache.filter.size",
-                "indices.cache.filter.expire"
-        );
-    }
+    public static final String INDICES_CACHE_FILTER_SIZE = "indices.cache.filter.size";
+    public static final String INDICES_CACHE_FILTER_EXPIRE = "indices.cache.filter.expire";
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
             boolean replace = false;
-            String size = settings.get("indices.cache.filter.size", IndicesFilterCache.this.size);
+            String size = settings.get(INDICES_CACHE_FILTER_SIZE, IndicesFilterCache.this.size);
             if (!size.equals(IndicesFilterCache.this.size)) {
                 logger.info("updating [indices.cache.filter.size] from [{}] to [{}]", IndicesFilterCache.this.size, size);
                 IndicesFilterCache.this.size = size;
                 replace = true;
             }
-            TimeValue expire = settings.getAsTime("indices.cache.filter.expire", IndicesFilterCache.this.expire);
+            TimeValue expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, IndicesFilterCache.this.expire);
             if (!Objects.equal(expire, IndicesFilterCache.this.expire)) {
                 logger.info("updating [indices.cache.filter.expire] from [{}] to [{}]", IndicesFilterCache.this.expire, expire);
                 IndicesFilterCache.this.expire = expire;

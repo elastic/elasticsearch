@@ -26,12 +26,14 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 import java.util.Map;
 import java.util.Set;
@@ -47,12 +49,15 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final AllocationService allocationService;
 
+    private final DynamicSettings dynamicSettings;
+
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
+    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService, @IndexDynamicSettings DynamicSettings dynamicSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterService.add(this);
         this.allocationService = allocationService;
+        this.dynamicSettings = dynamicSettings;
     }
 
     @Override
@@ -139,7 +144,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         final Set<String> removedSettings = Sets.newHashSet();
         for (String key : updatedSettingsBuilder.internalMap().keySet()) {
-            if (!IndexMetaData.hasDynamicSetting(key)) {
+            if (!dynamicSettings.hasDynamicSetting(key)) {
                 removedSettings.add(key);
             }
         }

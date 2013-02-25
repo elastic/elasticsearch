@@ -28,10 +28,12 @@ import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationModule;
 import org.elasticsearch.cluster.routing.operation.OperationRoutingModule;
 import org.elasticsearch.cluster.service.InternalClusterService;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettingsModule;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.settings.IndexDynamicSettingsModule;
 
 /**
  *
@@ -46,7 +48,10 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new AllocationModule(settings), new OperationRoutingModule(settings));
+        return ImmutableList.of(new AllocationModule(settings),
+                new OperationRoutingModule(settings),
+                new ClusterDynamicSettingsModule(),
+                new IndexDynamicSettingsModule());
     }
 
     @Override

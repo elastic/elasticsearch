@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -75,11 +74,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String SNAPSHOT = "snapshot";
     }
 
-    static {
-        MetaData.addDynamicSettings(
-                "threadpool.*"
-        );
-    }
+    public static final String THREADPOOL_GROUP = "threadpool.";
 
     private volatile ImmutableMap<String, ExecutorHolder> executors;
 
@@ -99,7 +94,7 @@ public class ThreadPool extends AbstractComponent {
     public ThreadPool(Settings settings, @Nullable NodeSettingsService nodeSettingsService) {
         super(settings);
 
-        Map<String, Settings> groupSettings = settings.getGroups("threadpool");
+        Map<String, Settings> groupSettings = settings.getGroups(THREADPOOL_GROUP);
 
         defaultExecutorTypeSettings = ImmutableMap.<String, Settings>builder()
                 .put(Names.GENERIC, settingsBuilder().put("type", "cached").put("keep_alive", "30s").build())

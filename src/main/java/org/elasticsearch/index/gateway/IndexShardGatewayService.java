@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.gateway;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -92,14 +91,12 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         indexSettingsService.addListener(applySettings);
     }
 
-    static {
-        IndexMetaData.addDynamicSettings("index.gateway.snapshot_interval");
-    }
+    public static final String INDEX_GATEWAY_SNAPSHOT_INTERVAL = "index.gateway.snapshot_interval";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            TimeValue snapshotInterval = settings.getAsTime("index.gateway.snapshot_interval", IndexShardGatewayService.this.snapshotInterval);
+            TimeValue snapshotInterval = settings.getAsTime(INDEX_GATEWAY_SNAPSHOT_INTERVAL, IndexShardGatewayService.this.snapshotInterval);
             if (!snapshotInterval.equals(IndexShardGatewayService.this.snapshotInterval)) {
                 logger.info("updating snapshot_interval from [{}] to [{}]", IndexShardGatewayService.this.snapshotInterval, snapshotInterval);
                 IndexShardGatewayService.this.snapshotInterval = snapshotInterval;

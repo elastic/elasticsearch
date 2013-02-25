@@ -64,15 +64,8 @@ import java.util.List;
  */
 public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
 
-    static {
-        MetaData.addDynamicSettings(
-                "indices.ttl.interval"
-        );
-
-        IndexMetaData.addDynamicSettings(
-                "index.ttl.disable_purge"
-        );
-    }
+    public static final String INDICES_TTL_INTERVAL = "indices.ttl.interval";
+    public static final String INDEX_TTL_DISABLE_PURGE = "index.ttl.disable_purge";
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -153,7 +146,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 if (indexMetaData == null) {
                     continue;
                 }
-                boolean disablePurge = indexMetaData.settings().getAsBoolean("index.ttl.disable_purge", false);
+                boolean disablePurge = indexMetaData.settings().getAsBoolean(INDEX_TTL_DISABLE_PURGE, false);
                 if (disablePurge) {
                     continue;
                 }
@@ -282,7 +275,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            TimeValue interval = settings.getAsTime("indices.ttl.interval", IndicesTTLService.this.interval);
+            TimeValue interval = settings.getAsTime(INDICES_TTL_INTERVAL, IndicesTTLService.this.interval);
             if (!interval.equals(IndicesTTLService.this.interval)) {
                 logger.info("updating indices.ttl.interval from [{}] to [{}]", IndicesTTLService.this.interval, interval);
                 IndicesTTLService.this.interval = interval;

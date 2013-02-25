@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog.fs;
 
 import jsr166y.ThreadLocalRandom;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -47,30 +46,26 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class FsTranslog extends AbstractIndexShardComponent implements Translog {
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                "index.translog.fs.type",
-                "index.translog.fs.buffer_size",
-                "index.translog.fs.transient_buffer_size"
-        );
-    }
+    public static final String INDEX_TRANSLOG_FS_TYPE = "index.translog.fs.type";
+    public static final String INDEX_TRANSLOG_FS_BUFFER_SIZE = "index.translog.fs.buffer_size";
+    public static final String INDEX_TRANSLOG_FS_TRANSIENT_BUFFER_SIZE = "index.translog.fs.transient_buffer_size";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int bufferSize = (int) settings.getAsBytesSize("index.translog.fs.buffer_size", new ByteSizeValue(FsTranslog.this.bufferSize)).bytes();
+            int bufferSize = (int) settings.getAsBytesSize(INDEX_TRANSLOG_FS_BUFFER_SIZE, new ByteSizeValue(FsTranslog.this.bufferSize)).bytes();
             if (bufferSize != FsTranslog.this.bufferSize) {
                 logger.info("updating buffer_size from [{}] to [{}]", new ByteSizeValue(FsTranslog.this.bufferSize), new ByteSizeValue(bufferSize));
                 FsTranslog.this.bufferSize = bufferSize;
             }
 
-            int transientBufferSize = (int) settings.getAsBytesSize("index.translog.fs.transient_buffer_size", new ByteSizeValue(FsTranslog.this.transientBufferSize)).bytes();
+            int transientBufferSize = (int) settings.getAsBytesSize(INDEX_TRANSLOG_FS_TRANSIENT_BUFFER_SIZE, new ByteSizeValue(FsTranslog.this.transientBufferSize)).bytes();
             if (transientBufferSize != FsTranslog.this.transientBufferSize) {
                 logger.info("updating transient_buffer_size from [{}] to [{}]", new ByteSizeValue(FsTranslog.this.transientBufferSize), new ByteSizeValue(transientBufferSize));
                 FsTranslog.this.transientBufferSize = transientBufferSize;
             }
 
-            FsTranslogFile.Type type = FsTranslogFile.Type.fromString(settings.get("index.translog.fs.type", FsTranslog.this.type.name()));
+            FsTranslogFile.Type type = FsTranslogFile.Type.fromString(settings.get(INDEX_TRANSLOG_FS_TYPE, FsTranslog.this.type.name()));
             if (type != FsTranslog.this.type) {
                 logger.info("updating type from [{}] to [{}]", FsTranslog.this.type, type);
                 FsTranslog.this.type = type;

@@ -22,7 +22,6 @@ package org.elasticsearch.index.merge.policy;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -58,7 +57,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
 
-        this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", store.suggestUseCompoundFile());
+        this.compoundFormat = indexSettings.getAsBoolean(INDEX_COMPOUND_FORMAT, store.suggestUseCompoundFile());
         this.minMergeDocs = componentSettings.getAsInt("min_merge_docs", LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
         this.maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
         this.mergeFactor = componentSettings.getAsInt("merge_factor", LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
@@ -92,19 +91,16 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
         return mergePolicy;
     }
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                "index.merge.policy.min_merge_docs",
-                "index.merge.policy.max_merge_docs",
-                "index.merge.policy.merge_factor",
-                "index.compound_format"
-        );
-    }
+    public static final String INDEX_MERGE_POLICY_MIN_MERGE_DOCS = "index.merge.policy.min_merge_docs";
+    public static final String INDEX_MERGE_POLICY_MAX_MERGE_DOCS = "index.merge.policy.max_merge_docs";
+    public static final String INDEX_MERGE_POLICY_MERGE_FACTOR = "index.merge.policy.merge_factor";
+    public static final String INDEX_COMPOUND_FORMAT = "index.compound_format";
+
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int minMergeDocs = settings.getAsInt("index.merge.policy.min_merge_docs", LogDocMergePolicyProvider.this.minMergeDocs);
+            int minMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MIN_MERGE_DOCS, LogDocMergePolicyProvider.this.minMergeDocs);
             if (minMergeDocs != LogDocMergePolicyProvider.this.minMergeDocs) {
                 logger.info("updating min_merge_docs from [{}] to [{}]", LogDocMergePolicyProvider.this.minMergeDocs, minMergeDocs);
                 LogDocMergePolicyProvider.this.minMergeDocs = minMergeDocs;
@@ -113,7 +109,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            int maxMergeDocs = settings.getAsInt("index.merge.policy.max_merge_docs", LogDocMergePolicyProvider.this.maxMergeDocs);
+            int maxMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_DOCS, LogDocMergePolicyProvider.this.maxMergeDocs);
             if (maxMergeDocs != LogDocMergePolicyProvider.this.maxMergeDocs) {
                 logger.info("updating max_merge_docs from [{}] to [{}]", LogDocMergePolicyProvider.this.maxMergeDocs, maxMergeDocs);
                 LogDocMergePolicyProvider.this.maxMergeDocs = maxMergeDocs;
@@ -122,7 +118,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            int mergeFactor = settings.getAsInt("index.merge.policy.merge_factor", LogDocMergePolicyProvider.this.mergeFactor);
+            int mergeFactor = settings.getAsInt(INDEX_MERGE_POLICY_MERGE_FACTOR, LogDocMergePolicyProvider.this.mergeFactor);
             if (mergeFactor != LogDocMergePolicyProvider.this.mergeFactor) {
                 logger.info("updating merge_factor from [{}] to [{}]", LogDocMergePolicyProvider.this.mergeFactor, mergeFactor);
                 LogDocMergePolicyProvider.this.mergeFactor = mergeFactor;
@@ -131,7 +127,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            boolean compoundFormat = settings.getAsBoolean("index.compound_format", LogDocMergePolicyProvider.this.compoundFormat);
+            boolean compoundFormat = settings.getAsBoolean(INDEX_COMPOUND_FORMAT, LogDocMergePolicyProvider.this.compoundFormat);
             if (compoundFormat != LogDocMergePolicyProvider.this.compoundFormat) {
                 logger.info("updating index.compound_format from [{}] to [{}]", LogDocMergePolicyProvider.this.compoundFormat, compoundFormat);
                 LogDocMergePolicyProvider.this.compoundFormat = compoundFormat;

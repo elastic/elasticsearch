@@ -89,6 +89,9 @@ public class NodeSettingsService extends AbstractComponent implements ClusterSta
         lastSettingsApplied = event.state().metaData().settings();
     }
 
+    /**
+     * Only settings registered in {@link org.elasticsearch.cluster.settings.ClusterDynamicSettingsModule} can be changed dynamically.
+     */
     public void addListener(Listener listener) {
         this.listeners.add(listener);
     }

@@ -25,7 +25,6 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -57,8 +56,8 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
         super(index, indexSettings);
         this.indexSettingsService = indexSettingsService;
 
-        this.maxSize = indexSettings.getAsInt("index.cache.field.max_size", componentSettings.getAsInt("max_size", -1));
-        this.expire = indexSettings.getAsTime("index.cache.field.expire", componentSettings.getAsTime("expire", null));
+        this.maxSize = indexSettings.getAsInt(INDEX_CACHE_FIELD_MAX_SIZE, componentSettings.getAsInt("max_size", -1));
+        this.expire = indexSettings.getAsTime(INDEX_CACHE_FIELD_EXPIRE, componentSettings.getAsTime("expire", null));
         logger.debug("using [resident] field cache with max_size [{}], expire [{}]", maxSize, expire);
 
         indexSettingsService.addListener(applySettings);
@@ -99,18 +98,14 @@ public class ResidentFieldDataCache extends AbstractConcurrentMapFieldDataCache 
         }
     }
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                "index.cache.field.max_size",
-                "index.cache.field.expire"
-        );
-    }
+    public static final String INDEX_CACHE_FIELD_MAX_SIZE = "index.cache.field.max_size";
+    public static final String INDEX_CACHE_FIELD_EXPIRE = "index.cache.field.expire";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int maxSize = settings.getAsInt("index.cache.field.max_size", ResidentFieldDataCache.this.maxSize);
-            TimeValue expire = settings.getAsTime("index.cache.field.expire", ResidentFieldDataCache.this.expire);
+            int maxSize = settings.getAsInt(INDEX_CACHE_FIELD_MAX_SIZE, ResidentFieldDataCache.this.maxSize);
+            TimeValue expire = settings.getAsTime(INDEX_CACHE_FIELD_EXPIRE, ResidentFieldDataCache.this.expire);
             boolean changed = false;
             if (maxSize != ResidentFieldDataCache.this.maxSize) {
                 logger.info("updating index.cache.field.max_size from [{}] to [{}]", ResidentFieldDataCache.this.maxSize, maxSize);

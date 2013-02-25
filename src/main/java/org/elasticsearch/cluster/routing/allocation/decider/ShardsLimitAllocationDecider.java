@@ -36,12 +36,6 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
 
     public static final String INDEX_TOTAL_SHARDS_PER_NODE = "index.routing.allocation.total_shards_per_node";
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                INDEX_TOTAL_SHARDS_PER_NODE
-        );
-    }
-
     @Inject
     public ShardsLimitAllocationDecider(Settings settings) {
         super(settings);

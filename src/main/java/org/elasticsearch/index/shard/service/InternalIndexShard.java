@@ -29,7 +29,6 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -157,7 +156,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.shardWarmerService = shardWarmerService;
         state = IndexShardState.CREATED;
 
-        this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime("index.refresh_interval", engine.defaultRefreshInterval()));
+        this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval()));
         this.mergeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
 
         indexSettingsService.addListener(applyRefreshSettings);
@@ -686,9 +685,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return query;
     }
 
-    static {
-        IndexMetaData.addDynamicSettings("index.refresh_interval");
-    }
+    public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
 
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
         @Override
@@ -697,7 +694,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 if (state == IndexShardState.CLOSED) {
                     return;
                 }
-                TimeValue refreshInterval = settings.getAsTime("engine.robin.refresh_interval", settings.getAsTime("index.refresh_interval", InternalIndexShard.this.refreshInterval));
+                TimeValue refreshInterval = settings.getAsTime("engine.robin.refresh_interval", settings.getAsTime(INDEX_REFRESH_INTERVAL, InternalIndexShard.this.refreshInterval));
                 if (!refreshInterval.equals(InternalIndexShard.this.refreshInterval)) {
                     logger.info("updating refresh_interval from [{}] to [{}]", InternalIndexShard.this.refreshInterval, refreshInterval);
                     if (refreshScheduledFuture != null) {

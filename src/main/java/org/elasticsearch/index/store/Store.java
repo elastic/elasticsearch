@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.store.*;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedIndexOutput;
@@ -55,22 +54,18 @@ import java.util.zip.Adler32;
  */
 public class Store extends AbstractIndexShardComponent {
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                "index.store.compress.stored",
-                "index.store.compress.tv"
-        );
-    }
+    public static final String INDEX_STORE_COMPRESS_STORED = "index.store.compress.stored";
+    public static final String INDEX_STORE_COMPRESS_TV = "index.store.compress.tv";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            boolean compressStored = settings.getAsBoolean("index.store.compress.stored", Store.this.compressStored);
+            boolean compressStored = settings.getAsBoolean(INDEX_STORE_COMPRESS_STORED, Store.this.compressStored);
             if (compressStored != Store.this.compressStored) {
                 logger.info("updating [index.store.compress.stored] from [{}] to [{}]", Store.this.compressStored, compressStored);
                 Store.this.compressStored = compressStored;
             }
-            boolean compressTv = settings.getAsBoolean("index.store.compress.tv", Store.this.compressTv);
+            boolean compressTv = settings.getAsBoolean(INDEX_STORE_COMPRESS_TV, Store.this.compressTv);
             if (compressTv != Store.this.compressTv) {
                 logger.info("updating [index.store.compress.tv] from [{}] to [{}]", Store.this.compressTv, compressTv);
                 Store.this.compressTv = compressTv;

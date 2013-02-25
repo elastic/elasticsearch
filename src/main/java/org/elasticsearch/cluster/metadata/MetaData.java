@@ -99,29 +99,6 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
 
-    private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()
-            .add(SETTING_READ_ONLY)
-            .build();
-
-    public static ImmutableSet<String> dynamicSettings() {
-        return dynamicSettings;
-    }
-
-    public static boolean hasDynamicSetting(String key) {
-        for (String dynamicSetting : dynamicSettings) {
-            if (Regex.simpleMatch(dynamicSetting, key)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static synchronized void addDynamicSettings(String... settings) {
-        HashSet<String> updatedSettings = new HashSet<String>(dynamicSettings);
-        updatedSettings.addAll(Arrays.asList(settings));
-        dynamicSettings = ImmutableSet.copyOf(updatedSettings);
-    }
-
     public static final MetaData EMPTY_META_DATA = newMetaDataBuilder().build();
 
     private final long version;

@@ -242,18 +242,24 @@ public class SortParseElement implements SearchParseElement {
         int indexOf = fieldName.lastIndexOf('.');
         if (indexOf == -1) {
             return null;
-        }
+        } else {
+            do {
+                String objectPath = fieldName.substring(0, indexOf);
+                ObjectMappers objectMappers = context.mapperService().objectMapper(objectPath);
+                if (objectMappers == null) {
+                    return null;
+                }
 
-        String objectPath = fieldName.substring(0, indexOf);
-        ObjectMappers objectMappers = context.mapperService().objectMapper(objectPath);
-        if (objectMappers == null) {
-            return null;
-        }
+                if (objectMappers.hasNested()) {
+                    for (ObjectMapper objectMapper : objectMappers) {
+                        if (objectMapper.nested().isNested()) {
+                            return objectMapper;
+                        }
+                    }
+                }
 
-        for (ObjectMapper objectMapper : objectMappers) {
-            if (objectMapper.nested().isNested()) {
-                return objectMapper;
-            }
+                indexOf = objectPath.lastIndexOf('.');
+            } while (indexOf != -1);
         }
 
         return null;

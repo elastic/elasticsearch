@@ -22,6 +22,8 @@ package org.elasticsearch.search.facet.datehistogram;
 import gnu.trove.iterator.TLongLongIterator;
 import gnu.trove.map.hash.TLongLongHashMap;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,7 +40,7 @@ import java.util.List;
  */
 public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet {
 
-    private static final String STREAM_TYPE = "cdHistogram";
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray("cdHistogram");
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -46,13 +48,13 @@ public class InternalCountDateHistogramFacet extends InternalDateHistogramFacet 
 
     static Stream STREAM = new Stream() {
         @Override
-        public Facet readFacet(String type, StreamInput in) throws IOException {
+        public Facet readFacet(StreamInput in) throws IOException {
             return readHistogramFacet(in);
         }
     };
 
     @Override
-    public String streamType() {
+    public BytesReference streamType() {
         return STREAM_TYPE;
     }
 

@@ -22,6 +22,8 @@ package org.elasticsearch.search.facet.termsstats.strings;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -38,7 +40,7 @@ import java.util.*;
 
 public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
-    private static final String STREAM_TYPE = "tTS";
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray("tTS");
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -46,13 +48,13 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
 
     static Stream STREAM = new Stream() {
         @Override
-        public Facet readFacet(String type, StreamInput in) throws IOException {
+        public Facet readFacet(StreamInput in) throws IOException {
             return readTermsStatsFacet(in);
         }
     };
 
     @Override
-    public String streamType() {
+    public BytesReference streamType() {
         return STREAM_TYPE;
     }
 

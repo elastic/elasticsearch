@@ -146,11 +146,11 @@ public class SortParseElement implements SearchParseElement {
                                     ignoreUnmapped = parser.booleanValue();
                                 } else if ("sort_mode".equals(innerJsonName) || "sortMode".equals(innerJsonName)) {
                                     sortMode = SortMode.fromString(parser.text());
-                                } else if ("nested_path".equals(innerJsonName)) {
+                                } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
                                     nestedPath = parser.text();
                                 }
                             } else if (token == XContentParser.Token.START_OBJECT) {
-                                if ("nested_filter".equals(innerJsonName)) {
+                                if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
                                     nestedFilter = context.queryParserService().parseInnerFilter(parser);
                                 }
                             }
@@ -207,9 +207,12 @@ public class SortParseElement implements SearchParseElement {
             if (nestedPath != null) {
                 ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
                 if (objectMappers == null) {
-                    throw new ElasticSearchIllegalArgumentException("Invalid nested path");
+                    throw new ElasticSearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
                 }
                 objectMapper = objectMappers.mapper();
+                if (!objectMapper.nested().isNested()) {
+                    throw new ElasticSearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
+                }
             } else {
                 objectMapper = resolveClosestNestedObjectMapper(fieldName, context);
             }

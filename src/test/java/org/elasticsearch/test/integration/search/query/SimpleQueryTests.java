@@ -29,7 +29,6 @@ import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.hamcrest.Matchers;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -714,6 +713,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
         client.prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}).execute().actionGet();
         client.prepareIndex("lookup", "type", "2").setSource("terms", new String[]{"2"}).execute().actionGet();
         client.prepareIndex("lookup", "type", "3").setSource("terms", new String[]{"2", "4"}).execute().actionGet();
+        client.prepareIndex("lookup", "type", "4").setSource("other", "value").execute().actionGet();
 
         client.prepareIndex("lookup2", "type", "1").setSource(XContentFactory.jsonBuilder().startObject()
                 .startArray("arr")
@@ -771,6 +771,12 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("2"), equalTo("4")));
         assertThat(searchResponse.getHits().getHits()[1].getId(), anyOf(equalTo("2"), equalTo("4")));
+
+        searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("4").lookupPath("terms"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
 
 
         searchResponse = client.prepareSearch("test")

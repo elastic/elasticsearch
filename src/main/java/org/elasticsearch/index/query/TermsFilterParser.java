@@ -27,10 +27,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.common.lucene.search.AndFilter;
-import org.elasticsearch.common.lucene.search.OrFilter;
-import org.elasticsearch.common.lucene.search.TermFilter;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -142,7 +139,7 @@ public class TermsFilterParser implements FilterParser {
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "bool filter requires a field name, followed by array of terms");
+            throw new QueryParsingException(parseContext.index(), "terms filter requires a field name, followed by array of terms");
         }
 
         FieldMapper fieldMapper = null;
@@ -168,6 +165,10 @@ public class TermsFilterParser implements FilterParser {
             Filter filter = termsFilterCache.lookupTermsFilter(cacheKey, termsLookup);
             filter = parseContext.cacheFilter(filter, null); // cacheKey is passed as null, so we don't double cache the key
             return filter;
+        }
+
+        if (terms.isEmpty()) {
+            return Queries.MATCH_NO_FILTER;
         }
 
         try {

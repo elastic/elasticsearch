@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-cloud-aws</artifactId>
-    <version>1.11.0</version>
+    <version>1.12.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>AWS Cloud plugin for ElasticSearch</description>
     <inceptionYear>2009</inceptionYear>

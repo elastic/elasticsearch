@@ -19,7 +19,7 @@
             <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
-                <include>org.apache.lucene:lucene-icu</include>
+                <include>org.apache.lucene:lucene-analyzers-icu</include>
             </includes>
         </dependencySet>
     </dependencySets>

@@ -214,7 +214,7 @@ public class SortParseElement implements SearchParseElement {
                     throw new ElasticSearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
                 }
             } else {
-                objectMapper = resolveClosestNestedObjectMapper(fieldName, context);
+                objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
             }
             if (objectMapper != null && objectMapper.nested().isNested()) {
                 Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
@@ -236,33 +236,6 @@ public class SortParseElement implements SearchParseElement {
 
     private static SortMode resolveDefaultSortMode(boolean reverse) {
         return reverse ? SortMode.MAX : SortMode.MIN;
-    }
-
-    private static ObjectMapper resolveClosestNestedObjectMapper(String fieldName, SearchContext context) {
-        int indexOf = fieldName.lastIndexOf('.');
-        if (indexOf == -1) {
-            return null;
-        } else {
-            do {
-                String objectPath = fieldName.substring(0, indexOf);
-                ObjectMappers objectMappers = context.mapperService().objectMapper(objectPath);
-                if (objectMappers == null) {
-                    return null;
-                }
-
-                if (objectMappers.hasNested()) {
-                    for (ObjectMapper objectMapper : objectMappers) {
-                        if (objectMapper.nested().isNested()) {
-                            return objectMapper;
-                        }
-                    }
-                }
-
-                indexOf = objectPath.lastIndexOf('.');
-            } while (indexOf != -1);
-        }
-
-        return null;
     }
 
 }

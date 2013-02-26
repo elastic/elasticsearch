@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-lang-javascript</artifactId>
-    <version>1.3.0-SNAPSHOT</version>
+    <version>1.3.0</version>
     <packaging>jar</packaging>
     <description>JavaScript lang plugin for ElasticSearch</description>
     <inceptionYear>2009</inceptionYear>
@@ -19,7 +19,8 @@
     </licenses>
     <scm>
         <connection>scm:git:git@github.com:elasticsearch/elasticsearch-lang-javascript.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-lang-javascript.git</developerConnection>
+        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-lang-javascript.git
+        </developerConnection>
         <url>http://github.com/elasticsearch/elasticsearch-lang-javascript</url>
     </scm>
 
@@ -30,7 +31,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.21.0.Beta1-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>0.90.0.Beta1</elasticsearch.version>
     </properties>
 
     <repositories>

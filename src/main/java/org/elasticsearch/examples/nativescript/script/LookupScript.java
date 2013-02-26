@@ -8,7 +8,9 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,7 +36,7 @@ public class LookupScript extends AbstractSearchScript {
      * {@link org.elasticsearch.examples.nativescript.plugin.NativeScriptExamplesPlugin#onModule(org.elasticsearch.script.ScriptModule)}
      * method when plugin is loaded.
      */
-    public static class Factory implements NativeScriptFactory {
+    public static class Factory extends AbstractComponent implements NativeScriptFactory{
 
         private final Node node;
 
@@ -48,6 +50,7 @@ public class LookupScript extends AbstractSearchScript {
         @SuppressWarnings("unchecked")
         @Inject
         public Factory(Node node, Settings settings) {
+            super(settings);
             // Node is not fully initialized here
             // All we can do is save a reference to it for future use
             this.node = node;
@@ -88,21 +91,23 @@ public class LookupScript extends AbstractSearchScript {
             if (field == null) {
                 throw new ElasticSearchIllegalArgumentException("Missing the field parameter");
             }
-            return new LookupScript(node.client(), cache, lookupIndex, lookupType, field);
+            return new LookupScript(node.client(), logger, cache, lookupIndex, lookupType, field);
         }
     }
 
     private final String lookupIndex;
     private final String lookupType;
     private final String field;
+    private final ESLogger logger;
 
     private final Client client;
     private final Cache<Tuple<String, String>, Map<String, Object>> cache;
 
     private static final Map<String, Object> EMPTY_MAP = ImmutableMap.of();
 
-    private LookupScript(Client client, Cache<Tuple<String, String>, Map<String, Object>> cache, String lookupIndex, String lookupType, String field) {
+    private LookupScript(Client client, ESLogger logger, Cache<Tuple<String, String>, Map<String, Object>> cache, String lookupIndex, String lookupType, String field) {
         this.client = client;
+        this.logger = logger;
         this.lookupIndex = lookupIndex;
         this.lookupType = lookupType;
         this.field = field;
@@ -126,6 +131,9 @@ public class LookupScript extends AbstractSearchScript {
                             // This is not very efficient of doing this, but it demonstrates using injected client
                             // for record lookup
                             GetResponse response = client.prepareGet(lookupIndex, lookupType, fieldValue).setPreference("_local").execute().actionGet();
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("lookup [{}]/[{}]/[{}], found: [{}]", lookupIndex, lookupType, fieldValue, response.exists());
+                            }
                             if (response.exists()) {
                                 return response.getSource();
                             }

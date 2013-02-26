@@ -14,6 +14,7 @@ logger:
 
   # discovery
   #discovery: TRACE
+  examples.nativescript.script: TRACE
 
   index.search.slowlog: TRACE, index_search_slow_log_file
 

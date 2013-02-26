@@ -8,7 +8,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
     ---------------------------------------
     | AWS Cloud Plugin | ElasticSearch    |
     ---------------------------------------
-    | master           | 0.19 -> master   |
+    | master           | 0.90 -> master   |
     ---------------------------------------
     | 1.10.0           | 0.19 -> master   |
     ---------------------------------------

@@ -19,7 +19,7 @@
             <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
-                <include>org.apache.lucene:lucene-stempel</include>
+                <include>org.apache.lucene:lucene-analyzers-stempel</include>
             </includes>
         </dependencySet>
     </dependencySets>

@@ -62,6 +62,9 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     @Nullable
     protected String routing;
 
+    @Nullable
+    private String preference;
+
     private BytesReference querySource;
     private boolean querySourceUnsafe;
 
@@ -218,6 +221,15 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     public CountRequest routing(String... routings) {
         this.routing = Strings.arrayToCommaDelimitedString(routings);
         return this;
+    }
+
+    public CountRequest preference(String preference) {
+        this.preference = preference;
+        return this;
+    }
+
+    public String preference() {
+        return this.preference;
     }
 
     @Override

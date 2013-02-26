@@ -19,7 +19,7 @@
             <useProjectArtifact>true</useProjectArtifact>
             <useTransitiveFiltering>true</useTransitiveFiltering>
             <includes>
-                <include>org.apache.lucene:lucene-smartcn</include>
+                <include>org.apache.lucene:lucene-analyzers-smartcn</include>
             </includes>
         </dependencySet>
     </dependencySets>

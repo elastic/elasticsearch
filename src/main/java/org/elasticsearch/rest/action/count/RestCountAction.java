@@ -89,6 +89,7 @@ public class RestCountAction extends BaseRestHandler {
             countRequest.routing(request.param("routing"));
             countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
             countRequest.types(splitTypes(request.param("type")));
+            countRequest.preference(request.param("preference"));
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);

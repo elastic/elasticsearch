@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.21.0.Beta1-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>0.90.0.Beta1</elasticsearch.version>
         <lucene.version>4.1.0</lucene.version>
     </properties>
 

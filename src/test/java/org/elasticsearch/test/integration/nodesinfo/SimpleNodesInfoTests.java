@@ -49,36 +49,36 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         startNode("server2");
 
         ClusterHealthResponse clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         String server1NodeId = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
         String server2NodeId = ((InternalNode) node("server2")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();
         logger.info("--> started nodes: " + server1NodeId + " and " + server2NodeId);
 
         NodesInfoResponse response = client("server1").admin().cluster().prepareNodesInfo().execute().actionGet();
-        assertThat(response.nodes().length, equalTo(2));
-        assertThat(response.nodesMap().get(server1NodeId), notNullValue());
-        assertThat(response.nodesMap().get(server2NodeId), notNullValue());
+        assertThat(response.getNodes().length, equalTo(2));
+        assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
+        assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest()).actionGet();
-        assertThat(response.nodes().length, equalTo(2));
-        assertThat(response.nodesMap().get(server1NodeId), notNullValue());
-        assertThat(response.nodesMap().get(server2NodeId), notNullValue());
+        assertThat(response.getNodes().length, equalTo(2));
+        assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
+        assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client("server1").admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.nodes().length, equalTo(1));
-        assertThat(response.nodesMap().get(server1NodeId), notNullValue());
+        assertThat(response.getNodes().length, equalTo(1));
+        assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.nodes().length, equalTo(1));
-        assertThat(response.nodesMap().get(server1NodeId), notNullValue());
+        assertThat(response.getNodes().length, equalTo(1));
+        assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = client("server1").admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.nodes().length, equalTo(1));
-        assertThat(response.nodesMap().get(server2NodeId), notNullValue());
+        assertThat(response.getNodes().length, equalTo(1));
+        assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.nodes().length, equalTo(1));
-        assertThat(response.nodesMap().get(server2NodeId), notNullValue());
+        assertThat(response.getNodes().length, equalTo(1));
+        assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
     }
 }

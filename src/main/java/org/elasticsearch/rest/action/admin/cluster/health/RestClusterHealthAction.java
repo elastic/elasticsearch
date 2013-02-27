@@ -97,31 +97,31 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
-                    builder.field(Fields.CLUSTER_NAME, response.clusterName());
-                    builder.field(Fields.STATUS, response.status().name().toLowerCase());
-                    builder.field(Fields.TIMED_OUT, response.timedOut());
-                    builder.field(Fields.NUMBER_OF_NODES, response.numberOfNodes());
-                    builder.field(Fields.NUMBER_OF_DATA_NODES, response.numberOfDataNodes());
-                    builder.field(Fields.ACTIVE_PRIMARY_SHARDS, response.activePrimaryShards());
-                    builder.field(Fields.ACTIVE_SHARDS, response.activeShards());
-                    builder.field(Fields.RELOCATING_SHARDS, response.relocatingShards());
-                    builder.field(Fields.INITIALIZING_SHARDS, response.initializingShards());
-                    builder.field(Fields.UNASSIGNED_SHARDS, response.unassignedShards());
+                    builder.field(Fields.CLUSTER_NAME, response.getClusterName());
+                    builder.field(Fields.STATUS, response.getStatus().name().toLowerCase());
+                    builder.field(Fields.TIMED_OUT, response.isTimedOut());
+                    builder.field(Fields.NUMBER_OF_NODES, response.getNumberOfNodes());
+                    builder.field(Fields.NUMBER_OF_DATA_NODES, response.getNumberOfDataNodes());
+                    builder.field(Fields.ACTIVE_PRIMARY_SHARDS, response.getActivePrimaryShards());
+                    builder.field(Fields.ACTIVE_SHARDS, response.getActiveShards());
+                    builder.field(Fields.RELOCATING_SHARDS, response.getRelocatingShards());
+                    builder.field(Fields.INITIALIZING_SHARDS, response.getInitializingShards());
+                    builder.field(Fields.UNASSIGNED_SHARDS, response.getUnassignedShards());
 
-                    if (!response.validationFailures().isEmpty()) {
+                    if (!response.getValidationFailures().isEmpty()) {
                         builder.startArray(Fields.VALIDATION_FAILURES);
-                        for (String validationFailure : response.validationFailures()) {
+                        for (String validationFailure : response.getValidationFailures()) {
                             builder.value(validationFailure);
                         }
                         // if we don't print index level information, still print the index validation failures
                         // so we know why the status is red
                         if (fLevel == 0) {
                             for (ClusterIndexHealth indexHealth : response) {
-                                builder.startObject(indexHealth.index());
+                                builder.startObject(indexHealth.getIndex());
 
-                                if (!indexHealth.validationFailures().isEmpty()) {
+                                if (!indexHealth.getValidationFailures().isEmpty()) {
                                     builder.startArray(Fields.VALIDATION_FAILURES);
-                                    for (String validationFailure : indexHealth.validationFailures()) {
+                                    for (String validationFailure : indexHealth.getValidationFailures()) {
                                         builder.value(validationFailure);
                                     }
                                     builder.endArray();
@@ -136,20 +136,20 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     if (fLevel > 0) {
                         builder.startObject(Fields.INDICES);
                         for (ClusterIndexHealth indexHealth : response) {
-                            builder.startObject(indexHealth.index(), XContentBuilder.FieldCaseConversion.NONE);
+                            builder.startObject(indexHealth.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-                            builder.field(Fields.STATUS, indexHealth.status().name().toLowerCase());
-                            builder.field(Fields.NUMBER_OF_SHARDS, indexHealth.numberOfShards());
-                            builder.field(Fields.NUMBER_OF_REPLICAS, indexHealth.numberOfReplicas());
-                            builder.field(Fields.ACTIVE_PRIMARY_SHARDS, indexHealth.activePrimaryShards());
-                            builder.field(Fields.ACTIVE_SHARDS, indexHealth.activeShards());
-                            builder.field(Fields.RELOCATING_SHARDS, indexHealth.relocatingShards());
-                            builder.field(Fields.INITIALIZING_SHARDS, indexHealth.initializingShards());
-                            builder.field(Fields.UNASSIGNED_SHARDS, indexHealth.unassignedShards());
+                            builder.field(Fields.STATUS, indexHealth.getStatus().name().toLowerCase());
+                            builder.field(Fields.NUMBER_OF_SHARDS, indexHealth.getNumberOfShards());
+                            builder.field(Fields.NUMBER_OF_REPLICAS, indexHealth.getNumberOfReplicas());
+                            builder.field(Fields.ACTIVE_PRIMARY_SHARDS, indexHealth.getActivePrimaryShards());
+                            builder.field(Fields.ACTIVE_SHARDS, indexHealth.getActiveShards());
+                            builder.field(Fields.RELOCATING_SHARDS, indexHealth.getRelocatingShards());
+                            builder.field(Fields.INITIALIZING_SHARDS, indexHealth.getInitializingShards());
+                            builder.field(Fields.UNASSIGNED_SHARDS, indexHealth.getUnassignedShards());
 
-                            if (!indexHealth.validationFailures().isEmpty()) {
+                            if (!indexHealth.getValidationFailures().isEmpty()) {
                                 builder.startArray(Fields.VALIDATION_FAILURES);
-                                for (String validationFailure : indexHealth.validationFailures()) {
+                                for (String validationFailure : indexHealth.getValidationFailures()) {
                                     builder.value(validationFailure);
                                 }
                                 builder.endArray();
@@ -159,14 +159,14 @@ public class RestClusterHealthAction extends BaseRestHandler {
                                 builder.startObject(Fields.SHARDS);
 
                                 for (ClusterShardHealth shardHealth : indexHealth) {
-                                    builder.startObject(Integer.toString(shardHealth.id()));
+                                    builder.startObject(Integer.toString(shardHealth.getId()));
 
-                                    builder.field(Fields.STATUS, shardHealth.status().name().toLowerCase());
-                                    builder.field(Fields.PRIMARY_ACTIVE, shardHealth.primaryActive());
-                                    builder.field(Fields.ACTIVE_SHARDS, shardHealth.activeShards());
-                                    builder.field(Fields.RELOCATING_SHARDS, shardHealth.relocatingShards());
-                                    builder.field(Fields.INITIALIZING_SHARDS, shardHealth.initializingShards());
-                                    builder.field(Fields.UNASSIGNED_SHARDS, shardHealth.unassignedShards());
+                                    builder.field(Fields.STATUS, shardHealth.getStatus().name().toLowerCase());
+                                    builder.field(Fields.PRIMARY_ACTIVE, shardHealth.isPrimaryActive());
+                                    builder.field(Fields.ACTIVE_SHARDS, shardHealth.getActiveShards());
+                                    builder.field(Fields.RELOCATING_SHARDS, shardHealth.getRelocatingShards());
+                                    builder.field(Fields.INITIALIZING_SHARDS, shardHealth.getInitializingShards());
+                                    builder.field(Fields.UNASSIGNED_SHARDS, shardHealth.getUnassignedShards());
 
                                     builder.endObject();
                                 }

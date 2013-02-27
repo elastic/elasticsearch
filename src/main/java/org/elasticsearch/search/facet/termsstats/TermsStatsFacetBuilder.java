@@ -22,7 +22,7 @@ package org.elasticsearch.search.facet.termsstats;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,7 +30,7 @@ import java.util.Map;
 /**
  *
  */
-public class TermsStatsFacetBuilder extends AbstractFacetBuilder {
+public class TermsStatsFacetBuilder extends FacetBuilder {
 
     private String keyField;
     private String valueField;

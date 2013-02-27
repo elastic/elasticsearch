@@ -63,7 +63,6 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     public WeightedFilterCache(Index index, @IndexSettings Settings indexSettings, IndicesFilterCache indicesFilterCache) {
         super(index, indexSettings);
         this.indicesFilterCache = indicesFilterCache;
-        indicesFilterCache.addRemovalListener(index.name(), this);
     }
 
     @Override
@@ -74,7 +73,6 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     @Override
     public void close() throws ElasticSearchException {
         clear("close");
-        indicesFilterCache.removeRemovalListener(index.name());
     }
 
     @Override
@@ -87,6 +85,16 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             }
             seenReadersCount.dec();
             indicesFilterCache.addReaderKeyToClean(readerKey);
+        }
+    }
+
+    @Override
+    public void clear(String reason, String[] keys) {
+        logger.debug("clear keys [], reason [{}]", reason, keys);
+        for (String key : keys) {
+            for (Object readerKey : seenReaders.keySet()) {
+                indicesFilterCache.cache().invalidate(new FilterCacheKey(this, readerKey, new CacheKeyFilter.Key(key)));
+            }
         }
     }
 
@@ -147,7 +155,7 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             if (filter instanceof CacheKeyFilter) {
                 filterKey = ((CacheKeyFilter) filter).cacheKey();
             }
-            FilterCacheKey cacheKey = new FilterCacheKey(cache.index().name(), context.reader().getCoreCacheKey(), filterKey);
+            FilterCacheKey cacheKey = new FilterCacheKey(this.cache, context.reader().getCoreCacheKey(), filterKey);
             Cache<FilterCacheKey, DocIdSet> innerCache = cache.indicesFilterCache.cache();
 
             DocIdSet cacheValue = innerCache.getIfPresent(cacheKey);
@@ -220,18 +228,18 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
     }
 
     public static class FilterCacheKey {
-        private final String index;
+        private final RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> removalListener;
         private final Object readerKey;
         private final Object filterKey;
 
-        public FilterCacheKey(String index, Object readerKey, Object filterKey) {
-            this.index = index;
+        public FilterCacheKey(RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> removalListener, Object readerKey, Object filterKey) {
+            this.removalListener = removalListener;
             this.readerKey = readerKey;
             this.filterKey = filterKey;
         }
 
-        public String index() {
-            return index;
+        public RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> removalListener() {
+            return removalListener;
         }
 
         public Object readerKey() {

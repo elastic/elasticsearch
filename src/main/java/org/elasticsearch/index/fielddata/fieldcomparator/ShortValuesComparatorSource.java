@@ -31,12 +31,14 @@ import java.io.IOException;
  */
 public class ShortValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
+    private final IndexNumericFieldData<?> indexFieldData;
     private final Object missingValue;
+    private final SortMode sortMode;
 
-    public ShortValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue) {
+    public ShortValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.sortMode = sortMode;
     }
 
     @Override
@@ -57,6 +59,6 @@ public class ShortValuesComparatorSource extends IndexFieldData.XFieldComparator
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).shortValue() : Short.parseShort(missingValue.toString());
         }
 
-        return new ShortValuesComparator(indexFieldData, dMissingValue, numHits);
+        return new ShortValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
     }
 }

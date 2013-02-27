@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -75,7 +76,7 @@ public class TransportClusterRerouteAction extends TransportMasterNodeOperationA
         final AtomicReference<ClusterState> clusterStateResponse = new AtomicReference<ClusterState>();
         final CountDownLatch latch = new CountDownLatch(1);
 
-        clusterService.submitStateUpdateTask("cluster_reroute (api)", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("cluster_reroute (api)", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 try {

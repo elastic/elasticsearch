@@ -21,6 +21,9 @@ package org.elasticsearch.index.store;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.store.distributor.Distributor;
+import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
+import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
 import org.elasticsearch.jmx.JmxService;
 
 /**
@@ -32,9 +35,15 @@ public class StoreModule extends AbstractModule {
 
     private final IndexStore indexStore;
 
+    private Class<? extends Distributor> distributor;
+
     public StoreModule(Settings settings, IndexStore indexStore) {
         this.indexStore = indexStore;
         this.settings = settings;
+    }
+
+    public void setDistributor(Class<? extends Distributor> distributor) {
+        this.distributor = distributor;
     }
 
     @Override
@@ -44,5 +53,24 @@ public class StoreModule extends AbstractModule {
         if (JmxService.shouldExport(settings)) {
             bind(StoreManagement.class).asEagerSingleton();
         }
+        if (distributor == null) {
+            distributor = loadDistributor(settings);
+        }
+        bind(Distributor.class).to(distributor).asEagerSingleton();
     }
+
+    private Class<? extends Distributor> loadDistributor(Settings settings) {
+        final Class<? extends Distributor> distributor;
+        final String type = settings.get("index.store.distributor");
+        if ("least_used".equals(type)) {
+            distributor = LeastUsedDistributor.class;
+        } else if ("random".equals(type)) {
+            distributor = RandomWeightedDistributor.class;
+        } else {
+            distributor = settings.getAsClass("index.store.distributor", LeastUsedDistributor.class,
+                    "org.elasticsearch.index.store.distributor.", "Distributor");
+        }
+        return distributor;
+    }
+
 }

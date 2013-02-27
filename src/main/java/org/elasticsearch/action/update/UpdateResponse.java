@@ -55,64 +55,29 @@ public class UpdateResponse extends ActionResponse {
     /**
      * The index the document was indexed into.
      */
-    public String index() {
-        return this.index;
-    }
-
-    /**
-     * The index the document was indexed into.
-     */
     public String getIndex() {
-        return index;
-    }
-
-    /**
-     * The type of the document indexed.
-     */
-    public String type() {
-        return this.type;
+        return this.index;
     }
 
     /**
      * The type of the document indexed.
      */
     public String getType() {
-        return type;
-    }
-
-    /**
-     * The id of the document indexed.
-     */
-    public String id() {
-        return this.id;
+        return this.type;
     }
 
     /**
      * The id of the document indexed.
      */
     public String getId() {
-        return id;
-    }
-
-    /**
-     * Returns the version of the doc indexed.
-     */
-    public long version() {
-        return this.version;
+        return this.id;
     }
 
     /**
      * Returns the version of the doc indexed.
      */
     public long getVersion() {
-        return version();
-    }
-
-    /**
-     * Returns the percolate queries matches. <tt>null</tt> if no percolation was requested.
-     */
-    public List<PercolatorExecutor.PercolationMatch> matches() {
-        return this.matches;
+        return this.version;
     }
 
     /**
@@ -122,12 +87,8 @@ public class UpdateResponse extends ActionResponse {
         return this.matches;
     }
 
-    void getResult(GetResult getResult) {
+    void setGetResult(GetResult getResult) {
         this.getResult = getResult;
-    }
-
-    public GetResult getResult() {
-        return this.getResult;
     }
 
     public GetResult getGetResult() {
@@ -137,7 +98,7 @@ public class UpdateResponse extends ActionResponse {
     /**
      * Internal.
      */
-    public void matches(List<PercolatorExecutor.PercolationMatch> matches) {
+    public void setMatches(List<PercolatorExecutor.PercolationMatch> matches) {
         this.matches = matches;
     }
 

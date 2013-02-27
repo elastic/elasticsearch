@@ -20,6 +20,8 @@
 package org.elasticsearch.search.facet.range;
 
 import com.google.common.collect.ImmutableList;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,9 +36,9 @@ import java.util.List;
 /**
  *
  */
-public class InternalRangeFacet implements RangeFacet, InternalFacet {
+public class InternalRangeFacet extends InternalFacet implements RangeFacet {
 
-    private static final String STREAM_TYPE = "range";
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray("range");
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -44,17 +46,15 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     static Stream STREAM = new Stream() {
         @Override
-        public Facet readFacet(String type, StreamInput in) throws IOException {
+        public Facet readFacet(StreamInput in) throws IOException {
             return readRangeFacet(in);
         }
     };
 
     @Override
-    public String streamType() {
+    public BytesReference streamType() {
         return STREAM_TYPE;
     }
-
-    private String name;
 
     Entry[] entries;
 
@@ -62,23 +62,8 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
     }
 
     public InternalRangeFacet(String name, Entry[] entries) {
-        this.name = name;
+        super(name);
         this.entries = entries;
-    }
-
-    @Override
-    public String name() {
-        return this.name;
-    }
-
-    @Override
-    public String getName() {
-        return name();
-    }
-
-    @Override
-    public String type() {
-        return RangeFacet.TYPE;
     }
 
     @Override
@@ -87,18 +72,13 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
     }
 
     @Override
-    public List<Entry> entries() {
+    public List<Entry> getEntries() {
         return ImmutableList.copyOf(entries);
     }
 
     @Override
-    public List<Entry> getEntries() {
-        return entries();
-    }
-
-    @Override
     public Iterator<Entry> iterator() {
-        return entries().iterator();
+        return getEntries().iterator();
     }
 
     @Override
@@ -138,7 +118,7 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+        super.readFrom(in);
         entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             Entry entry = new Entry();
@@ -161,7 +141,7 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        super.writeTo(out);
         out.writeVInt(entries.length);
         for (Entry entry : entries) {
             out.writeDouble(entry.from);
@@ -203,7 +183,7 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
         builder.field(Fields._TYPE, "range");
         builder.startArray(Fields.RANGES);
         for (Entry entry : entries) {
@@ -220,15 +200,15 @@ public class InternalRangeFacet implements RangeFacet, InternalFacet {
             if (entry.toAsString != null) {
                 builder.field(Fields.TO_STR, entry.toAsString);
             }
-            builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.COUNT, entry.getCount());
             // only output min and max if there are actually documents matching this range...
-            if (entry.totalCount() > 0) {
-                builder.field(Fields.MIN, entry.min());
-                builder.field(Fields.MAX, entry.max());
+            if (entry.getTotalCount() > 0) {
+                builder.field(Fields.MIN, entry.getMin());
+                builder.field(Fields.MAX, entry.getMax());
             }
-            builder.field(Fields.TOTAL_COUNT, entry.totalCount());
-            builder.field(Fields.TOTAL, entry.total());
-            builder.field(Fields.MEAN, entry.mean());
+            builder.field(Fields.TOTAL_COUNT, entry.getTotalCount());
+            builder.field(Fields.TOTAL, entry.getTotal());
+            builder.field(Fields.MEAN, entry.getMean());
             builder.endObject();
         }
         builder.endArray();

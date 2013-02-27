@@ -25,6 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -33,7 +34,6 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
-import org.elasticsearch.common.lucene.search.XTermsFilter;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -451,7 +451,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
         }
-        return new XTermsFilter(names.indexName(), bytesRefs);
+        return new TermsFilter(names.indexName(), bytesRefs);
     }
 
     @Override
@@ -615,16 +615,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             builder.field("store", fieldType.stored());
         }
         if (fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
-            builder.field("store_term_vector", fieldType.storeTermVectors());
-        }
-        if (fieldType.storeTermVectorOffsets() != defaultFieldType.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
-        }
-        if (fieldType.storeTermVectorPositions() != defaultFieldType.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
-        }
-        if (fieldType.storeTermVectorPayloads() != defaultFieldType.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
+            builder.field("term_vector", termVectorOptionsToString(fieldType));
         }
         if (fieldType.omitNorms() != defaultFieldType.omitNorms()) {
             builder.field("omit_norms", fieldType.omitNorms());
@@ -671,6 +662,28 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                 return TypeParsers.INDEX_OPTIONS_DOCS;
             default:
                 throw new ElasticSearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
+        }
+    }
+
+    protected static String termVectorOptionsToString(FieldType fieldType) {
+        if (!fieldType.storeTermVectors()) {
+            return "no";
+        } else if(!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
+            return "yes";
+        } else if (fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
+            return "with_offsets";
+        } else {
+            StringBuilder builder = new StringBuilder("with");
+            if (fieldType.storeTermVectorPositions()) {
+                builder.append("_positions");
+            }
+            if (fieldType.storeTermVectorOffsets()) {
+                builder.append("_offsets");
+            }
+            if (fieldType.storeTermVectorPayloads()) {
+                builder.append("_payloads");
+            }
+            return builder.toString();
         }
     }
 

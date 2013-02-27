@@ -196,6 +196,14 @@ public abstract class FilterBuilders {
     }
 
     /**
+     * A terms lookup filter for the provided field name. A lookup terms filter can
+     * extract the terms to filter by from another doc in an index.
+     */
+    public static TermsLookupFilterBuilder termsLookupFilter(String name) {
+        return new TermsLookupFilterBuilder(name);
+    }
+
+    /**
      * A filer for a field based on several terms matching on any of them.
      *
      * @param name   The field name

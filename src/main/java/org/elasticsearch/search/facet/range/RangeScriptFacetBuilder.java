@@ -24,7 +24,7 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,7 +33,7 @@ import java.util.Map;
 /**
  *
  */
-public class RangeScriptFacetBuilder extends AbstractFacetBuilder {
+public class RangeScriptFacetBuilder extends FacetBuilder {
 
     private String lang;
     private String keyScript;

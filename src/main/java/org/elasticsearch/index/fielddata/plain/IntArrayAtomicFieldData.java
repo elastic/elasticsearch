@@ -55,28 +55,8 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return ByteValues.EMPTY;
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return ShortValues.EMPTY;
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return IntValues.EMPTY;
-        }
-
-        @Override
         public LongValues getLongValues() {
             return LongValues.EMPTY;
-        }
-
-        @Override
-        public FloatValues getFloatValues() {
-            return FloatValues.EMPTY;
         }
 
         @Override
@@ -159,27 +139,12 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
 
         @Override
         public StringValues getStringValues() {
-            return new StringValues.IntBased(getIntValues());
+            return new StringValues.LongBased(getLongValues());
         }
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericInteger(getIntValues());
-        }
-
-        @Override
-        public ByteValues getByteValues() {
-            return new ByteValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return new IntValues(values, ordinals.ordinals());
+            return new ScriptDocValues.NumericLong(getLongValues());
         }
 
         @Override
@@ -188,115 +153,10 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
         }
 
         @Override
-        public FloatValues getFloatValues() {
-            return new FloatValues.DoubleBased(getDoubleValues());
-        }
-
-        @Override
         public DoubleValues getDoubleValues() {
             return new DoubleValues(values, ordinals.ordinals());
         }
-
-        static class IntValues implements org.elasticsearch.index.fielddata.IntValues {
-
-            private final int[] values;
-            private final Ordinals.Docs ordinals;
-
-            private final IntArrayRef arrayScratch = new IntArrayRef(new int[1], 1);
-            private final ValuesIter iter;
-
-            IntValues(int[] values, Ordinals.Docs ordinals) {
-                this.values = values;
-                this.ordinals = ordinals;
-                this.iter = new ValuesIter(values);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return ordinals.isMultiValued();
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return ordinals.getOrd(docId) != 0;
-            }
-
-            @Override
-            public int getValue(int docId) {
-                return values[ordinals.getOrd(docId)];
-            }
-
-            @Override
-            public int getValueMissing(int docId, int missingValue) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    return missingValue;
-                } else {
-                    return values[ord];
-                }
-            }
-
-            @Override
-            public IntArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return IntArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    arrayScratch.values[arrayScratch.end++] = values[ords.values[i]];
-                }
-                return arrayScratch;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return iter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, values[ord]);
-                } while ((ord = iter.next()) != 0);
-            }
-
-            static class ValuesIter implements Iter {
-
-                private final int[] values;
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                ValuesIter(int[] values) {
-                    this.values = values;
-                }
-
-                public ValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public int next() {
-                    int value = values[ord];
-                    ord = ordsIter.next();
-                    return value;
-                }
-            }
-        }
-
+       
         static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
 
             private final int[] values;
@@ -531,7 +391,7 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericInteger(getIntValues());
+            return new ScriptDocValues.NumericLong(getLongValues());
         }
 
         @Override
@@ -550,97 +410,13 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return new ByteValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return new IntValues(values, set);
-        }
-
-        @Override
         public LongValues getLongValues() {
             return new LongValues(values, set);
         }
 
         @Override
-        public FloatValues getFloatValues() {
-            return new FloatValues.DoubleBased(getDoubleValues());
-        }
-
-        @Override
         public DoubleValues getDoubleValues() {
             return new DoubleValues(values, set);
-        }
-
-        static class IntValues implements org.elasticsearch.index.fielddata.IntValues {
-
-            private final int[] values;
-            private final FixedBitSet set;
-
-            private final IntArrayRef arrayScratch = new IntArrayRef(new int[1], 1);
-            private final Iter.Single iter = new Iter.Single();
-
-            IntValues(int[] values, FixedBitSet set) {
-                this.values = values;
-                this.set = set;
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return set.get(docId);
-            }
-
-            @Override
-            public int getValue(int docId) {
-                return values[docId];
-            }
-
-            @Override
-            public int getValueMissing(int docId, int missingValue) {
-                if (set.get(docId)) {
-                    return values[docId];
-                } else {
-                    return missingValue;
-                }
-            }
-
-            @Override
-            public IntArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0] = values[docId];
-                    return arrayScratch;
-                } else {
-                    return IntArrayRef.EMPTY;
-                }
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                if (set.get(docId)) {
-                    return iter.reset(values[docId]);
-                } else {
-                    return Iter.Empty.INSTANCE;
-                }
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, values[docId]);
-                }
-            }
         }
 
         static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
@@ -805,7 +581,7 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
 
         @Override
         public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericInteger(getIntValues());
+            return new ScriptDocValues.NumericLong(getLongValues());
         }
 
         @Override
@@ -824,81 +600,13 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
         }
 
         @Override
-        public ByteValues getByteValues() {
-            return new ByteValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public ShortValues getShortValues() {
-            return new ShortValues.LongBased(getLongValues());
-        }
-
-        @Override
-        public IntValues getIntValues() {
-            return new IntValues(values);
-        }
-
-        @Override
         public LongValues getLongValues() {
             return new LongValues(values);
         }
 
         @Override
-        public FloatValues getFloatValues() {
-            return new FloatValues.DoubleBased(getDoubleValues());
-        }
-
-        @Override
         public DoubleValues getDoubleValues() {
             return new DoubleValues(values);
-        }
-
-        static class IntValues implements org.elasticsearch.index.fielddata.IntValues {
-
-            private final int[] values;
-
-            private final IntArrayRef arrayScratch = new IntArrayRef(new int[1], 1);
-            private final Iter.Single iter = new Iter.Single();
-
-            IntValues(int[] values) {
-                this.values = values;
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return true;
-            }
-
-            @Override
-            public int getValue(int docId) {
-                return values[docId];
-            }
-
-            @Override
-            public int getValueMissing(int docId, int missingValue) {
-                return values[docId];
-            }
-
-            @Override
-            public IntArrayRef getValues(int docId) {
-                arrayScratch.values[0] = values[docId];
-                return arrayScratch;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return iter.reset(values[docId]);
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                proc.onValue(docId, values[docId]);
-            }
         }
 
         static class LongValues implements org.elasticsearch.index.fielddata.LongValues {

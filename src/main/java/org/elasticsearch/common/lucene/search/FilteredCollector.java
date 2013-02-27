@@ -31,7 +31,7 @@ import java.io.IOException;
 /**
  *
  */
-public class FilteredCollector extends Collector {
+public class FilteredCollector extends XCollector {
 
     private final Collector collector;
 
@@ -42,6 +42,13 @@ public class FilteredCollector extends Collector {
     public FilteredCollector(Collector collector, Filter filter) {
         this.collector = collector;
         this.filter = filter;
+    }
+
+    @Override
+    public void postCollection() {
+        if (collector instanceof XCollector) {
+            ((XCollector) collector).postCollection();
+        }
     }
 
     @Override

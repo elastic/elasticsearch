@@ -32,7 +32,6 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
     private final FilterBuilder filterBuilder;
     private final String parentType;
     private String filterName;
-    private String executionType;
 
     /**
      * @param parentType  The parent type
@@ -59,16 +58,6 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
-    /**
-     * Expert: Sets the low level parent to child filtering implementation. Can be: 'bitset' or 'uid'
-     * <p/>
-     * This option is experimental and will be removed.
-     */
-    public HasParentFilterBuilder executionType(String executionType) {
-        this.executionType = executionType;
-        return this;
-    }
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasParentFilterParser.NAME);
@@ -82,9 +71,6 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
         builder.field("parent_type", parentType);
         if (filterName != null) {
             builder.field("_name", filterName);
-        }
-        if (executionType != null) {
-            builder.field("execution_type", executionType);
         }
         builder.endObject();
     }

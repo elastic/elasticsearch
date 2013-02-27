@@ -55,7 +55,6 @@ public class HasParentFilterParser implements FilterParser {
         Query query = null;
         boolean queryFound = false;
         String parentType = null;
-        String executionType = "uid";
 
         String filterName = null;
         String currentFieldName = null;
@@ -93,8 +92,6 @@ public class HasParentFilterParser implements FilterParser {
                     throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_parent] filter has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) { // This option is experimental and will most likely be removed.
-                    executionType = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
@@ -121,7 +118,7 @@ public class HasParentFilterParser implements FilterParser {
 
         SearchContext searchContext = SearchContext.current();
 
-        HasParentFilter parentFilter = HasParentFilter.create(executionType, query, parentType, searchContext);
+        HasParentFilter parentFilter = HasParentFilter.create(query, parentType, searchContext);
         searchContext.addRewrite(parentFilter);
 
         if (filterName != null) {

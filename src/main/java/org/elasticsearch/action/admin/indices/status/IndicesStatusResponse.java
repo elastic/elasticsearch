@@ -60,10 +60,6 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
         this.shards = shards;
     }
 
-    public ShardStatus[] shards() {
-        return this.shards;
-    }
-
     public ShardStatus[] getShards() {
         return this.shards;
     }
@@ -72,15 +68,11 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
         return shards[position];
     }
 
-    public IndexStatus index(String index) {
-        return indices().get(index);
+    public IndexStatus getIndex(String index) {
+        return getIndices().get(index);
     }
 
     public Map<String, IndexStatus> getIndices() {
-        return indices();
-    }
-
-    public Map<String, IndexStatus> indices() {
         if (indicesStatus != null) {
             return indicesStatus;
         }
@@ -88,13 +80,13 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
 
         Set<String> indices = Sets.newHashSet();
         for (ShardStatus shard : shards) {
-            indices.add(shard.index());
+            indices.add(shard.getIndex());
         }
 
         for (String index : indices) {
             List<ShardStatus> shards = newArrayList();
             for (ShardStatus shard : this.shards) {
-                if (shard.shardRouting().index().equals(index)) {
+                if (shard.getShardRouting().index().equals(index)) {
                     shards.add(shard);
                 }
             }
@@ -107,8 +99,8 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(shards().length);
-        for (ShardStatus status : shards()) {
+        out.writeVInt(getShards().length);
+        for (ShardStatus status : getShards()) {
             status.writeTo(out);
         }
     }
@@ -129,164 +121,164 @@ public class IndicesStatusResponse extends BroadcastOperationResponse implements
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable SettingsFilter settingsFilter) throws IOException {
         builder.startObject(Fields.INDICES);
-        for (IndexStatus indexStatus : indices().values()) {
-            builder.startObject(indexStatus.index(), XContentBuilder.FieldCaseConversion.NONE);
+        for (IndexStatus indexStatus : getIndices().values()) {
+            builder.startObject(indexStatus.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
             builder.startObject(Fields.INDEX);
-            if (indexStatus.storeSize() != null) {
-                builder.field(Fields.PRIMARY_SIZE, indexStatus.primaryStoreSize().toString());
-                builder.field(Fields.PRIMARY_SIZE_IN_BYTES, indexStatus.primaryStoreSize().bytes());
-                builder.field(Fields.SIZE, indexStatus.storeSize().toString());
-                builder.field(Fields.SIZE_IN_BYTES, indexStatus.storeSize().bytes());
+            if (indexStatus.getStoreSize() != null) {
+                builder.field(Fields.PRIMARY_SIZE, indexStatus.getPrimaryStoreSize().toString());
+                builder.field(Fields.PRIMARY_SIZE_IN_BYTES, indexStatus.getPrimaryStoreSize().bytes());
+                builder.field(Fields.SIZE, indexStatus.getStoreSize().toString());
+                builder.field(Fields.SIZE_IN_BYTES, indexStatus.getStoreSize().bytes());
             }
             builder.endObject();
-            if (indexStatus.translogOperations() != -1) {
+            if (indexStatus.getTranslogOperations() != -1) {
                 builder.startObject(Fields.TRANSLOG);
-                builder.field(Fields.OPERATIONS, indexStatus.translogOperations());
+                builder.field(Fields.OPERATIONS, indexStatus.getTranslogOperations());
                 builder.endObject();
             }
 
-            if (indexStatus.docs() != null) {
+            if (indexStatus.getDocs() != null) {
                 builder.startObject(Fields.DOCS);
-                builder.field(Fields.NUM_DOCS, indexStatus.docs().numDocs());
-                builder.field(Fields.MAX_DOC, indexStatus.docs().maxDoc());
-                builder.field(Fields.DELETED_DOCS, indexStatus.docs().deletedDocs());
+                builder.field(Fields.NUM_DOCS, indexStatus.getDocs().getNumDocs());
+                builder.field(Fields.MAX_DOC, indexStatus.getDocs().getMaxDoc());
+                builder.field(Fields.DELETED_DOCS, indexStatus.getDocs().getDeletedDocs());
                 builder.endObject();
             }
 
-            MergeStats mergeStats = indexStatus.mergeStats();
+            MergeStats mergeStats = indexStatus.getMergeStats();
             if (mergeStats != null) {
                 mergeStats.toXContent(builder, params);
             }
-            RefreshStats refreshStats = indexStatus.refreshStats();
+            RefreshStats refreshStats = indexStatus.getRefreshStats();
             if (refreshStats != null) {
                 refreshStats.toXContent(builder, params);
             }
-            FlushStats flushStats = indexStatus.flushStats();
+            FlushStats flushStats = indexStatus.getFlushStats();
             if (flushStats != null) {
                 flushStats.toXContent(builder, params);
             }
 
             builder.startObject(Fields.SHARDS);
             for (IndexShardStatus indexShardStatus : indexStatus) {
-                builder.startArray(Integer.toString(indexShardStatus.shardId().id()));
+                builder.startArray(Integer.toString(indexShardStatus.getShardId().id()));
                 for (ShardStatus shardStatus : indexShardStatus) {
                     builder.startObject();
 
                     builder.startObject(Fields.ROUTING)
-                            .field(Fields.STATE, shardStatus.shardRouting().state())
-                            .field(Fields.PRIMARY, shardStatus.shardRouting().primary())
-                            .field(Fields.NODE, shardStatus.shardRouting().currentNodeId())
-                            .field(Fields.RELOCATING_NODE, shardStatus.shardRouting().relocatingNodeId())
-                            .field(Fields.SHARD, shardStatus.shardRouting().shardId().id())
-                            .field(Fields.INDEX, shardStatus.shardRouting().shardId().index().name())
+                            .field(Fields.STATE, shardStatus.getShardRouting().state())
+                            .field(Fields.PRIMARY, shardStatus.getShardRouting().primary())
+                            .field(Fields.NODE, shardStatus.getShardRouting().currentNodeId())
+                            .field(Fields.RELOCATING_NODE, shardStatus.getShardRouting().relocatingNodeId())
+                            .field(Fields.SHARD, shardStatus.getShardRouting().shardId().id())
+                            .field(Fields.INDEX, shardStatus.getShardRouting().shardId().index().name())
                             .endObject();
 
-                    builder.field(Fields.STATE, shardStatus.state());
-                    if (shardStatus.storeSize() != null) {
+                    builder.field(Fields.STATE, shardStatus.getState());
+                    if (shardStatus.getStoreSize() != null) {
                         builder.startObject(Fields.INDEX);
-                        builder.field(Fields.SIZE, shardStatus.storeSize().toString());
-                        builder.field(Fields.SIZE_IN_BYTES, shardStatus.storeSize().bytes());
+                        builder.field(Fields.SIZE, shardStatus.getStoreSize().toString());
+                        builder.field(Fields.SIZE_IN_BYTES, shardStatus.getStoreSize().bytes());
                         builder.endObject();
                     }
-                    if (shardStatus.translogId() != -1) {
+                    if (shardStatus.getTranslogId() != -1) {
                         builder.startObject(Fields.TRANSLOG);
-                        builder.field(Fields.ID, shardStatus.translogId());
-                        builder.field(Fields.OPERATIONS, shardStatus.translogOperations());
+                        builder.field(Fields.ID, shardStatus.getTranslogId());
+                        builder.field(Fields.OPERATIONS, shardStatus.getTranslogOperations());
                         builder.endObject();
                     }
 
-                    if (shardStatus.docs() != null) {
+                    if (shardStatus.getDocs() != null) {
                         builder.startObject(Fields.DOCS);
-                        builder.field(Fields.NUM_DOCS, shardStatus.docs().numDocs());
-                        builder.field(Fields.MAX_DOC, shardStatus.docs().maxDoc());
-                        builder.field(Fields.DELETED_DOCS, shardStatus.docs().deletedDocs());
+                        builder.field(Fields.NUM_DOCS, shardStatus.getDocs().getNumDocs());
+                        builder.field(Fields.MAX_DOC, shardStatus.getDocs().getMaxDoc());
+                        builder.field(Fields.DELETED_DOCS, shardStatus.getDocs().getDeletedDocs());
                         builder.endObject();
                     }
 
-                    mergeStats = shardStatus.mergeStats();
+                    mergeStats = shardStatus.getMergeStats();
                     if (mergeStats != null) {
                         mergeStats.toXContent(builder, params);
                     }
 
-                    refreshStats = shardStatus.refreshStats();
+                    refreshStats = shardStatus.getRefreshStats();
                     if (refreshStats != null) {
                         refreshStats.toXContent(builder, params);
                     }
-                    flushStats = shardStatus.flushStats();
+                    flushStats = shardStatus.getFlushStats();
                     if (flushStats != null) {
                         flushStats.toXContent(builder, params);
                     }
 
-                    if (shardStatus.peerRecoveryStatus() != null) {
-                        PeerRecoveryStatus peerRecoveryStatus = shardStatus.peerRecoveryStatus();
+                    if (shardStatus.getPeerRecoveryStatus() != null) {
+                        PeerRecoveryStatus peerRecoveryStatus = shardStatus.getPeerRecoveryStatus();
                         builder.startObject(Fields.PEER_RECOVERY);
-                        builder.field(Fields.STAGE, peerRecoveryStatus.stage());
-                        builder.field(Fields.START_TIME_IN_MILLIS, peerRecoveryStatus.startTime());
-                        builder.field(Fields.TIME, peerRecoveryStatus.time());
-                        builder.field(Fields.TIME_IN_MILLIS, peerRecoveryStatus.time().millis());
+                        builder.field(Fields.STAGE, peerRecoveryStatus.getStage());
+                        builder.field(Fields.START_TIME_IN_MILLIS, peerRecoveryStatus.getStartTime());
+                        builder.field(Fields.TIME, peerRecoveryStatus.getTime());
+                        builder.field(Fields.TIME_IN_MILLIS, peerRecoveryStatus.getTime().millis());
 
                         builder.startObject(Fields.INDEX);
-                        builder.field(Fields.PROGRESS, peerRecoveryStatus.indexRecoveryProgress());
-                        builder.field(Fields.SIZE, peerRecoveryStatus.indexSize());
-                        builder.field(Fields.SIZE_IN_BYTES, peerRecoveryStatus.indexSize().bytes());
-                        builder.field(Fields.REUSED_SIZE, peerRecoveryStatus.reusedIndexSize());
-                        builder.field(Fields.REUSED_SIZE_IN_BYTES, peerRecoveryStatus.reusedIndexSize().bytes());
-                        builder.field(Fields.EXPECTED_RECOVERED_SIZE, peerRecoveryStatus.expectedRecoveredIndexSize());
-                        builder.field(Fields.EXPECTED_RECOVERED_SIZE_IN_BYTES, peerRecoveryStatus.expectedRecoveredIndexSize().bytes());
-                        builder.field(Fields.RECOVERED_SIZE, peerRecoveryStatus.recoveredIndexSize());
-                        builder.field(Fields.RECOVERED_SIZE_IN_BYTES, peerRecoveryStatus.recoveredIndexSize().bytes());
+                        builder.field(Fields.PROGRESS, peerRecoveryStatus.getIndexRecoveryProgress());
+                        builder.field(Fields.SIZE, peerRecoveryStatus.getIndexSize());
+                        builder.field(Fields.SIZE_IN_BYTES, peerRecoveryStatus.getIndexSize().bytes());
+                        builder.field(Fields.REUSED_SIZE, peerRecoveryStatus.getReusedIndexSize());
+                        builder.field(Fields.REUSED_SIZE_IN_BYTES, peerRecoveryStatus.getReusedIndexSize().bytes());
+                        builder.field(Fields.EXPECTED_RECOVERED_SIZE, peerRecoveryStatus.getExpectedRecoveredIndexSize());
+                        builder.field(Fields.EXPECTED_RECOVERED_SIZE_IN_BYTES, peerRecoveryStatus.getExpectedRecoveredIndexSize().bytes());
+                        builder.field(Fields.RECOVERED_SIZE, peerRecoveryStatus.getRecoveredIndexSize());
+                        builder.field(Fields.RECOVERED_SIZE_IN_BYTES, peerRecoveryStatus.getRecoveredIndexSize().bytes());
                         builder.endObject();
 
                         builder.startObject(Fields.TRANSLOG);
-                        builder.field(Fields.RECOVERED, peerRecoveryStatus.recoveredTranslogOperations());
+                        builder.field(Fields.RECOVERED, peerRecoveryStatus.getRecoveredTranslogOperations());
                         builder.endObject();
 
                         builder.endObject();
                     }
 
-                    if (shardStatus.gatewayRecoveryStatus() != null) {
-                        GatewayRecoveryStatus gatewayRecoveryStatus = shardStatus.gatewayRecoveryStatus();
+                    if (shardStatus.getGatewayRecoveryStatus() != null) {
+                        GatewayRecoveryStatus gatewayRecoveryStatus = shardStatus.getGatewayRecoveryStatus();
                         builder.startObject(Fields.GATEWAY_RECOVERY);
-                        builder.field(Fields.STAGE, gatewayRecoveryStatus.stage());
-                        builder.field(Fields.START_TIME_IN_MILLIS, gatewayRecoveryStatus.startTime());
-                        builder.field(Fields.TIME, gatewayRecoveryStatus.time());
-                        builder.field(Fields.TIME_IN_MILLIS, gatewayRecoveryStatus.time().millis());
+                        builder.field(Fields.STAGE, gatewayRecoveryStatus.getStage());
+                        builder.field(Fields.START_TIME_IN_MILLIS, gatewayRecoveryStatus.getStartTime());
+                        builder.field(Fields.TIME, gatewayRecoveryStatus.getTime());
+                        builder.field(Fields.TIME_IN_MILLIS, gatewayRecoveryStatus.getTime().millis());
 
                         builder.startObject(Fields.INDEX);
-                        builder.field(Fields.PROGRESS, gatewayRecoveryStatus.indexRecoveryProgress());
-                        builder.field(Fields.SIZE, gatewayRecoveryStatus.indexSize());
-                        builder.field(Fields.SIZE_IN_BYTES, gatewayRecoveryStatus.indexSize().bytes());
-                        builder.field(Fields.REUSED_SIZE, gatewayRecoveryStatus.reusedIndexSize());
-                        builder.field(Fields.REUSED_SIZE_IN_BYTES, gatewayRecoveryStatus.reusedIndexSize().bytes());
-                        builder.field(Fields.EXPECTED_RECOVERED_SIZE, gatewayRecoveryStatus.expectedRecoveredIndexSize());
-                        builder.field(Fields.EXPECTED_RECOVERED_SIZE_IN_BYTES, gatewayRecoveryStatus.expectedRecoveredIndexSize().bytes());
-                        builder.field(Fields.RECOVERED_SIZE, gatewayRecoveryStatus.recoveredIndexSize());
-                        builder.field(Fields.RECOVERED_SIZE_IN_BYTES, gatewayRecoveryStatus.recoveredIndexSize().bytes());
+                        builder.field(Fields.PROGRESS, gatewayRecoveryStatus.getIndexRecoveryProgress());
+                        builder.field(Fields.SIZE, gatewayRecoveryStatus.getIndexSize());
+                        builder.field(Fields.SIZE_IN_BYTES, gatewayRecoveryStatus.getIndexSize().bytes());
+                        builder.field(Fields.REUSED_SIZE, gatewayRecoveryStatus.getReusedIndexSize());
+                        builder.field(Fields.REUSED_SIZE_IN_BYTES, gatewayRecoveryStatus.getReusedIndexSize().bytes());
+                        builder.field(Fields.EXPECTED_RECOVERED_SIZE, gatewayRecoveryStatus.getExpectedRecoveredIndexSize());
+                        builder.field(Fields.EXPECTED_RECOVERED_SIZE_IN_BYTES, gatewayRecoveryStatus.getExpectedRecoveredIndexSize().bytes());
+                        builder.field(Fields.RECOVERED_SIZE, gatewayRecoveryStatus.getRecoveredIndexSize());
+                        builder.field(Fields.RECOVERED_SIZE_IN_BYTES, gatewayRecoveryStatus.getRecoveredIndexSize().bytes());
                         builder.endObject();
 
                         builder.startObject(Fields.TRANSLOG);
-                        builder.field(Fields.RECOVERED, gatewayRecoveryStatus.recoveredTranslogOperations());
+                        builder.field(Fields.RECOVERED, gatewayRecoveryStatus.getRecoveredTranslogOperations());
                         builder.endObject();
 
                         builder.endObject();
                     }
 
-                    if (shardStatus.gatewaySnapshotStatus() != null) {
-                        GatewaySnapshotStatus gatewaySnapshotStatus = shardStatus.gatewaySnapshotStatus();
+                    if (shardStatus.getGatewaySnapshotStatus() != null) {
+                        GatewaySnapshotStatus gatewaySnapshotStatus = shardStatus.getGatewaySnapshotStatus();
                         builder.startObject(Fields.GATEWAY_SNAPSHOT);
-                        builder.field(Fields.STAGE, gatewaySnapshotStatus.stage());
-                        builder.field(Fields.START_TIME_IN_MILLIS, gatewaySnapshotStatus.startTime());
-                        builder.field(Fields.TIME, gatewaySnapshotStatus.time());
-                        builder.field(Fields.TIME_IN_MILLIS, gatewaySnapshotStatus.time().millis());
+                        builder.field(Fields.STAGE, gatewaySnapshotStatus.getStage());
+                        builder.field(Fields.START_TIME_IN_MILLIS, gatewaySnapshotStatus.getStartTime());
+                        builder.field(Fields.TIME, gatewaySnapshotStatus.getTime());
+                        builder.field(Fields.TIME_IN_MILLIS, gatewaySnapshotStatus.getTime().millis());
 
                         builder.startObject(Fields.INDEX);
-                        builder.field(Fields.SIZE, gatewaySnapshotStatus.indexSize());
-                        builder.field(Fields.SIZE_IN_BYTES, gatewaySnapshotStatus.indexSize().bytes());
+                        builder.field(Fields.SIZE, gatewaySnapshotStatus.getIndexSize());
+                        builder.field(Fields.SIZE_IN_BYTES, gatewaySnapshotStatus.getIndexSize().bytes());
                         builder.endObject();
 
                         builder.startObject(Fields.TRANSLOG);
-                        builder.field(Fields.EXPECTED_OPERATIONS, gatewaySnapshotStatus.expectedNumberOfOperations());
+                        builder.field(Fields.EXPECTED_OPERATIONS, gatewaySnapshotStatus.getExpectedNumberOfOperations());
                         builder.endObject();
 
                         builder.endObject();

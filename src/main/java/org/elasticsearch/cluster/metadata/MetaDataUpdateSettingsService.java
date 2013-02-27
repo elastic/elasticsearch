@@ -26,11 +26,14 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.settings.IndexDynamicSettings;
 
 import java.util.Map;
 import java.util.Set;
@@ -46,12 +49,15 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final AllocationService allocationService;
 
+    private final DynamicSettings dynamicSettings;
+
     @Inject
-    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService) {
+    public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService, @IndexDynamicSettings DynamicSettings dynamicSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterService.add(this);
         this.allocationService = allocationService;
+        this.dynamicSettings = dynamicSettings;
     }
 
     @Override
@@ -138,7 +144,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
         final Set<String> removedSettings = Sets.newHashSet();
         for (String key : updatedSettingsBuilder.internalMap().keySet()) {
-            if (!IndexMetaData.hasDynamicSetting(key)) {
+            if (!dynamicSettings.hasDynamicSetting(key)) {
                 removedSettings.add(key);
             }
         }
@@ -149,13 +155,34 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         }
         final Settings openSettings = updatedSettingsBuilder.build();
 
-        clusterService.submitStateUpdateTask("update-settings", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("update-settings", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 try {
                     String[] actualIndices = currentState.metaData().concreteIndices(indices);
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder().routingTable(currentState.routingTable());
                     MetaData.Builder metaDataBuilder = MetaData.newMetaDataBuilder().metaData(currentState.metaData());
+
+                    // allow to change any settings to a close index, and only allow dynamic settings to be changed
+                    // on an open index
+                    Set<String> openIndices = Sets.newHashSet();
+                    Set<String> closeIndices = Sets.newHashSet();
+                    for (String index : actualIndices) {
+                        if (currentState.metaData().index(index).state() == IndexMetaData.State.OPEN) {
+                            openIndices.add(index);
+                        } else {
+                            closeIndices.add(index);
+                        }
+                    }
+
+                    if (!removedSettings.isEmpty() && !openIndices.isEmpty()) {
+                        listener.onFailure(new ElasticSearchIllegalArgumentException(String.format(
+                                "Can't update non dynamic settings[%s] for open indices[%s]",
+                                removedSettings,
+                                openIndices
+                        )));
+                        return currentState;
+                    }
 
                     int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
                     if (updatedNumberOfReplicas != -1) {
@@ -208,23 +235,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                         }
                     }
 
-                    // allow to change any settings to a close index, and only allow dynamic settings to be changed
-                    // on an open index
-                    Set<String> openIndices = Sets.newHashSet();
-                    Set<String> closeIndices = Sets.newHashSet();
-                    for (String index : actualIndices) {
-                        if (currentState.metaData().index(index).state() == IndexMetaData.State.OPEN) {
-                            openIndices.add(index);
-                        } else {
-                            closeIndices.add(index);
-                        }
-                    }
-
                     if (!openIndices.isEmpty()) {
                         String[] indices = openIndices.toArray(new String[openIndices.size()]);
-                        if (!removedSettings.isEmpty()) {
-                            logger.warn("{} ignoring non dynamic index level settings for open indices: {}", indices, removedSettings);
-                        }
                         metaDataBuilder.updateSettings(openSettings, indices);
                     }
 

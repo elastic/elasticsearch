@@ -28,6 +28,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
@@ -37,7 +38,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.elasticsearch.common.lucene.search.XTermsFilter;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -453,7 +453,7 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
             for (int i = 0; i < typesBytes.length; i++) {
                 typesBytes[i] = new BytesRef(types[i]);
             }
-            return new XTermsFilter(TypeFieldMapper.NAME, typesBytes);
+            return new TermsFilter(TypeFieldMapper.NAME, typesBytes);
         } else {
             XBooleanFilter bool = new XBooleanFilter();
             for (String type : types) {
@@ -761,6 +761,36 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
 
     public Analyzer searchQuoteAnalyzer() {
         return this.searchQuoteAnalyzer;
+    }
+
+    /**
+     * Resolves the closest inherited {@link ObjectMapper} that is nested.
+     */
+    public ObjectMapper resolveClosestNestedObjectMapper(String fieldName) {
+        int indexOf = fieldName.lastIndexOf('.');
+        if (indexOf == -1) {
+            return null;
+        } else {
+            do {
+                String objectPath = fieldName.substring(0, indexOf);
+                ObjectMappers objectMappers = objectMapper(objectPath);
+                if (objectMappers == null) {
+                    return null;
+                }
+
+                if (objectMappers.hasNested()) {
+                    for (ObjectMapper objectMapper : objectMappers) {
+                        if (objectMapper.nested().isNested()) {
+                            return objectMapper;
+                        }
+                    }
+                }
+
+                indexOf = objectPath.lastIndexOf('.');
+            } while (indexOf != -1);
+        }
+
+        return null;
     }
 
     public static class SmartNameObjectMapper {

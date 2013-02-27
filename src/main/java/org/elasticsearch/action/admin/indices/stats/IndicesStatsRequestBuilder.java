@@ -33,7 +33,7 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
  * <p>All the stats to be returned can be cleared using {@link #clear()}, at which point, specific
  * stats can be enabled.
  */
-public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStats, IndicesStatsRequestBuilder> {
+public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
 
     public IndicesStatsRequestBuilder(IndicesAdminClient indicesClient) {
         super((InternalIndicesAdminClient) indicesClient, new IndicesStatsRequest());
@@ -115,7 +115,7 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
     }
 
     @Override
-    protected void doExecute(ActionListener<IndicesStats> listener) {
+    protected void doExecute(ActionListener<IndicesStatsResponse> listener) {
         ((IndicesAdminClient) client).stats(request, listener);
     }
 }

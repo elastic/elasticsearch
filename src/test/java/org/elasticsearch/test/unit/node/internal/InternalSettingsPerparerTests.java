@@ -23,6 +23,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPerparer;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -30,9 +32,18 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class InternalSettingsPerparerTests {
+    @BeforeMethod
+    public void setupSystemProperties() {
+        System.setProperty("es.node.zone", "foo");
+    }
+
+    @AfterMethod
+    public void cleanupSystemProperties() {
+        System.clearProperty("es.node.zone");
+    }
+
     @Test
     public void testIgnoreSystemProperties() {
-        System.setProperty("es.node.zone", "foo");
         Tuple<Settings, Environment> tuple = InternalSettingsPerparer.prepareSettings(settingsBuilder().put("node.zone", "bar").build(), true);
         // Should use setting from the system property
         assertThat(tuple.v1().get("node.zone"), equalTo("foo"));

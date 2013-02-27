@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -57,7 +58,7 @@ public class MetaDataStateIndexService extends AbstractComponent {
     }
 
     public void closeIndex(final Request request, final Listener listener) {
-        clusterService.submitStateUpdateTask("close-index [" + request.index + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("close-index [" + request.index + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
 
@@ -100,7 +101,7 @@ public class MetaDataStateIndexService extends AbstractComponent {
     }
 
     public void openIndex(final Request request, final Listener listener) {
-        clusterService.submitStateUpdateTask("open-index [" + request.index + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("open-index [" + request.index + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
 

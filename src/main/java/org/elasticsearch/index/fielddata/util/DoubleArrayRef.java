@@ -64,7 +64,7 @@ public class DoubleArrayRef extends AbstractList<Double> implements RandomAccess
 
     @Override
     public boolean isEmpty() {
-        return size() != 0;
+        return size() == 0;
     }
 
     @Override

@@ -309,7 +309,7 @@ public class SearchPhaseController extends AbstractComponent {
                     namedFacets.clear();
                     for (QuerySearchResultProvider queryResultProvider : queryResults.values()) {
                         for (Facet facet1 : queryResultProvider.queryResult().facets()) {
-                            if (facet.name().equals(facet1.name())) {
+                            if (facet.getName().equals(facet1.getName())) {
                                 namedFacets.add(facet1);
                             }
                         }

@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.XTermsFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -245,7 +245,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         for (String type : context.mapperService().types()) {
             typesValues[i++] = Uid.createUidAsBytes(type, bValue);
         }
-        return new XTermsFilter(names.indexName(), typesValues);
+        return new TermsFilter(names.indexName(), typesValues);
     }
 
     @Override
@@ -261,7 +261,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 bValues.add(Uid.createUidAsBytes(type, bValue));
             }
         }
-        return new XTermsFilter(names.indexName(), bValues);
+        return new TermsFilter(names.indexName(), bValues);
     }
 
     /**

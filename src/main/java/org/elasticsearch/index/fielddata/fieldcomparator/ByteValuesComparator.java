@@ -19,41 +19,27 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.FieldComparator;
-import org.elasticsearch.index.fielddata.ByteValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 
 import java.io.IOException;
 
 /**
  */
-public class ByteValuesComparator extends FieldComparator<Byte> {
+public final class ByteValuesComparator extends LongValuesComparatorBase<Byte> {
 
-    private final IndexNumericFieldData indexFieldData;
-    private final byte missingValue;
+    private final byte[] values;
 
-    protected final byte[] values;
-    private byte bottom;
-    private ByteValues readerValues;
-
-    public ByteValuesComparator(IndexNumericFieldData indexFieldData, byte missingValue, int numHits) {
-        this.indexFieldData = indexFieldData;
-        this.missingValue = missingValue;
+    public ByteValuesComparator(IndexNumericFieldData<?> indexFieldData, byte missingValue, int numHits, SortMode sortMode) {
+        super(indexFieldData, missingValue, sortMode);
         this.values = new byte[numHits];
+        assert indexFieldData.getNumericType().requiredBits() <= 8;
     }
 
     @Override
     public int compare(int slot1, int slot2) {
-        final byte v1 = values[slot1];
-        final byte v2 = values[slot2];
-        if (v1 > v2) {
-            return 1;
-        } else if (v1 < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
+        final int v1 = values[slot1];
+        final int v2 = values[slot2];
+        return v1 - v2; // we cast to int so it can't overflow
     }
 
     @Override
@@ -62,44 +48,12 @@ public class ByteValuesComparator extends FieldComparator<Byte> {
     }
 
     @Override
-    public int compareBottom(int doc) throws IOException {
-        byte v2 = readerValues.getValueMissing(doc, missingValue);
-
-        if (bottom > v2) {
-            return 1;
-        } else if (bottom < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
-
-    @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = readerValues.getValueMissing(doc, missingValue);
-    }
-
-    @Override
-    public FieldComparator<Byte> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getByteValues();
-        return this;
+        values[slot] = (byte) readerValues.getValueMissing(doc, missingValue);
     }
 
     @Override
     public Byte value(int slot) {
         return Byte.valueOf(values[slot]);
-    }
-
-    @Override
-    public int compareDocToValue(int doc, Byte valueObj) throws IOException {
-        final byte value = valueObj.byteValue();
-        byte docValue = readerValues.getValueMissing(doc, missingValue);
-        if (docValue < value) {
-            return -1;
-        } else if (docValue > value) {
-            return 1;
-        } else {
-            return 0;
-        }
     }
 }

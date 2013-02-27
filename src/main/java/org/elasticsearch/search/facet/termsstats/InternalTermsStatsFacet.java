@@ -24,11 +24,23 @@ import org.elasticsearch.search.facet.termsstats.doubles.InternalTermsStatsDoubl
 import org.elasticsearch.search.facet.termsstats.longs.InternalTermsStatsLongFacet;
 import org.elasticsearch.search.facet.termsstats.strings.InternalTermsStatsStringFacet;
 
-public abstract class InternalTermsStatsFacet implements TermsStatsFacet, InternalFacet {
+public abstract class InternalTermsStatsFacet extends InternalFacet implements TermsStatsFacet {
 
     public static void registerStreams() {
         InternalTermsStatsStringFacet.registerStream();
         InternalTermsStatsLongFacet.registerStream();
         InternalTermsStatsDoubleFacet.registerStream();
+    }
+
+    protected InternalTermsStatsFacet() {
+    }
+
+    protected InternalTermsStatsFacet(String facetName) {
+        super(facetName);
+    }
+
+    @Override
+    public final String getType() {
+        return TYPE;
     }
 }

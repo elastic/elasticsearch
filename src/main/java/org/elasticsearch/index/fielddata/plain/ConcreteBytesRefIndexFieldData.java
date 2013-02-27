@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.FieldCache;
-import org.apache.lucene.search.FieldCache.StopFillCacheException;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticSearchException;
@@ -33,9 +33,8 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.elasticsearch.index.fielddata.ordinals.SingleArrayOrdinals;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -94,7 +93,7 @@ public class ConcreteBytesRefIndexFieldData extends AbstractIndexFieldData<Concr
         try {
             BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null), reader.getLiveDocs());
             BytesRef term;
-            while((term = iter.next()) != null) {
+            while ((term = iter.next()) != null) {
                 values.add(BytesRef.deepCopyOf(term));
             }
             return new ConcreteBytesRefAtomicFieldData(values.toArray(new BytesRef[values.size()]), builder.build(fieldDataType.getSettings()));
@@ -104,8 +103,8 @@ public class ConcreteBytesRefIndexFieldData extends AbstractIndexFieldData<Concr
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue) {
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
         // TODO support "missingValue" for sortMissingValue options here...
-        return new BytesRefFieldComparatorSource(this);
+        return new BytesRefFieldComparatorSource(this, sortMode);
     }
 }

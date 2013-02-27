@@ -62,6 +62,9 @@ public class IndexSettingsService extends AbstractIndexComponent {
         return this.settings;
     }
 
+    /**
+     * Only settings registered in {@link IndexDynamicSettingsModule} can be changed dynamically.
+     */
     public void addListener(Listener listener) {
         this.listeners.add(listener);
     }

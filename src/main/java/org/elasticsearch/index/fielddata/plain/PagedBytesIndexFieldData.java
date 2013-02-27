@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -144,7 +145,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             PackedInts.Reader termOrdToBytesOffsetReader = termOrdToBytesOffset.getMutable();
             final Ordinals ordinals = builder.build(fieldDataType.getSettings());
-            
+
             return new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffsetReader, ordinals);
         } finally {
             builder.close();
@@ -152,8 +153,8 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
     }
 
     @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue) {
+    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
         // TODO support "missingValue" for sortMissingValue options here...
-        return new BytesRefFieldComparatorSource(this);
+        return new BytesRefFieldComparatorSource(this, sortMode);
     }
 }

@@ -220,7 +220,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
      */
-    public UpdateRequestBuilder setUpsert(IndexRequest indexRequest) {
+    public UpdateRequestBuilder setUpsertRequest(IndexRequest indexRequest) {
         request.upsert(indexRequest);
         return this;
     }
@@ -228,7 +228,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(XContentBuilder source) {
+    public UpdateRequestBuilder setUpsertRequest(XContentBuilder source) {
         request.upsert(source);
         return this;
     }
@@ -236,7 +236,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(Map source) {
+    public UpdateRequestBuilder setUpsertRequest(Map source) {
         request.upsert(source);
         return this;
     }
@@ -244,7 +244,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(Map source, XContentType contentType) {
+    public UpdateRequestBuilder setUpsertRequest(Map source, XContentType contentType) {
         request.upsert(source, contentType);
         return this;
     }
@@ -252,7 +252,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(String source) {
+    public UpdateRequestBuilder setUpsertRequest(String source) {
         request.upsert(source);
         return this;
     }
@@ -260,7 +260,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source) {
+    public UpdateRequestBuilder setUpsertRequest(byte[] source) {
         request.upsert(source);
         return this;
     }
@@ -268,7 +268,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length) {
+    public UpdateRequestBuilder setUpsertRequest(byte[] source, int offset, int length) {
         request.upsert(source, offset, length);
         return this;
     }

@@ -27,7 +27,7 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * A {@link PostingsFormatProvider} for Lucenes {@link Pulsing40PostingsFormat}.
+ * A {@link PostingsFormatProvider} for Lucenes {@link Pulsing41PostingsFormat}.
  * The pulsing implementation in-lines the posting lists for very low frequent
  * terms in the term dictionary. This is useful to improve lookup performance
  * for low-frequent terms. This postings format offers the following parameters:
@@ -44,7 +44,7 @@ import org.elasticsearch.common.settings.Settings;
  * <tt>1</tt></li>
  * </ul>
  */
-// LUCENE UPGRADE: Upgrade Pulsing40PostingsFormat to next version
+// LUCENE UPGRADE: Check if type of field postingsFormat needs to be updated!
 public class PulsingPostingsFormatProvider extends AbstractPostingsFormatProvider {
 
     private final int freqCutOff;

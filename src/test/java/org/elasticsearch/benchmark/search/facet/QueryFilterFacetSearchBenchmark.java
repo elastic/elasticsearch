@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.facet.FacetBuilders;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
@@ -61,11 +62,7 @@ public class QueryFilterFacetSearchBenchmark {
                 .build();
 
         Node node1 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1")).node();
-        Node node2 = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node2")).node();
-
-        Node clientNode = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "client")).client(true).node();
-
-        client = clientNode.client();
+        client = node1.client();
 
         long[] lValues = new long[NUMBER_OF_TERMS];
         for (int i = 0; i < NUMBER_OF_TERMS; i++) {
@@ -109,12 +106,12 @@ public class QueryFilterFacetSearchBenchmark {
         } catch (Exception e) {
             System.out.println("--> Index already exists, ignoring indexing phase, waiting for green");
             ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
-            if (clusterHealthResponse.timedOut()) {
+            if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> Timed out waiting for cluster health");
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        COUNT = client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count();
+        COUNT = client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
         System.out.println("--> Number of docs in index: " + COUNT);
 
 
@@ -126,7 +123,7 @@ public class QueryFilterFacetSearchBenchmark {
                     .setSearchType(SearchType.COUNT)
                     .setQuery(termQuery("l_value", lValues[0]))
                     .execute().actionGet();
-            totalQueryTime += searchResponse.tookInMillis();
+            totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("-->  Simple Query on first l_value " + (totalQueryTime / QUERY_COUNT) + "ms");
 
@@ -137,7 +134,7 @@ public class QueryFilterFacetSearchBenchmark {
                     .setQuery(termQuery("l_value", lValues[0]))
                     .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", lValues[0])))
                     .execute().actionGet();
-            totalQueryTime += searchResponse.tookInMillis();
+            totalQueryTime += searchResponse.getTookInMillis();
         }
         System.out.println("-->  Query facet first l_value " + (totalQueryTime / QUERY_COUNT) + "ms");
 
@@ -146,10 +143,21 @@ public class QueryFilterFacetSearchBenchmark {
             SearchResponse searchResponse = client.prepareSearch()
                     .setSearchType(SearchType.COUNT)
                     .setQuery(termQuery("l_value", lValues[0]))
-                    .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", lValues[0])).global(true))
+                    .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", lValues[0])).global(true).mode(FacetBuilder.Mode.COLLECTOR))
                     .execute().actionGet();
-            totalQueryTime += searchResponse.tookInMillis();
+            totalQueryTime += searchResponse.getTookInMillis();
         }
-        System.out.println("-->  Query facet first l_value (global) " + (totalQueryTime / QUERY_COUNT) + "ms");
+        System.out.println("-->  Query facet first l_value (global) (mode/collector) " + (totalQueryTime / QUERY_COUNT) + "ms");
+
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch()
+                    .setSearchType(SearchType.COUNT)
+                    .setQuery(termQuery("l_value", lValues[0]))
+                    .addFacet(FacetBuilders.queryFacet("query").query(termQuery("l_value", lValues[0])).global(true).mode(FacetBuilder.Mode.POST))
+                    .execute().actionGet();
+            totalQueryTime += searchResponse.getTookInMillis();
+        }
+        System.out.println("-->  Query facet first l_value (global) (mode/post) " + (totalQueryTime / QUERY_COUNT) + "ms");
     }
 }

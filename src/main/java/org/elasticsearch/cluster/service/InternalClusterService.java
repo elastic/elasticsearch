@@ -29,11 +29,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.operation.OperationRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -45,7 +48,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.*;
 
-import static java.util.concurrent.Executors.newSingleThreadExecutor;
 import static org.elasticsearch.cluster.ClusterState.Builder;
 import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadFactory;
@@ -114,7 +116,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     protected void doStart() throws ElasticSearchException {
         add(localNodeMasterListeners);
         this.clusterState = newClusterStateBuilder().blocks(initialBlocks).build();
-        this.updateTasksExecutor = newSingleThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
+        this.updateTasksExecutor = EsExecutors.newSinglePrioritizingThreadExecutor(daemonThreadFactory(settings, "clusterService#updateTask"));
         this.reconnectToNodes = threadPool.schedule(reconnectInterval, ThreadPool.Names.GENERIC, new ReconnectToNodes());
     }
 
@@ -187,29 +189,33 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         localNodeMasterListeners.remove(listener);
     }
 
-    public void add(TimeValue timeout, final TimeoutClusterStateListener listener) {
+    public void add(final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
             listener.onClose();
             return;
         }
-        NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
-        notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
-        onGoingTimeouts.add(notifyTimeout);
-        clusterStateListeners.add(listener);
         // call the post added notification on the same event thread
         updateTasksExecutor.execute(new Runnable() {
             @Override
             public void run() {
+                NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
+                notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
+                onGoingTimeouts.add(notifyTimeout);
+                clusterStateListeners.add(listener);
                 listener.postAdded();
             }
         });
     }
 
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
+        submitStateUpdateTask(source, Priority.NORMAL, updateTask);
+    }
+
+    public void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask updateTask) {
         if (!lifecycle.started()) {
             return;
         }
-        updateTasksExecutor.execute(new Runnable() {
+        updateTasksExecutor.execute(new PrioritizedRunnable(priority) {
             @Override
             public void run() {
                 if (!lifecycle.started()) {

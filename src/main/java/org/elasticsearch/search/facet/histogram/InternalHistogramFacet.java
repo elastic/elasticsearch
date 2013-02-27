@@ -20,20 +20,26 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.facet.histogram.bounded.InternalBoundedCountHistogramFacet;
-import org.elasticsearch.search.facet.histogram.bounded.InternalBoundedFullHistogramFacet;
-import org.elasticsearch.search.facet.histogram.unbounded.InternalCountHistogramFacet;
-import org.elasticsearch.search.facet.histogram.unbounded.InternalFullHistogramFacet;
 
 /**
  *
  */
-public abstract class InternalHistogramFacet implements HistogramFacet, InternalFacet {
+public abstract class InternalHistogramFacet extends InternalFacet implements HistogramFacet {
 
     public static void registerStreams() {
         InternalFullHistogramFacet.registerStreams();
         InternalCountHistogramFacet.registerStreams();
-        InternalBoundedCountHistogramFacet.registerStreams();
-        InternalBoundedFullHistogramFacet.registerStreams();
+    }
+
+    protected InternalHistogramFacet() {
+    }
+
+    protected InternalHistogramFacet(String facetName) {
+        super(facetName);
+    }
+
+    @Override
+    public final String getType() {
+        return TYPE;
     }
 }

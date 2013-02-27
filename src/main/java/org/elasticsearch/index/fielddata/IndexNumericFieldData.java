@@ -31,11 +31,20 @@ public interface IndexNumericFieldData<FD extends AtomicNumericFieldData> extend
             public boolean isFloatingPoint() {
                 return false;
             }
+            
+            @Override
+            public int requiredBits() {
+                return 8;
+            }
         },
         SHORT {
             @Override
             public boolean isFloatingPoint() {
                 return false;
+            }
+            @Override
+            public int requiredBits() {
+                return 16;
             }
         },
         INT {
@@ -43,11 +52,21 @@ public interface IndexNumericFieldData<FD extends AtomicNumericFieldData> extend
             public boolean isFloatingPoint() {
                 return false;
             }
+            
+            @Override
+            public int requiredBits() {
+                return 32;
+            }
         },
         LONG {
             @Override
             public boolean isFloatingPoint() {
                 return false;
+            }
+            
+            @Override
+            public int requiredBits() {
+                return 64;
             }
         },
         FLOAT {
@@ -55,15 +74,26 @@ public interface IndexNumericFieldData<FD extends AtomicNumericFieldData> extend
             public boolean isFloatingPoint() {
                 return true;
             }
+            
+            @Override
+            public int requiredBits() {
+                return 32;
+            }
         },
         DOUBLE {
             @Override
             public boolean isFloatingPoint() {
                 return true;
             }
+            
+            @Override
+            public int requiredBits() {
+                return 64;
+            }
         };
 
         public abstract boolean isFloatingPoint();
+        public abstract int requiredBits();
     }
 
     NumericType getNumericType();

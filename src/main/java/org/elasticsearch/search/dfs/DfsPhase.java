@@ -33,10 +33,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  *
@@ -68,6 +65,10 @@ public class DfsPhase implements SearchPhase {
             THashSet<Term> termsSet = cachedTermsSet.get().get();
             termsSet.clear();
             context.query().extractTerms(termsSet);
+            if (context.rescore() != null) {
+                context.rescore().rescorer().extractTerms(context, context.rescore(), termsSet);
+            }
+            
             Term[] terms = termsSet.toArray(new Term[termsSet.size()]);
             TermStatistics[] termStatistics = new TermStatistics[terms.length];
             IndexReaderContext indexReaderContext = context.searcher().getTopReaderContext();

@@ -112,10 +112,10 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                             // go over the response, see if we have found one, and the version if found
                             long version = 0;
                             boolean found = false;
-                            for (ShardDeleteResponse deleteResponse : indexDeleteResponse.responses()) {
-                                if (!deleteResponse.notFound()) {
+                            for (ShardDeleteResponse deleteResponse : indexDeleteResponse.getResponses()) {
+                                if (!deleteResponse.isNotFound()) {
                                     found = true;
-                                    version = deleteResponse.version();
+                                    version = deleteResponse.getVersion();
                                     break;
                                 }
                             }

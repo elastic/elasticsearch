@@ -47,6 +47,8 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
 
     void clear(String reason);
 
+    void clear(String reason, String[] keys);
+
     EntriesStats entriesStats();
 
     long evictions();

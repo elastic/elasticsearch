@@ -134,12 +134,12 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         return filteringAlias;
     }
 
-    public void filteringAlias(String[] filteringAlias) {
-        if (filteringAlias == null) {
-            return;
+    public ExplainRequest filteringAlias(String[] filteringAlias) {
+        if (filteringAlias != null) {
+            this.filteringAlias = filteringAlias;
         }
 
-        this.filteringAlias = filteringAlias;
+        return this;
     }
 
     @Override

@@ -24,10 +24,22 @@ import org.elasticsearch.search.facet.InternalFacet;
 /**
  *
  */
-public abstract class InternalDateHistogramFacet implements DateHistogramFacet, InternalFacet {
+public abstract class InternalDateHistogramFacet extends InternalFacet implements DateHistogramFacet {
 
     public static void registerStreams() {
         InternalCountDateHistogramFacet.registerStreams();
         InternalFullDateHistogramFacet.registerStreams();
+    }
+
+    protected InternalDateHistogramFacet() {
+    }
+
+    protected InternalDateHistogramFacet(String facetName) {
+        super(facetName);
+    }
+
+    @Override
+    public final String getType() {
+        return TYPE;
     }
 }

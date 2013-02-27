@@ -23,8 +23,6 @@ import org.elasticsearch.search.facet.Facet;
 
 /**
  * A query facets returns the count (number of hits) for a facet based on a query.
- *
- *
  */
 public interface QueryFacet extends Facet {
 
@@ -32,11 +30,6 @@ public interface QueryFacet extends Facet {
      * The type of the filter facet.
      */
     public static final String TYPE = "query";
-
-    /**
-     * The count of the facet.
-     */
-    long count();
 
     /**
      * The count of the facet.

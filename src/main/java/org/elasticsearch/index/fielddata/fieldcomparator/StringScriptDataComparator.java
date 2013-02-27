@@ -46,7 +46,7 @@ public class StringScriptDataComparator extends FieldComparator<String> {
         }
 
         @Override
-        public FieldComparator newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
+        public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
             return new StringScriptDataComparator(numHits, script);
         }
 

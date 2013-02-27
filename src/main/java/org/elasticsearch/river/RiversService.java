@@ -219,7 +219,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                         client.prepareGet(riverIndexName, riverName.name(), "_meta").setListenerThreaded(true).execute(new ActionListener<GetResponse>() {
                             @Override
                             public void onResponse(GetResponse getResponse) {
-                                if (!getResponse.exists()) {
+                                if (!getResponse.isExists()) {
                                     // verify the river is deleted
                                     client.admin().indices().prepareDeleteMapping(riverIndexName).setType(riverName.name()).execute(new ActionListener<DeleteMappingResponse>() {
                                         @Override
@@ -265,9 +265,9 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                     @Override
                     public void onResponse(GetResponse getResponse) {
                         if (!rivers.containsKey(routing.riverName())) {
-                            if (getResponse.exists()) {
+                            if (getResponse.isExists()) {
                                 // only create the river if it exists, otherwise, the indexing meta data has not been visible yet...
-                                createRiver(routing.riverName(), getResponse.sourceAsMap());
+                                createRiver(routing.riverName(), getResponse.getSourceAsMap());
                             }
                         }
                     }

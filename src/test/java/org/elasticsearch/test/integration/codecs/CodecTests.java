@@ -78,7 +78,7 @@ public class CodecTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         try {
             client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {
@@ -105,7 +105,7 @@ public class CodecTests extends AbstractNodesTests {
         client.prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
 
         SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         try {
             client.prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
         } catch (SearchPhaseExecutionException e) {

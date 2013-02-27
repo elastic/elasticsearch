@@ -35,6 +35,7 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
     private boolean fieldDataCache = false;
     private boolean idCache = false;
     private String[] fields = null;
+    private String[] filterKeys = null;
 
     ClearIndicesCacheRequest() {
     }
@@ -72,6 +73,15 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         return this.fields;
     }
 
+    public ClearIndicesCacheRequest filterKeys(String... filterKeys) {
+        this.filterKeys = filterKeys;
+        return this;
+    }
+
+    public String[] filterKeys() {
+        return this.filterKeys;
+    }
+
     public boolean idCache() {
         return this.idCache;
     }
@@ -86,13 +96,8 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         filterCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
         idCache = in.readBoolean();
-        int size = in.readVInt();
-        if (size > 0) {
-            fields = new String[size];
-            for (int i = 0; i < size; i++) {
-                fields[i] = in.readString();
-            }
-        }
+        fields = in.readStringArray();
+        filterKeys = in.readStringArray();
     }
 
     public void writeTo(StreamOutput out) throws IOException {
@@ -100,13 +105,7 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         out.writeBoolean(filterCache);
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(idCache);
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(fields.length);
-            for (String field : fields) {
-                out.writeString(field);
-            }
-        }
+        out.writeStringArrayNullable(fields);
+        out.writeStringArrayNullable(filterKeys);
     }
 }

@@ -78,7 +78,8 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     @Override
     protected void doMerge(MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
-        long totalSizeInBytes = merge.totalBytesSize();
+        // don't used #totalBytesSize() since need to be executed under IW lock, might be fixed in future Lucene version
+        long totalSizeInBytes = merge.estimatedMergeBytes;
         long time = System.currentTimeMillis();
         currentMerges.inc();
         currentMergesNumDocs.inc(totalNumDocs);

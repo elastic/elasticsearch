@@ -40,10 +40,6 @@ public class ClusterRerouteResponse extends ActionResponse {
         this.state = state;
     }
 
-    public ClusterState state() {
-        return this.state;
-    }
-
     public ClusterState getState() {
         return this.state;
     }

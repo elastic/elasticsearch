@@ -48,7 +48,7 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
         logger.info("--> start node (1)");
         startNode("node1", settingsBuilder().put("gateway.recover_after_nodes", 3));
         assertThat(client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start node (2)");
@@ -56,10 +56,10 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
         // Sleeping here for the same time that we wait to check for empty blocks
         Thread.sleep(BLOCK_WAIT_TIMEOUT.millis());
         assertThat(client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
         assertThat(client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start node (3)");
@@ -75,28 +75,28 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
         logger.info("--> start master_node (1)");
         startNode("master1", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", false).put("node.master", true));
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start data_node (1)");
         startNode("data1", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", true).put("node.master", false));
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
         assertThat(client("data1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start data_node (2)");
         startNode("data2", settingsBuilder().put("gateway.recover_after_master_nodes", 2).put("node.data", true).put("node.master", false));
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
         assertThat(client("data1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
         assertThat(client("data2").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start master_node (2)");
@@ -112,28 +112,28 @@ public class RecoverAfterNodesTests extends AbstractNodesTests {
         logger.info("--> start master_node (1)");
         startNode("master1", settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", false).put("node.master", true));
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start data_node (1)");
         startNode("data1", settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", true).put("node.master", false));
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
         assertThat(client("data1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start master_node (2)");
         startNode("master2", settingsBuilder().put("gateway.recover_after_data_nodes", 2).put("node.data", false).put("node.master", true));
         assertThat(client("master1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
         assertThat(client("data1").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
         assertThat(client("master2").admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                .state().blocks().global(ClusterBlockLevel.METADATA),
+                .getState().blocks().global(ClusterBlockLevel.METADATA),
                 hasItem(GatewayService.STATE_NOT_RECOVERED_BLOCK));
 
         logger.info("--> start data_node (2)");

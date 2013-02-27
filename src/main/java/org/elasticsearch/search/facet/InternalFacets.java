@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -87,7 +88,7 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         }
         Map<String, Facet> facetsAsMap = newHashMap();
         for (Facet facet : facets) {
-            facetsAsMap.put(facet.name(), facet);
+            facetsAsMap.put(facet.getName(), facet);
         }
         this.facetsAsMap = facetsAsMap;
         return facetsAsMap;
@@ -139,8 +140,8 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         } else {
             facets = Lists.newArrayListWithCapacity(size);
             for (int i = 0; i < size; i++) {
-                String type = in.readString();
-                Facet facet = InternalFacet.Streams.stream(type).readFacet(type, in);
+                BytesReference type = in.readBytesReference();
+                Facet facet = InternalFacet.Streams.stream(type).readFacet(in);
                 facets.add(facet);
             }
         }
@@ -151,7 +152,7 @@ public class InternalFacets implements Facets, Streamable, ToXContent, Iterable<
         out.writeVInt(facets.size());
         for (Facet facet : facets) {
             InternalFacet internalFacet = (InternalFacet) facet;
-            out.writeString(internalFacet.streamType());
+            out.writeBytesReference(internalFacet.streamType());
             internalFacet.writeTo(out);
         }
     }

@@ -114,13 +114,13 @@ public class RestIndexAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields._INDEX, response.index())
-                            .field(Fields._TYPE, response.type())
-                            .field(Fields._ID, response.id())
-                            .field(Fields._VERSION, response.version());
-                    if (response.matches() != null) {
+                            .field(Fields._INDEX, response.getIndex())
+                            .field(Fields._TYPE, response.getType())
+                            .field(Fields._ID, response.getId())
+                            .field(Fields._VERSION, response.getVersion());
+                    if (response.getMatches() != null) {
                         builder.startArray(Fields.MATCHES);
-                        for (PercolatorExecutor.PercolationMatch match : response.matches()) {
+                        for (PercolatorExecutor.PercolationMatch match : response.getMatches()) {
                             builder.startObject();
                             builder.field("match", match.getMatch());
 
@@ -147,7 +147,7 @@ public class RestIndexAction extends BaseRestHandler {
                     }
                     builder.endObject();
                     RestStatus status = OK;
-                    if (response.version() == 1) {
+                    if (response.getVersion() == 1) {
                         status = CREATED;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));

@@ -26,7 +26,9 @@ import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  *
@@ -39,11 +41,11 @@ public class PercolateResponse extends ActionResponse implements Iterable<Percol
 
     }
 
-    public PercolateResponse(List<PercolatorExecutor.PercolationMatch> matches) {
+    public PercolateResponse(List<String> matches) {
         this.matches = matches;
     }
 
-    public List<PercolatorExecutor.PercolationMatch> matches() {
+    public List<PercolatorExecutor.PercolationMatch> getMatches() {
         return this.matches;
     }
 

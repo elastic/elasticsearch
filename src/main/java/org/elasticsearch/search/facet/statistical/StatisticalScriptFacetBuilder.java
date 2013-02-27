@@ -23,7 +23,7 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,7 +31,7 @@ import java.util.Map;
 /**
  *
  */
-public class StatisticalScriptFacetBuilder extends AbstractFacetBuilder {
+public class StatisticalScriptFacetBuilder extends FacetBuilder {
     private String lang;
     private String script;
     private Map<String, Object> params;

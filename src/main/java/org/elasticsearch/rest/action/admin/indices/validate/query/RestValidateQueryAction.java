@@ -108,23 +108,23 @@ public class RestValidateQueryAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field("valid", response.valid());
+                    builder.field("valid", response.isValid());
 
                     buildBroadcastShardsHeader(builder, response);
 
-                    if (response.queryExplanations() != null && !response.queryExplanations().isEmpty()) {
+                    if (response.getQueryExplanation() != null && !response.getQueryExplanation().isEmpty()) {
                         builder.startArray("explanations");
-                        for (QueryExplanation explanation : response.queryExplanations()) {
+                        for (QueryExplanation explanation : response.getQueryExplanation()) {
                             builder.startObject();
-                            if (explanation.index() != null) {
-                                builder.field("index", explanation.index(), XContentBuilder.FieldCaseConversion.NONE);
+                            if (explanation.getIndex() != null) {
+                                builder.field("index", explanation.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
                             }
-                            builder.field("valid", explanation.valid());
-                            if (explanation.error() != null) {
-                                builder.field("error", explanation.error());
+                            builder.field("valid", explanation.isValid());
+                            if (explanation.getError() != null) {
+                                builder.field("error", explanation.getError());
                             }
-                            if (explanation.explanation() != null) {
-                                builder.field("explanation", explanation.explanation());
+                            if (explanation.getExplanation() != null) {
+                                builder.field("explanation", explanation.getExplanation());
                             }
                             builder.endObject();
                         }

@@ -25,6 +25,8 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,7 +50,7 @@ import java.util.List;
  */
 public class InternalStringTermsFacet extends InternalTermsFacet {
 
-    private static final String STREAM_TYPE = "tTerms";
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray("tTerms");
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -56,13 +58,13 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
     static Stream STREAM = new Stream() {
         @Override
-        public Facet readFacet(String type, StreamInput in) throws IOException {
+        public Facet readFacet(StreamInput in) throws IOException {
             return readTermsFacet(in);
         }
     };
 
     @Override
-    public String streamType() {
+    public BytesReference streamType() {
         return STREAM_TYPE;
     }
 
@@ -86,38 +88,26 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
             this.count = count;
         }
 
-        public Text term() {
-            return term;
-        }
-
+        @Override
         public Text getTerm() {
             return term;
         }
 
         @Override
-        public Number termAsNumber() {
-            // LUCENE 4 UPGRADE: better way?
+        public Number getTermAsNumber() {
             return Double.parseDouble(term.string());
         }
 
         @Override
-        public Number getTermAsNumber() {
-            return termAsNumber();
-        }
-
-        public int count() {
-            return count;
-        }
-
         public int getCount() {
-            return count();
+            return count;
         }
 
         @Override
         public int compareTo(Entry o) {
-            int i = this.term.compareTo(o.term());
+            int i = this.term.compareTo(o.getTerm());
             if (i == 0) {
-                i = count - o.count();
+                i = count - o.getCount();
                 if (i == 0) {
                     i = System.identityHashCode(this) - System.identityHashCode(o);
                 }
@@ -126,23 +116,17 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         }
     }
 
-    private String name;
-
     int requiredSize;
-
     long missing;
-
     long total;
-
     Collection<TermEntry> entries = ImmutableList.of();
-
     ComparatorType comparatorType;
 
     InternalStringTermsFacet() {
     }
 
     public InternalStringTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<TermEntry> entries, long missing, long total) {
-        this.name = name;
+        super(name);
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
@@ -151,36 +135,11 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public String name() {
-        return this.name;
-    }
-
-    @Override
-    public String getName() {
-        return this.name;
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
-    }
-
-    @Override
-    public String getType() {
-        return type();
-    }
-
-    @Override
-    public List<TermEntry> entries() {
+    public List<TermEntry> getEntries() {
         if (!(entries instanceof List)) {
             entries = ImmutableList.copyOf(entries);
         }
         return (List<TermEntry>) entries;
-    }
-
-    @Override
-    public List<TermEntry> getEntries() {
-        return entries();
     }
 
     @SuppressWarnings({"unchecked"})
@@ -190,37 +149,22 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public long missingCount() {
+    public long getMissingCount() {
         return this.missing;
     }
 
     @Override
-    public long getMissingCount() {
-        return missingCount();
-    }
-
-    @Override
-    public long totalCount() {
+    public long getTotalCount() {
         return this.total;
     }
 
     @Override
-    public long getTotalCount() {
-        return totalCount();
-    }
-
-    @Override
-    public long otherCount() {
+    public long getOtherCount() {
         long other = total;
         for (Entry entry : entries) {
-            other -= entry.count();
+            other -= entry.getCount();
         }
         return other;
-    }
-
-    @Override
-    public long getOtherCount() {
-        return otherCount();
     }
 
     @Override
@@ -234,10 +178,10 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         long total = 0;
         for (Facet facet : facets) {
             InternalStringTermsFacet mFacet = (InternalStringTermsFacet) facet;
-            missing += mFacet.missingCount();
-            total += mFacet.totalCount();
+            missing += mFacet.getMissingCount();
+            total += mFacet.getTotalCount();
             for (TermEntry entry : mFacet.entries) {
-                aggregated.adjustOrPutValue(entry.term(), entry.count(), entry.count());
+                aggregated.adjustOrPutValue(entry.getTerm(), entry.getCount(), entry.getCount());
             }
         }
 
@@ -267,16 +211,16 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields.MISSING, missing);
         builder.field(Fields.TOTAL, total);
-        builder.field(Fields.OTHER, otherCount());
+        builder.field(Fields.OTHER, getOtherCount());
         builder.startArray(Fields.TERMS);
         for (Entry entry : entries) {
             builder.startObject();
-            builder.field(Fields.TERM, entry.term());
-            builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.TERM, entry.getTerm());
+            builder.field(Fields.COUNT, entry.getCount());
             builder.endObject();
         }
         builder.endArray();
@@ -292,7 +236,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+        super.readFrom(in);
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
@@ -307,7 +251,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        super.writeTo(out);
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);
@@ -315,8 +259,8 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
 
         out.writeVInt(entries.size());
         for (Entry entry : entries) {
-            out.writeText(entry.term());
-            out.writeVInt(entry.count());
+            out.writeText(entry.getTerm());
+            out.writeVInt(entry.getCount());
         }
     }
 }

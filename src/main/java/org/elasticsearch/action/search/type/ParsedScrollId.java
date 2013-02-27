@@ -49,19 +49,19 @@ public class ParsedScrollId {
         this.attributes = attributes;
     }
 
-    public String source() {
+    public String getSource() {
         return source;
     }
 
-    public String type() {
+    public String getType() {
         return type;
     }
 
-    public Tuple<String, Long>[] context() {
+    public Tuple<String, Long>[] getContext() {
         return context;
     }
 
-    public Map<String, String> attributes() {
+    public Map<String, String> getAttributes() {
         return this.attributes;
     }
 }

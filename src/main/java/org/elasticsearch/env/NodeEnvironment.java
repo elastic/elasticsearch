@@ -234,9 +234,10 @@ public class NodeEnvironment extends AbstractComponent {
         if (locks != null) {
             for (Lock lock : locks) {
                 try {
+                    logger.trace("releasing lock [{}]", lock);
                     lock.release();
                 } catch (IOException e) {
-                    // ignore
+                    logger.trace("failed to release lock [{}]", e, lock);
                 }
             }
         }

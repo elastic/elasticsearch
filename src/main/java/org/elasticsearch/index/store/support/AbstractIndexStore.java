@@ -21,7 +21,6 @@ package org.elasticsearch.index.store.support;
 
 import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -40,17 +39,13 @@ import java.io.IOException;
  */
 public abstract class AbstractIndexStore extends AbstractIndexComponent implements IndexStore {
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                "index.store.throttle.type",
-                "index.store.throttle.max_bytes_per_sec"
-        );
-    }
+    public static final String INDEX_STORE_THROTTLE_TYPE = "index.store.throttle.type";
+    public static final String INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC = "index.store.throttle.max_bytes_per_sec";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            String rateLimitingType = indexSettings.get("index.store.throttle.type", AbstractIndexStore.this.rateLimitingType);
+            String rateLimitingType = indexSettings.get(INDEX_STORE_THROTTLE_TYPE, AbstractIndexStore.this.rateLimitingType);
             if (!rateLimitingType.equals(AbstractIndexStore.this.rateLimitingType)) {
                 logger.info("updating index.store.throttle.type from [{}] to [{}]", AbstractIndexStore.this.rateLimitingType, rateLimitingType);
                 if (rateLimitingType.equalsIgnoreCase("node")) {
@@ -64,7 +59,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
                 }
             }
 
-            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize("index.store.throttle.max_bytes_per_sec", AbstractIndexStore.this.rateLimitingThrottle);
+            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, AbstractIndexStore.this.rateLimitingThrottle);
             if (!rateLimitingThrottle.equals(AbstractIndexStore.this.rateLimitingThrottle)) {
                 logger.info("updating index.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", AbstractIndexStore.this.rateLimitingThrottle, rateLimitingThrottle, AbstractIndexStore.this.rateLimitingType);
                 AbstractIndexStore.this.rateLimitingThrottle = rateLimitingThrottle;
@@ -91,14 +86,14 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
         this.indexService = indexService;
         this.indicesStore = indicesStore;
 
-        this.rateLimitingType = indexSettings.get("index.store.throttle.type", "node");
+        this.rateLimitingType = indexSettings.get(INDEX_STORE_THROTTLE_TYPE, "node");
         if (rateLimitingType.equalsIgnoreCase("node")) {
             nodeRateLimiting = true;
         } else {
             nodeRateLimiting = false;
             rateLimiting.setType(rateLimitingType);
         }
-        this.rateLimitingThrottle = indexSettings.getAsBytesSize("index.store.throttle.max_bytes_per_sec", new ByteSizeValue(0));
+        this.rateLimitingThrottle = indexSettings.getAsBytesSize(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(0));
         rateLimiting.setMaxRate(rateLimitingThrottle);
 
         logger.debug("using index.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);

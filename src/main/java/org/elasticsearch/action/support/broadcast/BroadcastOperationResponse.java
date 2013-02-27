@@ -57,22 +57,8 @@ public abstract class BroadcastOperationResponse extends ActionResponse {
     /**
      * The total shards this request ran against.
      */
-    public int totalShards() {
-        return totalShards;
-    }
-
-    /**
-     * The total shards this request ran against.
-     */
     public int getTotalShards() {
         return totalShards;
-    }
-
-    /**
-     * The successful shards this request was executed on.
-     */
-    public int successfulShards() {
-        return successfulShards;
     }
 
     /**
@@ -85,13 +71,6 @@ public abstract class BroadcastOperationResponse extends ActionResponse {
     /**
      * The failed shards this request was executed on.
      */
-    public int failedShards() {
-        return failedShards;
-    }
-
-    /**
-     * The failed shards this request was executed on.
-     */
     public int getFailedShards() {
         return failedShards;
     }
@@ -99,17 +78,10 @@ public abstract class BroadcastOperationResponse extends ActionResponse {
     /**
      * The list of shard failures exception.
      */
-    public List<? extends ShardOperationFailedException> shardFailures() {
+    public List<? extends ShardOperationFailedException> getShardFailures() {
         if (shardFailures == null) {
             return ImmutableList.of();
         }
-        return shardFailures;
-    }
-
-    /**
-     * The list of shard failures exception.
-     */
-    public List<ShardOperationFailedException> getShardFailures() {
         return shardFailures;
     }
 

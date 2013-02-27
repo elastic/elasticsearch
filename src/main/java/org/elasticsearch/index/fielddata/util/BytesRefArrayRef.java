@@ -53,6 +53,10 @@ public class BytesRefArrayRef {
         }
     }
 
+    public boolean isEmpty() {
+        return size() == 0;
+    }
+
     public int size() {
         return end - start;
     }

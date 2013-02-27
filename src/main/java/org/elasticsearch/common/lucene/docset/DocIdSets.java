@@ -82,7 +82,12 @@ public class DocIdSets {
         if (set instanceof FixedBitSet) {
             return set;
         }
-        return toFixedBitSet(set.iterator(), reader.maxDoc());
+        FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
+        do {
+            fixedBitSet.set(doc);
+            doc = it.nextDoc();
+        } while (doc != DocIdSetIterator.NO_MORE_DOCS);
+        return fixedBitSet;
     }
 
     /**
@@ -100,16 +105,16 @@ public class DocIdSets {
         if (iterator == null) {
             return new Bits.MatchNoBits(reader.maxDoc());
         }
-        return new FixedBitSet(toFixedBitSet(iterator, reader.maxDoc()));
+        return toFixedBitSet(iterator, reader.maxDoc());
     }
 
     /**
      * Creates a {@link FixedBitSet} from an iterator.
      */
-    public static FixedBitSet toFixedBitSet(DocIdSetIterator iteartor, int numBits) throws IOException {
+    public static FixedBitSet toFixedBitSet(DocIdSetIterator iterator, int numBits) throws IOException {
         FixedBitSet set = new FixedBitSet(numBits);
         int doc;
-        while ((doc = iteartor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+        while ((doc = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
             set.set(doc);
         }
         return set;

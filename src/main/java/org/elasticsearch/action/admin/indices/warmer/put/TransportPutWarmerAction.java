@@ -92,8 +92,8 @@ public class TransportPutWarmerAction extends TransportMasterNodeOperationAction
         SearchResponse searchResponse = searchAction.execute(request.searchRequest()).actionGet();
         // check no shards errors
         //TODO: better failure to raise...
-        if (searchResponse.failedShards() > 0) {
-            throw new ElasticSearchException("search failed with failed shards: " + Arrays.toString(searchResponse.shardFailures()));
+        if (searchResponse.getFailedShards() > 0) {
+            throw new ElasticSearchException("search failed with failed shards: " + Arrays.toString(searchResponse.getShardFailures()));
         }
 
         // all is well, continue to the cluster service

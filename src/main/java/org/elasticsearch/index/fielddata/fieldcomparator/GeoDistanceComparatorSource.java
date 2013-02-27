@@ -32,13 +32,13 @@ import java.io.IOException;
  */
 public class GeoDistanceComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexGeoPointFieldData indexFieldData;
+    private final IndexGeoPointFieldData<?> indexFieldData;
     private final double lat;
     private final double lon;
     private final DistanceUnit unit;
     private final GeoDistance geoDistance;
 
-    public GeoDistanceComparatorSource(IndexGeoPointFieldData indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance) {
+    public GeoDistanceComparatorSource(IndexGeoPointFieldData<?> indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance) {
         this.indexFieldData = indexFieldData;
         this.lat = lat;
         this.lon = lon;

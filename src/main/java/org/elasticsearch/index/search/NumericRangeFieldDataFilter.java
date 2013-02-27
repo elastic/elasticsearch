@@ -131,7 +131,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final ByteValues values = indexFieldData.load(ctx).getByteValues();
+                final LongValues values = indexFieldData.load(ctx).getLongValues();
                 return new MatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs) {
 
                     @Override
@@ -141,9 +141,9 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
                     @Override
                     protected boolean matchDoc(int doc) {
-                        ByteValues.Iter iter = values.getIter(doc);
+                        LongValues.Iter iter = values.getIter(doc);
                         while (iter.hasNext()) {
-                            byte value = iter.next();
+                            long value = iter.next();
                             if (value >= inclusiveLowerPoint && value <= inclusiveUpperPoint) {
                                 return true;
                             }
@@ -181,7 +181,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final ShortValues values = indexFieldData.load(ctx).getShortValues();
+                final LongValues values = indexFieldData.load(ctx).getLongValues();
                 return new MatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs) {
 
                     @Override
@@ -191,9 +191,9 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
                     @Override
                     protected boolean matchDoc(int doc) {
-                        ShortValues.Iter iter = values.getIter(doc);
+                        LongValues.Iter iter = values.getIter(doc);
                         while (iter.hasNext()) {
-                            short value = iter.next();
+                            long value = iter.next();
                             if (value >= inclusiveLowerPoint && value <= inclusiveUpperPoint) {
                                 return true;
                             }
@@ -230,7 +230,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final IntValues values = indexFieldData.load(ctx).getIntValues();
+                final LongValues values = indexFieldData.load(ctx).getLongValues();
                 return new MatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs) {
 
                     @Override
@@ -240,9 +240,9 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
                     @Override
                     protected boolean matchDoc(int doc) {
-                        IntValues.Iter iter = values.getIter(doc);
+                        LongValues.Iter iter = values.getIter(doc);
                         while (iter.hasNext()) {
-                            int value = iter.next();
+                            long value = iter.next();
                             if (value >= inclusiveLowerPoint && value <= inclusiveUpperPoint) {
                                 return true;
                             }
@@ -332,7 +332,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
                 if (inclusiveLowerPoint > inclusiveUpperPoint)
                     return null;
 
-                final FloatValues values = indexFieldData.load(ctx).getFloatValues();
+                final DoubleValues values = indexFieldData.load(ctx).getDoubleValues();
                 return new MatchDocIdSet(ctx.reader().maxDoc(), acceptedDocs) {
 
                     @Override
@@ -342,9 +342,9 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
 
                     @Override
                     protected boolean matchDoc(int doc) {
-                        FloatValues.Iter iter = values.getIter(doc);
+                        DoubleValues.Iter iter = values.getIter(doc);
                         while (iter.hasNext()) {
-                            float value = iter.next();
+                            double value = iter.next();
                             if (value >= inclusiveLowerPoint && value <= inclusiveUpperPoint) {
                                 return true;
                             }

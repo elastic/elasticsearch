@@ -19,27 +19,19 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.IntValues;
 
 import java.io.IOException;
 
 /**
  */
-public class IntValuesComparator extends FieldComparator<Integer> {
+public final class IntValuesComparator extends LongValuesComparatorBase<Integer> {
 
-    private final IndexNumericFieldData indexFieldData;
-    private final int missingValue;
+    private final int[] values;
 
-    protected final int[] values;
-    private int bottom;
-    private IntValues readerValues;
-
-    public IntValuesComparator(IndexNumericFieldData indexFieldData, int missingValue, int numHits) {
-        this.indexFieldData = indexFieldData;
-        this.missingValue = missingValue;
+    public IntValuesComparator(IndexNumericFieldData<?> indexFieldData, int missingValue, int numHits, SortMode sortMode) {
+        super(indexFieldData, missingValue, sortMode);
+        assert indexFieldData.getNumericType().requiredBits() <= 32;
         this.values = new int[numHits];
     }
 
@@ -62,44 +54,12 @@ public class IntValuesComparator extends FieldComparator<Integer> {
     }
 
     @Override
-    public int compareBottom(int doc) throws IOException {
-        int v2 = readerValues.getValueMissing(doc, missingValue);
-
-        if (bottom > v2) {
-            return 1;
-        } else if (bottom < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
-
-    @Override
     public void copy(int slot, int doc) throws IOException {
-        values[slot] = readerValues.getValueMissing(doc, missingValue);
-    }
-
-    @Override
-    public FieldComparator<Integer> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getIntValues();
-        return this;
+        values[slot] = (int) readerValues.getValueMissing(doc, missingValue);
     }
 
     @Override
     public Integer value(int slot) {
         return Integer.valueOf(values[slot]);
-    }
-
-    @Override
-    public int compareDocToValue(int doc, Integer valueObj) throws IOException {
-        final int value = valueObj.intValue();
-        int docValue = readerValues.getValueMissing(doc, missingValue);
-        if (docValue < value) {
-            return -1;
-        } else if (docValue > value) {
-            return 1;
-        } else {
-            return 0;
-        }
     }
 }

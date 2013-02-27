@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
 
@@ -35,6 +36,12 @@ public class FieldSortBuilder extends SortBuilder {
     private Object missing;
 
     private Boolean ignoreUnampped;
+
+    private String sortMode;
+
+    private FilterBuilder nestedFilter;
+
+    private String nestedPath;
 
     /**
      * Constructs a new sort based on a document field.
@@ -73,6 +80,36 @@ public class FieldSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * Defines what values to pick in the case a document contains multiple values for the targeted sort field.
+     * Possible values: min, max, sum and avg
+     * <p/>
+     * The last two values are only applicable for number based fields.
+     */
+    public FieldSortBuilder sortMode(String sortMode) {
+        this.sortMode = sortMode;
+        return this;
+    }
+
+    /**
+     * Sets the nested filter that the nested objects should match with in order to be taken into account
+     * for sorting.
+     */
+    public FieldSortBuilder setNestedFilter(FilterBuilder nestedFilter) {
+        this.nestedFilter = nestedFilter;
+        return this;
+    }
+
+
+    /**
+     * Sets the nested path if sorting occurs on a field that is inside a nested object. By default when sorting on a
+     * field inside a nested object, the nearest upper nested object is selected as nested path.
+     */
+    public FieldSortBuilder setNestedPath(String nestedPath) {
+        this.nestedPath = nestedPath;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(fieldName);
@@ -84,6 +121,15 @@ public class FieldSortBuilder extends SortBuilder {
         }
         if (ignoreUnampped != null) {
             builder.field("ignore_unmapped", ignoreUnampped);
+        }
+        if (sortMode != null) {
+            builder.field("sort_mode", sortMode);
+        }
+        if (nestedFilter != null) {
+            builder.field("nested_filter", nestedFilter, params);
+        }
+        if (nestedPath != null) {
+            builder.field("nested_path", nestedPath);
         }
         builder.endObject();
         return builder;

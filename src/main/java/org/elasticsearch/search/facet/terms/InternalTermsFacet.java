@@ -27,11 +27,23 @@ import org.elasticsearch.search.facet.terms.strings.InternalStringTermsFacet;
 /**
  *
  */
-public abstract class InternalTermsFacet implements TermsFacet, InternalFacet {
+public abstract class InternalTermsFacet extends InternalFacet implements TermsFacet {
 
     public static void registerStreams() {
         InternalStringTermsFacet.registerStream();
         InternalLongTermsFacet.registerStream();
         InternalDoubleTermsFacet.registerStream();
+    }
+
+    protected InternalTermsFacet() {
+    }
+
+    protected InternalTermsFacet(String facetName) {
+        super(facetName);
+    }
+
+    @Override
+    public final String getType() {
+        return TYPE;
     }
 }

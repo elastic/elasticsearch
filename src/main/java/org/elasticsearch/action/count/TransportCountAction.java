@@ -104,7 +104,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, CountRequest request, String[] concreteIndices) {
         Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
-        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, null);
+        return clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
     }
 
     @Override
@@ -134,7 +134,7 @@ public class TransportCountAction extends TransportBroadcastOperationAction<Coun
                 }
                 shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) shardResponse));
             } else {
-                count += ((ShardCountResponse) shardResponse).count();
+                count += ((ShardCountResponse) shardResponse).getCount();
                 successfulShards++;
             }
         }

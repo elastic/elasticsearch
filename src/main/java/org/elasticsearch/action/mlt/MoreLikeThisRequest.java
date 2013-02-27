@@ -107,7 +107,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
     }
 
     /**
-     * The type of document to load from which the "like" query will rutn with.
+     * The type of document to load from which the "like" query will run with.
      */
     public String type() {
         return type;

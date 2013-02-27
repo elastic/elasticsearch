@@ -25,6 +25,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -50,7 +51,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     public void removeTemplate(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (!currentState.metaData().templates().containsKey(request.name)) {
@@ -115,7 +116,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
         final IndexTemplateMetaData template = templateBuilder.build();
 
-        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 if (request.create && currentState.metaData().templates().containsKey(request.name)) {

@@ -72,50 +72,50 @@ public class ClusterRerouteTests extends AbstractNodesTests {
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
 
-        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, *under dry_run*");
         state = client("node1").admin().cluster().prepareReroute()
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), "node1", true))
                 .setDryRun(true)
-                .execute().actionGet().state();
+                .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         logger.info("--> get the state, verify nothing changed because of the dry run");
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client("node1").admin().cluster().prepareReroute()
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), "node1", true))
-                .execute().actionGet().state();
+                .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         ClusterHealthResponse healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary allocated");
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
 
         logger.info("--> move shard 1 primary from node1 to node2");
         state = client("node1").admin().cluster().prepareReroute()
                 .add(new MoveAllocationCommand(new ShardId("test", 0), "node1", "node2"))
-                .execute().actionGet().state();
+                .execute().actionGet().getState();
 
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.RELOCATING));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node2").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
 
         healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForRelocatingShards(0).execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary moved from node1 to node2");
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node2").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
     }
@@ -143,21 +143,21 @@ public class ClusterRerouteTests extends AbstractNodesTests {
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
 
-        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(2));
 
         logger.info("--> explicitly allocate shard 1, actually allocating, no dry run");
         state = client("node1").admin().cluster().prepareReroute()
                 .add(new AllocateAllocationCommand(new ShardId("test", 0), "node1", true))
-                .execute().actionGet().state();
+                .execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
 
         ClusterHealthResponse healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> get the state, verify shard 1 primary allocated");
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
     }

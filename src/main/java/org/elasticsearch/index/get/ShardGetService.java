@@ -94,7 +94,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             GetResult getResult = innerGet(type, id, gFields, realtime);
-            if (getResult.exists()) {
+            if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
                 missingMetric.inc(System.nanoTime() - now);
@@ -127,7 +127,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
             }
 
             GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, engineGetResult, docMapper);
-            if (getResult.exists()) {
+            if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
                 missingMetric.inc(System.nanoTime() - now); // This shouldn't happen...
@@ -260,7 +260,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                 getField = new GetField(field, new ArrayList<Object>(2));
                                 fields.put(field, getField);
                             }
-                            getField.values().add(value);
+                            getField.getValues().add(value);
                         }
                     }
                 }
@@ -345,7 +345,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         getField = new GetField(field, new ArrayList<Object>(2));
                         fields.put(field, getField);
                     }
-                    getField.values().add(value);
+                    getField.getValues().add(value);
                 }
             }
         }

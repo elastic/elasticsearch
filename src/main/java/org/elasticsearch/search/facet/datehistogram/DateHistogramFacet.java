@@ -38,11 +38,6 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
     /**
      * An ordered list of histogram facet entries.
      */
-    List<? extends Entry> entries();
-
-    /**
-     * An ordered list of histogram facet entries.
-     */
     List<? extends Entry> getEntries();
 
     public static enum ComparatorType {
@@ -60,7 +55,7 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
                 if (o2 == null) {
                     return -1;
                 }
-                return (o1.time() < o2.time() ? -1 : (o1.time() == o2.time() ? 0 : 1));
+                return (o1.getTime() < o2.getTime() ? -1 : (o1.getTime() == o2.getTime() ? 0 : 1));
             }
         }),
         COUNT((byte) 1, "count", new Comparator<Entry>() {
@@ -77,7 +72,7 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
                 if (o2 == null) {
                     return -1;
                 }
-                return (o1.count() < o2.count() ? -1 : (o1.count() == o2.count() ? 0 : 1));
+                return (o1.getCount() < o2.getCount() ? -1 : (o1.getCount() == o2.getCount() ? 0 : 1));
             }
         }),
         TOTAL((byte) 2, "total", new Comparator<Entry>() {
@@ -94,7 +89,7 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
                 if (o2 == null) {
                     return -1;
                 }
-                return (o1.total() < o2.total() ? -1 : (o1.total() == o2.total() ? 0 : 1));
+                return (o1.getTotal() < o2.getTotal() ? -1 : (o1.getTotal() == o2.getTotal() ? 0 : 1));
             }
         });
 
@@ -150,17 +145,7 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
         /**
          * The time bucket start (in milliseconds).
          */
-        long time();
-
-        /**
-         * The time bucket start (in milliseconds).
-         */
         long getTime();
-
-        /**
-         * The number of hits that fall within that key "range" or "interval".
-         */
-        long count();
 
         /**
          * The number of hits that fall within that key "range" or "interval".
@@ -170,17 +155,7 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
         /**
          * The total count of values aggregated to compute the total.
          */
-        long totalCount();
-
-        /**
-         * The total count of values aggregated to compute the total.
-         */
         long getTotalCount();
-
-        /**
-         * The sum / total of the value field that fall within this key "interval".
-         */
-        double total();
 
         /**
          * The sum / total of the value field that fall within this key "interval".
@@ -190,27 +165,12 @@ public interface DateHistogramFacet extends Facet, Iterable<DateHistogramFacet.E
         /**
          * The mean of this facet interval.
          */
-        double mean();
-
-        /**
-         * The mean of this facet interval.
-         */
         double getMean();
 
         /**
          * The minimum value.
          */
-        double min();
-
-        /**
-         * The minimum value.
-         */
         double getMin();
-
-        /**
-         * The maximum value.
-         */
-        double max();
 
         /**
          * The maximum value.

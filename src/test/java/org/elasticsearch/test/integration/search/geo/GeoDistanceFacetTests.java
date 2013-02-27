@@ -135,27 +135,27 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(7l));
-        GeoDistanceFacet facet = searchResponse.facets().facet("geo1");
-        assertThat(facet.entries().size(), equalTo(4));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(7l));
+        GeoDistanceFacet facet = searchResponse.getFacets().facet("geo1");
+        assertThat(facet.getEntries().size(), equalTo(4));
 
-        assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
-        assertThat(facet.entries().get(0).count(), equalTo(4l));
-        assertThat(facet.entries().get(0).total(), not(closeTo(0, 0.00001)));
+        assertThat(facet.getEntries().get(0).getTo(), closeTo(2, 0.000001));
+        assertThat(facet.getEntries().get(0).getCount(), equalTo(4l));
+        assertThat(facet.getEntries().get(0).getTotal(), not(closeTo(0, 0.00001)));
 
-        assertThat(facet.entries().get(1).from(), closeTo(0, 0.000001));
-        assertThat(facet.entries().get(1).to(), closeTo(1, 0.000001));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), not(closeTo(0, 0.00001)));
+        assertThat(facet.getEntries().get(1).getFrom(), closeTo(0, 0.000001));
+        assertThat(facet.getEntries().get(1).getTo(), closeTo(1, 0.000001));
+        assertThat(facet.getEntries().get(1).getCount(), equalTo(2l));
+        assertThat(facet.getEntries().get(1).getTotal(), not(closeTo(0, 0.00001)));
 
-        assertThat(facet.entries().get(2).from(), closeTo(0.5, 0.000001));
-        assertThat(facet.entries().get(2).to(), closeTo(2.5, 0.000001));
-        assertThat(facet.entries().get(2).count(), equalTo(3l));
-        assertThat(facet.entries().get(2).total(), not(closeTo(0, 0.00001)));
+        assertThat(facet.getEntries().get(2).getFrom(), closeTo(0.5, 0.000001));
+        assertThat(facet.getEntries().get(2).getTo(), closeTo(2.5, 0.000001));
+        assertThat(facet.getEntries().get(2).getCount(), equalTo(3l));
+        assertThat(facet.getEntries().get(2).getTotal(), not(closeTo(0, 0.00001)));
 
-        assertThat(facet.entries().get(3).from(), closeTo(1, 0.000001));
-        assertThat(facet.entries().get(3).count(), equalTo(5l));
-        assertThat(facet.entries().get(3).total(), not(closeTo(0, 0.00001)));
+        assertThat(facet.getEntries().get(3).getFrom(), closeTo(1, 0.000001));
+        assertThat(facet.getEntries().get(3).getCount(), equalTo(5l));
+        assertThat(facet.getEntries().get(3).getTotal(), not(closeTo(0, 0.00001)));
 
 
         searchResponse = client.prepareSearch() // from NY
@@ -168,27 +168,27 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(7l));
-        facet = searchResponse.facets().facet("geo1");
-        assertThat(facet.entries().size(), equalTo(4));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(7l));
+        facet = searchResponse.getFacets().facet("geo1");
+        assertThat(facet.getEntries().size(), equalTo(4));
 
-        assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
-        assertThat(facet.entries().get(0).count(), equalTo(4l));
-        assertThat(facet.entries().get(0).total(), closeTo(13, 0.00001));
+        assertThat(facet.getEntries().get(0).getTo(), closeTo(2, 0.000001));
+        assertThat(facet.getEntries().get(0).getCount(), equalTo(4l));
+        assertThat(facet.getEntries().get(0).getTotal(), closeTo(13, 0.00001));
 
-        assertThat(facet.entries().get(1).from(), closeTo(0, 0.000001));
-        assertThat(facet.entries().get(1).to(), closeTo(1, 0.000001));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), closeTo(4, 0.00001));
+        assertThat(facet.getEntries().get(1).getFrom(), closeTo(0, 0.000001));
+        assertThat(facet.getEntries().get(1).getTo(), closeTo(1, 0.000001));
+        assertThat(facet.getEntries().get(1).getCount(), equalTo(2l));
+        assertThat(facet.getEntries().get(1).getTotal(), closeTo(4, 0.00001));
 
-        assertThat(facet.entries().get(2).from(), closeTo(0.5, 0.000001));
-        assertThat(facet.entries().get(2).to(), closeTo(2.5, 0.000001));
-        assertThat(facet.entries().get(2).count(), equalTo(3l));
-        assertThat(facet.entries().get(2).total(), closeTo(15, 0.00001));
+        assertThat(facet.getEntries().get(2).getFrom(), closeTo(0.5, 0.000001));
+        assertThat(facet.getEntries().get(2).getTo(), closeTo(2.5, 0.000001));
+        assertThat(facet.getEntries().get(2).getCount(), equalTo(3l));
+        assertThat(facet.getEntries().get(2).getTotal(), closeTo(15, 0.00001));
 
-        assertThat(facet.entries().get(3).from(), closeTo(1, 0.000001));
-        assertThat(facet.entries().get(3).count(), equalTo(5l));
-        assertThat(facet.entries().get(3).total(), closeTo(24, 0.00001));
+        assertThat(facet.getEntries().get(3).getFrom(), closeTo(1, 0.000001));
+        assertThat(facet.getEntries().get(3).getCount(), equalTo(5l));
+        assertThat(facet.getEntries().get(3).getTotal(), closeTo(24, 0.00001));
 
         searchResponse = client.prepareSearch() // from NY
                 .setQuery(matchAllQuery())
@@ -200,27 +200,27 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(7l));
-        facet = searchResponse.facets().facet("geo1");
-        assertThat(facet.entries().size(), equalTo(4));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(7l));
+        facet = searchResponse.getFacets().facet("geo1");
+        assertThat(facet.getEntries().size(), equalTo(4));
 
-        assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
-        assertThat(facet.entries().get(0).count(), equalTo(4l));
-        assertThat(facet.entries().get(0).total(), closeTo(13, 0.00001));
+        assertThat(facet.getEntries().get(0).getTo(), closeTo(2, 0.000001));
+        assertThat(facet.getEntries().get(0).getCount(), equalTo(4l));
+        assertThat(facet.getEntries().get(0).getTotal(), closeTo(13, 0.00001));
 
-        assertThat(facet.entries().get(1).from(), closeTo(0, 0.000001));
-        assertThat(facet.entries().get(1).to(), closeTo(1, 0.000001));
-        assertThat(facet.entries().get(1).count(), equalTo(2l));
-        assertThat(facet.entries().get(1).total(), closeTo(4, 0.00001));
+        assertThat(facet.getEntries().get(1).getFrom(), closeTo(0, 0.000001));
+        assertThat(facet.getEntries().get(1).getTo(), closeTo(1, 0.000001));
+        assertThat(facet.getEntries().get(1).getCount(), equalTo(2l));
+        assertThat(facet.getEntries().get(1).getTotal(), closeTo(4, 0.00001));
 
-        assertThat(facet.entries().get(2).from(), closeTo(0.5, 0.000001));
-        assertThat(facet.entries().get(2).to(), closeTo(2.5, 0.000001));
-        assertThat(facet.entries().get(2).count(), equalTo(3l));
-        assertThat(facet.entries().get(2).total(), closeTo(15, 0.00001));
+        assertThat(facet.getEntries().get(2).getFrom(), closeTo(0.5, 0.000001));
+        assertThat(facet.getEntries().get(2).getTo(), closeTo(2.5, 0.000001));
+        assertThat(facet.getEntries().get(2).getCount(), equalTo(3l));
+        assertThat(facet.getEntries().get(2).getTotal(), closeTo(15, 0.00001));
 
-        assertThat(facet.entries().get(3).from(), closeTo(1, 0.000001));
-        assertThat(facet.entries().get(3).count(), equalTo(5l));
-        assertThat(facet.entries().get(3).total(), closeTo(24, 0.00001));
+        assertThat(facet.getEntries().get(3).getFrom(), closeTo(1, 0.000001));
+        assertThat(facet.getEntries().get(3).getCount(), equalTo(5l));
+        assertThat(facet.getEntries().get(3).getTotal(), closeTo(24, 0.00001));
     }
 
     @Test
@@ -267,18 +267,18 @@ public class GeoDistanceFacetTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
-        GeoDistanceFacet facet = searchResponse.facets().facet("geo1");
-        assertThat(facet.entries().size(), equalTo(2));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        GeoDistanceFacet facet = searchResponse.getFacets().facet("geo1");
+        assertThat(facet.getEntries().size(), equalTo(2));
 
-        assertThat(facet.entries().get(0).from(), closeTo(0, 0.000001));
-        assertThat(facet.entries().get(0).to(), closeTo(2, 0.000001));
-        assertThat(facet.entries().get(0).count(), equalTo(2l));
+        assertThat(facet.getEntries().get(0).getFrom(), closeTo(0, 0.000001));
+        assertThat(facet.getEntries().get(0).getTo(), closeTo(2, 0.000001));
+        assertThat(facet.getEntries().get(0).getCount(), equalTo(2l));
 
-        assertThat(facet.entries().get(1).from(), closeTo(2, 0.000001));
-        assertThat(facet.entries().get(1).to(), closeTo(10, 0.000001));
-        assertThat(facet.entries().get(1).count(), equalTo(1l));
+        assertThat(facet.getEntries().get(1).getFrom(), closeTo(2, 0.000001));
+        assertThat(facet.getEntries().get(1).getTo(), closeTo(10, 0.000001));
+        assertThat(facet.getEntries().get(1).getCount(), equalTo(1l));
     }
 }

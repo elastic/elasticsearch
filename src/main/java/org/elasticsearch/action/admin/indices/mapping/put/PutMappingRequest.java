@@ -54,9 +54,9 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
 
     private String[] indices;
 
-    private String mappingType;
+    private String type;
 
-    private String mappingSource;
+    private String source;
 
     private TimeValue timeout = new TimeValue(10, TimeUnit.SECONDS);
 
@@ -76,10 +76,10 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (mappingType == null) {
+        if (type == null) {
             validationException = addValidationError("mapping type is missing", validationException);
         }
-        if (mappingSource == null) {
+        if (source == null) {
             validationException = addValidationError("mapping source is missing", validationException);
         }
         return validationException;
@@ -104,23 +104,23 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      * The mapping type.
      */
     public String type() {
-        return mappingType;
+        return type;
     }
 
     /**
      * The type of the mappings.
      */
     @Required
-    public PutMappingRequest type(String mappingType) {
-        this.mappingType = mappingType;
+    public PutMappingRequest type(String type) {
+        this.type = type;
         return this;
     }
 
     /**
      * The mapping source definition.
      */
-    String source() {
-        return mappingSource;
+    public String source() {
+        return source;
     }
 
     /**
@@ -154,7 +154,7 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      */
     @Required
     public PutMappingRequest source(String mappingSource) {
-        this.mappingSource = mappingSource;
+        this.source = mappingSource;
         return this;
     }
 
@@ -206,8 +206,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         indices = in.readStringArray();
-        mappingType = in.readOptionalString();
-        mappingSource = in.readString();
+        type = in.readOptionalString();
+        source = in.readString();
         timeout = readTimeValue(in);
         ignoreConflicts = in.readBoolean();
     }
@@ -216,8 +216,8 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
-        out.writeOptionalString(mappingType);
-        out.writeString(mappingSource);
+        out.writeOptionalString(type);
+        out.writeString(source);
         timeout.writeTo(out);
         out.writeBoolean(ignoreConflicts);
     }

@@ -23,13 +23,14 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ScoreCachingWrappingScorer;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.lucene.search.XCollector;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class MultiCollector extends Collector {
+public class MultiCollector extends XCollector {
 
     private final Collector collector;
 
@@ -79,5 +80,17 @@ public class MultiCollector extends Collector {
             }
         }
         return true;
+    }
+
+    @Override
+    public void postCollection() {
+        if (collector instanceof XCollector) {
+            ((XCollector) collector).postCollection();
+        }
+        for (Collector collector : collectors) {
+            if (collector instanceof XCollector) {
+                ((XCollector) collector).postCollection();
+            }
+        }
     }
 }

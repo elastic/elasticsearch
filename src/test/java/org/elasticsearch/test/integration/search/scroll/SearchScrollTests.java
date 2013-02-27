@@ -89,29 +89,29 @@ public class SearchScrollTests extends AbstractNodesTests {
 
         long counter = 0;
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.hits().hits().length, equalTo(35));
-        for (SearchHit hit : searchResponse.hits()) {
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(35));
+        for (SearchHit hit : searchResponse.getHits()) {
             assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
         }
 
-        searchResponse = client.prepareSearchScroll(searchResponse.scrollId())
+        searchResponse = client.prepareSearchScroll(searchResponse.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.hits().hits().length, equalTo(35));
-        for (SearchHit hit : searchResponse.hits()) {
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(35));
+        for (SearchHit hit : searchResponse.getHits()) {
             assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
         }
 
-        searchResponse = client.prepareSearchScroll(searchResponse.scrollId())
+        searchResponse = client.prepareSearchScroll(searchResponse.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.hits().hits().length, equalTo(30));
-        for (SearchHit hit : searchResponse.hits()) {
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(30));
+        for (SearchHit hit : searchResponse.getHits()) {
             assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
         }
     }
@@ -150,43 +150,43 @@ public class SearchScrollTests extends AbstractNodesTests {
 
         long counter = 0;
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.hits().hits().length, equalTo(3));
-        for (SearchHit hit : searchResponse.hits()) {
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(3));
+        for (SearchHit hit : searchResponse.getHits()) {
             assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
         }
 
         for (int i = 0; i < 32; i++) {
-            searchResponse = client.prepareSearchScroll(searchResponse.scrollId())
+            searchResponse = client.prepareSearchScroll(searchResponse.getScrollId())
                     .setScroll(TimeValue.timeValueMinutes(2))
                     .execute().actionGet();
 
-            assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
-            assertThat(searchResponse.hits().hits().length, equalTo(3));
-            for (SearchHit hit : searchResponse.hits()) {
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+            assertThat(searchResponse.getHits().hits().length, equalTo(3));
+            for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
             }
         }
 
         // and now, the last one is one
-        searchResponse = client.prepareSearchScroll(searchResponse.scrollId())
+        searchResponse = client.prepareSearchScroll(searchResponse.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        for (SearchHit hit : searchResponse.hits()) {
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        for (SearchHit hit : searchResponse.getHits()) {
             assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
         }
 
         // a the last is zero
-        searchResponse = client.prepareSearchScroll(searchResponse.scrollId())
+        searchResponse = client.prepareSearchScroll(searchResponse.getScrollId())
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(100l));
-        assertThat(searchResponse.hits().hits().length, equalTo(0));
-        for (SearchHit hit : searchResponse.hits()) {
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(0));
+        for (SearchHit hit : searchResponse.getHits()) {
             assertThat(((Number) hit.sortValues()[0]).longValue(), equalTo(counter++));
         }
     }
@@ -208,11 +208,11 @@ public class SearchScrollTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(500l));
-        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().count(), equalTo(500l));
-        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().count(), equalTo(500l));
-        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().count(), equalTo(0l));
-        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().count(), equalTo(0l));
+        assertThat(client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(0l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(0l));
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(queryString("user:kimchy"))
@@ -223,19 +223,19 @@ public class SearchScrollTests extends AbstractNodesTests {
 
 
         do {
-            for (SearchHit searchHit : searchResponse.hits().hits()) {
+            for (SearchHit searchHit : searchResponse.getHits().hits()) {
                 Map<String, Object> map = searchHit.sourceAsMap();
                 map.put("message", "update");
                 client.prepareIndex("test", "tweet", searchHit.id()).setSource(map).execute().actionGet();
             }
-            searchResponse = client.prepareSearchScroll(searchResponse.scrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
-        } while (searchResponse.hits().hits().length > 0);
+            searchResponse = client.prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+        } while (searchResponse.getHits().hits().length > 0);
 
         client.admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(500l));
-        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().count(), equalTo(0l));
-        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().count(), equalTo(0l));
-        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().count(), equalTo(500l));
-        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().count(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(0l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(0l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(500l));
+        assertThat(client.prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(500l));
     }
 }

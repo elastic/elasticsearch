@@ -498,6 +498,10 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("stemmer_override", StemmerOverrideTokenFilterFactory.class);
 
             tokenFiltersBindings.processTokenFilter("hunspell", HunspellTokenFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("cjk_bigram", CJKBigramFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("cjk_width", CJKWidthFilterFactory.class);
+
+
         }
 
         @Override

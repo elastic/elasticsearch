@@ -49,15 +49,15 @@ class ShardValidateQueryResponse extends BroadcastShardOperationResponse {
         this.error = error;
     }
 
-    public boolean valid() {
+    public boolean isValid() {
         return this.valid;
     }
     
-    public String explanation() {
+    public String getExplanation() {
         return explanation;
     }
     
-    public String error() {
+    public String getError() {
         return error;
     }
 

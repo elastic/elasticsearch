@@ -89,10 +89,10 @@ import org.elasticsearch.action.admin.indices.settings.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusAction;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequestBuilder;
@@ -341,12 +341,12 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
-    public ActionFuture<IndicesStats> stats(final IndicesStatsRequest request) {
+    public ActionFuture<IndicesStatsResponse> stats(final IndicesStatsRequest request) {
         return execute(IndicesStatsAction.INSTANCE, request);
     }
 
     @Override
-    public void stats(final IndicesStatsRequest request, final ActionListener<IndicesStats> listener) {
+    public void stats(final IndicesStatsRequest request, final ActionListener<IndicesStatsResponse> listener) {
         execute(IndicesStatsAction.INSTANCE, request, listener);
     }
 

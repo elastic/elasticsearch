@@ -66,7 +66,7 @@ public class HeapDumpContributor implements DumpContributor {
     @Override
     public void contribute(Dump dump) throws DumpContributionFailedException {
         if (heapDumpMethod == null) {
-            throw new DumpContributionFailedException(getName(), "Heap dump not enalbed on this JVM");
+            throw new DumpContributionFailedException(getName(), "Heap dump not enabled on this JVM");
         }
         try {
             heapDumpMethod.invoke(diagnosticMBean, dump.createFile("heap.hprof").getAbsolutePath(), true);

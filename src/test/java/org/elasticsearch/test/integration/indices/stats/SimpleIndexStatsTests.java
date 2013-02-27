@@ -20,7 +20,7 @@
 package org.elasticsearch.test.integration.indices.stats;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -57,12 +57,13 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
 
     @Test
     public void simpleStats() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
         // rely on 1 replica for this tests
         client.admin().indices().prepareCreate("test1").execute().actionGet();
         client.admin().indices().prepareCreate("test2").execute().actionGet();
 
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         client.prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
         client.prepareIndex("test1", "type2", Integer.toString(1)).setSource("field", "value").execute().actionGet();
@@ -70,32 +71,32 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        IndicesStats stats = client.admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.primaries().docs().count(), equalTo(3l));
-        assertThat(stats.total().docs().count(), equalTo(6l));
-        assertThat(stats.primaries().indexing().total().indexCount(), equalTo(3l));
-        assertThat(stats.total().indexing().total().indexCount(), equalTo(6l));
-        assertThat(stats.total().store(), notNullValue());
+        IndicesStatsResponse stats = client.admin().indices().prepareStats().execute().actionGet();
+        assertThat(stats.getPrimaries().getDocs().getCount(), equalTo(3l));
+        assertThat(stats.getTotal().getDocs().getCount(), equalTo(6l));
+        assertThat(stats.getPrimaries().getIndexing().getTotal().getIndexCount(), equalTo(3l));
+        assertThat(stats.getTotal().getIndexing().getTotal().getIndexCount(), equalTo(6l));
+        assertThat(stats.getTotal().getStore(), notNullValue());
         // verify nulls
-        assertThat(stats.total().merge(), nullValue());
-        assertThat(stats.total().flush(), nullValue());
-        assertThat(stats.total().refresh(), nullValue());
+        assertThat(stats.getTotal().getMerge(), nullValue());
+        assertThat(stats.getTotal().getFlush(), nullValue());
+        assertThat(stats.getTotal().getRefresh(), nullValue());
 
-        assertThat(stats.index("test1").primaries().docs().count(), equalTo(2l));
-        assertThat(stats.index("test1").total().docs().count(), equalTo(4l));
-        assertThat(stats.index("test1").primaries().store(), notNullValue());
-        assertThat(stats.index("test1").primaries().merge(), nullValue());
-        assertThat(stats.index("test1").primaries().flush(), nullValue());
-        assertThat(stats.index("test1").primaries().refresh(), nullValue());
+        assertThat(stats.getIndex("test1").getPrimaries().getDocs().getCount(), equalTo(2l));
+        assertThat(stats.getIndex("test1").getTotal().getDocs().getCount(), equalTo(4l));
+        assertThat(stats.getIndex("test1").getPrimaries().getStore(), notNullValue());
+        assertThat(stats.getIndex("test1").getPrimaries().getMerge(), nullValue());
+        assertThat(stats.getIndex("test1").getPrimaries().getFlush(), nullValue());
+        assertThat(stats.getIndex("test1").getPrimaries().getRefresh(), nullValue());
 
-        assertThat(stats.index("test2").primaries().docs().count(), equalTo(1l));
-        assertThat(stats.index("test2").total().docs().count(), equalTo(2l));
+        assertThat(stats.getIndex("test2").getPrimaries().getDocs().getCount(), equalTo(1l));
+        assertThat(stats.getIndex("test2").getTotal().getDocs().getCount(), equalTo(2l));
 
         // make sure that number of requests in progress is 0
-        assertThat(stats.index("test1").total().indexing().total().indexCurrent(), equalTo(0l));
-        assertThat(stats.index("test1").total().indexing().total().deleteCurrent(), equalTo(0l));
-        assertThat(stats.index("test1").total().search().total().fetchCurrent(), equalTo(0l));
-        assertThat(stats.index("test1").total().search().total().queryCurrent(), equalTo(0l));
+        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getIndexCurrent(), equalTo(0l));
+        assertThat(stats.getIndex("test1").getTotal().getIndexing().getTotal().getDeleteCurrent(), equalTo(0l));
+        assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getFetchCurrent(), equalTo(0l));
+        assertThat(stats.getIndex("test1").getTotal().getSearch().getTotal().getQueryCurrent(), equalTo(0l));
 
         // check flags
         stats = client.admin().indices().prepareStats()
@@ -107,38 +108,38 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
                 .setMerge(true)
                 .execute().actionGet();
 
-        assertThat(stats.total().docs(), nullValue());
-        assertThat(stats.total().store(), nullValue());
-        assertThat(stats.total().indexing(), nullValue());
-        assertThat(stats.total().merge(), notNullValue());
-        assertThat(stats.total().flush(), notNullValue());
-        assertThat(stats.total().refresh(), notNullValue());
+        assertThat(stats.getTotal().getDocs(), nullValue());
+        assertThat(stats.getTotal().getStore(), nullValue());
+        assertThat(stats.getTotal().getIndexing(), nullValue());
+        assertThat(stats.getTotal().getMerge(), notNullValue());
+        assertThat(stats.getTotal().getFlush(), notNullValue());
+        assertThat(stats.getTotal().getRefresh(), notNullValue());
 
         // check types
         stats = client.admin().indices().prepareStats().setTypes("type1", "type").execute().actionGet();
-        assertThat(stats.primaries().indexing().typeStats().get("type1").indexCount(), equalTo(1l));
-        assertThat(stats.primaries().indexing().typeStats().get("type").indexCount(), equalTo(1l));
-        assertThat(stats.primaries().indexing().typeStats().get("type2"), nullValue());
-        assertThat(stats.primaries().indexing().typeStats().get("type1").indexCurrent(), equalTo(0l));
-        assertThat(stats.primaries().indexing().typeStats().get("type1").deleteCurrent(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCount(), equalTo(1l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type").getIndexCount(), equalTo(1l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type2"), nullValue());
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getIndexCurrent(), equalTo(0l));
+        assertThat(stats.getPrimaries().getIndexing().getTypeStats().get("type1").getDeleteCurrent(), equalTo(0l));
 
-        assertThat(stats.total().get().count(), equalTo(0l));
+        assertThat(stats.getTotal().getGet().getCount(), equalTo(0l));
         // check get
         GetResponse getResponse = client.prepareGet("test1", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.isExists(), equalTo(true));
 
         stats = client.admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.total().get().count(), equalTo(1l));
-        assertThat(stats.total().get().existsCount(), equalTo(1l));
-        assertThat(stats.total().get().missingCount(), equalTo(0l));
+        assertThat(stats.getTotal().getGet().getCount(), equalTo(1l));
+        assertThat(stats.getTotal().getGet().getExistsCount(), equalTo(1l));
+        assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(0l));
 
         // missing get
         getResponse = client.prepareGet("test1", "type1", "2").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
 
         stats = client.admin().indices().prepareStats().execute().actionGet();
-        assertThat(stats.total().get().count(), equalTo(2l));
-        assertThat(stats.total().get().existsCount(), equalTo(1l));
-        assertThat(stats.total().get().missingCount(), equalTo(1l));
+        assertThat(stats.getTotal().getGet().getCount(), equalTo(2l));
+        assertThat(stats.getTotal().getGet().getExistsCount(), equalTo(1l));
+        assertThat(stats.getTotal().getGet().getMissingCount(), equalTo(1l));
     }
 }

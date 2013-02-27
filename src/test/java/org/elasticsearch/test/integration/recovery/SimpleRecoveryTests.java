@@ -56,40 +56,40 @@ public class SimpleRecoveryTests extends AbstractNodesTests {
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         client("server1").index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         FlushResponse flushResponse = client("server1").admin().indices().flush(flushRequest("test")).actionGet();
-        assertThat(flushResponse.totalShards(), equalTo(10));
-        assertThat(flushResponse.successfulShards(), equalTo(5));
-        assertThat(flushResponse.failedShards(), equalTo(0));
+        assertThat(flushResponse.getTotalShards(), equalTo(10));
+        assertThat(flushResponse.getSuccessfulShards(), equalTo(5));
+        assertThat(flushResponse.getFailedShards(), equalTo(0));
         client("server1").index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
         RefreshResponse refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
-        assertThat(refreshResponse.totalShards(), equalTo(10));
-        assertThat(refreshResponse.successfulShards(), equalTo(5));
-        assertThat(refreshResponse.failedShards(), equalTo(0));
+        assertThat(refreshResponse.getTotalShards(), equalTo(10));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(5));
+        assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
         startNode("server2", recoverySettings());
 
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         GetResponse getResult;
 
         for (int i = 0; i < 5; i++) {
             getResult = client("server1").get(getRequest("test").type("type1").id("1").operationThreaded(false)).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
             getResult = client("server2").get(getRequest("test").type("type1").id("1").operationThreaded(false)).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
             getResult = client("server1").get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
             getResult = client("server2").get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
 
         // now start another one so we move some primaries
@@ -97,23 +97,23 @@ public class SimpleRecoveryTests extends AbstractNodesTests {
         Thread.sleep(200);
         logger.info("Running Cluster Health");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForRelocatingShards(0).waitForNodes("3")).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 5; i++) {
             getResult = client("server1").get(getRequest("test").type("type1").id("1")).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
             getResult = client("server2").get(getRequest("test").type("type1").id("1")).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
             getResult = client("server3").get(getRequest("test").type("type1").id("1")).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("1", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("1", "test")));
             getResult = client("server1").get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
             getResult = client("server2").get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
             getResult = client("server3").get(getRequest("test").type("type1").id("2").operationThreaded(true)).actionGet(1000);
-            assertThat(getResult.sourceAsString(), equalTo(source("2", "test")));
+            assertThat(getResult.getSourceAsString(), equalTo(source("2", "test")));
         }
     }
 

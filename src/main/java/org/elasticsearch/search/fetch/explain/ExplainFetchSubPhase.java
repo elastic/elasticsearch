@@ -20,12 +20,16 @@
 package org.elasticsearch.search.fetch.explain;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchPhaseExecutionException;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.Rescorer;
 
 import java.io.IOException;
 import java.util.Map;
@@ -57,8 +61,18 @@ public class ExplainFetchSubPhase implements FetchSubPhase {
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticSearchException {
         try {
+            final int topLevelDocId = hitContext.hit().docId();
+            Explanation explanation;
+            
+            if (context.rescore() != null) {
+                RescoreSearchContext ctx = context.rescore();
+                Rescorer rescorer = ctx.rescorer();
+                explanation = rescorer.explain(topLevelDocId, context, ctx);
+            } else {
+                explanation = context.searcher().explain(context.query(), topLevelDocId);
+            }
             // we use the top level doc id, since we work with the top level searcher
-            hitContext.hit().explanation(context.searcher().explain(context.query(), hitContext.hit().docId()));
+            hitContext.hit().explanation(explanation);
         } catch (IOException e) {
             throw new FetchPhaseExecutionException(context, "Failed to explain doc [" + hitContext.hit().type() + "#" + hitContext.hit().id() + "]", e);
         }

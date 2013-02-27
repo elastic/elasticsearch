@@ -237,18 +237,18 @@ public class SearchScanScrollingTests extends AbstractNodesTests {
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().totalHits(), equalTo(numberOfDocs));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(numberOfDocs));
 
         // start scrolling, until we get not results
         while (true) {
-            searchResponse = client.prepareSearchScroll(searchResponse.scrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
-            assertThat(searchResponse.hits().totalHits(), equalTo(numberOfDocs));
-            assertThat(searchResponse.failedShards(), equalTo(0));
-            for (SearchHit hit : searchResponse.hits()) {
+            searchResponse = client.prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(numberOfDocs));
+            assertThat(searchResponse.getFailedShards(), equalTo(0));
+            for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(hit.id() + "should not exists in the result set", ids.contains(hit.id()), equalTo(false));
                 ids.add(hit.id());
             }
-            if (searchResponse.hits().hits().length == 0) {
+            if (searchResponse.getHits().hits().length == 0) {
                 break;
             }
         }

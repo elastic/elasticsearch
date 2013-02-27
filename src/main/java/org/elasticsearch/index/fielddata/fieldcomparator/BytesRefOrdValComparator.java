@@ -22,7 +22,6 @@ package org.elasticsearch.index.fielddata.fieldcomparator;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
@@ -42,11 +41,13 @@ import java.io.IOException;
  */
 public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
-    final IndexFieldData.WithOrdinals indexFieldData;
+    final IndexFieldData.WithOrdinals<?> indexFieldData;
 
     /* Ords for each slot.
        @lucene.internal */
     final int[] ords;
+
+    final SortMode sortMode;
 
     /* Values for each slot.
        @lucene.internal */
@@ -88,8 +89,9 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
     final BytesRef tempBR = new BytesRef();
 
-    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals indexFieldData, int numHits) {
+    public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
+        this.sortMode = sortMode;
         ords = new int[numHits];
         values = new BytesRef[numHits];
         readerGen = new int[numHits];
@@ -378,37 +380,35 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
         final int docBase = context.docBase;
         termsIndex = indexFieldData.load(context).getBytesValues();
-        // TODO, we should support sorting on multi valued field, take the best ascending value out of all the values
-        if (termsIndex.isMultiValued()) {
-            throw new ElasticSearchIllegalArgumentException("can't sort on a multi valued field");
-        }
-        final Ordinals.Docs docToOrd = termsIndex.ordinals();
-        Object ordsStorage = docToOrd.ordinals().getBackingStorage();
         FieldComparator<BytesRef> perSegComp = null;
+        if (termsIndex.isMultiValued()) {
+            perSegComp = new MultiAnyOrdComparator(termsIndex);
+        } else {
+            final Ordinals.Docs docToOrd = termsIndex.ordinals();
+            Object ordsStorage = docToOrd.ordinals().getBackingStorage();
 
-        if (docToOrd.ordinals().hasSingleArrayBackingStorage()) {
-            if (ordsStorage instanceof byte[]) {
-                perSegComp = new ByteOrdComparator((byte[]) ordsStorage, termsIndex, docBase);
-            } else if (ordsStorage instanceof short[]) {
-                perSegComp = new ShortOrdComparator((short[]) ordsStorage, termsIndex, docBase);
-            } else if (ordsStorage instanceof int[]) {
-                perSegComp = new IntOrdComparator((int[]) ordsStorage, termsIndex, docBase);
+            if (docToOrd.ordinals().hasSingleArrayBackingStorage()) {
+                if (ordsStorage instanceof byte[]) {
+                    perSegComp = new ByteOrdComparator((byte[]) ordsStorage, termsIndex, docBase);
+                } else if (ordsStorage instanceof short[]) {
+                    perSegComp = new ShortOrdComparator((short[]) ordsStorage, termsIndex, docBase);
+                } else if (ordsStorage instanceof int[]) {
+                    perSegComp = new IntOrdComparator((int[]) ordsStorage, termsIndex, docBase);
+                }
+            }
+            // Don't specialize the long[] case since it's not
+            // possible, ie, worse case is MAX_INT-1 docs with
+            // every one having a unique value.
+
+            // TODO: ES - should we optimize for the PackedInts.Reader case as well?
+            if (perSegComp == null) {
+                perSegComp = new AnyOrdComparator(indexFieldData, termsIndex, docBase);
             }
         }
-        // Don't specialize the long[] case since it's not
-        // possible, ie, worse case is MAX_INT-1 docs with
-        // every one having a unique value.
-
-        // TODO: ES - should we optimize for the PackedInts.Reader case as well?
-        if (perSegComp == null) {
-            perSegComp = new AnyOrdComparator(indexFieldData, termsIndex, docBase);
-        }
-
         currentReaderGen++;
         if (bottomSlot != -1) {
             perSegComp.setBottom(bottomSlot);
         }
-
         return perSegComp;
     }
 
@@ -473,4 +473,128 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         }
         return -(low + 1);
     }
+
+
+    class MultiAnyOrdComparator extends PerSegmentComparator {
+
+        private final BytesValues.WithOrdinals termsIndex;
+        private final Ordinals.Docs readerOrds;
+
+        private MultiAnyOrdComparator(BytesValues.WithOrdinals termsIndex) {
+            this.termsIndex = termsIndex;
+            this.readerOrds = termsIndex.ordinals();
+        }
+
+        @Override
+        public int compareBottom(int doc) throws IOException {
+            final int docOrd = getRelevantOrd(readerOrds, doc, sortMode);
+            if (bottomSameReader) {
+                // ord is precisely comparable, even in the equal case
+                return bottomOrd - docOrd;
+            } else if (bottomOrd >= docOrd) {
+                // the equals case always means bottom is > doc
+                // (because we set bottomOrd to the lower bound in
+                // setBottom):
+                return 1;
+            } else {
+                return -1;
+            }
+        }
+
+        @Override
+        public void copy(int slot, int doc) throws IOException {
+            final int ord = getRelevantOrd(readerOrds, doc, sortMode);
+            ords[slot] = ord;
+            if (ord == 0) {
+                values[slot] = null;
+            } else {
+                assert ord > 0;
+                if (values[slot] == null) {
+                    values[slot] = new BytesRef();
+                }
+                termsIndex.getValueScratchByOrd(ord, values[slot]);
+            }
+            readerGen[slot] = currentReaderGen;
+        }
+
+        @Override
+        public int compareDocToValue(int doc, BytesRef value) {
+            BytesRef docValue = getRelevantValue(termsIndex, doc, sortMode);
+            if (docValue == null) {
+                if (value == null) {
+                    return 0;
+                }
+                return -1;
+            } else if (value == null) {
+                return 1;
+            }
+            return docValue.compareTo(value);
+        }
+
+    }
+
+    static BytesRef getRelevantValue(BytesValues.WithOrdinals readerValues, int docId, SortMode sortMode) {
+        BytesValues.Iter iter = readerValues.getIter(docId);
+        if (!iter.hasNext()) {
+            return null;
+        }
+
+        BytesRef currentVal = iter.next();
+        BytesRef relevantVal = currentVal;
+        while (true) {
+            int cmp = currentVal.compareTo(relevantVal);
+            if (sortMode == SortMode.MAX) {
+                if (cmp > 0) {
+                    relevantVal = currentVal;
+                }
+            } else {
+                if (cmp < 0) {
+                    relevantVal = currentVal;
+                }
+            }
+            if (!iter.hasNext()) {
+                break;
+            }
+            currentVal = iter.next();
+        }
+        return relevantVal;
+    }
+
+    static int getRelevantOrd(Ordinals.Docs readerOrds, int docId, SortMode sortMode) {
+        Ordinals.Docs.Iter iter = readerOrds.getIter(docId);
+        int currentVal = iter.next();
+        if (currentVal == 0) {
+            return 0;
+        }
+
+        int relevantVal = currentVal;
+        while (true) {
+            if (sortMode == SortMode.MAX) {
+                if (currentVal > relevantVal) {
+                    relevantVal = currentVal;
+                }
+            } else {
+                if (currentVal < relevantVal) {
+                    relevantVal = currentVal;
+                }
+            }
+            currentVal = iter.next();
+            if (currentVal == 0) {
+                break;
+            }
+        }
+        return relevantVal;
+        // Enable this when the api can tell us that the ords per doc are ordered
+        /*if (reversed) {
+            IntArrayRef ref = readerOrds.getOrds(docId);
+            if (ref.isEmpty()) {
+                return 0;
+            } else {
+                return ref.values[ref.end - 1]; // last element is the highest value.
+            }
+        } else {
+            return readerOrds.getOrd(docId); // returns the lowest value
+        }*/
+    }
+
 }

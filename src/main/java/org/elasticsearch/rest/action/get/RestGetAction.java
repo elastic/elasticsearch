@@ -74,7 +74,7 @@ public class RestGetAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     response.toXContent(builder, request);
-                    if (!response.exists()) {
+                    if (!response.isExists()) {
                         channel.sendResponse(new XContentRestResponse(request, NOT_FOUND, builder));
                     } else {
                         channel.sendResponse(new XContentRestResponse(request, OK, builder));

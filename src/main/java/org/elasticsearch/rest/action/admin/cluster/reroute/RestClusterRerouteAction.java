@@ -77,7 +77,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
                     if (request.param("filter_metadata") == null) {
                         request.params().put("filter_metadata", "true");
                     }
-                    response.state().settingsFilter(settingsFilter).toXContent(builder, request);
+                    response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
                     builder.endObject();
 
                     builder.endObject();

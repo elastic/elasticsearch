@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 
@@ -30,9 +29,10 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 public class ObjectMappers implements Iterable<ObjectMapper> {
 
     private final ImmutableList<ObjectMapper> objectMappers;
+    private final boolean hasNested;
 
     public ObjectMappers() {
-        this.objectMappers = ImmutableList.of();
+        this(ImmutableList.<ObjectMapper>of());
     }
 
     public ObjectMappers(ObjectMapper objectMapper) {
@@ -40,14 +40,26 @@ public class ObjectMappers implements Iterable<ObjectMapper> {
     }
 
     public ObjectMappers(ObjectMapper[] objectMappers) {
-        if (objectMappers == null) {
-            objectMappers = new ObjectMapper[0];
-        }
-        this.objectMappers = ImmutableList.copyOf(Iterators.forArray(objectMappers));
+        this(ImmutableList.copyOf(objectMappers));
     }
 
     public ObjectMappers(ImmutableList<ObjectMapper> objectMappers) {
         this.objectMappers = objectMappers;
+        boolean hasNested = false;
+        for (ObjectMapper objectMapper : objectMappers) {
+            if (objectMapper.nested().isNested()) {
+                hasNested = true;
+                break;
+            }
+        }
+        this.hasNested = hasNested;
+    }
+
+    /**
+     * Is one of the object mappers has a nested mapping set?
+     */
+    public boolean hasNested() {
+        return this.hasNested;
     }
 
     public ObjectMapper mapper() {

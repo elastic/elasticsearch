@@ -30,4 +30,5 @@ public class ByteFieldDataTests extends IntFieldDataTests {
         return new FieldDataType("byte");
     }
 
+
 }

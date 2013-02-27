@@ -74,9 +74,9 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("Running Cluster Health (waiting for node to startup properly)");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         // Translog tests
 
@@ -85,11 +85,11 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         // create a mapping
         PutMappingResponse putMappingResponse = client("server1").admin().indices().preparePutMapping("test").setType("type1").setSource(mappingSource()).execute().actionGet();
-        assertThat(putMappingResponse.acknowledged(), equalTo(true));
+        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         // verify that mapping is there
         ClusterStateResponse clusterState = client("server1").admin().cluster().state(clusterStateRequest()).actionGet();
-        assertThat(clusterState.state().metaData().index("test").mapping("type1"), notNullValue());
+        assertThat(clusterState.getState().metaData().index("test").mapping("type1"), notNullValue());
 
         // create two and delete the first
         logger.info("Indexing #1");
@@ -118,20 +118,20 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         // verify that mapping is there
         clusterState = client("server1").admin().cluster().state(clusterStateRequest()).actionGet();
-        assertThat(clusterState.state().metaData().index("test").mapping("type1"), notNullValue());
+        assertThat(clusterState.getState().metaData().index("test").mapping("type1"), notNullValue());
 
         logger.info("Getting #1, should not exists");
         GetResponse getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
+        assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
 
         // Now flush and add some data (so we have index recovery as well)
         logger.info("Flushing, so we have actual content in the index files (#2 should be in the index)");
@@ -151,19 +151,19 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
         getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
+        assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (from the translog)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
+        assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
         logger.info("Closing the server");
         closeNode("server1");
@@ -174,19 +174,19 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
         getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
+        assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (from the translog)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
+        assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
 
         logger.info("Flushing, so we have actual content in the index files (#3 should be in the index now as well)");
@@ -204,19 +204,19 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("Getting #1, should not exists");
         getResponse = client("server1").get(getRequest("test").type("type1").id("1")).actionGet();
-        assertThat(getResponse.exists(), equalTo(false));
+        assertThat(getResponse.isExists(), equalTo(false));
         logger.info("Getting #2 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("2")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("2", "test")));
+        assertThat(getResponse.getSourceAsString(), equalTo(source("2", "test")));
         logger.info("Getting #3 (not from the translog, but from the index)");
         getResponse = client("server1").get(getRequest("test").type("type1").id("3")).actionGet();
-        assertThat(getResponse.sourceAsString(), equalTo(source("3", "test")));
+        assertThat(getResponse.getSourceAsString(), equalTo(source("3", "test")));
 
         logger.info("Deleting the index");
         client("server1").admin().indices().delete(deleteIndexRequest("test")).actionGet();
@@ -241,9 +241,9 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("Running Cluster Health (waiting for node to startup properly)");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         // get the environment, so we can clear the work dir when needed
         Environment environment = ((InternalNode) node("server1")).injector().getInstance(Environment.class);
@@ -253,14 +253,14 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
 
         logger.info("--> refreshing and checking count");
         client("server1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(0l));
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
 
         logger.info("--> indexing 1234 docs");
         for (long i = 0; i < 1234; i++) {
@@ -280,7 +280,7 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("--> refreshing and checking count");
         client("server1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1234l));
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1234l));
 
 
         logger.info("--> closing the server");
@@ -295,22 +295,22 @@ public abstract class AbstractSimpleIndexGatewayTests extends AbstractNodesTests
 
         logger.info("--> running Cluster Health (wait for the shards to startup)");
         clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("--> done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.YELLOW));
+        logger.info("--> done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         logger.info("--> checking count");
-        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1234l));
+        assertThat(client("server1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1234l));
 
         logger.info("--> checking reuse / recovery status");
         IndicesStatusResponse statusResponse = client("server1").admin().indices().prepareStatus().setRecovery(true).execute().actionGet();
-        for (IndexShardStatus indexShardStatus : statusResponse.index("test")) {
+        for (IndexShardStatus indexShardStatus : statusResponse.getIndex("test")) {
             for (ShardStatus shardStatus : indexShardStatus) {
-                if (shardStatus.shardRouting().primary()) {
+                if (shardStatus.getShardRouting().primary()) {
                     if (fullRecovery || !isPersistentStorage()) {
-                        assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), equalTo(0l));
+                        assertThat(shardStatus.getGatewayRecoveryStatus().getReusedIndexSize().bytes(), equalTo(0l));
                     } else {
-                        assertThat(shardStatus.gatewayRecoveryStatus().reusedIndexSize().bytes(), greaterThan(shardStatus.gatewayRecoveryStatus().indexSize().bytes() - 8196 /* segments file and others */));
+                        assertThat(shardStatus.getGatewayRecoveryStatus().getReusedIndexSize().bytes(), greaterThan(shardStatus.getGatewayRecoveryStatus().getIndexSize().bytes() - 8196 /* segments file and others */));
                     }
                 }
             }

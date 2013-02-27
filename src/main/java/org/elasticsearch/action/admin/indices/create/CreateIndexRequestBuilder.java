@@ -103,7 +103,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
     /**
      * The cause for this index creation.
      */
-    public CreateIndexRequestBuilder cause(String cause) {
+    public CreateIndexRequestBuilder setCause(String cause) {
         request.cause(cause);
         return this;
     }
@@ -170,7 +170,7 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
         return this;
     }
 
-    public CreateIndexRequestBuilder setCustom(IndexMetaData.Custom custom) {
+    public CreateIndexRequestBuilder addCustom(IndexMetaData.Custom custom) {
         request.custom(custom);
         return this;
     }

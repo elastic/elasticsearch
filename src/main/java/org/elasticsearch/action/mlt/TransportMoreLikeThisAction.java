@@ -130,7 +130,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
-                if (!getResponse.exists()) {
+                if (!getResponse.isExists()) {
                     listener.onFailure(new ElasticSearchException("document missing"));
                     return;
                 }
@@ -156,10 +156,10 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                         // if fields are not empty, see if we got them in the response
                         for (Iterator<String> it = fields.iterator(); it.hasNext(); ) {
                             String field = it.next();
-                            GetField getField = getResponse.field(field);
+                            GetField getField = getResponse.getField(field);
                             if (getField != null) {
-                                for (Object value : getField.values()) {
-                                    addMoreLikeThis(request, boolBuilder, getField.name(), value.toString());
+                                for (Object value : getField.getValues()) {
+                                    addMoreLikeThis(request, boolBuilder, getField.getName(), value.toString());
                                 }
                                 it.remove();
                             }
@@ -269,7 +269,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         if (getResponse.isSourceEmpty()) {
             return;
         }
-        docMapper.parse(SourceToParse.source(getResponse.sourceRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
+        docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
             @Override
             public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
                 if (fieldMapper instanceof InternalMapper) {

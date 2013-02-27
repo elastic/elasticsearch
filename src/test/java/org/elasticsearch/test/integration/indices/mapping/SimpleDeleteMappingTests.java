@@ -81,15 +81,15 @@ public class SimpleDeleteMappingTests extends AbstractNodesTests {
         }
 
         ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.timedOut(), equalTo(false));
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
         client1.admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
             CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(countResponse.count(), equalTo(10l));
+            assertThat(countResponse.getCount(), equalTo(10l));
         }
 
-        ClusterState clusterState = client1.admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client1.admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(true));
 
         client1.admin().indices().prepareDeleteMapping().setType("type1").execute().actionGet();
@@ -97,10 +97,10 @@ public class SimpleDeleteMappingTests extends AbstractNodesTests {
 
         for (int i = 0; i < 10; i++) {
             CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(countResponse.count(), equalTo(0l));
+            assertThat(countResponse.getCount(), equalTo(0l));
         }
 
-        clusterState = client1.admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client1.admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(false));
     }
 }

@@ -47,10 +47,10 @@ public class DiscoveryTests extends AbstractNodesTests {
         startNode("node1", settings);
         startNode("node2", settings);
 
-        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
 
-        state = client("node2").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node2").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
     }
 }

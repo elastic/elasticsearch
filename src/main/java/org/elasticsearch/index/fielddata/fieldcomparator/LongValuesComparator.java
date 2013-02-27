@@ -19,41 +19,27 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.FieldComparator;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.fielddata.LongValues;
 
 import java.io.IOException;
 
 /**
  */
-public class LongValuesComparator extends FieldComparator<Long> {
+public final class LongValuesComparator extends LongValuesComparatorBase<Long> {
 
-    private final IndexNumericFieldData indexFieldData;
-    private final long missingValue;
+    private final long[] values;
 
-    protected final long[] values;
-    private long bottom;
-    private LongValues readerValues;
-
-    public LongValuesComparator(IndexNumericFieldData indexFieldData, long missingValue, int numHits) {
-        this.indexFieldData = indexFieldData;
-        this.missingValue = missingValue;
+    public LongValuesComparator(IndexNumericFieldData<?> indexFieldData, long missingValue, int numHits, SortMode sortMode) {
+        super(indexFieldData, missingValue, sortMode);
         this.values = new long[numHits];
+        assert indexFieldData.getNumericType().requiredBits() <= 64;
     }
 
     @Override
     public int compare(int slot1, int slot2) {
         final long v1 = values[slot1];
         final long v2 = values[slot2];
-        if (v1 > v2) {
-            return 1;
-        } else if (v1 < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
+        return compare(v1, v2);
     }
 
     @Override
@@ -61,45 +47,12 @@ public class LongValuesComparator extends FieldComparator<Long> {
         this.bottom = values[slot];
     }
 
-    @Override
-    public int compareBottom(int doc) throws IOException {
-        long v2 = readerValues.getValueMissing(doc, missingValue);
-
-        if (bottom > v2) {
-            return 1;
-        } else if (bottom < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
-
-    @Override
     public void copy(int slot, int doc) throws IOException {
         values[slot] = readerValues.getValueMissing(doc, missingValue);
     }
 
     @Override
-    public FieldComparator<Long> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getLongValues();
-        return this;
-    }
-
-    @Override
     public Long value(int slot) {
         return Long.valueOf(values[slot]);
-    }
-
-    @Override
-    public int compareDocToValue(int doc, Long valueObj) throws IOException {
-        final long value = valueObj.longValue();
-        long docValue = readerValues.getValueMissing(doc, missingValue);
-        if (docValue < value) {
-            return -1;
-        } else if (docValue > value) {
-            return 1;
-        } else {
-            return 0;
-        }
     }
 }

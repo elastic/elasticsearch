@@ -238,4 +238,41 @@ public interface DoubleValues {
         }
 
     }
+    
+    public static class FilteredDoubleValues implements DoubleValues {
+
+        protected final DoubleValues delegate;
+
+        public FilteredDoubleValues(DoubleValues delegate) {
+            this.delegate = delegate;
+        }
+
+        public boolean isMultiValued() {
+            return delegate.isMultiValued();
+        }
+
+        public boolean hasValue(int docId) {
+            return delegate.hasValue(docId);
+        }
+
+        public double getValue(int docId) {
+            return delegate.getValue(docId);
+        }
+
+        public double getValueMissing(int docId, double missingValue) {
+            return delegate.getValueMissing(docId, missingValue);
+        }
+
+        public DoubleArrayRef getValues(int docId) {
+            return delegate.getValues(docId);
+        }
+
+        public Iter getIter(int docId) {
+            return delegate.getIter(docId);
+        }
+
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            delegate.forEachValueInDoc(docId, proc);
+        }
+    }
 }

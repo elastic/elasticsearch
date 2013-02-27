@@ -23,8 +23,6 @@ import org.elasticsearch.search.facet.Facet;
 
 /**
  * Numeric statistical information.
- *
- *
  */
 public interface StatisticalFacet extends Facet {
 
@@ -36,17 +34,7 @@ public interface StatisticalFacet extends Facet {
     /**
      * The number of values counted.
      */
-    long count();
-
-    /**
-     * The number of values counted.
-     */
     long getCount();
-
-    /**
-     * The total (sum) of values.
-     */
-    double total();
 
     /**
      * The total (sum) of values.
@@ -56,17 +44,7 @@ public interface StatisticalFacet extends Facet {
     /**
      * The sum of squares of the values.
      */
-    double sumOfSquares();
-
-    /**
-     * The sum of squares of the values.
-     */
     double getSumOfSquares();
-
-    /**
-     * The mean (average) of the values.
-     */
-    double mean();
 
     /**
      * The mean (average) of the values.
@@ -76,17 +54,7 @@ public interface StatisticalFacet extends Facet {
     /**
      * The minimum value.
      */
-    double min();
-
-    /**
-     * The minimum value.
-     */
     double getMin();
-
-    /**
-     * The maximum value.
-     */
-    double max();
 
     /**
      * The maximum value.
@@ -96,17 +64,7 @@ public interface StatisticalFacet extends Facet {
     /**
      * Variance of the values.
      */
-    double variance();
-
-    /**
-     * Variance of the values.
-     */
     double getVariance();
-
-    /**
-     * Standard deviation of the values.
-     */
-    double stdDeviation();
 
     /**
      * Standard deviation of the values.

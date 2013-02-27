@@ -24,12 +24,9 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
-import com.google.common.collect.ImmutableMap;
 import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.search.DocIdSet;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +39,6 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -62,28 +58,21 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
 
     private volatile boolean closed;
 
-    private volatile Map<String, RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet>> removalListeners =
-            ImmutableMap.of();
 
-
-    static {
-        MetaData.addDynamicSettings(
-                "indices.cache.filter.size",
-                "indices.cache.filter.expire"
-        );
-    }
+    public static final String INDICES_CACHE_FILTER_SIZE = "indices.cache.filter.size";
+    public static final String INDICES_CACHE_FILTER_EXPIRE = "indices.cache.filter.expire";
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
             boolean replace = false;
-            String size = settings.get("indices.cache.filter.size", IndicesFilterCache.this.size);
+            String size = settings.get(INDICES_CACHE_FILTER_SIZE, IndicesFilterCache.this.size);
             if (!size.equals(IndicesFilterCache.this.size)) {
                 logger.info("updating [indices.cache.filter.size] from [{}] to [{}]", IndicesFilterCache.this.size, size);
                 IndicesFilterCache.this.size = size;
                 replace = true;
             }
-            TimeValue expire = settings.getAsTime("indices.cache.filter.expire", IndicesFilterCache.this.expire);
+            TimeValue expire = settings.getAsTime(INDICES_CACHE_FILTER_EXPIRE, IndicesFilterCache.this.expire);
             if (!Objects.equal(expire, IndicesFilterCache.this.expire)) {
                 logger.info("updating [indices.cache.filter.expire] from [{}] to [{}]", IndicesFilterCache.this.expire, expire);
                 IndicesFilterCache.this.expire = expire;
@@ -139,14 +128,6 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         }
     }
 
-    public synchronized void addRemovalListener(String index, RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> listener) {
-        removalListeners = MapBuilder.newMapBuilder(removalListeners).put(index, listener).immutableMap();
-    }
-
-    public synchronized void removeRemovalListener(String index) {
-        removalListeners = MapBuilder.newMapBuilder(removalListeners).remove(index).immutableMap();
-    }
-
     public void addReaderKeyToClean(Object readerKey) {
         readersKeysToClean.add(readerKey);
     }
@@ -166,10 +147,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
         if (key == null) {
             return;
         }
-        RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> listener = removalListeners.get(key.index());
-        if (listener != null) {
-            listener.onRemoval(removalNotification);
-        }
+        key.removalListener().onRemoval(removalNotification);
     }
 
     /**

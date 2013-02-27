@@ -33,7 +33,7 @@ import java.io.IOException;
  */
 public class GeoDistanceComparator extends FieldComparator<Double> {
 
-    protected final IndexGeoPointFieldData indexFieldData;
+    protected final IndexGeoPointFieldData<?> indexFieldData;
 
     protected final double lat;
     protected final double lon;
@@ -46,7 +46,7 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
 
     private GeoPointValues readerValues;
 
-    public GeoDistanceComparator(int numHits, IndexGeoPointFieldData indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance) {
+    public GeoDistanceComparator(int numHits, IndexGeoPointFieldData<?> indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance) {
         this.values = new double[numHits];
         this.indexFieldData = indexFieldData;
         this.lat = lat;
@@ -105,7 +105,13 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
         } else {
             distance1 = fixedSourceDistance.calculate(geoPoint.lat(), geoPoint.lon());
         }
-        return (int) (distance1 - distance2);
+        if (distance1 < distance2) {
+            return -1;
+        } else if (distance1 == distance2) {
+            return 0;
+        } else {
+            return 1;
+        }
     }
 
     @Override

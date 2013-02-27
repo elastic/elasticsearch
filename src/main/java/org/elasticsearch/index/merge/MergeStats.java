@@ -73,52 +73,52 @@ public class MergeStats implements Streamable, ToXContent {
     /**
      * The total number of merges executed.
      */
-    public long total() {
+    public long getTotal() {
         return this.total;
     }
 
     /**
      * The total time merges have been executed (in milliseconds).
      */
-    public long totalTimeInMillis() {
+    public long getTotalTimeInMillis() {
         return this.totalTimeInMillis;
     }
 
     /**
      * The total time merges have been executed.
      */
-    public TimeValue totalTime() {
+    public TimeValue getTotalTime() {
         return new TimeValue(totalTimeInMillis);
     }
 
-    public long totalNumDocs() {
+    public long getTotalNumDocs() {
         return this.totalNumDocs;
     }
 
-    public long totalSizeInBytes() {
+    public long getTotalSizeInBytes() {
         return this.totalSizeInBytes;
     }
 
-    public ByteSizeValue totalSize() {
+    public ByteSizeValue getTotalSize() {
         return new ByteSizeValue(totalSizeInBytes);
     }
 
     /**
      * The current number of merges executing.
      */
-    public long current() {
+    public long getCurrent() {
         return this.current;
     }
 
-    public long currentNumDocs() {
+    public long getCurrentNumDocs() {
         return this.currentNumDocs;
     }
 
-    public long currentSizeInBytes() {
+    public long getCurrentSizeInBytes() {
         return this.currentSizeInBytes;
     }
 
-    public ByteSizeValue currentSize() {
+    public ByteSizeValue getCurrentSize() {
         return new ByteSizeValue(currentSizeInBytes);
     }
 
@@ -133,13 +133,13 @@ public class MergeStats implements Streamable, ToXContent {
         builder.startObject(Fields.MERGES);
         builder.field(Fields.CURRENT, current);
         builder.field(Fields.CURRENT_DOCS, currentNumDocs);
-        builder.field(Fields.CURRENT_SIZE, currentSize().toString());
+        builder.field(Fields.CURRENT_SIZE, getCurrentSize().toString());
         builder.field(Fields.CURRENT_SIZE_IN_BYTES, currentSizeInBytes);
         builder.field(Fields.TOTAL, total);
-        builder.field(Fields.TOTAL_TIME, totalTime().toString());
+        builder.field(Fields.TOTAL_TIME, getTotalTime().toString());
         builder.field(Fields.TOTAL_TIME_IN_MILLIS, totalTimeInMillis);
         builder.field(Fields.TOTAL_DOCS, totalNumDocs);
-        builder.field(Fields.TOTAL_SIZE, totalSize().toString());
+        builder.field(Fields.TOTAL_SIZE, getTotalSize().toString());
         builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
         builder.endObject();
         return builder;

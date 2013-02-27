@@ -37,37 +37,29 @@ public class IndexSegments implements Iterable<IndexShardSegments> {
 
         Map<Integer, List<ShardSegments>> tmpIndexShards = Maps.newHashMap();
         for (ShardSegments shard : shards) {
-            List<ShardSegments> lst = tmpIndexShards.get(shard.shardRouting().id());
+            List<ShardSegments> lst = tmpIndexShards.get(shard.getShardRouting().id());
             if (lst == null) {
                 lst = Lists.newArrayList();
-                tmpIndexShards.put(shard.shardRouting().id(), lst);
+                tmpIndexShards.put(shard.getShardRouting().id(), lst);
             }
             lst.add(shard);
         }
         indexShards = Maps.newHashMap();
         for (Map.Entry<Integer, List<ShardSegments>> entry : tmpIndexShards.entrySet()) {
-            indexShards.put(entry.getKey(), new IndexShardSegments(entry.getValue().get(0).shardRouting().shardId(), entry.getValue().toArray(new ShardSegments[entry.getValue().size()])));
+            indexShards.put(entry.getKey(), new IndexShardSegments(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardSegments[entry.getValue().size()])));
         }
     }
 
-    public String index() {
-        return this.index;
-    }
-
     public String getIndex() {
-        return index();
+        return this.index;
     }
 
     /**
      * A shard id to index shard segments map (note, index shard segments is the replication shard group that maps
      * to the shard id).
      */
-    public Map<Integer, IndexShardSegments> shards() {
-        return this.indexShards;
-    }
-
     public Map<Integer, IndexShardSegments> getShards() {
-        return shards();
+        return this.indexShards;
     }
 
     @Override

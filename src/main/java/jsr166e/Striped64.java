@@ -40,7 +40,7 @@ abstract class Striped64 extends Number {
      *
      * A single spinlock ("busy") is used for initializing and
      * resizing the table, as well as populating slots with new Cells.
-     * There is no need for a blocking lock: When the lock is not
+     * There is no need for a blocking lock; when the lock is not
      * available, threads try other slots (or the base).  During these
      * retries, there is increased contention and reduced locality,
      * which is still better than alternatives.
@@ -319,22 +319,23 @@ abstract class Striped64 extends Number {
     private static sun.misc.Unsafe getUnsafe() {
         try {
             return sun.misc.Unsafe.getUnsafe();
-        } catch (SecurityException se) {
-            try {
-                return java.security.AccessController.doPrivileged
-                    (new java.security
-                     .PrivilegedExceptionAction<sun.misc.Unsafe>() {
-                        public sun.misc.Unsafe run() throws Exception {
-                            java.lang.reflect.Field f = sun.misc
-                                .Unsafe.class.getDeclaredField("theUnsafe");
-                            f.setAccessible(true);
-                            return (sun.misc.Unsafe) f.get(null);
-                        }});
-            } catch (java.security.PrivilegedActionException e) {
-                throw new RuntimeException("Could not initialize intrinsics",
-                                           e.getCause());
-            }
+        } catch (SecurityException tryReflectionInstead) {}
+        try {
+            return java.security.AccessController.doPrivileged
+            (new java.security.PrivilegedExceptionAction<sun.misc.Unsafe>() {
+                public sun.misc.Unsafe run() throws Exception {
+                    Class<sun.misc.Unsafe> k = sun.misc.Unsafe.class;
+                    for (java.lang.reflect.Field f : k.getDeclaredFields()) {
+                        f.setAccessible(true);
+                        Object x = f.get(null);
+                        if (k.isInstance(x))
+                            return k.cast(x);
+                    }
+                    throw new NoSuchFieldError("the Unsafe");
+                }});
+        } catch (java.security.PrivilegedActionException e) {
+            throw new RuntimeException("Could not initialize intrinsics",
+                                       e.getCause());
         }
     }
-
 }

@@ -42,11 +42,11 @@ public class BulkShardResponse extends ActionResponse {
         this.responses = responses;
     }
 
-    public ShardId shardId() {
+    public ShardId getShardId() {
         return shardId;
     }
 
-    public BulkItemResponse[] responses() {
+    public BulkItemResponse[] getResponses() {
         return responses;
     }
 

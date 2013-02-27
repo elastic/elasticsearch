@@ -242,7 +242,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         try {
             PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), request.percolate()));
-            response.response().matches(percolate.matches());
+            response.response().setMatches(percolate.matches());
         } catch (Exception e) {
             logger.warn("failed to percolate [{}]", e, request);
         }

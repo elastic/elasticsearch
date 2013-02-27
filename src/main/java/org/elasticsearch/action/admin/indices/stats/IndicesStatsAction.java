@@ -24,7 +24,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public class IndicesStatsAction extends IndicesAction<IndicesStatsRequest, IndicesStats, IndicesStatsRequestBuilder> {
+public class IndicesStatsAction extends IndicesAction<IndicesStatsRequest, IndicesStatsResponse, IndicesStatsRequestBuilder> {
 
     public static final IndicesStatsAction INSTANCE = new IndicesStatsAction();
     public static final String NAME = "indices/stats";
@@ -34,8 +34,8 @@ public class IndicesStatsAction extends IndicesAction<IndicesStatsRequest, Indic
     }
 
     @Override
-    public IndicesStats newResponse() {
-        return new IndicesStats();
+    public IndicesStatsResponse newResponse() {
+        return new IndicesStatsResponse();
     }
 
     @Override

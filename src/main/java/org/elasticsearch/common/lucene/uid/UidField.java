@@ -24,13 +24,12 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
@@ -56,11 +55,27 @@ public class UidField extends Field {
 
     // this works fine for nested docs since they don't have the payload which has the version
     // so we iterate till we find the one with the payload
-    // LUCENE 4 UPGRADE: We can get rid of the do while loop, since there is only one _uid value (live docs are taken into account)
     public static DocIdAndVersion loadDocIdAndVersion(AtomicReaderContext context, Term term) {
         int docId = Lucene.NO_DOC;
         try {
-            DocsAndPositionsEnum uid = context.reader().termPositionsEnum(term);
+            Terms terms = context.reader().terms(term.field());
+            if (terms == null) {
+                return null;
+            }
+            // hack to break early if we have a bloom filter...
+            if (terms instanceof BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms) {
+                if (!((BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms) terms).getFilter().mightContain(term.bytes())) {
+                    return null;
+                }
+            }
+            TermsEnum termsEnum = terms.iterator(null);
+            if (termsEnum == null) {
+                return null;
+            }
+            if (!termsEnum.seekExact(term.bytes(), true)) {
+                return null;
+            }
+            DocsAndPositionsEnum uid = termsEnum.docsAndPositions(context.reader().getLiveDocs(), null, DocsAndPositionsEnum.FLAG_PAYLOADS);
             if (uid == null || uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
                 return null; // no doc
             }
@@ -89,10 +104,26 @@ public class UidField extends Field {
      * Load the version for the uid from the reader, returning -1 if no doc exists, or -2 if
      * no version is available (for backward comp.)
      */
-    // LUCENE 4 UPGRADE: We can get rid of the do while loop, since there is only one _uid value (live docs are taken into account)
     public static long loadVersion(AtomicReaderContext context, Term term) {
         try {
-            DocsAndPositionsEnum uid = context.reader().termPositionsEnum(term);
+            Terms terms = context.reader().terms(term.field());
+            if (terms == null) {
+                return -1;
+            }
+            // hack to break early if we have a bloom filter...
+            if (terms instanceof BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms) {
+                if (!((BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms) terms).getFilter().mightContain(term.bytes())) {
+                    return -1;
+                }
+            }
+            TermsEnum termsEnum = terms.iterator(null);
+            if (termsEnum == null) {
+                return -1;
+            }
+            if (!termsEnum.seekExact(term.bytes(), true)) {
+                return -1;
+            }
+            DocsAndPositionsEnum uid = termsEnum.docsAndPositions(context.reader().getLiveDocs(), null, DocsAndPositionsEnum.FLAG_PAYLOADS);
             if (uid == null || uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
                 return -1;
             }

@@ -72,9 +72,9 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequestBui
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsResponse;
-import org.elasticsearch.action.admin.indices.stats.IndicesStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusRequestBuilder;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
@@ -157,12 +157,12 @@ public interface IndicesAdminClient {
     /**
      * Indices stats.
      */
-    ActionFuture<IndicesStats> stats(IndicesStatsRequest request);
+    ActionFuture<IndicesStatsResponse> stats(IndicesStatsRequest request);
 
     /**
      * Indices stats.
      */
-    void stats(IndicesStatsRequest request, ActionListener<IndicesStats> listener);
+    void stats(IndicesStatsRequest request, ActionListener<IndicesStatsResponse> listener);
 
     /**
      * Indices stats.

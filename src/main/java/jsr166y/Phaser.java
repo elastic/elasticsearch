@@ -17,7 +17,7 @@ import java.util.concurrent.locks.LockSupport;
  * {@link java.util.concurrent.CountDownLatch CountDownLatch}
  * but supporting more flexible usage.
  *
- * <p> <b>Registration.</b> Unlike the case for other barriers, the
+ * <p><b>Registration.</b> Unlike the case for other barriers, the
  * number of parties <em>registered</em> to synchronize on a phaser
  * may vary over time.  Tasks may be registered at any time (using
  * methods {@link #register}, {@link #bulkRegister}, or forms of
@@ -30,7 +30,7 @@ import java.util.concurrent.locks.LockSupport;
  * (However, you can introduce such bookkeeping by subclassing this
  * class.)
  *
- * <p> <b>Synchronization.</b> Like a {@code CyclicBarrier}, a {@code
+ * <p><b>Synchronization.</b> Like a {@code CyclicBarrier}, a {@code
  * Phaser} may be repeatedly awaited.  Method {@link
  * #arriveAndAwaitAdvance} has effect analogous to {@link
  * java.util.concurrent.CyclicBarrier#await CyclicBarrier.await}. Each
@@ -74,7 +74,7 @@ import java.util.concurrent.locks.LockSupport;
  *
  * </ul>
  *
- * <p> <b>Termination.</b> A phaser may enter a <em>termination</em>
+ * <p><b>Termination.</b> A phaser may enter a <em>termination</em>
  * state, that may be checked using method {@link #isTerminated}. Upon
  * termination, all synchronization methods immediately return without
  * waiting for advance, as indicated by a negative return value.
@@ -89,7 +89,7 @@ import java.util.concurrent.locks.LockSupport;
  * also available to abruptly release waiting threads and allow them
  * to terminate.
  *
- * <p> <b>Tiering.</b> Phasers may be <em>tiered</em> (i.e.,
+ * <p><b>Tiering.</b> Phasers may be <em>tiered</em> (i.e.,
  * constructed in tree structures) to reduce contention. Phasers with
  * large numbers of parties that would otherwise experience heavy
  * synchronization contention costs may instead be set up so that
@@ -1142,21 +1142,23 @@ public class Phaser {
     private static sun.misc.Unsafe getUnsafe() {
         try {
             return sun.misc.Unsafe.getUnsafe();
-        } catch (SecurityException se) {
-            try {
-                return java.security.AccessController.doPrivileged
-                    (new java.security
-                     .PrivilegedExceptionAction<sun.misc.Unsafe>() {
-                        public sun.misc.Unsafe run() throws Exception {
-                            java.lang.reflect.Field f = sun.misc
-                                .Unsafe.class.getDeclaredField("theUnsafe");
-                            f.setAccessible(true);
-                            return (sun.misc.Unsafe) f.get(null);
-                        }});
-            } catch (java.security.PrivilegedActionException e) {
-                throw new RuntimeException("Could not initialize intrinsics",
-                                           e.getCause());
-            }
+        } catch (SecurityException tryReflectionInstead) {}
+        try {
+            return java.security.AccessController.doPrivileged
+            (new java.security.PrivilegedExceptionAction<sun.misc.Unsafe>() {
+                public sun.misc.Unsafe run() throws Exception {
+                    Class<sun.misc.Unsafe> k = sun.misc.Unsafe.class;
+                    for (java.lang.reflect.Field f : k.getDeclaredFields()) {
+                        f.setAccessible(true);
+                        Object x = f.get(null);
+                        if (k.isInstance(x))
+                            return k.cast(x);
+                    }
+                    throw new NoSuchFieldError("the Unsafe");
+                }});
+        } catch (java.security.PrivilegedActionException e) {
+            throw new RuntimeException("Could not initialize intrinsics",
+                                       e.getCause());
         }
     }
 }

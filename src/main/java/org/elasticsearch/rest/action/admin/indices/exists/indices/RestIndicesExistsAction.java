@@ -58,7 +58,7 @@ public class RestIndicesExistsAction extends BaseRestHandler {
             @Override
             public void onResponse(IndicesExistsResponse response) {
                 try {
-                    if (response.exists()) {
+                    if (response.isExists()) {
                         channel.sendResponse(new StringRestResponse(OK));
                     } else {
                         channel.sendResponse(new StringRestResponse(NOT_FOUND));

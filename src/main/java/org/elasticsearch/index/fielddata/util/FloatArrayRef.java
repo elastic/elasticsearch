@@ -64,7 +64,7 @@ public class FloatArrayRef extends AbstractList<Float> implements RandomAccess {
 
     @Override
     public boolean isEmpty() {
-        return size() != 0;
+        return size() == 0;
     }
 
     @Override

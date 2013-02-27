@@ -72,7 +72,7 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(true));
+        assertThat(deleteResponse.isNotFound(), equalTo(true));
 
         try {
             client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -94,10 +94,10 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(12).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(12l));
+        assertThat(indexResponse.getVersion(), equalTo(12l));
 
         indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(14).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(14l));
+        assertThat(indexResponse.getVersion(), equalTo(14l));
 
         try {
             client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(13).setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -107,12 +107,12 @@ public class SimpleVersioningTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(14l));
+            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(14l));
         }
 
         DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(17).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(false));
-        assertThat(deleteResponse.version(), equalTo(17l));
+        assertThat(deleteResponse.isNotFound(), equalTo(false));
+        assertThat(deleteResponse.getVersion(), equalTo(17l));
 
         try {
             client2.prepareDelete("test", "type", "1").setVersion(2).setVersionType(VersionType.EXTERNAL).execute().actionGet();
@@ -121,8 +121,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
 
         deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(18).setVersionType(VersionType.EXTERNAL).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(true));
-        assertThat(deleteResponse.version(), equalTo(18l));
+        assertThat(deleteResponse.isNotFound(), equalTo(true));
+        assertThat(deleteResponse.getVersion(), equalTo(18l));
     }
 
     @Test
@@ -136,10 +136,10 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(1l));
+        assertThat(indexResponse.getVersion(), equalTo(1l));
 
         indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(2l));
+        assertThat(indexResponse.getVersion(), equalTo(2l));
 
         try {
             client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").setVersion(1).execute().actionGet();
@@ -179,24 +179,24 @@ public class SimpleVersioningTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(2l));
+            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(2l));
         }
 
         // search with versioning
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
-            assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
+            assertThat(searchResponse.getHits().getAt(0).version(), equalTo(2l));
         }
 
         // search without versioning
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(searchResponse.hits().getAt(0).version(), equalTo(-1l));
+            assertThat(searchResponse.getHits().getAt(0).version(), equalTo(-1l));
         }
 
         DeleteResponse deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(false));
-        assertThat(deleteResponse.version(), equalTo(3l));
+        assertThat(deleteResponse.isNotFound(), equalTo(false));
+        assertThat(deleteResponse.getVersion(), equalTo(3l));
 
         try {
             client2.prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
@@ -205,8 +205,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         }
 
         deleteResponse = client2.prepareDelete("test", "type", "1").setVersion(3).execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(true));
-        assertThat(deleteResponse.version(), equalTo(4l));
+        assertThat(deleteResponse.isNotFound(), equalTo(true));
+        assertThat(deleteResponse.getVersion(), equalTo(4l));
     }
 
     @Test
@@ -220,12 +220,12 @@ public class SimpleVersioningTests extends AbstractNodesTests {
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         IndexResponse indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_1").execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(1l));
+        assertThat(indexResponse.getVersion(), equalTo(1l));
 
         client.admin().indices().prepareFlush().execute().actionGet();
 
         indexResponse = client.prepareIndex("test", "type", "1").setSource("field1", "value1_2").setVersion(1).execute().actionGet();
-        assertThat(indexResponse.version(), equalTo(2l));
+        assertThat(indexResponse.getVersion(), equalTo(2l));
 
         client.admin().indices().prepareFlush().execute().actionGet();
 
@@ -267,12 +267,12 @@ public class SimpleVersioningTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().version(), equalTo(2l));
+            assertThat(client.prepareGet("test", "type", "1").execute().actionGet().getVersion(), equalTo(2l));
         }
 
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
-            assertThat(searchResponse.hits().getAt(0).version(), equalTo(2l));
+            assertThat(searchResponse.getHits().getAt(0).version(), equalTo(2l));
         }
     }
 
@@ -288,8 +288,8 @@ public class SimpleVersioningTests extends AbstractNodesTests {
 
         BulkResponse bulkResponse = client.prepareBulk().add(client.prepareIndex("test", "type", "1").setSource("field1", "value1_1")).execute().actionGet();
         assertThat(bulkResponse.hasFailures(), equalTo(false));
-        assertThat(bulkResponse.items().length, equalTo(1));
-        IndexResponse indexResponse = bulkResponse.items()[0].response();
-        assertThat(indexResponse.version(), equalTo(1l));
+        assertThat(bulkResponse.getItems().length, equalTo(1));
+        IndexResponse indexResponse = bulkResponse.getItems()[0].getResponse();
+        assertThat(indexResponse.getVersion(), equalTo(1l));
     }
 }

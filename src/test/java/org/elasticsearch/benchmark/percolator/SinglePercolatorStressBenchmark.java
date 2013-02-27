@@ -80,7 +80,7 @@ public class SinglePercolatorStressBenchmark {
         for (; i <= COUNT; i++) {
             PercolateResponse percolate = client1.preparePercolate("test", "type1").setSource(source(Integer.toString(i), "value"))
                     .execute().actionGet();
-            if (percolate.matches().size() != QUERIES) {
+            if (percolate.getMatches().size() != QUERIES) {
                 System.err.println("No matching number of queries");
             }
             if ((i % 10000) == 0) {

@@ -24,7 +24,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -32,7 +32,7 @@ import java.util.Map;
 /**
  * A facet builder of date histogram facets.
  */
-public class DateHistogramFacetBuilder extends AbstractFacetBuilder {
+public class DateHistogramFacetBuilder extends FacetBuilder {
     private String keyFieldName;
     private String valueFieldName;
     private String interval = null;

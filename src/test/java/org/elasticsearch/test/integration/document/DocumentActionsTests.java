@@ -117,78 +117,78 @@ public class DocumentActionsTests extends AbstractNodesTests {
         createIndex();
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing [type1/1]");
         IndexResponse indexResponse = client1.prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")).setRefresh(true).execute().actionGet();
-        assertThat(indexResponse.index(), equalTo(getConcreteIndexName()));
-        assertThat(indexResponse.id(), equalTo("1"));
-        assertThat(indexResponse.type(), equalTo("type1"));
+        assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(indexResponse.getId(), equalTo("1"));
+        assertThat(indexResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
-        assertThat(refreshResponse.successfulShards(), equalTo(10));
-        assertThat(refreshResponse.failedShards(), equalTo(0));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
         logger.info("--> index exists?");
         IndicesExistsResponse indicesExistsResponse = client1.admin().indices().prepareExists(getConcreteIndexName()).execute().actionGet();
-        assertThat(indicesExistsResponse.exists(), equalTo(true));
+        assertThat(indicesExistsResponse.isExists(), equalTo(true));
 
         logger.info("--> index exists?, fake index");
         indicesExistsResponse = client1.admin().indices().prepareExists("test1234565").execute().actionGet();
-        assertThat(indicesExistsResponse.exists(), equalTo(false));
+        assertThat(indicesExistsResponse.isExists(), equalTo(false));
 
         logger.info("Clearing cache");
         ClearIndicesCacheResponse clearIndicesCacheResponse = client1.admin().indices().clearCache(clearIndicesCacheRequest("test")).actionGet();
-        assertThat(clearIndicesCacheResponse.successfulShards(), equalTo(10));
-        assertThat(clearIndicesCacheResponse.failedShards(), equalTo(0));
+        assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(clearIndicesCacheResponse.getFailedShards(), equalTo(0));
 
         logger.info("Optimizing");
         OptimizeResponse optimizeResponse = client1.admin().indices().prepareOptimize("test").execute().actionGet();
-        assertThat(optimizeResponse.successfulShards(), equalTo(10));
-        assertThat(optimizeResponse.failedShards(), equalTo(0));
+        assertThat(optimizeResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(optimizeResponse.getFailedShards(), equalTo(0));
 
         GetResponse getResult;
 
         logger.info("Get [type1/1]");
         for (int i = 0; i < 5; i++) {
             getResult = client1.prepareGet("test", "type1", "1").setOperationThreaded(false).execute().actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test").string()));
-            assertThat("cycle(map) #" + i, (String) ((Map) getResult.sourceAsMap().get("type1")).get("name"), equalTo("test"));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
+            assertThat("cycle(map) #" + i, (String) ((Map) getResult.getSourceAsMap().get("type1")).get("name"), equalTo("test"));
             getResult = client1.get(getRequest("test").type("type1").id("1").operationThreaded(true)).actionGet();
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test").string()));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
 
         logger.info("Get [type1/1] with script");
         for (int i = 0; i < 5; i++) {
             getResult = client1.prepareGet("test", "type1", "1").setFields("_source.type1.name").execute().actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat(getResult.exists(), equalTo(true));
-            assertThat(getResult.source(), nullValue());
-            assertThat(getResult.field("_source.type1.name").values().get(0).toString(), equalTo("test"));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat(getResult.isExists(), equalTo(true));
+            assertThat(getResult.getSourceAsBytes(), nullValue());
+            assertThat(getResult.getField("_source.type1.name").getValues().get(0).toString(), equalTo("test"));
         }
 
         logger.info("Get [type1/2] (should be empty)");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat(getResult.exists(), equalTo(false));
+            assertThat(getResult.isExists(), equalTo(false));
         }
 
         logger.info("Delete [type1/1]");
         DeleteResponse deleteResponse = client1.prepareDelete("test", "type1", "1").setReplicationType(ReplicationType.SYNC).execute().actionGet();
-        assertThat(deleteResponse.index(), equalTo(getConcreteIndexName()));
-        assertThat(deleteResponse.id(), equalTo("1"));
-        assertThat(deleteResponse.type(), equalTo("type1"));
+        assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(deleteResponse.getId(), equalTo("1"));
+        assertThat(deleteResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
         client1.admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] (should be empty)");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.exists(), equalTo(false));
+            assertThat(getResult.isExists(), equalTo(false));
         }
 
         logger.info("Index [type1/1]");
@@ -198,21 +198,21 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
         logger.info("Flushing");
         FlushResponse flushResult = client1.admin().indices().prepareFlush("test").execute().actionGet();
-        assertThat(flushResult.successfulShards(), equalTo(10));
-        assertThat(flushResult.failedShards(), equalTo(0));
+        assertThat(flushResult.getSuccessfulShards(), equalTo(10));
+        assertThat(flushResult.getFailedShards(), equalTo(0));
         logger.info("Refreshing");
         client1.admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] and [type1/2]");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test").string()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            String ste1 = getResult.sourceAsString();
+            String ste1 = getResult.getSourceAsString();
             String ste2 = source("2", "test2").string();
             assertThat("cycle #" + i, ste1, equalTo(ste2));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
 
         logger.info("Count");
@@ -220,50 +220,50 @@ public class DocumentActionsTests extends AbstractNodesTests {
         for (int i = 0; i < 5; i++) {
             // test successful
             CountResponse countResponse = client1.prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
-            assertThat("Failures " + countResponse.shardFailures(), countResponse.shardFailures().size(), equalTo(0));
-            assertThat(countResponse.count(), equalTo(2l));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures().size(), equalTo(0));
+            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
 
             countResponse = client1.count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
-            assertThat(countResponse.count(), equalTo(2l));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
 
             countResponse = client1.count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
-            assertThat(countResponse.count(), equalTo(2l));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
 
             // test failed (simply query that can't be parsed)
             countResponse = client1.count(countRequest("test").query(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
-            assertThat(countResponse.count(), equalTo(0l));
-            assertThat(countResponse.successfulShards(), equalTo(0));
-            assertThat(countResponse.failedShards(), equalTo(5));
+            assertThat(countResponse.getCount(), equalTo(0l));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(0));
+            assertThat(countResponse.getFailedShards(), equalTo(5));
 
             // count with no query is a match all one
             countResponse = client1.prepareCount("test").execute().actionGet();
-            assertThat("Failures " + countResponse.shardFailures(), countResponse.shardFailures().size(), equalTo(0));
-            assertThat(countResponse.count(), equalTo(2l));
-            assertThat(countResponse.successfulShards(), equalTo(5));
-            assertThat(countResponse.failedShards(), equalTo(0));
+            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures().size(), equalTo(0));
+            assertThat(countResponse.getCount(), equalTo(2l));
+            assertThat(countResponse.getSuccessfulShards(), equalTo(5));
+            assertThat(countResponse.getFailedShards(), equalTo(0));
         }
 
         logger.info("Delete by query");
         DeleteByQueryResponse queryResponse = client2.prepareDeleteByQuery().setIndices("test").setQuery(termQuery("name", "test2")).execute().actionGet();
-        assertThat(queryResponse.index(getConcreteIndexName()).successfulShards(), equalTo(5));
-        assertThat(queryResponse.index(getConcreteIndexName()).failedShards(), equalTo(0));
+        assertThat(queryResponse.getIndex(getConcreteIndexName()).getSuccessfulShards(), equalTo(5));
+        assertThat(queryResponse.getIndex(getConcreteIndexName()).getFailedShards(), equalTo(0));
         client1.admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] and [type1/2], should be empty");
         for (int i = 0; i < 5; i++) {
             getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("1", "test").string()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.exists(), equalTo(false));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
     }
 
@@ -272,9 +272,9 @@ public class DocumentActionsTests extends AbstractNodesTests {
         createIndex();
         logger.info("-> running Cluster Health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         BulkResponse bulkResponse = client1.prepareBulk()
                 .add(client1.prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")))
@@ -285,54 +285,54 @@ public class DocumentActionsTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
-        assertThat(bulkResponse.items().length, equalTo(5));
+        assertThat(bulkResponse.getItems().length, equalTo(5));
 
-        assertThat(bulkResponse.items()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[0].opType(), equalTo("index"));
-        assertThat(bulkResponse.items()[0].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[0].type(), equalTo("type1"));
-        assertThat(bulkResponse.items()[0].id(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[0].getOpType(), equalTo("index"));
+        assertThat(bulkResponse.getItems()[0].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[0].getType(), equalTo("type1"));
+        assertThat(bulkResponse.getItems()[0].getId(), equalTo("1"));
 
-        assertThat(bulkResponse.items()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[1].opType(), equalTo("create"));
-        assertThat(bulkResponse.items()[1].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[1].type(), equalTo("type1"));
-        assertThat(bulkResponse.items()[1].id(), equalTo("2"));
+        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[1].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[1].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[1].getType(), equalTo("type1"));
+        assertThat(bulkResponse.getItems()[1].getId(), equalTo("2"));
 
-        assertThat(bulkResponse.items()[2].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[2].opType(), equalTo("create"));
-        assertThat(bulkResponse.items()[2].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[2].type(), equalTo("type1"));
-        String generatedId3 = bulkResponse.items()[2].id();
+        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[2].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[2].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[2].getType(), equalTo("type1"));
+        String generatedId3 = bulkResponse.getItems()[2].getId();
 
-        assertThat(bulkResponse.items()[3].isFailed(), equalTo(false));
-        assertThat(bulkResponse.items()[3].opType(), equalTo("delete"));
-        assertThat(bulkResponse.items()[3].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[3].type(), equalTo("type1"));
-        assertThat(bulkResponse.items()[3].id(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
+        assertThat(bulkResponse.getItems()[3].getOpType(), equalTo("delete"));
+        assertThat(bulkResponse.getItems()[3].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[3].getType(), equalTo("type1"));
+        assertThat(bulkResponse.getItems()[3].getId(), equalTo("1"));
 
-        assertThat(bulkResponse.items()[4].isFailed(), equalTo(true));
-        assertThat(bulkResponse.items()[4].opType(), equalTo("create"));
-        assertThat(bulkResponse.items()[4].index(), equalTo(getConcreteIndexName()));
-        assertThat(bulkResponse.items()[4].type(), equalTo("type1"));
+        assertThat(bulkResponse.getItems()[4].isFailed(), equalTo(true));
+        assertThat(bulkResponse.getItems()[4].getOpType(), equalTo("create"));
+        assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
+        assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
 
         RefreshResponse refreshResponse = client1.admin().indices().prepareRefresh("test").execute().actionGet();
-        assertThat(refreshResponse.successfulShards(), equalTo(10));
-        assertThat(refreshResponse.failedShards(), equalTo(0));
+        assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
+        assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResult = client1.get(getRequest("test").type("type1").id("1")).actionGet();
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
-            assertThat("cycle #" + i, getResult.exists(), equalTo(false));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.isExists(), equalTo(false));
 
             getResult = client1.get(getRequest("test").type("type1").id("2")).actionGet();
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("2", "test").string()));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("2", "test").string()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
 
             getResult = client1.get(getRequest("test").type("type1").id(generatedId3)).actionGet();
-            assertThat("cycle #" + i, getResult.sourceAsString(), equalTo(source("3", "test").string()));
-            assertThat(getResult.index(), equalTo(getConcreteIndexName()));
+            assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("3", "test").string()));
+            assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
     }
 

@@ -537,6 +537,11 @@ public class DocumentMapper implements ToXContent {
                 throw (MapperParsingException) e;
             }
 
+            // Throw a more meaningful message if the document is empty.
+            if (source.source() != null && source.source().length() == 0) {
+                throw new MapperParsingException("failed to parse, document is empty");
+            }
+
             throw new MapperParsingException("failed to parse", e);
         } finally {
             // only close the parser when its not provided externally

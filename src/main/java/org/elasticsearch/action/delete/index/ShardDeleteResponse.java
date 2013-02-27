@@ -41,11 +41,11 @@ public class ShardDeleteResponse extends ActionResponse {
         this.notFound = notFound;
     }
 
-    public long version() {
+    public long getVersion() {
         return version;
     }
 
-    public boolean notFound() {
+    public boolean isNotFound() {
         return notFound;
     }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisModule;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
+import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.query.IndicesQueriesModule;
@@ -68,6 +69,7 @@ public class IndicesModule extends AbstractModule implements SpawnModules {
         bind(IndicesClusterStateService.class).asEagerSingleton();
         bind(IndexingMemoryController.class).asEagerSingleton();
         bind(IndicesFilterCache.class).asEagerSingleton();
+        bind(IndicesTermsFilterCache.class).asEagerSingleton();
         bind(TransportNodesListShardStoreMetaData.class).asEagerSingleton();
         bind(IndicesTTLService.class).asEagerSingleton();
         bind(IndicesWarmer.class).to(InternalIndicesWarmer.class).asEagerSingleton();

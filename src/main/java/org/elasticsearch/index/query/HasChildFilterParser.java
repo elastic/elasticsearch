@@ -56,7 +56,6 @@ public class HasChildFilterParser implements FilterParser {
         boolean queryFound = false;
         String childType = null;
 
-        String executionType = "uid";
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -94,8 +93,6 @@ public class HasChildFilterParser implements FilterParser {
                     throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_child] filter has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
-                } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {// This option is experimental and will most likely be removed.
-                    executionType = parser.text();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] filter does not support [" + currentFieldName + "]");
                 }
@@ -125,7 +122,7 @@ public class HasChildFilterParser implements FilterParser {
 
         SearchContext searchContext = SearchContext.current();
 
-        HasChildFilter childFilter = HasChildFilter.create(query, parentType, childType, searchContext, executionType);
+        HasChildFilter childFilter = HasChildFilter.create(query, parentType, childType, searchContext);
         searchContext.addRewrite(childFilter);
 
         if (filterName != null) {

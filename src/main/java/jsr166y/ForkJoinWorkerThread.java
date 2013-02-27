@@ -25,10 +25,17 @@ public class ForkJoinWorkerThread extends Thread {
      * ForkJoinWorkerThreads are managed by ForkJoinPools and perform
      * ForkJoinTasks. For explanation, see the internal documentation
      * of class ForkJoinPool.
+     *
+     * This class just maintains links to its pool and WorkQueue.  The
+     * pool field is set immediately upon construction, but the
+     * workQueue field is not set until a call to registerWorker
+     * completes. This leads to a visibility race, that is tolerated
+     * by requiring that the workQueue field is only accessed by the
+     * owning thread.
      */
 
-    final ForkJoinPool.WorkQueue workQueue; // Work-stealing mechanics
     final ForkJoinPool pool;                // the pool this thread works in
+    final ForkJoinPool.WorkQueue workQueue; // work-stealing mechanics
 
     /**
      * Creates a ForkJoinWorkerThread operating in the given pool.
@@ -37,14 +44,10 @@ public class ForkJoinWorkerThread extends Thread {
      * @throws NullPointerException if pool is null
      */
     protected ForkJoinWorkerThread(ForkJoinPool pool) {
-        super(pool.nextWorkerName());
-        setDaemon(true);
-        Thread.UncaughtExceptionHandler ueh = pool.ueh;
-        if (ueh != null)
-            setUncaughtExceptionHandler(ueh);
+        // Use a placeholder until a useful name can be set in registerWorker
+        super("aForkJoinWorkerThread");
         this.pool = pool;
-        pool.registerWorker(this.workQueue = new ForkJoinPool.WorkQueue
-                            (pool, this, pool.localMode));
+        this.workQueue = pool.registerWorker(this);
     }
 
     /**
@@ -116,4 +119,3 @@ public class ForkJoinWorkerThread extends Thread {
         }
     }
 }
-

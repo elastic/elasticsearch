@@ -20,8 +20,10 @@
 package org.elasticsearch.search.facet;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 
@@ -31,30 +33,58 @@ import java.util.List;
 /**
  *
  */
-public interface InternalFacet extends Facet, Streamable, ToXContent {
+public abstract class InternalFacet implements Facet, Streamable, ToXContent {
 
-    String streamType();
+    private String facetName;
 
-    Facet reduce(List<Facet> facets);
+    /**
+     * Here just for streams...
+     */
+    protected InternalFacet() {
+
+    }
+
+    protected InternalFacet(String facetName) {
+        this.facetName = facetName;
+    }
+
+    public abstract BytesReference streamType();
+
+    public abstract Facet reduce(List<Facet> facets);
 
     public static interface Stream {
-        Facet readFacet(String type, StreamInput in) throws IOException;
+        Facet readFacet(StreamInput in) throws IOException;
     }
 
     public static class Streams {
 
-        private static ImmutableMap<String, Stream> streams = ImmutableMap.of();
+        private static ImmutableMap<BytesReference, Stream> streams = ImmutableMap.of();
 
-        public static synchronized void registerStream(Stream stream, String... types) {
-            MapBuilder<String, Stream> uStreams = MapBuilder.newMapBuilder(streams);
-            for (String type : types) {
+        public static synchronized void registerStream(Stream stream, BytesReference... types) {
+            MapBuilder<BytesReference, Stream> uStreams = MapBuilder.newMapBuilder(streams);
+            for (BytesReference type : types) {
                 uStreams.put(type, stream);
             }
             streams = uStreams.immutableMap();
         }
 
-        public static Stream stream(String type) {
+        public static Stream stream(BytesReference type) {
             return streams.get(type);
         }
+    }
+
+    @Override
+    public final String getName() {
+        return facetName;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        facetName = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(facetName);
     }
 }

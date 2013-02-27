@@ -28,7 +28,6 @@ import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -159,11 +158,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the engine");
         Preconditions.checkNotNull(translog, "Translog must be provided to the engine");
 
-        this.gcDeletesInMillis = indexSettings.getAsTime("index.gc_deletes", TimeValue.timeValueSeconds(60)).millis();
+        this.gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueSeconds(60)).millis();
         this.indexingBufferSize = componentSettings.getAsBytesSize("index_buffer_size", new ByteSizeValue(64, ByteSizeUnit.MB)); // not really important, as it is set by the IndexingMemory manager
-        this.termIndexInterval = indexSettings.getAsInt("index.term_index_interval", IndexWriterConfig.DEFAULT_TERM_INDEX_INTERVAL);
-        this.termIndexDivisor = indexSettings.getAsInt("index.term_index_divisor", 1); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
-        this.codecName = indexSettings.get("index.codec", "default");
+        this.termIndexInterval = indexSettings.getAsInt(INDEX_TERM_INDEX_INTERVAL, IndexWriterConfig.DEFAULT_TERM_INDEX_INTERVAL);
+        this.termIndexDivisor = indexSettings.getAsInt(INDEX_TERM_INDEX_DIVISOR, 1); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
+        this.codecName = indexSettings.get(INDEX_CODEC, "default");
 
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
@@ -178,7 +177,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.similarityService = similarityService;
         this.codecService = codecService;
 
-        this.indexConcurrency = indexSettings.getAsInt("index.index_concurrency", IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
+        this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
         this.versionMap = ConcurrentCollections.newConcurrentMap();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
         for (int i = 0; i < dirtyLocks.length; i++) {
@@ -1327,32 +1326,27 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return indexWriter;
     }
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                "index.term_index_interval",
-                "index.term_index_divisor",
-                "index.index_concurrency",
-                "index.gc_deletes",
-                "index.codec"
-        );
-    }
-
+    public static final String INDEX_TERM_INDEX_INTERVAL = "index.term_index_interval";
+    public static final String INDEX_TERM_INDEX_DIVISOR = "index.term_index_divisor";
+    public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";
+    public static final String INDEX_GC_DELETES = "index.gc_deletes";
+    public static final String INDEX_CODEC = "index.codec";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            long gcDeletesInMillis = indexSettings.getAsTime("index.gc_deletes", TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis)).millis();
+            long gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES, TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis)).millis();
             if (gcDeletesInMillis != RobinEngine.this.gcDeletesInMillis) {
                 logger.info("updating index.gc_deletes from [{}] to [{}]", TimeValue.timeValueMillis(RobinEngine.this.gcDeletesInMillis), TimeValue.timeValueMillis(gcDeletesInMillis));
                 RobinEngine.this.gcDeletesInMillis = gcDeletesInMillis;
             }
 
-            int termIndexInterval = settings.getAsInt("index.term_index_interval", RobinEngine.this.termIndexInterval);
-            int termIndexDivisor = settings.getAsInt("index.term_index_divisor", RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
-            int indexConcurrency = settings.getAsInt("index.index_concurrency", RobinEngine.this.indexConcurrency);
-            String codecName = settings.get("index.codec", RobinEngine.this.codecName);
+            int termIndexInterval = settings.getAsInt(INDEX_TERM_INDEX_INTERVAL, RobinEngine.this.termIndexInterval);
+            int termIndexDivisor = settings.getAsInt(INDEX_TERM_INDEX_DIVISOR, RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
+            int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, RobinEngine.this.indexConcurrency);
+            String codecName = settings.get(INDEX_CODEC, RobinEngine.this.codecName);
             boolean requiresFlushing = false;
-            if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor) {
+            if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor || indexConcurrency != RobinEngine.this.indexConcurrency || !codecName.equals(RobinEngine.this.codecName)) {
                 rwl.readLock().lock();
                 try {
                     if (termIndexInterval != RobinEngine.this.termIndexInterval) {
@@ -1376,7 +1370,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (!codecName.equals(RobinEngine.this.codecName)) {
                         logger.info("updating index.codec from [{}] to [{}]", RobinEngine.this.codecName, codecName);
                         RobinEngine.this.codecName = codecName;
-                        // TODO: Lucene 4, I think once someones changes codec, it should be reflected immediately
+                        // we want to flush in this case, so the new codec will be reflected right away...
                         requiresFlushing = true;
                     }
                 } finally {

@@ -220,8 +220,8 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 @Override
                 public void onResponse(BulkShardResponse bulkShardResponse) {
                     synchronized (responses) {
-                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.responses()) {
-                            responses[bulkItemResponse.itemId()] = bulkItemResponse;
+                        for (BulkItemResponse bulkItemResponse : bulkShardResponse.getResponses()) {
+                            responses[bulkItemResponse.getItemId()] = bulkItemResponse;
                         }
                     }
                     if (counter.decrementAndGet() == 0) {

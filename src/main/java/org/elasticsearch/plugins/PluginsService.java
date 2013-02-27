@@ -85,7 +85,7 @@ public class PluginsService extends AbstractComponent {
         // now, find all the ones that are in the classpath
         loadPluginsIntoClassLoader();
         plugins.putAll(loadPluginsFromClasspath(settings));
-        Set<String> sitePlugins = sitePlugins();
+        Set<String> sitePlugins = PluginsHelper.sitePlugins(this.environment);
 
         String[] mandatoryPlugins = settings.getAsArray("plugin.mandatory", null);
         if (mandatoryPlugins != null) {
@@ -238,24 +238,6 @@ public class PluginsService extends AbstractComponent {
             services.addAll(plugin.shardServices());
         }
         return services;
-    }
-
-    private Set<String> sitePlugins() {
-        File pluginsFile = environment.pluginsFile();
-        Set<String> sitePlugins = Sets.newHashSet();
-        if (!pluginsFile.exists()) {
-            return sitePlugins;
-        }
-        if (!pluginsFile.isDirectory()) {
-            return sitePlugins;
-        }
-        File[] pluginsFiles = pluginsFile.listFiles();
-        for (File pluginFile : pluginsFiles) {
-            if (new File(pluginFile, "_site").exists()) {
-                sitePlugins.add(pluginFile.getName());
-            }
-        }
-        return sitePlugins;
     }
 
     private void loadPluginsIntoClassLoader() {

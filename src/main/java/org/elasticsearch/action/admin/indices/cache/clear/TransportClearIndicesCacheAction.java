@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,12 +49,14 @@ import static com.google.common.collect.Lists.newArrayList;
 public class TransportClearIndicesCacheAction extends TransportBroadcastOperationAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ShardClearIndicesCacheRequest, ShardClearIndicesCacheResponse> {
 
     private final IndicesService indicesService;
+    private final IndicesTermsFilterCache termsFilterCache;
 
     @Inject
     public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                            TransportService transportService, IndicesService indicesService) {
+                                            TransportService transportService, IndicesService indicesService, IndicesTermsFilterCache termsFilterCache) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
+        this.termsFilterCache = termsFilterCache;
     }
 
     @Override
@@ -123,6 +126,12 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             if (request.filterCache()) {
                 clearedAtLeastOne = true;
                 service.cache().filter().clear("api");
+                termsFilterCache.clear("api");
+            }
+            if (request.filterKeys() != null && request.filterKeys().length > 0) {
+                clearedAtLeastOne = true;
+                service.cache().filter().clear("api", request.filterKeys());
+                termsFilterCache.clear("api", request.filterKeys());
             }
             if (request.fieldDataCache()) {
                 clearedAtLeastOne = true;
@@ -146,9 +155,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                     }
                 } else {
                     service.cache().clear("api");
+                    termsFilterCache.clear("api");
                 }
             }
-            service.cache().invalidateCache();
+            service.cache().invalidateStatsCache();
         }
         return new ShardClearIndicesCacheResponse(request.index(), request.shardId());
     }

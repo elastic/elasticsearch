@@ -21,6 +21,9 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJSONShapeParser;
@@ -135,7 +138,7 @@ public class GeoShapeQueryParser implements QueryParser {
 
         GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
 
-        Query query = shapeFieldMapper.spatialStrategy().createQuery(shape, shapeRelation);
+        Query query = shapeFieldMapper.spatialStrategy().makeQuery(getArgs(shape, shapeRelation));
         query.setBoost(boost);
         return query;
     }
@@ -143,5 +146,19 @@ public class GeoShapeQueryParser implements QueryParser {
     @Inject(optional = true)
     public void setFetchService(@Nullable ShapeFetchService fetchService) {
         this.fetchService = fetchService;
+    }
+    
+    public static SpatialArgs getArgs(Shape shape, ShapeRelation relation) {
+        switch(relation) {
+        case DISJOINT:
+            return new SpatialArgs(SpatialOperation.IsDisjointTo, shape);
+        case INTERSECTS:
+            return new SpatialArgs(SpatialOperation.Intersects, shape);
+        case WITHIN:
+            return new SpatialArgs(SpatialOperation.IsWithin, shape);
+        default:
+            throw new ElasticSearchIllegalArgumentException("");
+        
+        }
     }
 }

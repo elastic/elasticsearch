@@ -39,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -129,6 +128,7 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
             latch.await();
             return response.get();
         } catch (InterruptedException e) {
+            logger.trace("pingAndWait interrupted");
             return null;
         }
     }

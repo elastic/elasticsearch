@@ -19,27 +19,19 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.FieldComparator;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 
 import java.io.IOException;
 
 /**
  */
-public class DoubleValuesComparator extends FieldComparator<Double> {
+public final class DoubleValuesComparator extends DoubleValuesComparatorBase<Double> {
 
-    private final IndexNumericFieldData indexFieldData;
-    private final double missingValue;
+    private final double[] values;
 
-    protected final double[] values;
-    private double bottom;
-    private DoubleValues readerValues;
-
-    public DoubleValuesComparator(IndexNumericFieldData indexFieldData, double missingValue, int numHits) {
-        this.indexFieldData = indexFieldData;
-        this.missingValue = missingValue;
+    public DoubleValuesComparator(IndexNumericFieldData<?> indexFieldData, double missingValue, int numHits, SortMode sortMode) {
+        super(indexFieldData, missingValue, sortMode);
+        assert indexFieldData.getNumericType().requiredBits() <= 64;
         this.values = new double[numHits];
     }
 
@@ -47,13 +39,7 @@ public class DoubleValuesComparator extends FieldComparator<Double> {
     public int compare(int slot1, int slot2) {
         final double v1 = values[slot1];
         final double v2 = values[slot2];
-        if (v1 > v2) {
-            return 1;
-        } else if (v1 < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
+        return compare(v1, v2);
     }
 
     @Override
@@ -62,44 +48,12 @@ public class DoubleValuesComparator extends FieldComparator<Double> {
     }
 
     @Override
-    public int compareBottom(int doc) throws IOException {
-        double v2 = readerValues.getValueMissing(doc, missingValue);
-
-        if (bottom > v2) {
-            return 1;
-        } else if (bottom < v2) {
-            return -1;
-        } else {
-            return 0;
-        }
-    }
-
-    @Override
     public void copy(int slot, int doc) throws IOException {
         values[slot] = readerValues.getValueMissing(doc, missingValue);
     }
 
     @Override
-    public FieldComparator<Double> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getDoubleValues();
-        return this;
-    }
-
-    @Override
     public Double value(int slot) {
         return Double.valueOf(values[slot]);
-    }
-
-    @Override
-    public int compareDocToValue(int doc, Double valueObj) throws IOException {
-        final double value = valueObj.doubleValue();
-        double docValue = readerValues.getValueMissing(doc, missingValue);
-        if (docValue < value) {
-            return -1;
-        } else if (docValue > value) {
-            return 1;
-        } else {
-            return 0;
-        }
     }
 }

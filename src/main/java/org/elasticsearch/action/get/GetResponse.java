@@ -53,99 +53,50 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     /**
      * Does the document exists.
      */
-    public boolean exists() {
-        return getResult.exists();
-    }
-
-    /**
-     * Does the document exists.
-     */
     public boolean isExists() {
-        return exists();
-    }
-
-    /**
-     * The index the document was fetched from.
-     */
-    public String index() {
-        return getResult.index();
+        return getResult.isExists();
     }
 
     /**
      * The index the document was fetched from.
      */
     public String getIndex() {
-        return index();
-    }
-
-    /**
-     * The type of the document.
-     */
-    public String type() {
-        return getResult.type();
+        return getResult.getIndex();
     }
 
     /**
      * The type of the document.
      */
     public String getType() {
-        return type();
-    }
-
-    /**
-     * The id of the document.
-     */
-    public String id() {
-        return getResult.id();
+        return getResult.getType();
     }
 
     /**
      * The id of the document.
      */
     public String getId() {
-        return id();
-    }
-
-    /**
-     * The version of the doc.
-     */
-    public long version() {
-        return getResult.version();
+        return getResult.getId();
     }
 
     /**
      * The version of the doc.
      */
     public long getVersion() {
-        return version();
-    }
-
-    /**
-     * The source of the document if exists.
-     */
-    public byte[] source() {
-        return getResult.source();
+        return getResult.getVersion();
     }
 
     /**
      * The source of the document if exists.
      */
     public byte[] getSourceAsBytes() {
-        return source();
-    }
-
-    /**
-     * Returns bytes reference, also un compress the source if needed.
-     */
-    public BytesReference sourceRef() {
-        return getResult.sourceRef();
+        return getResult.source();
     }
 
     /**
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesReference getSourceAsBytesRef() {
-        return sourceRef();
+        return getResult.sourceRef();
     }
 
     /**
@@ -158,19 +109,15 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     /**
      * The source of the document (as a string).
      */
-    public String sourceAsString() {
-        return getResult.sourceAsString();
-    }
-
     public String getSourceAsString() {
-        return sourceAsString();
+        return getResult.sourceAsString();
     }
 
     /**
      * The source of the document (As a map).
      */
     @SuppressWarnings({"unchecked"})
-    public Map<String, Object> sourceAsMap() throws ElasticSearchParseException {
+    public Map<String, Object> getSourceAsMap() throws ElasticSearchParseException {
         return getResult.sourceAsMap();
     }
 
@@ -178,15 +125,11 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         return getResult.getSource();
     }
 
-    public Map<String, GetField> fields() {
-        return getResult.fields();
-    }
-
     public Map<String, GetField> getFields() {
-        return fields();
+        return getResult.getFields();
     }
 
-    public GetField field(String name) {
+    public GetField getField(String name) {
         return getResult.field(name);
     }
 

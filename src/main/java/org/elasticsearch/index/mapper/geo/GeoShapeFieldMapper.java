@@ -1,17 +1,22 @@
 package org.elasticsearch.index.mapper.geo;
 
+import java.io.IOException;
+import java.util.Map;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.spatial.SpatialStrategy;
+import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
+import org.apache.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
+import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
+import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
+import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJSONShapeParser;
 import org.elasticsearch.common.geo.GeoShapeConstants;
-import org.elasticsearch.common.lucene.spatial.SpatialStrategy;
-import org.elasticsearch.common.lucene.spatial.prefix.TermQueryPrefixTreeStrategy;
-import org.elasticsearch.common.lucene.spatial.prefix.tree.GeohashPrefixTree;
-import org.elasticsearch.common.lucene.spatial.prefix.tree.QuadPrefixTree;
-import org.elasticsearch.common.lucene.spatial.prefix.tree.SpatialPrefixTree;
+import org.elasticsearch.common.lucene.spatial.XTermQueryPrefixTreeStategy;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -20,9 +25,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-
-import java.io.IOException;
-import java.util.Map;
 
 /**
  * FieldMapper for indexing {@link com.spatial4j.core.shape.Shape}s.
@@ -135,12 +137,13 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         }
     }
 
-    private final SpatialStrategy spatialStrategy;
+    private final PrefixTreeStrategy spatialStrategy;
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree prefixTree, double distanceErrorPct,
                                FieldType fieldType, PostingsFormatProvider provider) {
         super(names, 1, fieldType, null, null, provider, null, null);
-        this.spatialStrategy = new TermQueryPrefixTreeStrategy(names, prefixTree, distanceErrorPct);
+        this.spatialStrategy = new XTermQueryPrefixTreeStategy(prefixTree, names);
+        this.spatialStrategy.setDistErrPct(distanceErrorPct);
     }
 
     @Override
@@ -152,10 +155,30 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     public FieldDataType defaultFieldDataType() {
         return null;
     }
+    
+    @Override
+    public void parse(ParseContext context) throws IOException {
+        try {
+            Field[] fields = spatialStrategy.createIndexableFields(GeoJSONShapeParser.parse(context.parser()));
+            if (fields == null || fields.length == 0) {
+                return;
+            }
+            for (Field field : fields) {
+                if (!customBoost()) {
+                    field.setBoost(boost);
+                }
+                if (context.listener().beforeFieldAdded(this, field, context)) {
+                    context.doc().add(field);
+                }
+            }
+        } catch (Exception e) {
+            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
+        }
+    }
 
     @Override
     protected Field parseCreateField(ParseContext context) throws IOException {
-        return spatialStrategy.createField(GeoJSONShapeParser.parse(context.parser()));
+        return null;
     }
 
     @Override
@@ -163,21 +186,21 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         builder.field("type", contentType());
 
         // TODO: Come up with a better way to get the name, maybe pass it from builder
-        if (spatialStrategy.getPrefixTree() instanceof GeohashPrefixTree) {
+        if (spatialStrategy.getGrid() instanceof GeohashPrefixTree) {
             // Don't emit the tree name since GeohashPrefixTree is the default
             // Only emit the tree levels if it isn't the default value
-            if (spatialStrategy.getPrefixTree().getMaxLevels() != Defaults.GEOHASH_LEVELS) {
-                builder.field(Names.TREE_LEVELS, spatialStrategy.getPrefixTree().getMaxLevels());
+            if (spatialStrategy.getGrid().getMaxLevels() != Defaults.GEOHASH_LEVELS) {
+                builder.field(Names.TREE_LEVELS, spatialStrategy.getGrid().getMaxLevels());
             }
         } else {
             builder.field(Names.TREE, Names.QUADTREE);
-            if (spatialStrategy.getPrefixTree().getMaxLevels() != Defaults.QUADTREE_LEVELS) {
-                builder.field(Names.TREE_LEVELS, spatialStrategy.getPrefixTree().getMaxLevels());
+            if (spatialStrategy.getGrid().getMaxLevels() != Defaults.QUADTREE_LEVELS) {
+                builder.field(Names.TREE_LEVELS, spatialStrategy.getGrid().getMaxLevels());
             }
         }
 
-        if (spatialStrategy.getDistanceErrorPct() != Defaults.DISTANCE_ERROR_PCT) {
-            builder.field(Names.DISTANCE_ERROR_PCT, spatialStrategy.getDistanceErrorPct());
+        if (spatialStrategy.getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
+            builder.field(Names.DISTANCE_ERROR_PCT, spatialStrategy.getDistErrPct());
         }
     }
 
@@ -191,7 +214,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         throw new UnsupportedOperationException("GeoShape fields cannot be converted to String values");
     }
 
-    public SpatialStrategy spatialStrategy() {
+    public PrefixTreeStrategy spatialStrategy() {
         return this.spatialStrategy;
     }
 }

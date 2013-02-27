@@ -92,10 +92,16 @@ public class TermsQueryParser implements QueryParser {
                     minimumShouldMatch = parser.textOrNull();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
                 }
             } else {
                 throw new QueryParsingException(parseContext.index(), "[terms] query does not support [" + currentFieldName + "]");
             }
+        }
+
+        if (fieldName == null) {
+            throw new QueryParsingException(parseContext.index(), "No field specified for terms query");
         }
 
         FieldMapper mapper = null;

@@ -27,6 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 
@@ -57,7 +58,7 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * Comparator used for sorting.
      */
-    XFieldComparatorSource comparatorSource(@Nullable Object missingValue);
+    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode);
 
     /**
      * Clears any resources associated with this field data.

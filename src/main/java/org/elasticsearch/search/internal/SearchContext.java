@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.engine.Engine;
@@ -58,6 +59,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -167,6 +169,8 @@ public class SearchContext implements Releasable {
 
     private SuggestionSearchContext suggest;
 
+    private RescoreSearchContext rescore;
+
     private SearchLookup searchLookup;
 
     private boolean queryRewritten;
@@ -176,6 +180,7 @@ public class SearchContext implements Releasable {
     private volatile long lastAccessTime;
 
     private List<Rewrite> rewrites = null;
+
 
     public SearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard, ScriptService scriptService) {
@@ -208,6 +213,7 @@ public class SearchContext implements Releasable {
                 rewrite.contextClear();
             }
         }
+        searcher.release();
         engineSearcher.release();
         return true;
     }
@@ -314,6 +320,14 @@ public class SearchContext implements Releasable {
         this.suggest = suggest;
     }
 
+    public RescoreSearchContext rescore() {
+        return this.rescore;
+    }
+
+    public void rescore(RescoreSearchContext rescore) {
+        this.rescore = rescore;
+    }
+
     public boolean hasScriptFields() {
         return scriptFields != null;
     }
@@ -366,6 +380,10 @@ public class SearchContext implements Releasable {
 
     public FilterCache filterCache() {
         return indexService.cache().filter();
+    }
+
+    public DocSetCache docSetCache() {
+        return indexService.cache().docSet();
     }
 
     public IndexFieldDataService fieldData() {

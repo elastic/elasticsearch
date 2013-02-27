@@ -78,7 +78,8 @@ public class IndicesStoreTests extends AbstractNodesTests {
 
         logger.info("--> running cluster_health");
         ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
 
         logger.info("--> making sure that shard and it's replica are allocated on server1 and server2");
@@ -97,8 +98,9 @@ public class IndicesStoreTests extends AbstractNodesTests {
         assertThat(server2Shard.exists(), equalTo(true));
 
         logger.info("--> running cluster_health");
-        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus().waitForNodes("2")).actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         logger.info("--> making sure that shard and it's replica exist on server1, server2 and server3");
         assertThat(shardDirectory("server1", "test", 0).exists(), equalTo(true));
@@ -110,7 +112,8 @@ public class IndicesStoreTests extends AbstractNodesTests {
 
         logger.info("--> running cluster_health");
         clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("--> done cluster_health, status " + clusterHealth.status());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         logger.info("--> making sure that shard and it's replica are allocated on server1 and server3 but not on server2");
         assertThat(shardDirectory("server1", "test", 0).exists(), equalTo(true));

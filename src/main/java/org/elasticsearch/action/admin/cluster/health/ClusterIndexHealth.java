@@ -69,92 +69,48 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         this.validationFailures = validationFailures;
     }
 
-    public String index() {
+    public String getIndex() {
         return index;
     }
 
-    public String getIndex() {
-        return index();
-    }
-
-    public List<String> validationFailures() {
+    public List<String> getValidationFailures() {
         return this.validationFailures;
     }
 
-    public List<String> getValidationFailures() {
-        return validationFailures();
-    }
-
-    public int numberOfShards() {
+    public int getNumberOfShards() {
         return numberOfShards;
     }
 
-    public int getNumberOfShards() {
-        return numberOfShards();
-    }
-
-    public int numberOfReplicas() {
+    public int getNumberOfReplicas() {
         return numberOfReplicas;
     }
 
-    public int getNumberOfReplicas() {
-        return numberOfReplicas();
-    }
-
-    public int activeShards() {
+    public int getActiveShards() {
         return activeShards;
     }
 
-    public int getActiveShards() {
-        return activeShards();
-    }
-
-    public int relocatingShards() {
+    public int getRelocatingShards() {
         return relocatingShards;
     }
 
-    public int getRelocatingShards() {
-        return relocatingShards();
-    }
-
-    public int activePrimaryShards() {
+    public int getActivePrimaryShards() {
         return activePrimaryShards;
     }
 
-    public int getActivePrimaryShards() {
-        return activePrimaryShards();
-    }
-
-    public int initializingShards() {
+    public int getInitializingShards() {
         return initializingShards;
     }
 
-    public int getInitializingShards() {
-        return initializingShards();
-    }
-
-    public int unassignedShards() {
+    public int getUnassignedShards() {
         return unassignedShards;
     }
 
-    public int getUnassignedShards() {
-        return unassignedShards();
-    }
-
-    public ClusterHealthStatus status() {
+    public ClusterHealthStatus getStatus() {
         return status;
     }
 
-    public ClusterHealthStatus getStatus() {
-        return status();
-    }
-
-    public Map<Integer, ClusterShardHealth> shards() {
-        return this.shards;
-    }
-
     public Map<Integer, ClusterShardHealth> getShards() {
-        return shards();
+        return this.shards;
     }
 
     @Override
@@ -183,7 +139,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             ClusterShardHealth shardHealth = readClusterShardHealth(in);
-            shards.put(shardHealth.id(), shardHealth);
+            shards.put(shardHealth.getId(), shardHealth);
         }
         size = in.readVInt();
         if (size == 0) {

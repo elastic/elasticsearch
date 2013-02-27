@@ -73,7 +73,7 @@ public class GetStressTest {
                         GetResponse getResponse = client.client().prepareGet("test", "type1", id)
                                 //.setFields(Strings.EMPTY_ARRAY)
                                 .execute().actionGet();
-                        if (!getResponse.exists()) {
+                        if (!getResponse.isExists()) {
                             System.err.println("Failed to find " + id);
                         }
 

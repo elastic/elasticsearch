@@ -44,6 +44,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -105,8 +107,14 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
             context.parsedQuery(parseQuery(request, indexService));
             context.preProcess();
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().reader.docBase;
-
-            Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+            Explanation explanation;
+            if (context.rescore() != null) {
+                RescoreSearchContext ctx = context.rescore();
+                Rescorer rescorer = ctx.rescorer();
+                explanation = rescorer.explain(topLevelDocId, context, ctx);
+            } else {
+                explanation = context.searcher().explain(context.query(), topLevelDocId);
+            }
             if (request.fields() != null) {
                 if (request.fields().length == 1 && "_source".equals(request.fields()[0])) {
                     request.fields(null); // Load the _source field

@@ -60,7 +60,7 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
         for (int i = 0; i < indexResponses.length(); i++) {
             IndexDeleteByQueryResponse indexResponse = (IndexDeleteByQueryResponse) indexResponses.get(i);
             if (indexResponse != null) {
-                response.indices().put(indexResponse.index(), indexResponse);
+                response.getIndices().put(indexResponse.getIndex(), indexResponse);
             }
         }
         return response;

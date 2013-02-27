@@ -35,7 +35,7 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest<DeleteMappi
 
     private String[] indices;
 
-    private String mappingType;
+    private String type;
 
     DeleteMappingRequest() {
     }
@@ -51,7 +51,7 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest<DeleteMappi
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (mappingType == null) {
+        if (type == null) {
             validationException = addValidationError("mapping type is missing", validationException);
         }
         return validationException;
@@ -76,14 +76,14 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest<DeleteMappi
      * The mapping type.
      */
     public String type() {
-        return mappingType;
+        return type;
     }
 
     /**
      * The type of the mappings to remove.
      */
-    public DeleteMappingRequest type(String mappingType) {
-        this.mappingType = mappingType;
+    public DeleteMappingRequest type(String type) {
+        this.type = type;
         return this;
     }
 
@@ -95,7 +95,7 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest<DeleteMappi
             indices[i] = in.readString();
         }
         if (in.readBoolean()) {
-            mappingType = in.readString();
+            type = in.readString();
         }
     }
 
@@ -110,11 +110,11 @@ public class DeleteMappingRequest extends MasterNodeOperationRequest<DeleteMappi
                 out.writeString(index);
             }
         }
-        if (mappingType == null) {
+        if (type == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeString(mappingType);
+            out.writeString(type);
         }
     }
 }

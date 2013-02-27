@@ -22,14 +22,14 @@ package org.elasticsearch.search.facet.filter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class FilterFacetBuilder extends AbstractFacetBuilder {
+public class FilterFacetBuilder extends FacetBuilder {
 
     private FilterBuilder filter;
 

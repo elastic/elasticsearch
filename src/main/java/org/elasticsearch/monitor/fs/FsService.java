@@ -46,7 +46,7 @@ public class FsService extends AbstractComponent {
     }
 
     public synchronized FsStats stats() {
-        if ((System.currentTimeMillis() - cachedStats.timestamp()) > refreshInterval.millis()) {
+        if ((System.currentTimeMillis() - cachedStats.getTimestamp()) > refreshInterval.millis()) {
             cachedStats = probe.stats();
         }
         return cachedStats;

@@ -31,12 +31,14 @@ import java.io.IOException;
  */
 public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
-    private final IndexNumericFieldData indexFieldData;
+    private final IndexNumericFieldData<?> indexFieldData;
     private final Object missingValue;
+    private final SortMode sortMode;
 
-    public DoubleValuesComparatorSource(IndexNumericFieldData indexFieldData, @Nullable Object missingValue) {
+    public DoubleValuesComparatorSource(IndexNumericFieldData<?> indexFieldData, @Nullable Object missingValue, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.missingValue = missingValue;
+        this.sortMode = sortMode;
     }
 
     @Override
@@ -57,6 +59,6 @@ public class DoubleValuesComparatorSource extends IndexFieldData.XFieldComparato
             dMissingValue = missingValue instanceof Number ? ((Number) missingValue).doubleValue() : Double.parseDouble(missingValue.toString());
         }
 
-        return new DoubleValuesComparator(indexFieldData, dMissingValue, numHits);
+        return new DoubleValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
     }
 }

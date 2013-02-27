@@ -97,17 +97,59 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                         geoShapeFilter("location", shape).relation(ShapeRelation.INTERSECTS)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
 
         searchResponse = client.prepareSearch()
                 .setQuery(geoShapeQuery("location", shape).relation(ShapeRelation.INTERSECTS))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+    }
+
+    @Test(enabled=false) // LUCENE MONITIR enable this test again once Lucene4.2 is out. This bug is fixed in Lucene 4.2
+    public void testEdgeCases() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "quadtree")
+                .endObject().endObject()
+                .endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "blakely").setSource(jsonBuilder().startObject()
+                .field("name", "Blakely Island")
+                .startObject("location")
+                .field("type", "polygon")
+                .startArray("coordinates").startArray()
+                    .startArray().value(-122.83).value(48.57).endArray()
+                    .startArray().value(-122.77).value(48.56).endArray()
+                    .startArray().value(-122.79).value(48.53).endArray()
+                    .startArray().value(-122.83).value(48.57).endArray() // close the polygon
+                .endArray().endArray()
+                .endObject()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        Shape query = newRectangle().topLeft(-122.88, 48.62).bottomRight(-122.82, 48.54).build();
+
+        // This search would fail if both geoshape indexing and geoshape filtering
+        // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(filteredQuery(matchAllQuery(),
+                        geoShapeFilter("location", query).relation(ShapeRelation.INTERSECTS)))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("blakely"));
     }
 
     @Test
@@ -149,16 +191,16 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                         geoShapeFilter("location", "Big_Rectangle", "shape_type").relation(ShapeRelation.INTERSECTS)))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
 
         searchResponse = client.prepareSearch()
                 .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type").relation(ShapeRelation.INTERSECTS))
                 .execute().actionGet();
 
-        assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.hits().hits().length, equalTo(1));
-        assertThat(searchResponse.hits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 }

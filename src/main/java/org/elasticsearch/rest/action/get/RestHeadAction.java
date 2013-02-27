@@ -62,7 +62,7 @@ public class RestHeadAction extends BaseRestHandler {
             @Override
             public void onResponse(GetResponse response) {
                 try {
-                    if (!response.exists()) {
+                    if (!response.isExists()) {
                         channel.sendResponse(new StringRestResponse(NOT_FOUND));
                     } else {
                         channel.sendResponse(new StringRestResponse(OK));

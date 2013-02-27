@@ -36,26 +36,16 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
     /**
      * An ordered list of range facet entries.
      */
-    List<Entry> entries();
-
-    /**
-     * An ordered list of range facet entries.
-     */
     List<Entry> getEntries();
 
     public class Entry {
 
         double from = Double.NEGATIVE_INFINITY;
-
         double to = Double.POSITIVE_INFINITY;
-
         String fromAsString;
-
         String toAsString;
-
         long count;
         long totalCount;
-
         double total;
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
@@ -68,95 +58,52 @@ public interface RangeFacet extends Facet, Iterable<RangeFacet.Entry> {
         Entry() {
         }
 
-        public double from() {
+        public double getFrom() {
             return this.from;
         }
 
-        public double getFrom() {
-            return from();
-        }
-
-        public String fromAsString() {
+        public String getFromAsString() {
             if (fromAsString != null) {
                 return fromAsString;
             }
             return Double.toString(from);
         }
 
-        public String getFromAsString() {
-            return fromAsString();
-        }
-
-        public double to() {
+        public double getTo() {
             return this.to;
         }
 
-        public double getTo() {
-            return to();
-        }
-
-        public String toAsString() {
+        public String getToAsString() {
             if (toAsString != null) {
                 return toAsString;
             }
             return Double.toString(to);
         }
 
-        public String getToAsString() {
-            return toAsString();
-        }
-
-        public long count() {
-            return this.count;
-        }
-
         public long getCount() {
-            return count();
-        }
-
-        public long totalCount() {
-            return this.totalCount;
+            return this.count;
         }
 
         public long getTotalCount() {
             return this.totalCount;
         }
 
-        public double total() {
-            return this.total;
-        }
-
         public double getTotal() {
-            return total();
-        }
-
-        /**
-         * The mean of this facet interval.
-         */
-        public double mean() {
-            if (totalCount == 0) {
-                return 0;
-            }
-            return total / totalCount;
+            return this.total;
         }
 
         /**
          * The mean of this facet interval.
          */
         public double getMean() {
-            return mean();
-        }
-
-        public double min() {
-            return this.min;
+            if (totalCount == 0) {
+                return 0;
+            }
+            return total / totalCount;
         }
 
         public double getMin() {
             return this.min;
-        }
-
-        public double max() {
-            return this.max;
         }
 
         public double getMax() {

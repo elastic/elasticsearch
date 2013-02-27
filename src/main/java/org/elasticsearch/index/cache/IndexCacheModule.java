@@ -21,6 +21,7 @@ package org.elasticsearch.index.cache;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.docset.DocSetCacheModule;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.id.IdCacheModule;
 import org.elasticsearch.index.cache.query.parser.QueryParserCacheModule;
@@ -41,6 +42,7 @@ public class IndexCacheModule extends AbstractModule {
         new FilterCacheModule(settings).configure(binder());
         new IdCacheModule(settings).configure(binder());
         new QueryParserCacheModule(settings).configure(binder());
+        new DocSetCacheModule(settings).configure(binder());
 
         bind(IndexCache.class).asEagerSingleton();
     }

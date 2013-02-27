@@ -76,73 +76,73 @@ public class AliasRoutingTests extends AbstractNodesTests {
         client.prepareIndex("alias0", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> verifying get with routing alias, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> updating with id [1] and routing through alias");
         client.prepareUpdate("alias0", "type1", "1")
-                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field = 'value2'")
                 .execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(true));
-            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().sourceAsMap().get("field").toString(), equalTo("value2"));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().getSourceAsMap().get("field").toString(), equalTo("value2"));
         }
 
 
         logger.info("--> deleting with no routing, should not delete anything");
         client.prepareDelete("test", "type1", "1").setRefresh(true).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(true));
-            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> deleting with routing alias, should delete");
         client.prepareDelete("alias0", "type1", "1").setRefresh(true).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(false));
-            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(false));
         }
 
         logger.info("--> indexing with id [1], and routing [0] using alias");
         client.prepareIndex("alias0", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(true));
-            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> deleting_by_query with 1 as routing, should not delete anything");
         client.prepareDeleteByQuery().setQuery(matchAllQuery()).setRouting("1").execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(true));
-            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> deleting_by_query with alias0, should delete");
         client.prepareDeleteByQuery("alias0").setQuery(matchAllQuery()).execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(false));
-            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(false));
         }
     }
 
@@ -168,32 +168,32 @@ public class AliasRoutingTests extends AbstractNodesTests {
         client.prepareIndex("alias0", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> search with no routing, should fine one");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(1l));
+            assertThat(client.prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(1l));
         }
 
         logger.info("--> search with wrong routing, should not find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(0l));
-            assertThat(client.prepareCount().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(0l));
-            assertThat(client.prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(0l));
-            assertThat(client.prepareCount("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(0l));
+            assertThat(client.prepareSearch().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(0l));
+            assertThat(client.prepareCount().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
+            assertThat(client.prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(0l));
+            assertThat(client.prepareCount("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
         }
 
         logger.info("--> search with correct routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch().setRouting("0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(1l));
-            assertThat(client.prepareCount().setRouting("0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
-            assertThat(client.prepareSearch("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(1l));
-            assertThat(client.prepareCount("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client.prepareSearch().setRouting("0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(1l));
+            assertThat(client.prepareCount().setRouting("0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+            assertThat(client.prepareSearch("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(1l));
+            assertThat(client.prepareCount("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
 
         logger.info("--> indexing with id [2], and routing [1] using alias");
@@ -201,50 +201,50 @@ public class AliasRoutingTests extends AbstractNodesTests {
 
         logger.info("--> search with no routing, should fine two");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
-            assertThat(client.prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(client.prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+            assertThat(client.prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
         logger.info("--> search with 0 routing, should find one");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch().setRouting("0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(1l));
-            assertThat(client.prepareCount().setRouting("0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
-            assertThat(client.prepareSearch("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(1l));
-            assertThat(client.prepareCount("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client.prepareSearch().setRouting("0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(1l));
+            assertThat(client.prepareCount().setRouting("0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+            assertThat(client.prepareSearch("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(1l));
+            assertThat(client.prepareCount("alias0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
 
         logger.info("--> search with 1 routing, should find one");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(1l));
-            assertThat(client.prepareCount().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
-            assertThat(client.prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(1l));
-            assertThat(client.prepareCount("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client.prepareSearch().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(1l));
+            assertThat(client.prepareCount().setRouting("1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+            assertThat(client.prepareSearch("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(1l));
+            assertThat(client.prepareCount("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
 
         logger.info("--> search with 0,1 routings , should find two");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch().setRouting("0", "1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
-            assertThat(client.prepareCount().setRouting("0", "1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
-            assertThat(client.prepareSearch("alias01").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
-            assertThat(client.prepareCount("alias01").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(client.prepareSearch().setRouting("0", "1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+            assertThat(client.prepareCount().setRouting("0", "1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+            assertThat(client.prepareSearch("alias01").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+            assertThat(client.prepareCount("alias01").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
         logger.info("--> search with two routing aliases , should find two");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch("alias0", "alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
-            assertThat(client.prepareCount("alias0", "alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(client.prepareSearch("alias0", "alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+            assertThat(client.prepareCount("alias0", "alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
         logger.info("--> search with alias0, alias1 and alias01, should find two");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch("alias0", "alias1", "alias01").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
-            assertThat(client.prepareCount("alias0", "alias1", "alias01").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(client.prepareSearch("alias0", "alias1", "alias01").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+            assertThat(client.prepareCount("alias0", "alias1", "alias01").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
         logger.info("--> search with test, alias0 and alias1, should find two");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch("test", "alias0", "alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
-            assertThat(client.prepareCount("test", "alias0", "alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(client.prepareSearch("test", "alias0", "alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+            assertThat(client.prepareCount("test", "alias0", "alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
     }
@@ -275,41 +275,41 @@ public class AliasRoutingTests extends AbstractNodesTests {
         client.prepareIndex("alias-a0", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("alias-a0", "type1", "1").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("alias-a0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> indexing with id [0], and routing [1] using alias to test-b");
         client.prepareIndex("alias-b1", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         logger.info("--> verifying get with no routing, should not find anything");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
         }
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("alias-b1", "type1", "1").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("alias-b1", "type1", "1").execute().actionGet().isExists(), equalTo(true));
         }
 
 
         logger.info("--> search with alias-a1,alias-b0, should not find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch("alias-a1", "alias-b0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(0l));
-            assertThat(client.prepareCount("alias-a1", "alias-b0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(0l));
+            assertThat(client.prepareSearch("alias-a1", "alias-b0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(0l));
+            assertThat(client.prepareCount("alias-a1", "alias-b0").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
         }
 
         logger.info("--> search with alias-ab, should find two");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch("alias-ab").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
-            assertThat(client.prepareCount("alias-ab").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(client.prepareSearch("alias-ab").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+            assertThat(client.prepareCount("alias-ab").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
         logger.info("--> search with alias-a0,alias-b1 should find two");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch("alias-a0", "alias-b1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
-            assertThat(client.prepareCount("alias-a0", "alias-b1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(client.prepareSearch("alias-a0", "alias-b1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+            assertThat(client.prepareCount("alias-a0", "alias-b1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
     }
 
@@ -339,14 +339,14 @@ public class AliasRoutingTests extends AbstractNodesTests {
 
         logger.info("--> verifying get with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(true));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> deleting with no routing, should broadcast the delete since _routing is required");
         client.prepareDelete("test", "type1", "1").setRefresh(true).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
         }
 
         logger.info("--> indexing with id [1], and routing [0]");
@@ -357,8 +357,8 @@ public class AliasRoutingTests extends AbstractNodesTests {
         client.prepareBulk().add(Requests.deleteRequest("test").type("type1").id("1")).execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().exists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
         }
     }
 
@@ -384,9 +384,9 @@ public class AliasRoutingTests extends AbstractNodesTests {
 
         logger.info("--> verifying get and search with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "0").setRouting("3").execute().actionGet().exists(), equalTo(true));
-            assertThat(client.prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(1l));
-            assertThat(client.prepareCount("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client.prepareGet("test", "type1", "0").setRouting("3").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client.prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(1l));
+            assertThat(client.prepareCount("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
 
         logger.info("--> creating alias with routing [4]");
@@ -396,8 +396,8 @@ public class AliasRoutingTests extends AbstractNodesTests {
 
         logger.info("--> verifying search with wrong routing should not find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(0l));
-            assertThat(client.prepareCount("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(0l));
+            assertThat(client.prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(0l));
+            assertThat(client.prepareCount("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(0l));
         }
 
         logger.info("--> creating alias with search routing [3,4] and index routing 4");
@@ -411,10 +411,10 @@ public class AliasRoutingTests extends AbstractNodesTests {
 
         logger.info("--> verifying get and search with routing, should find");
         for (int i = 0; i < 5; i++) {
-            assertThat(client.prepareGet("test", "type1", "0").setRouting("3").execute().actionGet().exists(), equalTo(true));
-            assertThat(client.prepareGet("test", "type1", "1").setRouting("4").execute().actionGet().exists(), equalTo(true));
-            assertThat(client.prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().hits().totalHits(), equalTo(2l));
-            assertThat(client.prepareCount("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(2l));
+            assertThat(client.prepareGet("test", "type1", "0").setRouting("3").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client.prepareGet("test", "type1", "1").setRouting("4").execute().actionGet().isExists(), equalTo(true));
+            assertThat(client.prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+            assertThat(client.prepareCount("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
 
     }

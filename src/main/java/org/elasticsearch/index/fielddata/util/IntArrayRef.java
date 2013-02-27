@@ -70,7 +70,7 @@ public class IntArrayRef extends AbstractList<Integer> implements RandomAccess {
 
     @Override
     public boolean isEmpty() {
-        return size() != 0;
+        return size() == 0;
     }
 
     @Override

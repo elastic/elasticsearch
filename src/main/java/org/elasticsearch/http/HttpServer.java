@@ -21,12 +21,15 @@ package org.elasticsearch.http;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.plugins.PluginsHelper;
 import org.elasticsearch.rest.*;
 
 import java.io.File;
@@ -34,6 +37,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.RestStatus.*;
 
 /**
@@ -144,18 +148,39 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             channel.sendResponse(new StringRestResponse(FORBIDDEN));
             return;
         }
-        // TODO for a "/_plugin" endpoint, we should have a page that lists all the plugins?
 
         String path = request.rawPath().substring("/_plugin/".length());
         int i1 = path.indexOf('/');
         String pluginName;
         String sitePath;
         if (i1 == -1) {
-            pluginName = path;
-            sitePath = null;
-            // TODO This is a path in the form of "/_plugin/head", without a trailing "/", which messes up
-            // resources fetching if it does not exists, a better solution would be to send a redirect
-            channel.sendResponse(new StringRestResponse(NOT_FOUND));
+            // If user tries to reach "/_plugin/" endpoint, we display a page that lists all the plugins #2664
+            if (!Strings.hasText(path)) {
+                try {
+                    XContentBuilder json = jsonBuilder();
+                    if (request.hasParam("pretty")) {
+                        json.prettyPrint();
+                    }
+                    json.startObject().startArray("sites");
+
+                    for(String plugin : PluginsHelper.sitePlugins(environment)) {
+                        json.startObject()
+                                .field("name", plugin)
+                                .field("url", "/_plugin/" + plugin +"/")
+                            .endObject();
+                    }
+                    json.endArray().endObject();
+                    channel.sendResponse(new BytesRestResponse(json.bytes().toBytes(),
+                            guessMimeType(guessMimeType("index.json"))));
+                } catch (IOException e) {
+                    channel.sendResponse(new StringRestResponse(INTERNAL_SERVER_ERROR));
+                }
+
+                return;
+            }
+
+            // If a trailing / is missing, we redirect to the right page #2654
+            channel.sendResponse(new HttpRedirectRestResponse(request.rawPath()+"/"));
             return;
         } else {
             pluginName = path.substring(0, i1);
@@ -191,7 +216,6 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             channel.sendResponse(new StringRestResponse(INTERNAL_SERVER_ERROR));
         }
     }
-
 
     // TODO: Don't respond with a mime type that violates the request's Accept header
     private String guessMimeType(String path) {

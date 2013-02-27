@@ -124,4 +124,56 @@ public class FloatFieldDataTests extends NumericFieldDataTests {
         d.add(new FloatField("value", 3.0f, Field.Store.NO));
         writer.addDocument(d);
     }
+
+    protected void fillExtendedMvSet() throws Exception {
+        Document d = new Document();
+        d.add(new StringField("_id", "1", Field.Store.NO));
+        d.add(new FloatField("value", 2, Field.Store.NO));
+        d.add(new FloatField("value", 4, Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "2", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "3", Field.Store.NO));
+        d.add(new FloatField("value", 3, Field.Store.NO));
+        writer.addDocument(d);
+        writer.commit();
+
+        d = new Document();
+        d.add(new StringField("_id", "4", Field.Store.NO));
+        d.add(new FloatField("value", 4, Field.Store.NO));
+        d.add(new FloatField("value", 5, Field.Store.NO));
+        d.add(new FloatField("value", 6, Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "5", Field.Store.NO));
+        d.add(new FloatField("value", 6, Field.Store.NO));
+        d.add(new FloatField("value", 7, Field.Store.NO));
+        d.add(new FloatField("value", 8, Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "6", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "7", Field.Store.NO));
+        d.add(new FloatField("value", 8, Field.Store.NO));
+        d.add(new FloatField("value", 9, Field.Store.NO));
+        d.add(new FloatField("value", 10, Field.Store.NO));
+        writer.addDocument(d);
+        writer.commit();
+
+        d = new Document();
+        d.add(new StringField("_id", "8", Field.Store.NO));
+        d.add(new FloatField("value", -8, Field.Store.NO));
+        d.add(new FloatField("value", -9, Field.Store.NO));
+        d.add(new FloatField("value", -10, Field.Store.NO));
+        writer.addDocument(d);
+    }
+
 }

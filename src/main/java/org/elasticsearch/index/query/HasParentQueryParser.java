@@ -60,7 +60,6 @@ public class HasParentQueryParser implements QueryParser {
         float boost = 1.0f;
         String parentType = null;
         boolean score = false;
-        String executionType = "uid";
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -85,8 +84,6 @@ public class HasParentQueryParser implements QueryParser {
                     parentType = parser.text();
                 } else if ("_scope".equals(currentFieldName)) {
                     throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_parent] query has been removed, use a filter as a facet_filter in the relevant global facet");
-                } else if ("execution_type".equals(currentFieldName) || "executionType".equals(currentFieldName)) {
-                    executionType = parser.text();
                 } else if ("score_type".equals(currentFieldName) || "scoreType".equals(currentFieldName)) {
                     String scoreTypeValue = parser.text();
                     if ("score".equals(scoreTypeValue)) {
@@ -153,7 +150,7 @@ public class HasParentQueryParser implements QueryParser {
             searchContext.addRewrite(parentQuery);
             query = parentQuery;
         } else {
-            HasParentFilter hasParentFilter = HasParentFilter.create(executionType, innerQuery, parentType, searchContext);
+            HasParentFilter hasParentFilter = HasParentFilter.create(innerQuery, parentType, searchContext);
             searchContext.addRewrite(hasParentFilter);
             query = new ConstantScoreQuery(hasParentFilter);
         }

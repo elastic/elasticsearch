@@ -29,8 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Set;
@@ -39,7 +39,7 @@ import java.util.concurrent.CopyOnWriteArraySet;
 /**
  *
  */
-public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponent implements MergeSchedulerProvider {
+public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
 
     private final int maxThreadCount;
     private final int maxMergeCount;
@@ -47,8 +47,8 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
     private Set<CustomConcurrentMergeScheduler> schedulers = new CopyOnWriteArraySet<CustomConcurrentMergeScheduler>();
 
     @Inject
-    public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings) {
-        super(shardId, indexSettings);
+    public ConcurrentMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
+        super(shardId, indexSettings, threadPool);
 
         // TODO LUCENE MONITOR this will change in Lucene 4.0
         this.maxThreadCount = componentSettings.getAsInt("max_thread_count", Math.max(1, Math.min(3, Runtime.getRuntime().availableProcessors() / 2)));
@@ -97,6 +97,7 @@ public class ConcurrentMergeSchedulerProvider extends AbstractIndexShardComponen
         @Override
         protected void handleMergeException(Throwable exc) {
             logger.warn("failed to merge", exc);
+            provider.failedMerge(new MergePolicy.MergeException(exc, dir));
             super.handleMergeException(exc);
         }
 

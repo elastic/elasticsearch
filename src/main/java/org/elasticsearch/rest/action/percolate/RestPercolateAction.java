@@ -72,7 +72,7 @@ public class RestPercolateAction extends BaseRestHandler {
 
                     builder.field(Fields.OK, true);
                     builder.startArray(Fields.MATCHES);
-                    for (PercolatorExecutor.PercolationMatch match : response.matches()) {
+                    for (PercolatorExecutor.PercolationMatch match : response.getMatches()) {
                         builder.startObject();
                         builder.field("match", match.getMatch());
 

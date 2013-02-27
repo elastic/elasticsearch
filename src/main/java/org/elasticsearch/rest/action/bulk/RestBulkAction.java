@@ -123,7 +123,7 @@ public class RestBulkAction extends BaseRestHandler {
                             IndexResponse indexResponse = itemResponse.getResponse();
                             if (indexResponse.getMatches() != null) {
                                 builder.startArray(Fields.MATCHES);
-                                for (PercolatorExecutor.PercolationMatch match : indexResponse.getMmatches()) {
+                                for (PercolatorExecutor.PercolationMatch match : indexResponse.getMatches()) {
                                     builder.startObject();
                                     builder.field("match", match.getMatch());
 

@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.percolator.PercolatorExecutor;
-import org.elasticsearch.search.highlight.HighlightField;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,7 +40,8 @@ public class PercolateResponse extends ActionResponse implements Iterable<Percol
 
     }
 
-    public PercolateResponse(List<String> matches) {
+    public PercolateResponse(List<PercolatorExecutor.PercolationMatch> matches) {
+
         this.matches = matches;
     }
 

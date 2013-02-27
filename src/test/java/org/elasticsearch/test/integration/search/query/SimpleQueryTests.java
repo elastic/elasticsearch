@@ -824,4 +824,102 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("2"), equalTo("4")));
         assertThat(searchResponse.getHits().getHits()[1].getId(), anyOf(equalTo("2"), equalTo("4")));
     }
+    
+    @Test
+    public void testBasicFilterById() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", "value1")
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type2", "2").setSource(jsonBuilder().startObject()
+                .field("field1", "value2")
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setFilter(FilterBuilders.idsFilter("type1").ids("1")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter("type1", "type2").ids("1", "2"))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(2));
+
+        searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setFilter(FilterBuilders.idsFilter().ids("1")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        
+        searchResponse = client.prepareSearch().setQuery(matchAllQuery()).setFilter(FilterBuilders.idsFilter().ids("1", "2")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(2));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter().ids("1", "2"))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(2));
+        
+       
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter("type1").ids("1", "2"))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter().ids("1"))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter(null).ids("1"))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.constantScoreQuery(FilterBuilders.idsFilter("type1", "type2", "type3").ids("1", "2", "3", "4"))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(2));
+    }
+    
+    @Test
+    public void testBasicQueryById() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", "value1")
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type2", "2").setSource(jsonBuilder().startObject()
+                .field("field1", "value2")
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery("type1", "type2").ids("1", "2")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(2));
+
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery().ids("1")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery().ids("1", "2")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(2));
+        
+       
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery("type1").ids("1", "2")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery().ids("1")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery(null).ids("1")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        
+        searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery("type1", "type2", "type3").ids("1", "2", "3", "4")).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(2));
+    }
 }

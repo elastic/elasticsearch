@@ -161,7 +161,7 @@ public abstract class AbstractSimpleEngineTests {
     }
 
     protected MergeSchedulerProvider createMergeScheduler() {
-        return new SerialMergeSchedulerProvider(shardId, EMPTY_SETTINGS);
+        return new SerialMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool);
     }
 
     protected abstract Engine createEngine(Store store, Translog translog);

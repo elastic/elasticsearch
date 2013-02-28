@@ -56,7 +56,7 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends FieldCompara
     public final FieldComparator<T> setNextReader(AtomicReaderContext context) throws IOException {
         readerValues = indexFieldData.load(context).getDoubleValues();
         if (readerValues.isMultiValued()) {
-            readerValues = new MultiValuedBytesWrapper(readerValues, sortMode);
+            readerValues = new MultiValueWrapper(readerValues, sortMode);
         }
         return this;
     }
@@ -71,11 +71,11 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends FieldCompara
         }
     }
 
-    static final class MultiValuedBytesWrapper extends DoubleValues.FilteredDoubleValues {
+    static final class MultiValueWrapper extends DoubleValues.FilteredDoubleValues {
 
         private final SortMode sortMode;
 
-        public MultiValuedBytesWrapper(DoubleValues delegate, SortMode sortMode) {
+        public MultiValueWrapper(DoubleValues delegate, SortMode sortMode) {
             super(delegate);
             this.sortMode = sortMode;
         }

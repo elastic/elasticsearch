@@ -357,15 +357,15 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         assertThat(response.getFailedShards(), equalTo(0));
 
         response = client.search(searchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
-        assertThat(response.getShardFailures().length, equalTo(0));
+        assertThat(Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
         response = client.search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
-        assertThat(response.getShardFailures().length, equalTo(0));
+        assertThat(Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
         response = client.search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
-        assertThat(response.getShardFailures().length, equalTo(0));
+        assertThat(Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
         logger.info("Done Testing failed search");

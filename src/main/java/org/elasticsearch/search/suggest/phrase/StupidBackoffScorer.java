@@ -43,7 +43,7 @@ public class StupidBackoffScorer extends WordScorer {
 
     @Override
     protected double scoreBigram(Candidate word, Candidate w_1) throws IOException {
-        SuggestUtils.join(separator, spare, word.term, w_1.term);
+        SuggestUtils.join(separator, spare, w_1.term, word.term);
         final int count = frequency(spare);
         if (count < 1) {
             return discount * scoreUnigram(word);
@@ -55,9 +55,13 @@ public class StupidBackoffScorer extends WordScorer {
     protected double scoreTrigram(Candidate w, Candidate w_1, Candidate w_2) throws IOException {
         SuggestUtils.join(separator, spare, w_2.term, w_1.term, w.term);
         final int trigramCount = frequency(spare);
-
         if (trigramCount < 1) {
-            return discount * scoreBigram(w, w_1);
+            SuggestUtils.join(separator, spare, w_1.term, w.term);
+            final int count = frequency(spare);
+            if (count < 1) {
+                return discount * scoreUnigram(w);
+            }
+            return discount * (count / (w_1.frequency + 0.00000000001d));
         }
         SuggestUtils.join(separator, spare, w_1.term, w.term);
         final int bigramCount = frequency(spare);

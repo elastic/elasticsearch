@@ -456,14 +456,14 @@ public class SuggestSearchTests extends AbstractNodesTests {
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .maxErrors(0.5f)
                 .confidence(0.f)
-                .size(2))
+                .size(1))
         .execute().actionGet();
         assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
         assertThat(search.getSuggest(), notNullValue());
         assertThat(search.getSuggest().size(), equalTo(1));
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(2));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xorr the God-Jewel"));
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
@@ -648,7 +648,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         .addSuggestion(phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(1.0))
+                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
                 .maxErrors(0.5f)
                 .size(1))
         .execute().actionGet();

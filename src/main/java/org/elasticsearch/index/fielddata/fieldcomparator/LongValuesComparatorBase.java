@@ -67,16 +67,16 @@ abstract class LongValuesComparatorBase<T extends Number> extends FieldComparato
     public final FieldComparator<T> setNextReader(AtomicReaderContext context) throws IOException {
         readerValues = indexFieldData.load(context).getLongValues();
         if (readerValues.isMultiValued()) {
-            readerValues = new MultiValuedBytesWrapper(readerValues, sortMode);
+            readerValues = new MultiValueWrapper(readerValues, sortMode);
         }
         return this;
     }
 
-    private static final class MultiValuedBytesWrapper extends LongValues.FilteredLongValues {
+    private static final class MultiValueWrapper extends LongValues.FilteredLongValues {
 
         private final SortMode sortMode;
 
-        public MultiValuedBytesWrapper(LongValues delegate, SortMode sortMode) {
+        public MultiValueWrapper(LongValues delegate, SortMode sortMode) {
             super(delegate);
             this.sortMode = sortMode;
         }

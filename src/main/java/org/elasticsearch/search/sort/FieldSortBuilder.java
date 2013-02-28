@@ -20,6 +20,7 @@
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 
 import java.io.IOException;
 
@@ -42,6 +43,9 @@ public class FieldSortBuilder extends SortBuilder {
      * @param fieldName The field name.
      */
     public FieldSortBuilder(String fieldName) {
+        if (fieldName == null) {
+            throw new ElasticSearchIllegalArgumentException("fieldName must not be null");
+        }
         this.fieldName = fieldName;
     }
 

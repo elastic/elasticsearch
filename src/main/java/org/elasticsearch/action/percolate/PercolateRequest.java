@@ -62,21 +62,21 @@ public class PercolateRequest extends SingleCustomOperationRequest<PercolateRequ
         this.type = type;
     }
 
-    public PercolateRequest setIndex(String index) {
+    public PercolateRequest index(String index) {
         this.index = index;
         return this;
     }
 
-    public PercolateRequest setType(String type) {
+    public PercolateRequest type(String type) {
         this.type = type;
         return this;
     }
 
-    public String getIndex() {
+    public String index() {
         return this.index;
     }
 
-    public String getType() {
+    public String type() {
         return this.type;
     }
 
@@ -91,56 +91,56 @@ public class PercolateRequest extends SingleCustomOperationRequest<PercolateRequ
         }
     }
 
-    public BytesReference getSource() {
+    public BytesReference source() {
         return source;
     }
 
     @Required
-    public PercolateRequest setSource(Map source) throws ElasticSearchGenerationException {
-        return setSource(source, XContentType.SMILE);
+    public PercolateRequest source(Map source) throws ElasticSearchGenerationException {
+        return source(source, XContentType.SMILE);
     }
 
     @Required
-    public PercolateRequest setSource(Map source, XContentType contentType) throws ElasticSearchGenerationException {
+    public PercolateRequest source(Map source, XContentType contentType) throws ElasticSearchGenerationException {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.map(source);
-            return setSource(builder);
+            return source(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
 
     @Required
-    public PercolateRequest setSource(String source) {
+    public PercolateRequest source(String source) {
         this.source = new BytesArray(source);
         this.sourceUnsafe = false;
         return this;
     }
 
     @Required
-    public PercolateRequest setSource(XContentBuilder sourceBuilder) {
+    public PercolateRequest source(XContentBuilder sourceBuilder) {
         source = sourceBuilder.bytes();
         sourceUnsafe = false;
         return this;
     }
 
-    public PercolateRequest setSource(byte[] source) {
-        return setSource(source, 0, source.length);
+    public PercolateRequest source(byte[] source) {
+        return source(source, 0, source.length);
     }
 
     @Required
-    public PercolateRequest setSource(byte[] source, int offset, int length) {
-        return setSource(source, offset, length, false);
+    public PercolateRequest source(byte[] source, int offset, int length) {
+        return source(source, offset, length, false);
     }
 
     @Required
-    public PercolateRequest setSource(byte[] source, int offset, int length, boolean unsafe) {
-        return setSource(new BytesArray(source, offset, length), unsafe);
+    public PercolateRequest source(byte[] source, int offset, int length, boolean unsafe) {
+        return source(new BytesArray(source, offset, length), unsafe);
     }
 
     @Required
-    public PercolateRequest setSource(BytesReference source, boolean unsafe) {
+    public PercolateRequest source(BytesReference source, boolean unsafe) {
         this.source = source;
         this.sourceUnsafe = unsafe;
         return this;

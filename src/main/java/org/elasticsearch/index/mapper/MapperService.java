@@ -763,6 +763,36 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return this.searchQuoteAnalyzer;
     }
 
+    /**
+     * Resolves the closest inherited {@link ObjectMapper} that is nested.
+     */
+    public ObjectMapper resolveClosestNestedObjectMapper(String fieldName) {
+        int indexOf = fieldName.lastIndexOf('.');
+        if (indexOf == -1) {
+            return null;
+        } else {
+            do {
+                String objectPath = fieldName.substring(0, indexOf);
+                ObjectMappers objectMappers = objectMapper(objectPath);
+                if (objectMappers == null) {
+                    return null;
+                }
+
+                if (objectMappers.hasNested()) {
+                    for (ObjectMapper objectMapper : objectMappers) {
+                        if (objectMapper.nested().isNested()) {
+                            return objectMapper;
+                        }
+                    }
+                }
+
+                indexOf = objectPath.lastIndexOf('.');
+            } while (indexOf != -1);
+        }
+
+        return null;
+    }
+
     public static class SmartNameObjectMapper {
         private final ObjectMapper mapper;
         private final DocumentMapper docMapper;

@@ -146,11 +146,11 @@ public class SortParseElement implements SearchParseElement {
                                     ignoreUnmapped = parser.booleanValue();
                                 } else if ("sort_mode".equals(innerJsonName) || "sortMode".equals(innerJsonName)) {
                                     sortMode = SortMode.fromString(parser.text());
-                                } else if ("nested_path".equals(innerJsonName)) {
+                                } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
                                     nestedPath = parser.text();
                                 }
                             } else if (token == XContentParser.Token.START_OBJECT) {
-                                if ("nested_filter".equals(innerJsonName)) {
+                                if ("nested_filter".equals(innerJsonName) || "nestedFilter".equals(innerJsonName)) {
                                     nestedFilter = context.queryParserService().parseInnerFilter(parser);
                                 }
                             }
@@ -207,11 +207,14 @@ public class SortParseElement implements SearchParseElement {
             if (nestedPath != null) {
                 ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
                 if (objectMappers == null) {
-                    throw new ElasticSearchIllegalArgumentException("Invalid nested path");
+                    throw new ElasticSearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
                 }
                 objectMapper = objectMappers.mapper();
+                if (!objectMapper.nested().isNested()) {
+                    throw new ElasticSearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
+                }
             } else {
-                objectMapper = resolveClosestNestedObjectMapper(fieldName, context);
+                objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
             }
             if (objectMapper != null && objectMapper.nested().isNested()) {
                 Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
@@ -233,27 +236,6 @@ public class SortParseElement implements SearchParseElement {
 
     private static SortMode resolveDefaultSortMode(boolean reverse) {
         return reverse ? SortMode.MAX : SortMode.MIN;
-    }
-
-    private static ObjectMapper resolveClosestNestedObjectMapper(String fieldName, SearchContext context) {
-        int indexOf = fieldName.lastIndexOf('.');
-        if (indexOf == -1) {
-            return null;
-        }
-
-        String objectPath = fieldName.substring(0, indexOf);
-        ObjectMappers objectMappers = context.mapperService().objectMapper(objectPath);
-        if (objectMappers == null) {
-            return null;
-        }
-
-        for (ObjectMapper objectMapper : objectMappers) {
-            if (objectMapper.nested().isNested()) {
-                return objectMapper;
-            }
-        }
-
-        return null;
     }
 
 }

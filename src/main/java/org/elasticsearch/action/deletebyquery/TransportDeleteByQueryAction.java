@@ -46,7 +46,7 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
 
     @Override
     protected Map<String, Set<String>> resolveRouting(ClusterState clusterState, DeleteByQueryRequest request) throws ElasticSearchException {
-        return clusterState.metaData().resolveSearchRouting(request.getRouting(), request.getIndices());
+        return clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
     }
 
     @Override
@@ -88,7 +88,7 @@ public class TransportDeleteByQueryAction extends TransportIndicesReplicationOpe
 
     @Override
     protected IndexDeleteByQueryRequest newIndexRequestInstance(DeleteByQueryRequest request, String index, Set<String> routing) {
-        String[] filteringAliases = clusterService.state().metaData().filteringAliases(index, request.getIndices());
+        String[] filteringAliases = clusterService.state().metaData().filteringAliases(index, request.indices());
         return new IndexDeleteByQueryRequest(request, index, routing, filteringAliases);
     }
 }

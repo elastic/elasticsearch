@@ -19,6 +19,11 @@
 
 package org.elasticsearch.action.update;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+import java.io.IOException;
+import java.util.Map;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -33,11 +38,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-
-import java.io.IOException;
-import java.util.Map;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
@@ -230,7 +230,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc to use for updates when a script is not specified.
      */
     public PartialDocumentUpdateRequest setDoc(XContentBuilder source) {
-        getSafeDoc().setSource(source);
+        getSafeDoc().source(source);
         return this;
     }
 
@@ -238,7 +238,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc to use for updates when a script is not specified.
      */
     public PartialDocumentUpdateRequest setDoc(Map source) {
-        getSafeDoc().setSource(source);
+        getSafeDoc().source(source);
         return this;
     }
 
@@ -246,7 +246,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc to use for updates when a script is not specified.
      */
     public PartialDocumentUpdateRequest setDoc(Map source, XContentType contentType) {
-        getSafeDoc().setSource(source, contentType);
+        getSafeDoc().source(source, contentType);
         return this;
     }
 
@@ -254,7 +254,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc to use for updates when a script is not specified.
      */
     public PartialDocumentUpdateRequest setDoc(String source) {
-        getSafeDoc().setSource(source);
+        getSafeDoc().source(source);
         return this;
     }
 
@@ -262,7 +262,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc to use for updates when a script is not specified.
      */
     public PartialDocumentUpdateRequest setDoc(byte[] source) {
-        getSafeDoc().setSource(source);
+        getSafeDoc().source(source);
         return this;
     }
 
@@ -270,7 +270,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc to use for updates when a script is not specified.
      */
     public PartialDocumentUpdateRequest setDoc(byte[] source, int offset, int length) {
-        getSafeDoc().setSource(source, offset, length);
+        getSafeDoc().source(source, offset, length);
         return this;
     }
 
@@ -298,7 +298,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public PartialDocumentUpdateRequest setUpsertRequest(XContentBuilder source) {
-        getSafeUpsertRequest().setSource(source);
+        getSafeUpsertRequest().source(source);
         return this;
     }
 
@@ -306,7 +306,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public PartialDocumentUpdateRequest setUpsertRequest(Map source) {
-        getSafeUpsertRequest().setSource(source);
+        getSafeUpsertRequest().source(source);
         return this;
     }
 
@@ -314,7 +314,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public PartialDocumentUpdateRequest setUpsertRequest(Map source, XContentType contentType) {
-        getSafeUpsertRequest().setSource(source, contentType);
+        getSafeUpsertRequest().source(source, contentType);
         return this;
     }
 
@@ -322,7 +322,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public PartialDocumentUpdateRequest setUpsertRequest(String source) {
-        getSafeUpsertRequest().setSource(source);
+        getSafeUpsertRequest().source(source);
         return this;
     }
 
@@ -330,7 +330,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public PartialDocumentUpdateRequest setUpsertRequest(byte[] source) {
-        getSafeUpsertRequest().setSource(source);
+        getSafeUpsertRequest().source(source);
         return this;
     }
 
@@ -338,7 +338,7 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
      * Sets the doc source of the update request to be used when the document does not exists.
      */
     public PartialDocumentUpdateRequest setUpsertRequest(byte[] source, int offset, int length) {
-        getSafeUpsertRequest().setSource(source, offset, length);
+        getSafeUpsertRequest().source(source, offset, length);
         return this;
     }
 
@@ -380,11 +380,11 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
                 } else if ("upsert".equals(currentFieldName)) {
                     XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
                     builder.copyCurrentStructure(parser);
-                    getSafeUpsertRequest().setSource(builder);
+                    getSafeUpsertRequest().source(builder);
                 } else if ("doc".equals(currentFieldName)) {
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
-                    getSafeDoc().setSource(docBuilder);
+                    getSafeDoc().source(docBuilder);
                 }
             }
         } finally {
@@ -437,9 +437,9 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
         } else {
             out.writeBoolean(true);
             // make sure the basics are set
-            doc.setIndex(index);
-            doc.setType(type);
-            doc.setId(id);
+            doc.index(index);
+            doc.type(type);
+            doc.id(id);
             doc.writeTo(out);
         }
         if (fields == null) {
@@ -455,9 +455,9 @@ public class PartialDocumentUpdateRequest extends ShardReplicationOperationReque
         } else {
             out.writeBoolean(true);
             // make sure the basics are set
-            upsertRequest.setIndex(index);
-            upsertRequest.setType(type);
-            upsertRequest.setId(id);
+            upsertRequest.index(index);
+            upsertRequest.type(type);
+            upsertRequest.id(id);
             upsertRequest.writeTo(out);
         }
     }

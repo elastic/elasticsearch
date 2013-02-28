@@ -34,27 +34,27 @@ public class ClearIndicesCacheRequestBuilder extends BroadcastOperationRequestBu
     }
 
     public ClearIndicesCacheRequestBuilder setFilterCache(boolean filterCache) {
-        request.setFilterCache(filterCache);
+        request.filterCache(filterCache);
         return this;
     }
 
     public ClearIndicesCacheRequestBuilder setFieldDataCache(boolean fieldDataCache) {
-        request.setFieldDataCache(fieldDataCache);
+        request.fieldDataCache(fieldDataCache);
         return this;
     }
 
     public ClearIndicesCacheRequestBuilder setFields(String... fields) {
-        request.setFields(fields);
+        request.fields(fields);
         return this;
     }
 
     public ClearIndicesCacheRequestBuilder setFilterKeys(String... filterKeys) {
-        request.setFilterKeys(filterKeys);
+        request.filterKeys(filterKeys);
         return this;
     }
 
     public ClearIndicesCacheRequestBuilder setIdCache(boolean idCache) {
-        request.setIdCache(idCache);
+        request.idCache(idCache);
         return this;
     }
 

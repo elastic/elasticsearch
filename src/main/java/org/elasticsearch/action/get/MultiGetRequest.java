@@ -65,41 +65,41 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
             this.id = id;
         }
 
-        public String getIndex() {
+        public String index() {
             return this.index;
         }
 
-        public Item setIndex(String index) {
+        public Item index(String index) {
             this.index = index;
             return this;
         }
 
-        public String getType() {
+        public String type() {
             return this.type;
         }
 
-        public String getId() {
+        public String id() {
             return this.id;
         }
 
         /**
          * The routing associated with this document.
          */
-        public Item setRouting(String routing) {
+        public Item routing(String routing) {
             this.routing = routing;
             return this;
         }
 
-        public String getRouting() {
+        public String routing() {
             return this.routing;
         }
 
-        public Item setFields(String... fields) {
+        public Item fields(String... fields) {
             this.fields = fields;
             return this;
         }
 
-        public String[] getFields() {
+        public String[] fields() {
             return this.fields;
         }
 
@@ -181,10 +181,10 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
         } else {
             for (int i = 0; i < items.size(); i++) {
                 Item item = items.get(i);
-                if (item.getIndex() == null) {
+                if (item.index() == null) {
                     validationException = ValidateActions.addValidationError("index is missing for doc " + i, validationException);
                 }
-                if (item.getId() == null) {
+                if (item.id() == null) {
                     validationException = ValidateActions.addValidationError("id is missing for doc " + i, validationException);
                 }
             }
@@ -197,29 +197,29 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards, or
      * a custom value, which guarantees that the same order will be used across different requests.
      */
-    public MultiGetRequest setPreference(String preference) {
+    public MultiGetRequest preference(String preference) {
         this.preference = preference;
         return this;
     }
 
-    public String getPreference() {
+    public String preference() {
         return this.preference;
     }
 
-    public boolean isRealtime() {
+    public boolean realtime() {
         return this.realtime == null ? true : this.realtime;
     }
 
-    public MultiGetRequest setRealtime(Boolean realtime) {
+    public MultiGetRequest realtime(Boolean realtime) {
         this.realtime = realtime;
         return this;
     }
 
-    public boolean isRefresh() {
+    public boolean refresh() {
         return this.refresh;
     }
 
-    public MultiGetRequest setRefresh(boolean refresh) {
+    public MultiGetRequest refresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }
@@ -275,14 +275,14 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             } else {
                                 aFields = defaultFields;
                             }
-                            add(new Item(index, type, id).setRouting(routing).setFields(aFields));
+                            add(new Item(index, type, id).routing(routing).fields(aFields));
                         }
                     } else if ("ids".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (!token.isValue()) {
                                 throw new ElasticSearchIllegalArgumentException("ids array element should only contain ids");
                             }
-                            add(new Item(defaultIndex, defaultType, parser.text()).setFields(defaultFields));
+                            add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields));
                         }
                     }
                 }

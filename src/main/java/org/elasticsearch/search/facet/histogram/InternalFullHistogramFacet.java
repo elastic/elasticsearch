@@ -20,6 +20,8 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
@@ -35,7 +37,7 @@ import java.util.*;
  */
 public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
-    private static final String STREAM_TYPE = "fHistogram";
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray("fHistogram");
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -43,13 +45,13 @@ public class InternalFullHistogramFacet extends InternalHistogramFacet {
 
     static Stream STREAM = new Stream() {
         @Override
-        public Facet readFacet(String type, StreamInput in) throws IOException {
+        public Facet readFacet(StreamInput in) throws IOException {
             return readHistogramFacet(in);
         }
     };
 
     @Override
-    public String streamType() {
+    public BytesReference streamType() {
         return STREAM_TYPE;
     }
 

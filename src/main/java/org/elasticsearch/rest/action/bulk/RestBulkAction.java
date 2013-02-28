@@ -68,7 +68,7 @@ public class RestBulkAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         BulkRequest bulkRequest = Requests.bulkRequest();
-        bulkRequest.setListenerThreaded(false);
+        bulkRequest.listenerThreaded(false);
         String defaultIndex = request.param("index");
         String defaultType = request.param("type");
 

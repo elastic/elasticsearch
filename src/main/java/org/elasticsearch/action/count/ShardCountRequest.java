@@ -48,25 +48,25 @@ class ShardCountRequest extends BroadcastShardOperationRequest {
 
     public ShardCountRequest(String index, int shardId, @Nullable String[] filteringAliases, CountRequest request) {
         super(index, shardId, request);
-        this.minScore = request.getMinScore();
-        this.querySource = request.getQuerySource();
-        this.types = request.getTypes();
+        this.minScore = request.minScore();
+        this.querySource = request.querySource();
+        this.types = request.types();
         this.filteringAliases = filteringAliases;
     }
 
-    public float getMinScore() {
+    public float minScore() {
         return minScore;
     }
 
-    public BytesReference getQuerySource() {
+    public BytesReference querySource() {
         return querySource;
     }
 
-    public String[] getTypes() {
+    public String[] types() {
         return this.types;
     }
 
-    public String[] getFilteringAliases() {
+    public String[] filteringAliases() {
         return filteringAliases;
     }
 

@@ -64,7 +64,7 @@ public class ParentChildStressTest {
                         "}}}";
 
         try {
-            client.admin().indices().create(new CreateIndexRequest(INDEX_NAME).addMapping(CHILD_TYPE_NAME, mapping)).actionGet();
+            client.admin().indices().create(new CreateIndexRequest(INDEX_NAME).mapping(CHILD_TYPE_NAME, mapping)).actionGet();
         } catch (RemoteTransportException e) {
             // usually means the index is already created.
         }
@@ -112,7 +112,7 @@ public class ParentChildStressTest {
      * elevate the visibility of the problem.
      */
     public List<String> executeSearch(String source) {
-        SearchRequest request = Requests.searchRequest(INDEX_NAME).setSource(source);
+        SearchRequest request = Requests.searchRequest(INDEX_NAME).source(source);
 
         List<ShardSearchFailure> failures;
         SearchResponse response;

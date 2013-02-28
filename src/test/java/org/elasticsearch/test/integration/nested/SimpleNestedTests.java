@@ -714,6 +714,9 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .startObject("child")
                 .field("filter", true)
                 .field("child_values", 1l)
+                .startObject("child_obj")
+                .field("value", 1l)
+                .endObject()
                 .endObject()
                 .startObject("child")
                 .field("filter", false)
@@ -742,6 +745,9 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .startObject("child")
                 .field("filter", true)
                 .field("child_values", 2l)
+                .startObject("child_obj")
+                .field("value", 2l)
+                .endObject()
                 .endObject()
                 .startObject("child")
                 .field("filter", false)
@@ -770,6 +776,9 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .startObject("child")
                 .field("filter", true)
                 .field("child_values", 3l)
+                .startObject("child_obj")
+                .field("value", 3l)
+                .endObject()
                 .endObject()
                 .startObject("child")
                 .field("filter", false)
@@ -884,6 +893,24 @@ public class SimpleNestedTests extends AbstractNodesTests {
 //        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("-2"));
 //        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
 //        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("-1"));
+
+        // Check if closest nested type is resolved
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_obj.value")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
     }
 
 }

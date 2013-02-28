@@ -112,7 +112,7 @@ public class IndicesAliasesRequestBuilder extends MasterNodeOperationRequestBuil
      * @param timeout
      */
     public IndicesAliasesRequestBuilder setTimeout(TimeValue timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return this;
     }
 

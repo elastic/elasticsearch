@@ -42,7 +42,7 @@ public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     public ClusterStateRequestBuilder setFilterBlocks(boolean filter) {
-        request.setFilterBlocks(filter);
+        request.filterBlocks(filter);
         return this;
     }
 
@@ -51,7 +51,7 @@ public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilde
      * to <tt>false</tt>.
      */
     public ClusterStateRequestBuilder setFilterMetaData(boolean filter) {
-        request.setFilterMetaData(filter);
+        request.filterMetaData(filter);
         return this;
     }
 
@@ -60,7 +60,7 @@ public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilde
      * to <tt>false</tt>.
      */
     public ClusterStateRequestBuilder setFilterNodes(boolean filter) {
-        request.setFilterNodes(filter);
+        request.filterNodes(filter);
         return this;
     }
 
@@ -69,7 +69,7 @@ public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilde
      * to <tt>false</tt>.
      */
     public ClusterStateRequestBuilder setFilterRoutingTable(boolean filter) {
-        request.setFilterRoutingTable(filter);
+        request.filterRoutingTable(filter);
         return this;
     }
 
@@ -78,12 +78,12 @@ public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilde
      * for. Defaults to all indices.
      */
     public ClusterStateRequestBuilder setFilterIndices(String... indices) {
-        request.setFilteredIndices(indices);
+        request.filteredIndices(indices);
         return this;
     }
 
     public ClusterStateRequestBuilder setFilterIndexTemplates(String... templates) {
-        request.setFilteredIndexTemplates(templates);
+        request.filteredIndexTemplates(templates);
         return this;
     }
 
@@ -91,7 +91,7 @@ public class ClusterStateRequestBuilder extends MasterNodeOperationRequestBuilde
      * Sets if the cluster state request should be executed locally on the node, and not go to the master.
      */
     public ClusterStateRequestBuilder setLocal(boolean local) {
-        request.setLocal(local);
+        request.local(local);
         return this;
     }
 

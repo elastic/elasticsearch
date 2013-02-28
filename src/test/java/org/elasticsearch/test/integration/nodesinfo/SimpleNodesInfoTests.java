@@ -48,7 +48,7 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         startNode("server1");
         startNode("server2");
 
-        ClusterHealthResponse clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client("server2").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         String server1NodeId = ((InternalNode) node("server1")).injector().getInstance(ClusterService.class).state().nodes().localNodeId();

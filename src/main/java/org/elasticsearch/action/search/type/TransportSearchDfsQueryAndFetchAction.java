@@ -102,7 +102,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                 }
             }
             if (localOperations > 0) {
-                if (request.getOperationThreading() == SearchOperationThreading.SINGLE_THREAD) {
+                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
@@ -116,7 +116,7 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
                         }
                     });
                 } else {
-                    boolean localAsync = request.getOperationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
+                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (final DfsSearchResult dfsResult : dfsResults) {
                         final DiscoveryNode node = nodes.get(dfsResult.shardTarget().nodeId());
                         if (node.id().equals(nodes.localNodeId())) {
@@ -181,8 +181,8 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             sortedShardList = searchPhaseController.sortDocs(queryFetchResults.values());
             final InternalSearchResponse internalResponse = searchPhaseController.merge(sortedShardList, queryFetchResults, queryFetchResults);
             String scrollId = null;
-            if (request.getScroll() != null) {
-                scrollId = buildScrollId(request.getSearchType(), dfsResults, null);
+            if (request.scroll() != null) {
+                scrollId = buildScrollId(request.searchType(), dfsResults, null);
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, expectedSuccessfulOps, successulOps.get(), buildTookInMillis(), buildShardFailures()));
         }

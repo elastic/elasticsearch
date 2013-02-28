@@ -87,12 +87,12 @@ public class ChildSearchBenchmark {
                 BulkRequestBuilder request = client.prepareBulk();
                 for (int j = 0; j < BATCH; j++) {
                     counter++;
-                    request.add(Requests.indexRequest(indexName).setType("parent").setId(Integer.toString(counter))
-                            .setSource(parentSource(Integer.toString(counter), "test" + counter)));
+                    request.add(Requests.indexRequest(indexName).type("parent").id(Integer.toString(counter))
+                            .source(parentSource(Integer.toString(counter), "test" + counter)));
                     for (int k = 0; k < CHILD_COUNT; k++) {
-                        request.add(Requests.indexRequest(indexName).setType("child").setId(Integer.toString(counter) + "_" + k)
-                                .setParent(Integer.toString(counter))
-                                .setSource(childSource(Integer.toString(counter), "tag" + k)));
+                        request.add(Requests.indexRequest(indexName).type("child").id(Integer.toString(counter) + "_" + k)
+                                .parent(Integer.toString(counter))
+                                .source(childSource(Integer.toString(counter), "tag" + k)));
                     }
                 }
                 BulkResponse response = request.execute().actionGet();

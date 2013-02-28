@@ -50,15 +50,15 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
 
     ShardDeleteByQueryRequest(IndexDeleteByQueryRequest request, int shardId) {
         super(request);
-        this.index = request.getIndex();
-        this.querySource = request.getQuerySource();
-        this.types = request.getTypes();
+        this.index = request.index();
+        this.querySource = request.querySource();
+        this.types = request.types();
         this.shardId = shardId;
-        setReplicationType(request.getReplicationType());
-        setConsistencyLevel(request.getConsistencyLevel());
-        timeout = request.getTimeout();
-        this.routing = request.getRouting();
-        filteringAliases = request.getFilteringAliases();
+        replicationType(request.replicationType());
+        consistencyLevel(request.consistencyLevel());
+        timeout = request.timeout();
+        this.routing = request.routing();
+        filteringAliases = request.filteringAliases();
     }
 
     ShardDeleteByQueryRequest() {
@@ -73,23 +73,23 @@ public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<
         return validationException;
     }
 
-    public int getShardId() {
+    public int shardId() {
         return this.shardId;
     }
 
-    public BytesReference getQuerySource() {
+    BytesReference querySource() {
         return querySource;
     }
 
-    public String[] getTypes() {
+    public String[] types() {
         return this.types;
     }
 
-    public Set<String> getRouting() {
+    public Set<String> routing() {
         return this.routing;
     }
 
-    public String[] getFilteringAliases() {
+    public String[] filteringAliases() {
         return filteringAliases;
     }
 

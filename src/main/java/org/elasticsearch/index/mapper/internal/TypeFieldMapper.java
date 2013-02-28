@@ -189,7 +189,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
             builder.field("store", fieldType.stored());
         }
         if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", fieldType.indexed());
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
         }
         builder.endObject();
         return builder;

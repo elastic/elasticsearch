@@ -73,19 +73,19 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     @Override
     protected ClusterHealthResponse masterOperation(ClusterHealthRequest request, ClusterState unusedState) throws ElasticSearchException {
         int waitFor = 5;
-        if (request.getWaitForStatus() == null) {
+        if (request.waitForStatus() == null) {
             waitFor--;
         }
-        if (request.getWaitForRelocatingShards() == -1) {
+        if (request.waitForRelocatingShards() == -1) {
             waitFor--;
         }
-        if (request.getWaitForActiveShards() == -1) {
+        if (request.waitForActiveShards() == -1) {
             waitFor--;
         }
-        if (request.getWaitForNodes().isEmpty()) {
+        if (request.waitForNodes().isEmpty()) {
             waitFor--;
         }
-        if (request.getIndices().length == 0) { // check that they actually exists in the meta data
+        if (request.indices().length == 0) { // check that they actually exists in the meta data
             waitFor--;
         }
         if (waitFor == 0) {
@@ -93,72 +93,72 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             ClusterState clusterState = clusterService.state();
             return clusterHealth(request, clusterState);
         }
-        long endTime = System.currentTimeMillis() + request.getTimeout().millis();
+        long endTime = System.currentTimeMillis() + request.timeout().millis();
         while (true) {
             int waitForCounter = 0;
             ClusterState clusterState = clusterService.state();
             ClusterHealthResponse response = clusterHealth(request, clusterState);
-            if (request.getWaitForStatus() != null && response.getStatus().value() <= request.getWaitForStatus().value()) {
+            if (request.waitForStatus() != null && response.getStatus().value() <= request.waitForStatus().value()) {
                 waitForCounter++;
             }
-            if (request.getWaitForRelocatingShards() != -1 && response.getRelocatingShards() <= request.getWaitForRelocatingShards()) {
+            if (request.waitForRelocatingShards() != -1 && response.getRelocatingShards() <= request.waitForRelocatingShards()) {
                 waitForCounter++;
             }
-            if (request.getWaitForActiveShards() != -1 && response.getActiveShards() >= request.getWaitForActiveShards()) {
+            if (request.waitForActiveShards() != -1 && response.getActiveShards() >= request.waitForActiveShards()) {
                 waitForCounter++;
             }
-            if (request.getIndices().length > 0) {
+            if (request.indices().length > 0) {
                 try {
-                    clusterState.metaData().concreteIndices(request.getIndices());
+                    clusterState.metaData().concreteIndices(request.indices());
                     waitForCounter++;
                 } catch (IndexMissingException e) {
                     response.status = ClusterHealthStatus.RED; // no indices, make sure its RED
                     // missing indices, wait a bit more...
                 }
             }
-            if (!request.getWaitForNodes().isEmpty()) {
-                if (request.getWaitForNodes().startsWith(">=")) {
-                    int expected = Integer.parseInt(request.getWaitForNodes().substring(2));
+            if (!request.waitForNodes().isEmpty()) {
+                if (request.waitForNodes().startsWith(">=")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(2));
                     if (response.getNumberOfNodes() >= expected) {
                         waitForCounter++;
                     }
-                } else if (request.getWaitForNodes().startsWith("ge(")) {
-                    int expected = Integer.parseInt(request.getWaitForNodes().substring(3, request.getWaitForNodes().length() - 1));
+                } else if (request.waitForNodes().startsWith("ge(")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
                     if (response.getNumberOfNodes() >= expected) {
                         waitForCounter++;
                     }
-                } else if (request.getWaitForNodes().startsWith("<=")) {
-                    int expected = Integer.parseInt(request.getWaitForNodes().substring(2));
+                } else if (request.waitForNodes().startsWith("<=")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(2));
                     if (response.getNumberOfNodes() <= expected) {
                         waitForCounter++;
                     }
-                } else if (request.getWaitForNodes().startsWith("le(")) {
-                    int expected = Integer.parseInt(request.getWaitForNodes().substring(3, request.getWaitForNodes().length() - 1));
+                } else if (request.waitForNodes().startsWith("le(")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
                     if (response.getNumberOfNodes() <= expected) {
                         waitForCounter++;
                     }
-                } else if (request.getWaitForNodes().startsWith(">")) {
-                    int expected = Integer.parseInt(request.getWaitForNodes().substring(1));
+                } else if (request.waitForNodes().startsWith(">")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(1));
                     if (response.getNumberOfNodes() > expected) {
                         waitForCounter++;
                     }
-                } else if (request.getWaitForNodes().startsWith("gt(")) {
-                    int expected = Integer.parseInt(request.getWaitForNodes().substring(3, request.getWaitForNodes().length() - 1));
+                } else if (request.waitForNodes().startsWith("gt(")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
                     if (response.getNumberOfNodes() > expected) {
                         waitForCounter++;
                     }
-                } else if (request.getWaitForNodes().startsWith("<")) {
-                    int expected = Integer.parseInt(request.getWaitForNodes().substring(1));
+                } else if (request.waitForNodes().startsWith("<")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(1));
                     if (response.getNumberOfNodes() < expected) {
                         waitForCounter++;
                     }
-                } else if (request.getWaitForNodes().startsWith("lt(")) {
-                    int expected = Integer.parseInt(request.getWaitForNodes().substring(3, request.getWaitForNodes().length() - 1));
+                } else if (request.waitForNodes().startsWith("lt(")) {
+                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
                     if (response.getNumberOfNodes() < expected) {
                         waitForCounter++;
                     }
                 } else {
-                    int expected = Integer.parseInt(request.getWaitForNodes());
+                    int expected = Integer.parseInt(request.waitForNodes());
                     if (response.getNumberOfNodes() == expected) {
                         waitForCounter++;
                     }
@@ -190,7 +190,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         response.numberOfNodes = clusterState.nodes().size();
         response.numberOfDataNodes = clusterState.nodes().dataNodes().size();
 
-        for (String index : clusterState.metaData().concreteIndicesIgnoreMissing(request.getIndices())) {
+        for (String index : clusterState.metaData().concreteIndicesIgnoreMissing(request.indices())) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             IndexMetaData indexMetaData = clusterState.metaData().index(index);
             if (indexRoutingTable == null) {

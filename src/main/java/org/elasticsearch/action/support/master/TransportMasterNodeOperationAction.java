@@ -97,7 +97,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                     listener.onFailure(blockException);
                     return;
                 }
-                clusterService.add(request.getMasterNodeTimeout(), new TimeoutClusterStateListener() {
+                clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
                     @Override
                     public void postAdded() {
                         ClusterBlockException blockException = checkBlock(request, clusterService.state());
@@ -146,7 +146,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 if (retrying) {
                     listener.onFailure(new MasterNotDiscoveredException());
                 } else {
-                    clusterService.add(request.getMasterNodeTimeout(), new TimeoutClusterStateListener() {
+                    clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
                         @Override
                         public void postAdded() {
                             ClusterState clusterStateV2 = clusterService.state();
@@ -201,7 +201,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 public void handleException(final TransportException exp) {
                     if (exp.unwrapCause() instanceof ConnectTransportException) {
                         // we want to retry here a bit to see if a new master is elected
-                        clusterService.add(request.getMasterNodeTimeout(), new TimeoutClusterStateListener() {
+                        clusterService.add(request.masterNodeTimeout(), new TimeoutClusterStateListener() {
                             @Override
                             public void postAdded() {
                                 ClusterState clusterStateV2 = clusterService.state();
@@ -255,7 +255,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
         @Override
         public void messageReceived(final Request request, final TransportChannel channel) throws Exception {
             // we just send back a response, no need to fork a listener
-            request.setListenerThreaded(false);
+            request.listenerThreaded(false);
             execute(request, new ActionListener<Response>() {
                 @Override
                 public void onResponse(Response response) {

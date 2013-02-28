@@ -39,7 +39,7 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
     }
 
     public PutMappingRequestBuilder setIndices(String... indices) {
-        request.setIndices(indices);
+        request.indices(indices);
         return this;
     }
 
@@ -48,7 +48,7 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
      */
     @Required
     public PutMappingRequestBuilder setType(String type) {
-        request.setType(type);
+        request.type(type);
         return this;
     }
 
@@ -56,7 +56,7 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
      * The mapping source definition.
      */
     public PutMappingRequestBuilder setSource(XContentBuilder mappingBuilder) {
-        request.setSource(mappingBuilder);
+        request.source(mappingBuilder);
         return this;
     }
 
@@ -64,7 +64,7 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
      * The mapping source definition.
      */
     public PutMappingRequestBuilder setSource(Map mappingSource) {
-        request.setSource(mappingSource);
+        request.source(mappingSource);
         return this;
     }
 
@@ -72,7 +72,7 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
      * The mapping source definition.
      */
     public PutMappingRequestBuilder setSource(String mappingSource) {
-        request.setSource(mappingSource);
+        request.source(mappingSource);
         return this;
     }
 
@@ -81,7 +81,7 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
      * <tt>10s</tt>.
      */
     public PutMappingRequestBuilder setTimeout(TimeValue timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return this;
     }
 
@@ -90,7 +90,7 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
      * <tt>10s</tt>.
      */
     public PutMappingRequestBuilder setTimeout(String timeout) {
-        request.setTimeout(timeout);
+        request.timeout(timeout);
         return this;
     }
 
@@ -100,7 +100,7 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
      * {@link #setIgnoreConflicts(boolean)} is set. In such a case, the duplicate mappings will be rejected.
      */
     public PutMappingRequestBuilder setIgnoreConflicts(boolean ignoreConflicts) {
-        request.setIgnoreConflicts(ignoreConflicts);
+        request.ignoreConflicts(ignoreConflicts);
         return this;
     }
 

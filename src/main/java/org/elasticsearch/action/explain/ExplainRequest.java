@@ -57,29 +57,29 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         this.id = id;
     }
 
-    public String getType() {
+    public String type() {
         return type;
     }
 
-    public ExplainRequest setType(String type) {
+    public ExplainRequest type(String type) {
         this.type = type;
         return this;
     }
 
-    public String getId() {
+    public String id() {
         return id;
     }
 
-    public ExplainRequest setId(String id) {
+    public ExplainRequest id(String id) {
         this.id = id;
         return this;
     }
 
-    public String getRouting() {
+    public String routing() {
         return routing;
     }
 
-    public ExplainRequest setRouting(String routing) {
+    public ExplainRequest routing(String routing) {
         this.routing = routing;
         return this;
     }
@@ -87,60 +87,59 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
     /**
      * Simple sets the routing. Since the parent is only used to get to the right shard.
      */
-    public ExplainRequest setParent(String parent) {
+    public ExplainRequest parent(String parent) {
         this.routing = parent;
         return this;
     }
 
-    public String getPreference() {
+    public String preference() {
         return preference;
     }
 
-    public ExplainRequest setPreference(String preference) {
+    public ExplainRequest preference(String preference) {
         this.preference = preference;
         return this;
     }
 
-    public BytesReference getSource() {
+    public BytesReference source() {
         return source;
     }
 
-    public boolean isSourceUnsafe() {
+    public boolean sourceUnsafe() {
         return sourceUnsafe;
     }
 
-    public ExplainRequest setSource(ExplainSourceBuilder sourceBuilder) {
+    public ExplainRequest source(ExplainSourceBuilder sourceBuilder) {
         this.source = sourceBuilder.buildAsBytes(contentType);
         this.sourceUnsafe = false;
         return this;
     }
 
-    public ExplainRequest setSource(BytesReference source, boolean unsafe) {
+    public ExplainRequest source(BytesReference source, boolean unsafe) {
         this.source = source;
         this.sourceUnsafe = unsafe;
         return this;
     }
 
-    public String[] getFields() {
+    public String[] fields() {
         return fields;
     }
 
-    public ExplainRequest setFields(String[] fields) {
+    public ExplainRequest fields(String[] fields) {
         this.fields = fields;
         return this;
     }
 
-    public String[] getFilteringAlias() {
+    public String[] filteringAlias() {
         return filteringAlias;
     }
 
-    // TODO Should we change it to ExplainRequest setFilteringAlias(String[] filteringAlias)?
-    public void setFilteringAlias(String[] filteringAlias) {
-        if (filteringAlias == null) {
-            return;
+    public ExplainRequest filteringAlias(String[] filteringAlias) {
+        if (filteringAlias != null) {
+            this.filteringAlias = filteringAlias;
         }
 
-        this.filteringAlias = filteringAlias;
+        return this;
     }
 
     @Override

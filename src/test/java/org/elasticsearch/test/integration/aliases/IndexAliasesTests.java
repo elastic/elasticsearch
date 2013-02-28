@@ -108,14 +108,14 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         try {
             logger.info("--> indexing against [alias1], should fail");
-            client1.index(indexRequest("alias1").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
+            client1.index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
             assert false : "index [alias1] should not exists";
         } catch (IndexMissingException e) {
             assertThat(e.index().name(), equalTo("alias1"));
@@ -125,14 +125,14 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareAliases().addAlias("test", "alias1").execute().actionGet();
 
         logger.info("--> indexing against [alias1], should work now");
-        IndexResponse indexResponse = client1.index(indexRequest("alias1").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
+        IndexResponse indexResponse = client1.index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test"));
 
         logger.info("--> creating index [test]");
         client1.admin().indices().create(createIndexRequest("test_x")).actionGet();
 
         logger.info("--> running cluster_health");
-        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -142,7 +142,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         Thread.sleep(300);
 
         logger.info("--> indexing against [alias1], should work against [test_x]");
-        indexResponse = client1.index(indexRequest("alias1").setType("type1").setId("1").setSource(source("1", "test"))).actionGet();
+        indexResponse = client1.index(indexRequest("alias1").type("type1").id("1").source(source("1", "test"))).actionGet();
         assertThat(indexResponse.getIndex(), equalTo("test_x"));
     }
 
@@ -155,7 +155,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -178,7 +178,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -204,7 +204,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -217,10 +217,10 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareAliases().addAlias("test", "tests", termFilter("name", "test")).execute().actionGet();
 
         logger.info("--> indexing against [test]");
-        client1.index(indexRequest("test").setType("type1").setId("1").setSource(source("1", "foo test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test").setType("type1").setId("2").setSource(source("2", "bar test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test").setType("type1").setId("3").setSource(source("3", "baz test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test").setType("type1").setId("4").setSource(source("4", "something else")).setRefresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("2").source(source("2", "bar test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("3").source(source("3", "baz test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test").type("type1").id("4").source(source("4", "something else")).refresh(true)).actionGet();
 
         logger.info("--> checking single filtering alias search");
         SearchResponse searchResponse = client1.prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -257,7 +257,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test2")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -274,16 +274,16 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareAliases().addAlias("test2", "foos", termFilter("name", "foo")).execute().actionGet();
 
         logger.info("--> indexing against [test1]");
-        client1.index(indexRequest("test1").setType("type1").setId("1").setSource(source("1", "foo test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test1").setType("type1").setId("2").setSource(source("2", "bar test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test1").setType("type1").setId("3").setSource(source("3", "baz test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test1").setType("type1").setId("4").setSource(source("4", "something else")).setRefresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("2").source(source("2", "bar test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("3").source(source("3", "baz test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("4").source(source("4", "something else")).refresh(true)).actionGet();
 
         logger.info("--> indexing against [test2]");
-        client1.index(indexRequest("test2").setType("type1").setId("5").setSource(source("5", "foo test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test2").setType("type1").setId("6").setSource(source("6", "bar test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test2").setType("type1").setId("7").setSource(source("7", "baz test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test2").setType("type1").setId("8").setSource(source("8", "something else")).setRefresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("5").source(source("5", "foo test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("6").source(source("6", "bar test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("7").source(source("7", "baz test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("8").source(source("8", "something else")).refresh(true)).actionGet();
 
         logger.info("--> checking filtering alias for two indices");
         SearchResponse searchResponse = client1.prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -327,7 +327,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test3")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -346,17 +346,17 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareAliases().addAlias("test3", "filter13", termFilter("name", "baz")).execute().actionGet();
 
         logger.info("--> indexing against [test1]");
-        client1.index(indexRequest("test1").setType("type1").setId("11").setSource(source("11", "foo test1")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test1").setType("type1").setId("12").setSource(source("12", "bar test1")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test1").setType("type1").setId("13").setSource(source("13", "baz test1")).setRefresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("11").source(source("11", "foo test1")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("12").source(source("12", "bar test1")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("13").source(source("13", "baz test1")).refresh(true)).actionGet();
 
-        client1.index(indexRequest("test2").setType("type1").setId("21").setSource(source("21", "foo test2")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test2").setType("type1").setId("22").setSource(source("22", "bar test2")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test2").setType("type1").setId("23").setSource(source("23", "baz test2")).setRefresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("21").source(source("21", "foo test2")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("22").source(source("22", "bar test2")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("23").source(source("23", "baz test2")).refresh(true)).actionGet();
 
-        client1.index(indexRequest("test3").setType("type1").setId("31").setSource(source("31", "foo test3")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test3").setType("type1").setId("32").setSource(source("32", "bar test3")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test3").setType("type1").setId("33").setSource(source("33", "baz test3")).setRefresh(true)).actionGet();
+        client1.index(indexRequest("test3").type("type1").id("31").source(source("31", "foo test3")).refresh(true)).actionGet();
+        client1.index(indexRequest("test3").type("type1").id("32").source(source("32", "bar test3")).refresh(true)).actionGet();
+        client1.index(indexRequest("test3").type("type1").id("33").source(source("33", "baz test3")).refresh(true)).actionGet();
 
         logger.info("--> checking filtering alias for multiple indices");
         SearchResponse searchResponse = client1.prepareSearch("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -397,7 +397,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test2")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -416,16 +416,16 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareAliases().addAlias("test2", "tests", termFilter("name", "test")).execute().actionGet();
 
         logger.info("--> indexing against [test1]");
-        client1.index(indexRequest("test1").setType("type1").setId("1").setSource(source("1", "foo test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test1").setType("type1").setId("2").setSource(source("2", "bar test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test1").setType("type1").setId("3").setSource(source("3", "baz test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test1").setType("type1").setId("4").setSource(source("4", "something else")).setRefresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("1").source(source("1", "foo test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("2").source(source("2", "bar test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("3").source(source("3", "baz test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test1").type("type1").id("4").source(source("4", "something else")).refresh(true)).actionGet();
 
         logger.info("--> indexing against [test2]");
-        client1.index(indexRequest("test2").setType("type1").setId("5").setSource(source("5", "foo test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test2").setType("type1").setId("6").setSource(source("6", "bar test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test2").setType("type1").setId("7").setSource(source("7", "baz test")).setRefresh(true)).actionGet();
-        client1.index(indexRequest("test2").setType("type1").setId("8").setSource(source("8", "something else")).setRefresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("5").source(source("5", "foo test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("6").source(source("6", "bar test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("7").source(source("7", "baz test")).refresh(true)).actionGet();
+        client1.index(indexRequest("test2").type("type1").id("8").source(source("8", "something else")).refresh(true)).actionGet();
 
         logger.info("--> checking counts before delete");
         assertThat(client1.prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1L));
@@ -463,14 +463,14 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
             assertThat(client1.admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
-            client2.index(indexRequest("alias" + i).setType("type1").setId("1").setSource(source("1", "test")).setRefresh(true)).actionGet();
+            client2.index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
         }
 
     }
@@ -481,17 +481,17 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().prepareDelete().execute().actionGet();
 
         logger.info("--> creating index [test]");
-        client1.admin().indices().create(createIndexRequest("test").setSettings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
+        client1.admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
             assertThat(getClient().admin().indices().prepareAliases().addAlias("test", "alias" + i).execute().actionGet().isAcknowledged(), equalTo(true));
-            getClient().index(indexRequest("alias" + i).setType("type1").setId("1").setSource(source("1", "test")).setRefresh(true)).actionGet();
+            getClient().index(indexRequest("alias" + i).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
         }
     }
 
@@ -505,7 +505,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -517,7 +517,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
                 @Override
                 public void run() {
                     assertThat(client1.admin().indices().prepareAliases().addAlias("test", aliasName).execute().actionGet().isAcknowledged(), equalTo(true));
-                    client2.index(indexRequest(aliasName).setType("type1").setId("1").setSource(source("1", "test")).setRefresh(true)).actionGet();
+                    client2.index(indexRequest(aliasName).type("type1").id("1").source(source("1", "test")).refresh(true)).actionGet();
                 }
             });
         }
@@ -538,7 +538,7 @@ public class IndexAliasesTests extends AbstractNodesTests {
         client1.admin().indices().create(createIndexRequest("test")).actionGet();
 
         logger.info("--> running cluster_health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().setWaitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

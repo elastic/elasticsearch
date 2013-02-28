@@ -108,22 +108,22 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
 
             clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
-            String[] concreteIndices = clusterState.metaData().concreteIndices(request.getIndices(), request.getIgnoreIndices(), true);
+            String[] concreteIndices = clusterState.metaData().concreteIndices(request.indices(), request.ignoreIndices(), true);
 
             for (String index : concreteIndices) {
                 clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
             }
 
-            Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.getRouting(), request.getIndices());
+            Map<String, Set<String>> routingMap = clusterState.metaData().resolveSearchRouting(request.routing(), request.indices());
 
-            shardsIts = clusterService.operationRouting().searchShards(clusterState, request.getIndices(), concreteIndices, routingMap, request.getPreference());
+            shardsIts = clusterService.operationRouting().searchShards(clusterState, request.indices(), concreteIndices, routingMap, request.preference());
             expectedSuccessfulOps = shardsIts.size();
             // we need to add 1 for non active partition, since we count it in the total!
             expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
 
             if (expectedSuccessfulOps == 0) {
                 // not search shards to search on...
-                throw new SearchPhaseExecutionException("initial", "No indices / shards to search on, requested indices are " + Arrays.toString(request.getIndices()), buildShardFailures());
+                throw new SearchPhaseExecutionException("initial", "No indices / shards to search on, requested indices are " + Arrays.toString(request.indices()), buildShardFailures());
             }
         }
 
@@ -147,7 +147,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
             // we have local operations, perform them now
             if (localOperations > 0) {
-                if (request.getOperationThreading() == SearchOperationThreading.SINGLE_THREAD) {
+                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     request.beforeLocalFork();
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
@@ -163,7 +163,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                         }
                     });
                 } else {
-                    boolean localAsync = request.getOperationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
+                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     if (localAsync) {
                         request.beforeLocalFork();
                     }
@@ -201,7 +201,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 if (node == null) {
                     onFirstPhaseResult(shard, shardIt, null);
                 } else {
-                    String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.getIndices());
+                    String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.indices());
                     sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime), new SearchServiceListener<FirstResult>() {
                         @Override
                         public void onResult(FirstResult result) {
@@ -334,7 +334,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 return;
             }
             // we only release search context that we did not fetch from if we are not scrolling
-            if (request.getScroll() == null) {
+            if (request.scroll() == null) {
                 for (Map.Entry<SearchShardTarget, QuerySearchResultProvider> entry : queryResults.entrySet()) {
                     if (!docIdsToLoad.containsKey(entry.getKey())) {
                         DiscoveryNode node = nodes.get(entry.getKey().nodeId());

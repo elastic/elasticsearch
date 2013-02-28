@@ -36,7 +36,7 @@ public class RefreshRequestBuilder extends BroadcastOperationRequestBuilder<Refr
     }
 
     public RefreshRequestBuilder setWaitForOperations(boolean waitForOperations) {
-        request.setWaitForOperations(waitForOperations);
+        request.waitForOperations(waitForOperations);
         return this;
     }
 

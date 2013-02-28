@@ -44,7 +44,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The types of documents the query will run against. Defaults to all types.
      */
     public DeleteByQueryRequestBuilder setTypes(String... types) {
-        request.setTypes(types);
+        request.types(types);
         return this;
     }
 
@@ -52,7 +52,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * A comma separated list of routing values to control the shards the action will be executed on.
      */
     public DeleteByQueryRequestBuilder setRouting(String routing) {
-        request.setRouting(routing);
+        request.routing(routing);
         return this;
     }
 
@@ -60,7 +60,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The routing values to control the shards that the action will be executed on.
      */
     public DeleteByQueryRequestBuilder setRouting(String... routing) {
-        request.setRouting(routing);
+        request.routing(routing);
         return this;
     }
 
@@ -71,7 +71,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public DeleteByQueryRequestBuilder setQuery(QueryBuilder queryBuilder) {
-        request.setQuery(queryBuilder);
+        request.query(queryBuilder);
         return this;
     }
 
@@ -80,7 +80,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * or {@link #setQuery(org.elasticsearch.index.query.QueryBuilder)}.
      */
     public DeleteByQueryRequestBuilder setQuery(String querySource) {
-        request.setQuery(querySource);
+        request.query(querySource);
         return this;
     }
 
@@ -88,7 +88,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The query source to execute in the form of a map.
      */
     public DeleteByQueryRequestBuilder setQuery(Map<String, Object> querySource) {
-        request.setQuery(querySource);
+        request.query(querySource);
         return this;
     }
 
@@ -96,7 +96,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The query source to execute in the form of a builder.
      */
     public DeleteByQueryRequestBuilder setQuery(XContentBuilder builder) {
-        request.setQuery(builder);
+        request.query(builder);
         return this;
     }
 
@@ -104,7 +104,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The query source to execute.
      */
     public DeleteByQueryRequestBuilder setQuery(byte[] querySource) {
-        request.setQuery(querySource);
+        request.query(querySource);
         return this;
     }
 
@@ -112,7 +112,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The query source to execute.
      */
     public DeleteByQueryRequestBuilder setQuery(BytesReference querySource) {
-        request.setQuery(querySource, false);
+        request.query(querySource, false);
         return this;
     }
 
@@ -120,7 +120,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The query source to execute.
      */
     public DeleteByQueryRequestBuilder setQuery(BytesReference querySource, boolean unsafe) {
-        request.setQuery(querySource, unsafe);
+        request.query(querySource, unsafe);
         return this;
     }
 
@@ -128,7 +128,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The query source to execute.
      */
     public DeleteByQueryRequestBuilder setQuery(byte[] querySource, int offset, int length, boolean unsafe) {
-        request.setQuery(querySource, offset, length, unsafe);
+        request.query(querySource, offset, length, unsafe);
         return this;
     }
 
@@ -136,7 +136,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The replication type to use with this operation.
      */
     public DeleteByQueryRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.setReplicationType(replicationType);
+        request.replicationType(replicationType);
         return this;
     }
 
@@ -144,12 +144,12 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The replication type to use with this operation.
      */
     public DeleteByQueryRequestBuilder setReplicationType(String replicationType) {
-        request.setReplicationType(replicationType);
+        request.replicationType(replicationType);
         return this;
     }
 
     public DeleteByQueryRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.setConsistencyLevel(consistencyLevel);
+        request.consistencyLevel(consistencyLevel);
         return this;
     }
 

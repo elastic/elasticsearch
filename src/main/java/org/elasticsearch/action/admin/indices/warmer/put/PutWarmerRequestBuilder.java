@@ -32,7 +32,7 @@ import org.elasticsearch.client.internal.InternalIndicesAdminClient;
 public class PutWarmerRequestBuilder extends MasterNodeOperationRequestBuilder<PutWarmerRequest, PutWarmerResponse, PutWarmerRequestBuilder> {
 
     public PutWarmerRequestBuilder(IndicesAdminClient indicesClient, String name) {
-        super((InternalIndicesAdminClient) indicesClient, new PutWarmerRequest().setName(name));
+        super((InternalIndicesAdminClient) indicesClient, new PutWarmerRequest().name(name));
     }
 
     public PutWarmerRequestBuilder(IndicesAdminClient indicesClient) {
@@ -43,7 +43,7 @@ public class PutWarmerRequestBuilder extends MasterNodeOperationRequestBuilder<P
      * Sets the name of the warmer.
      */
     public PutWarmerRequestBuilder setName(String name) {
-        request.setName(name);
+        request.name(name);
         return this;
     }
 
@@ -51,7 +51,7 @@ public class PutWarmerRequestBuilder extends MasterNodeOperationRequestBuilder<P
      * Sets the search request to use to warm the index when applicable.
      */
     public PutWarmerRequestBuilder setSearchRequest(SearchRequest searchRequest) {
-        request.setSearchRequest(searchRequest);
+        request.searchRequest(searchRequest);
         return this;
     }
 
@@ -59,7 +59,7 @@ public class PutWarmerRequestBuilder extends MasterNodeOperationRequestBuilder<P
      * Sets the search request to use to warm the index when applicable.
      */
     public PutWarmerRequestBuilder setSearchRequest(SearchRequestBuilder searchRequest) {
-        request.setSearchRequest(searchRequest);
+        request.searchRequest(searchRequest);
         return this;
     }
 

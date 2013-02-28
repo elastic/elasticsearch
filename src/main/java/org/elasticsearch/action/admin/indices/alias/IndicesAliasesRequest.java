@@ -137,7 +137,7 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest<IndicesAli
         return this;
     }
 
-    public List<AliasAction> getAliasActions() {
+    List<AliasAction> aliasActions() {
         return this.aliasActions;
     }
 
@@ -145,7 +145,7 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest<IndicesAli
      * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
      * <tt>10s</tt>.
      */
-    public TimeValue getTimeout() {
+    TimeValue timeout() {
         return timeout;
     }
 
@@ -153,7 +153,7 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest<IndicesAli
      * Timeout to wait till the alias operations get acknowledged of all current cluster nodes. Defaults to
      * <tt>10s</tt>.
      */
-    public IndicesAliasesRequest setTimeout(TimeValue timeout) {
+    public IndicesAliasesRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
         return this;
     }
@@ -162,8 +162,8 @@ public class IndicesAliasesRequest extends MasterNodeOperationRequest<IndicesAli
      * Timeout to wait till the alias operations get acknowledged of all current cluster nodes. Defaults to
      * <tt>10s</tt>.
      */
-    public IndicesAliasesRequest setTimeout(String timeout) {
-        return setTimeout(TimeValue.parseTimeValue(timeout, TimeValue.timeValueSeconds(10)));
+    public IndicesAliasesRequest timeout(String timeout) {
+        return timeout(TimeValue.parseTimeValue(timeout, TimeValue.timeValueSeconds(10)));
     }
 
     @Override

@@ -55,7 +55,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
-        indicesAliasesRequest.setListenerThreaded(false);
+        indicesAliasesRequest.listenerThreaded(false);
         XContentParser parser = null;
         try {
             // {
@@ -64,7 +64,7 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
             //         { remove : { index : "test1", alias : "alias1" } }
             //     ]
             // }
-            indicesAliasesRequest.setTimeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+            indicesAliasesRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
             parser = XContentFactory.xContent(request.content()).createParser(request.content());
             XContentParser.Token token = parser.nextToken();
             if (token == null) {

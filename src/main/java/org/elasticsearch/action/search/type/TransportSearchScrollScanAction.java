@@ -129,7 +129,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             if (scrollId.getContext().length == 0) {
                 final InternalSearchResponse internalResponse = new InternalSearchResponse(new InternalSearchHits(InternalSearchHits.EMPTY, Long.parseLong(this.scrollId.getAttributes().get("total_hits")), 0.0f), null, null, false);
                 searchCache.releaseQueryFetchResults(queryFetchResults);
-                listener.onResponse(new SearchResponse(internalResponse, request.getScrollId(), 0, 0, 0l, buildShardFailures()));
+                listener.onResponse(new SearchResponse(internalResponse, request.scrollId(), 0, 0, 0l, buildShardFailures()));
                 return;
             }
 
@@ -154,7 +154,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             }
 
             if (localOperations > 0) {
-                if (request.getOperationThreading() == SearchOperationThreading.SINGLE_THREAD) {
+                if (request.operationThreading() == SearchOperationThreading.SINGLE_THREAD) {
                     threadPool.executor(ThreadPool.Names.SEARCH).execute(new Runnable() {
                         @Override
                         public void run() {
@@ -167,7 +167,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
                         }
                     });
                 } else {
-                    boolean localAsync = request.getOperationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
+                    boolean localAsync = request.operationThreading() == SearchOperationThreading.THREAD_PER_SHARD;
                     for (final Tuple<String, Long> target : scrollId.getContext()) {
                         final DiscoveryNode node = nodes.get(target.v1());
                         if (node != null && nodes.localNodeId().equals(node.id())) {
@@ -264,7 +264,7 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             }
 
             String scrollId = null;
-            if (request.getScroll() != null) {
+            if (request.scroll() != null) {
                 // we rebuild the scroll id since we remove shards that we finished scrolling on
                 scrollId = TransportSearchHelper.buildScrollId(this.scrollId.getType(), queryFetchResults.values(), this.scrollId.getAttributes()); // continue moving the total_hits
             }

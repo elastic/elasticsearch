@@ -53,7 +53,7 @@ public class RestIndicesExistsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         IndicesExistsRequest indicesExistsRequest = new IndicesExistsRequest(splitIndices(request.param("index")));
-        indicesExistsRequest.setListenerThreaded(false);
+        indicesExistsRequest.listenerThreaded(false);
         client.admin().indices().exists(indicesExistsRequest, new ActionListener<IndicesExistsResponse>() {
             @Override
             public void onResponse(IndicesExistsResponse response) {

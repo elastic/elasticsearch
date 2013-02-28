@@ -58,30 +58,30 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(splitIndices(request.param("index")));
-        deleteByQueryRequest.setListenerThreaded(false);
+        deleteByQueryRequest.listenerThreaded(false);
         try {
             if (request.hasContent()) {
-                deleteByQueryRequest.setQuery(request.content(), request.contentUnsafe());
+                deleteByQueryRequest.query(request.content(), request.contentUnsafe());
             } else {
                 String source = request.param("source");
                 if (source != null) {
-                    deleteByQueryRequest.setQuery(source);
+                    deleteByQueryRequest.query(source);
                 } else {
                     BytesReference bytes = RestActions.parseQuerySource(request);
-                    deleteByQueryRequest.setQuery(bytes, false);
+                    deleteByQueryRequest.query(bytes, false);
                 }
             }
-            deleteByQueryRequest.setTypes(splitTypes(request.param("type")));
-            deleteByQueryRequest.setTimeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
+            deleteByQueryRequest.types(splitTypes(request.param("type")));
+            deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
 
-            deleteByQueryRequest.setRouting(request.param("routing"));
+            deleteByQueryRequest.routing(request.param("routing"));
             String replicationType = request.param("replication");
             if (replicationType != null) {
-                deleteByQueryRequest.setReplicationType(ReplicationType.fromString(replicationType));
+                deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
             }
             String consistencyLevel = request.param("consistency");
             if (consistencyLevel != null) {
-                deleteByQueryRequest.setConsistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
+                deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
             }
         } catch (Exception e) {
             try {

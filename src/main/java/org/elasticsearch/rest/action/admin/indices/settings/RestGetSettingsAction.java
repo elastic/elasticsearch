@@ -61,10 +61,10 @@ public class RestGetSettingsAction extends BaseRestHandler {
         final String[] indices = splitIndices(request.param("index"));
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .setFilterRoutingTable(true)
-                .setFilterNodes(true)
-                .setFilteredIndices(indices);
-        clusterStateRequest.setListenerThreaded(false);
+                .filterRoutingTable(true)
+                .filterNodes(true)
+                .filteredIndices(indices);
+        clusterStateRequest.listenerThreaded(false);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
@@ -72,7 +72,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                 try {
                     MetaData metaData = response.getState().metaData();
 
-                    if (metaData.indices().isEmpty()) {
+                    if (metaData.indices().isEmpty() && indices.length > 0) {
                         channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
                         return;
                     }

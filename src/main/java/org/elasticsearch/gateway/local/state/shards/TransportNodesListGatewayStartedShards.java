@@ -60,7 +60,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     }
 
     public ActionFuture<NodesLocalGatewayStartedShards> list(ShardId shardId, Set<String> nodesIds, @Nullable TimeValue timeout) {
-        return execute(new Request(shardId, nodesIds).setTimeout(timeout));
+        return execute(new Request(shardId, nodesIds).timeout(timeout));
     }
 
     @Override

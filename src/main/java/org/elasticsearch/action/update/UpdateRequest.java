@@ -100,14 +100,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * The type of the indexed document.
      */
-    public String getType() {
+    public String type() {
         return type;
     }
 
     /**
      * Sets the type of the indexed document.
      */
-    public UpdateRequest setType(String type) {
+    public UpdateRequest type(String type) {
         this.type = type;
         return this;
     }
@@ -115,14 +115,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * The id of the indexed document.
      */
-    public String getId() {
+    public String id() {
         return id;
     }
 
     /**
      * Sets the id of the indexed document.
      */
-    public UpdateRequest setId(String id) {
+    public UpdateRequest id(String id) {
         this.id = id;
         return this;
     }
@@ -131,7 +131,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
-    public UpdateRequest setRouting(String routing) {
+    public UpdateRequest routing(String routing) {
         if (routing != null && routing.length() == 0) {
             this.routing = null;
         } else {
@@ -144,7 +144,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the parent id of this document. Will simply set the routing to this value, as it is only
      * used for routing with delete requests.
      */
-    public UpdateRequest setParent(String parent) {
+    public UpdateRequest parent(String parent) {
         if (routing == null) {
             routing = parent;
         }
@@ -155,19 +155,19 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
-    public String getRouting() {
+    public String routing() {
         return this.routing;
     }
 
-    public int getShardId() {
+    int shardId() {
         return this.shardId;
     }
 
-    public String getScript() {
+    public String script() {
         return this.script;
     }
 
-    public Map<String, Object> getScriptParams() {
+    public Map<String, Object> scriptParams() {
         return this.scriptParams;
     }
 
@@ -175,7 +175,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      */
-    public UpdateRequest setScript(String script) {
+    public UpdateRequest script(String script) {
         this.script = script;
         return this;
     }
@@ -183,7 +183,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * The language of the script to execute.
      */
-    public UpdateRequest setScriptLang(String scriptLang) {
+    public UpdateRequest scriptLang(String scriptLang) {
         this.scriptLang = scriptLang;
         return this;
     }
@@ -202,7 +202,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * Sets the script parameters to use with the script.
      */
-    public UpdateRequest setScriptParams(Map<String, Object> scriptParams) {
+    public UpdateRequest scriptParams(Map<String, Object> scriptParams) {
         if (this.scriptParams == null) {
             this.scriptParams = scriptParams;
         } else {
@@ -215,7 +215,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      */
-    public UpdateRequest setScript(String script, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, @Nullable Map<String, Object> scriptParams) {
         this.script = script;
         if (this.scriptParams != null) {
             this.scriptParams.putAll(scriptParams);
@@ -233,7 +233,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * @param scriptLang   The script language
      * @param scriptParams The script parameters
      */
-    public UpdateRequest setScript(String script, @Nullable String scriptLang, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, @Nullable String scriptLang, @Nullable Map<String, Object> scriptParams) {
         this.script = script;
         this.scriptLang = scriptLang;
         if (this.scriptParams != null) {
@@ -247,7 +247,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * Explicitly specify the fields that will be returned. By default, nothing is returned.
      */
-    public UpdateRequest setFields(String... fields) {
+    public UpdateRequest fields(String... fields) {
         this.fields = fields;
         return this;
     }
@@ -255,7 +255,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * Get the fields to be returned.
      */
-    public String[] getFields() {
+    public String[] fields() {
         return this.fields;
     }
 
@@ -263,12 +263,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the number of retries of a version conflict occurs because the document was updated between
      * getting it and updating it. Defaults to 1.
      */
-    public UpdateRequest setRetryOnConflict(int retryOnConflict) {
+    public UpdateRequest retryOnConflict(int retryOnConflict) {
         this.retryOnConflict = retryOnConflict;
         return this;
     }
 
-    public int getRetryOnConflict() {
+    public int retryOnConflict() {
         return this.retryOnConflict;
     }
 
@@ -277,12 +277,12 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * to use to reduce the percolated queries that are going to run against this doc. Can be
      * set to <tt>*</tt> to indicate that all percolate queries should be run.
      */
-    public UpdateRequest setPercolate(String percolate) {
+    public UpdateRequest percolate(String percolate) {
         this.percolate = percolate;
         return this;
     }
 
-    public String getPercolate() {
+    public String percolate() {
         return this.percolate;
     }
 
@@ -291,38 +291,38 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
      * to <tt>false</tt>.
      */
-    public UpdateRequest setRefresh(boolean refresh) {
+    public UpdateRequest refresh(boolean refresh) {
         this.refresh = refresh;
         return this;
     }
 
-    public boolean isRefresh() {
+    public boolean refresh() {
         return this.refresh;
     }
 
     /**
      * The replication type.
      */
-    public ReplicationType setReplicationType() {
+    public ReplicationType replicationType() {
         return this.replicationType;
     }
 
     /**
      * Sets the replication type.
      */
-    public UpdateRequest setReplicationType(ReplicationType replicationType) {
+    public UpdateRequest replicationType(ReplicationType replicationType) {
         this.replicationType = replicationType;
         return this;
     }
 
-    public WriteConsistencyLevel getConsistencyLevel() {
+    public WriteConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
     }
 
     /**
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
-    public UpdateRequest setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
+    public UpdateRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
         this.consistencyLevel = consistencyLevel;
         return this;
     }
@@ -330,7 +330,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest setDoc(IndexRequest doc) {
+    public UpdateRequest doc(IndexRequest doc) {
         this.doc = doc;
         return this;
     }
@@ -338,56 +338,56 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest setDoc(XContentBuilder source) {
-        getSafeDoc().setSource(source);
+    public UpdateRequest doc(XContentBuilder source) {
+        safeDoc().source(source);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest setDoc(Map source) {
-        getSafeDoc().setSource(source);
+    public UpdateRequest doc(Map source) {
+        safeDoc().source(source);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest setDoc(Map source, XContentType contentType) {
-        getSafeDoc().setSource(source, contentType);
+    public UpdateRequest doc(Map source, XContentType contentType) {
+        safeDoc().source(source, contentType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest setDoc(String source) {
-        getSafeDoc().setSource(source);
+    public UpdateRequest doc(String source) {
+        safeDoc().source(source);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest setDoc(byte[] source) {
-        getSafeDoc().setSource(source);
+    public UpdateRequest doc(byte[] source) {
+        safeDoc().source(source);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequest setDoc(byte[] source, int offset, int length) {
-        getSafeDoc().setSource(source, offset, length);
+    public UpdateRequest doc(byte[] source, int offset, int length) {
+        safeDoc().source(source, offset, length);
         return this;
     }
 
-    public IndexRequest getDoc() {
+    public IndexRequest doc() {
         return this.doc;
     }
 
-    private IndexRequest getSafeDoc() {
+    private IndexRequest safeDoc() {
         if (doc == null) {
             doc = new IndexRequest();
         }
@@ -398,7 +398,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
      */
-    public UpdateRequest setUpsertRequest(IndexRequest upsertRequest) {
+    public UpdateRequest upsert(IndexRequest upsertRequest) {
         this.upsertRequest = upsertRequest;
         return this;
     }
@@ -406,75 +406,75 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest setUpsertRequest(XContentBuilder source) {
-        getSafeUpsertRequest().setSource(source);
+    public UpdateRequest upsert(XContentBuilder source) {
+        safeUpsertRequest().source(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest setUpsertRequest(Map source) {
-        getSafeUpsertRequest().setSource(source);
+    public UpdateRequest upsert(Map source) {
+        safeUpsertRequest().source(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest setUpsertRequest(Map source, XContentType contentType) {
-        getSafeUpsertRequest().setSource(source, contentType);
+    public UpdateRequest upsert(Map source, XContentType contentType) {
+        safeUpsertRequest().source(source, contentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest setUpsertRequest(String source) {
-        getSafeUpsertRequest().setSource(source);
+    public UpdateRequest upsert(String source) {
+        safeUpsertRequest().source(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest setUpsertRequest(byte[] source) {
-        getSafeUpsertRequest().setSource(source);
+    public UpdateRequest upsert(byte[] source) {
+        safeUpsertRequest().source(source);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequest setUpsertRequest(byte[] source, int offset, int length) {
-        getSafeUpsertRequest().setSource(source, offset, length);
+    public UpdateRequest upsert(byte[] source, int offset, int length) {
+        safeUpsertRequest().source(source, offset, length);
         return this;
     }
 
-    public IndexRequest getUpsertRequest() {
+    public IndexRequest upsertRequest() {
         return this.upsertRequest;
     }
 
-    private IndexRequest getSafeUpsertRequest() {
+    private IndexRequest safeUpsertRequest() {
         if (upsertRequest == null) {
             upsertRequest = new IndexRequest();
         }
         return upsertRequest;
     }
 
-    public UpdateRequest setSource(XContentBuilder source) throws Exception {
-        return setSource(source.bytes());
+    public UpdateRequest source(XContentBuilder source) throws Exception {
+        return source(source.bytes());
     }
 
-    public UpdateRequest setSource(byte[] source) throws Exception {
-        return setSource(source, 0, source.length);
+    public UpdateRequest source(byte[] source) throws Exception {
+        return source(source, 0, source.length);
     }
 
-    public UpdateRequest setSource(byte[] source, int offset, int length) throws Exception {
-        return setSource(new BytesArray(source, offset, length));
+    public UpdateRequest source(byte[] source, int offset, int length) throws Exception {
+        return source(new BytesArray(source, offset, length));
     }
 
-    public UpdateRequest setSource(BytesReference source) throws Exception {
+    public UpdateRequest source(BytesReference source) throws Exception {
         XContentType xContentType = XContentFactory.xContentType(source);
         XContentParser parser = XContentFactory.xContent(xContentType).createParser(source);
         try {
@@ -495,11 +495,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                 } else if ("upsert".equals(currentFieldName)) {
                     XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
                     builder.copyCurrentStructure(parser);
-                    getSafeUpsertRequest().setSource(builder);
+                    safeUpsertRequest().source(builder);
                 } else if ("doc".equals(currentFieldName)) {
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
-                    getSafeDoc().setSource(docBuilder);
+                    safeDoc().source(docBuilder);
                 }
             }
         } finally {
@@ -558,9 +558,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         } else {
             out.writeBoolean(true);
             // make sure the basics are set
-            doc.setIndex(index);
-            doc.setType(type);
-            doc.setId(id);
+            doc.index(index);
+            doc.type(type);
+            doc.id(id);
             doc.writeTo(out);
         }
         if (fields == null) {
@@ -576,9 +576,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         } else {
             out.writeBoolean(true);
             // make sure the basics are set
-            upsertRequest.setIndex(index);
-            upsertRequest.setType(type);
-            upsertRequest.setId(id);
+            upsertRequest.index(index);
+            upsertRequest.type(type);
+            upsertRequest.id(id);
             upsertRequest.writeTo(out);
         }
     }

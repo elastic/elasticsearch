@@ -74,15 +74,15 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
         return validationException;
     }
 
-    public String[] getIndices() {
+    String[] indices() {
         return indices;
     }
 
-    public Settings getSettings() {
+    Settings settings() {
         return settings;
     }
 
-    public UpdateSettingsRequest setIndices(String... indices) {
+    public UpdateSettingsRequest indices(String... indices) {
         this.indices = indices;
         return this;
     }
@@ -90,7 +90,7 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
     /**
      * The settings to created the index with.
      */
-    public UpdateSettingsRequest setSettings(Settings settings) {
+    public UpdateSettingsRequest settings(Settings settings) {
         this.settings = settings;
         return this;
     }
@@ -98,7 +98,7 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
     /**
      * The settings to created the index with.
      */
-    public UpdateSettingsRequest setSettings(Settings.Builder settings) {
+    public UpdateSettingsRequest settings(Settings.Builder settings) {
         this.settings = settings.build();
         return this;
     }
@@ -106,7 +106,7 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
     /**
      * The settings to crete the index with (either json/yaml/properties format)
      */
-    public UpdateSettingsRequest setSettings(String source) {
+    public UpdateSettingsRequest settings(String source) {
         this.settings = ImmutableSettings.settingsBuilder().loadFromSource(source).build();
         return this;
     }
@@ -114,11 +114,11 @@ public class UpdateSettingsRequest extends MasterNodeOperationRequest<UpdateSett
     /**
      * The settings to crete the index with (either json/yaml/properties format)
      */
-    public UpdateSettingsRequest setSettings(Map source) {
+    public UpdateSettingsRequest settings(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            setSettings(builder.string());
+            settings(builder.string());
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }

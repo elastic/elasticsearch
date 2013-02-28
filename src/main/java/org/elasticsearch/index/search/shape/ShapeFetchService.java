@@ -58,7 +58,7 @@ public class ShapeFetchService extends AbstractComponent {
      * @throws IOException Can be thrown while parsing the Shape Document and extracting the Shape
      */
     public Shape fetch(String id, String type, String index, String shapeField) throws IOException {
-        GetResponse response = client.get(new GetRequest(index, type, id).setPreference("_local").setOperationThreaded(false)).actionGet();
+        GetResponse response = client.get(new GetRequest(index, type, id).preference("_local").operationThreaded(false)).actionGet();
         if (!response.isExists()) {
             throw new ElasticSearchIllegalArgumentException("Shape with ID [" + id + "] in type [" + type + "] not found");
         }

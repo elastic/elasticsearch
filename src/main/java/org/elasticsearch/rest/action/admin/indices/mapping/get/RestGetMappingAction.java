@@ -65,11 +65,11 @@ public class RestGetMappingAction extends BaseRestHandler {
         final Set<String> types = ImmutableSet.copyOf(splitTypes(request.param("type")));
 
         ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .setFilterRoutingTable(true)
-                .setFilterNodes(true)
-                .setFilteredIndices(indices);
+                .filterRoutingTable(true)
+                .filterNodes(true)
+                .filteredIndices(indices);
 
-        clusterStateRequest.setListenerThreaded(false);
+        clusterStateRequest.listenerThreaded(false);
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override

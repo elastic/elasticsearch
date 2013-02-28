@@ -70,12 +70,12 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
 
     @Override
     protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.getIndex());
+        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
     }
 
     @Override
     protected CreateIndexResponse masterOperation(CreateIndexRequest request, ClusterState state) throws ElasticSearchException {
-        String cause = request.getCause();
+        String cause = request.cause();
         if (cause.length() == 0) {
             cause = "api";
         }
@@ -83,10 +83,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeOperationActi
         final AtomicReference<CreateIndexResponse> responseRef = new AtomicReference<CreateIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        createIndexService.createIndex(new MetaDataCreateIndexService.Request(cause, request.getIndex()).settings(request.getSettings())
-                .mappings(request.getMappings())
-                .customs(request.getCustoms())
-                .timeout(request.getTimeout()),
+        createIndexService.createIndex(new MetaDataCreateIndexService.Request(cause, request.index()).settings(request.settings())
+                .mappings(request.mappings())
+                .customs(request.customs())
+                .timeout(request.timeout()),
                 new MetaDataCreateIndexService.Listener() {
                     @Override
                     public void onResponse(MetaDataCreateIndexService.Response response) {

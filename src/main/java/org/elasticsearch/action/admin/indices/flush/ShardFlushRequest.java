@@ -39,20 +39,20 @@ class ShardFlushRequest extends BroadcastShardOperationRequest {
 
     public ShardFlushRequest(String index, int shardId, FlushRequest request) {
         super(index, shardId, request);
-        this.refresh = request.isRefresh();
-        this.full = request.isFull();
-        this.force = request.isForce();
+        this.refresh = request.refresh();
+        this.full = request.full();
+        this.force = request.force();
     }
 
-    public boolean isRefresh() {
+    public boolean refresh() {
         return this.refresh;
     }
 
-    public boolean isFull() {
+    public boolean full() {
         return this.full;
     }
 
-    public boolean isForce() {
+    public boolean force() {
         return this.force;
     }
 

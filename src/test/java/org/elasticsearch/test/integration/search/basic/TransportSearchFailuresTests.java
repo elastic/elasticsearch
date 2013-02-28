@@ -58,7 +58,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         logger.info("Start Testing failed search with wrong query");
         startNode("server1");
         client("server1").admin().indices().create(createIndexRequest("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 2).put("routing.hash.type", "simple")))
+                .settings(settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 2).put("routing.hash.type", "simple")))
                 .actionGet();
 
         client("server1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
@@ -72,7 +72,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client("server1").search(searchRequest("test").setSource(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+                SearchResponse searchResponse = client("server1").search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(3));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(3));
@@ -88,7 +88,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest("test")
-                .setWaitForYellowStatus().setWaitForRelocatingShards(0).setWaitForActiveShards(6)).actionGet();
+                .waitForYellowStatus().waitForRelocatingShards(0).waitForActiveShards(6)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -101,7 +101,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
 
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client("server1").search(searchRequest("test").setSource(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+                SearchResponse searchResponse = client("server1").search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(3));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(3));
@@ -116,7 +116,7 @@ public class TransportSearchFailuresTests extends AbstractNodesTests {
     }
 
     private void index(Client client, String id, String nameValue, int age) throws IOException {
-        client.index(Requests.indexRequest("test").setType("type1").setId(id).setSource(source(id, nameValue, age)).setConsistencyLevel(WriteConsistencyLevel.ONE)).actionGet();
+        client.index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age)).consistencyLevel(WriteConsistencyLevel.ONE)).actionGet();
     }
 
     private XContentBuilder source(String id, String nameValue, int age) throws IOException {

@@ -79,7 +79,7 @@ public class TransportDeleteIndexTemplateAction extends TransportMasterNodeOpera
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
 
-        indexTemplateService.removeTemplate(new MetaDataIndexTemplateService.RemoveRequest(request.getName()), new MetaDataIndexTemplateService.RemoveListener() {
+        indexTemplateService.removeTemplate(new MetaDataIndexTemplateService.RemoveRequest(request.name()), new MetaDataIndexTemplateService.RemoveListener() {
             @Override
             public void onResponse(MetaDataIndexTemplateService.RemoveResponse response) {
                 responseRef.set(new DeleteIndexTemplateResponse(response.acknowledged()));

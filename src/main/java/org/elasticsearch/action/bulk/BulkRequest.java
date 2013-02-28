@@ -19,7 +19,12 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.google.common.collect.Lists;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -39,11 +44,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
+import com.google.common.collect.Lists;
 
 /**
  * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
@@ -126,7 +127,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
     BulkRequest internalAdd(IndexRequest request, @Nullable Object payload) {
         requests.add(request);
         addPayload(payload);
-        sizeInBytes += request.getSource().length() + REQUEST_OVERHEAD;
+        sizeInBytes += request.source().length() + REQUEST_OVERHEAD;
         return this;
     }
     
@@ -147,7 +148,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
     BulkRequest internalAdd(PartialDocumentUpdateRequest request, @Nullable Object payload) {
         requests.add(request);
         addPayload(payload);
-        sizeInBytes += request.getDoc().getSource().length() + REQUEST_OVERHEAD;
+        sizeInBytes += request.getDoc().source().length() + REQUEST_OVERHEAD;
         return this;
     }
 
@@ -311,7 +312,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 }
 
                 if ("delete".equals(action)) {
-                    add(new DeleteRequest(index, type, id).setParent(parent).setVersion(version).setVersionType(versionType).setRouting(routing), payload);
+                    add(new DeleteRequest(index, type, id).parent(parent).version(version).versionType(versionType).routing(routing), payload);
                 } else {
                     nextMarker = findNextMarker(marker, from, data, length);
                     if (nextMarker == -1) {
@@ -322,20 +323,20 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                     // of index request. All index requests are still unsafe if applicable.
                     if ("index".equals(action)) {
                         if (opType == null) {
-                            internalAdd(new IndexRequest(index, type, id).setRouting(routing).setParent(parent).setTimestamp(timestamp).setTtl(ttl).setVersion(version).setVersionType(versionType)
-                                    .setSource(data.slice(from, nextMarker - from), contentUnsafe)
-                                    .setPercolate(percolate), payload);
+                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
+                                    .source(data.slice(from, nextMarker - from), contentUnsafe)
+                                    .percolate(percolate), payload);
                         } else {
-                            internalAdd(new IndexRequest(index, type, id).setRouting(routing).setParent(parent).setTimestamp(timestamp).setTtl(ttl).setVersion(version).setVersionType(versionType)
-                                    .setCreate("create".equals(opType))
-                                    .setSource(data.slice(from, nextMarker - from), contentUnsafe)
-                                    .setPercolate(percolate), payload);
+                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
+                                    .create("create".equals(opType))
+                                    .source(data.slice(from, nextMarker - from), contentUnsafe)
+                                    .percolate(percolate), payload);
                         }
                     } else if ("create".equals(action)) {
-                        internalAdd(new IndexRequest(index, type, id).setRouting(routing).setParent(parent).setTimestamp(timestamp).setTtl(ttl).setVersion(version).setVersionType(versionType)
-                                .setCreate(true)
-                                .setSource(data.slice(from, nextMarker - from), contentUnsafe)
-                                .setPercolate(percolate), payload);
+                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
+                                .create(true)
+                                .source(data.slice(from, nextMarker - from), contentUnsafe)
+                                .percolate(percolate), payload);
                     }
                     // move pointers
                     from = nextMarker + 1;

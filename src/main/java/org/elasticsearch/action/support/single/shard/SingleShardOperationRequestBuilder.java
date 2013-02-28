@@ -37,7 +37,7 @@ public abstract class SingleShardOperationRequestBuilder<Request extends SingleS
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIndex(String index) {
-        request.setIndex(index);
+        request.index(index);
         return (RequestBuilder) this;
     }
 
@@ -46,7 +46,7 @@ public abstract class SingleShardOperationRequestBuilder<Request extends SingleS
      */
     @SuppressWarnings("unchecked")
     public final RequestBuilder setOperationThreaded(boolean threadedOperation) {
-        request.setOperationThreaded(threadedOperation);
+        request.operationThreaded(threadedOperation);
         return (RequestBuilder) this;
     }
 }

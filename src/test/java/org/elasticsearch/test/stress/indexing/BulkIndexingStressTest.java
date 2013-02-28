@@ -49,7 +49,7 @@ public class BulkIndexingStressTest {
         while (true) {
             BulkRequestBuilder bulkRequest = client.prepareBulk();
             for (int i = 0; i < BATCH; i++) {
-                bulkRequest.add(Requests.indexRequest("test" + ThreadLocalRandom.current().nextInt(NUMBER_OF_INDICES)).setType("type").setSource("field", "value"));
+                bulkRequest.add(Requests.indexRequest("test" + ThreadLocalRandom.current().nextInt(NUMBER_OF_INDICES)).type("type").source("field", "value"));
             }
             bulkRequest.execute().actionGet();
         }

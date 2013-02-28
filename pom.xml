@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch</artifactId>
-    <version>0.21.0.Beta1-SNAPSHOT</version>
+    <version>0.90.0.Beta2-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>ElasticSearch - Open Source, Distributed, RESTful Search Engine</description>
     <inceptionYear>2009</inceptionYear>
@@ -90,6 +90,12 @@
             <artifactId>lucene-queryparser</artifactId>
             <version>${lucene.version}</version>
             <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>jakarta-regexp</groupId>
+                    <artifactId>jakarta-regexp</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.apache.lucene</groupId>
@@ -103,19 +109,41 @@
             <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
-          <dependency>
+        <!-- Lucene spatial, make sure when upgrading to work with latest version of jts/spatial4j dependencies -->
+        <dependency>
             <groupId>org.apache.lucene</groupId>
             <artifactId>lucene-spatial</artifactId>
             <version>${lucene.version}</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>com.spatial4j</groupId>
+            <artifactId>spatial4j</artifactId>
+            <version>0.3</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>com.vividsolutions</groupId>
+            <artifactId>jts</artifactId>
+            <version>1.12</version>
+            <scope>compile</scope>
+            <optional>true</optional>
+            <exclusions>
+                <exclusion>
+                    <groupId>xerces</groupId>
+                    <artifactId>xercesImpl</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- Lucene spatial -->
 
 
         <!-- START: dependencies that are shaded -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>13.0.1</version>
+            <version>14.0</version>
             <scope>compile</scope>
             <exclusions>
                 <exclusion>
@@ -150,28 +178,28 @@
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-core</artifactId>
-            <version>2.1.1</version>
+            <version>2.1.4</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-smile</artifactId>
-            <version>2.1.1</version>
+            <version>2.1.4</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.dataformat</groupId>
             <artifactId>jackson-dataformat-yaml</artifactId>
-            <version>2.1.1</version>
+            <version>2.1.4</version>
             <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.6.2.Final</version>
+            <version>3.6.3.Final</version>
             <scope>compile</scope>
         </dependency>
 
@@ -182,28 +210,6 @@
             <scope>compile</scope>
         </dependency>
         <!-- END: dependencies that are shaded -->
-
-        <dependency>
-            <groupId>com.spatial4j</groupId>
-            <artifactId>spatial4j</artifactId>
-            <version>0.3</version>
-            <scope>compile</scope>
-            <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>com.vividsolutions</groupId>
-            <artifactId>jts</artifactId>
-            <version>1.12</version>
-            <scope>compile</scope>
-            <optional>true</optional>
-            <exclusions>
-                <exclusion>
-                    <groupId>xerces</groupId>
-                    <artifactId>xercesImpl</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
 
         <dependency>
             <groupId>log4j</groupId>
@@ -337,8 +343,8 @@
                     <systemPropertyVariables>
                         <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                         <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
-                        <es.index.store.compress.stored>${env.ES_TEST_COMPRESS}</es.index.store.compress.stored>
-                        <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}</es.action.wait_on_mapping_change>
+                        <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}
+                        </es.action.wait_on_mapping_change>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

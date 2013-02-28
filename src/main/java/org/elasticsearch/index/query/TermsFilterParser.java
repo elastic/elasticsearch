@@ -32,6 +32,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
+import org.elasticsearch.indices.cache.filter.terms.TermsLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,6 +47,8 @@ public class TermsFilterParser implements FilterParser {
 
     public static final String NAME = "terms";
 
+    private IndicesTermsFilterCache termsFilterCache;
+
     @Inject
     public TermsFilterParser() {
     }
@@ -52,6 +56,11 @@ public class TermsFilterParser implements FilterParser {
     @Override
     public String[] names() {
         return new String[]{NAME, "in"};
+    }
+
+    @Inject(optional = true)
+    public void setIndicesTermsFilterCache(IndicesTermsFilterCache termsFilterCache) {
+        this.termsFilterCache = termsFilterCache;
     }
 
     @Override
@@ -62,6 +71,12 @@ public class TermsFilterParser implements FilterParser {
         Boolean cache = null;
         String filterName = null;
         String currentFieldName = null;
+
+        String lookupIndex = parseContext.index().name();
+        String lookupType = null;
+        String lookupId = null;
+        String lookupPath = null;
+
         CacheKeyFilter.Key cacheKey = null;
         XContentParser.Token token;
         String execution = "plain";
@@ -80,6 +95,34 @@ public class TermsFilterParser implements FilterParser {
                     }
                     terms.add(value);
                 }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                fieldName = currentFieldName;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if (token.isValue()) {
+                        if ("index".equals(currentFieldName)) {
+                            lookupIndex = parser.text();
+                        } else if ("type".equals(currentFieldName)) {
+                            lookupType = parser.text();
+                        } else if ("id".equals(currentFieldName)) {
+                            lookupId = parser.text();
+                        } else if ("path".equals(currentFieldName)) {
+                            lookupPath = parser.text();
+                        } else {
+                            throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "] within lookup element");
+                        }
+                    }
+                }
+                if (lookupType == null) {
+                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the type");
+                }
+                if (lookupId == null) {
+                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the id");
+                }
+                if (lookupPath == null) {
+                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the path");
+                }
             } else if (token.isValue()) {
                 if ("execution".equals(currentFieldName)) {
                     execution = parser.text();
@@ -96,7 +139,7 @@ public class TermsFilterParser implements FilterParser {
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "bool filter requires a field name, followed by array of terms");
+            throw new QueryParsingException(parseContext.index(), "terms filter requires a field name, followed by array of terms");
         }
 
         FieldMapper fieldMapper = null;
@@ -111,6 +154,21 @@ public class TermsFilterParser implements FilterParser {
             if (smartNameFieldMappers.explicitTypeInNameWithDocMapper()) {
                 previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
             }
+        }
+
+        if (lookupId != null) {
+            // external lookup, use it
+            TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupPath);
+            if (cacheKey == null) {
+                cacheKey = new CacheKeyFilter.Key(termsLookup.toString());
+            }
+            Filter filter = termsFilterCache.lookupTermsFilter(cacheKey, termsLookup);
+            filter = parseContext.cacheFilter(filter, null); // cacheKey is passed as null, so we don't double cache the key
+            return filter;
+        }
+
+        if (terms.isEmpty()) {
+            return Queries.MATCH_NO_FILTER;
         }
 
         try {

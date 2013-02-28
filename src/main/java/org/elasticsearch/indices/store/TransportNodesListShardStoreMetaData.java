@@ -73,7 +73,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, Set<String> nodesIds, @Nullable TimeValue timeout) {
-        return execute(new Request(shardId, onlyUnallocated, nodesIds).setTimeout(timeout));
+        return execute(new Request(shardId, onlyUnallocated, nodesIds).timeout(timeout));
     }
 
     @Override

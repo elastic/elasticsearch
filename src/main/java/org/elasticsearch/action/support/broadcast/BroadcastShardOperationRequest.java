@@ -42,11 +42,11 @@ public abstract class BroadcastShardOperationRequest extends TransportRequest {
         this.shardId = shardId;
     }
 
-    public String getIndex() {
+    public String index() {
         return this.index;
     }
 
-    public int getShardId() {
+    public int shardId() {
         return this.shardId;
     }
 

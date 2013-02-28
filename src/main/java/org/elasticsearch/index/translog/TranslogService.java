@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -94,34 +93,30 @@ public class TranslogService extends AbstractIndexShardComponent {
         this.future.cancel(true);
     }
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                "index.translog.flush_threshold_ops",
-                "index.translog.flush_threshold_size",
-                "index.translog.flush_threshold_period",
-                "index.translog.disable_flush"
-        );
-    }
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
+    public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD = "index.translog.flush_threshold_period";
+    public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog.disable_flush";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            int flushThresholdOperations = settings.getAsInt("index.translog.flush_threshold_ops", TranslogService.this.flushThresholdOperations);
+            int flushThresholdOperations = settings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, TranslogService.this.flushThresholdOperations);
             if (flushThresholdOperations != TranslogService.this.flushThresholdOperations) {
                 logger.info("updating flush_threshold_ops from [{}] to [{}]", TranslogService.this.flushThresholdOperations, flushThresholdOperations);
                 TranslogService.this.flushThresholdOperations = flushThresholdOperations;
             }
-            ByteSizeValue flushThresholdSize = settings.getAsBytesSize("index.translog.flush_threshold_size", TranslogService.this.flushThresholdSize);
+            ByteSizeValue flushThresholdSize = settings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, TranslogService.this.flushThresholdSize);
             if (!flushThresholdSize.equals(TranslogService.this.flushThresholdSize)) {
                 logger.info("updating flush_threshold_size from [{}] to [{}]", TranslogService.this.flushThresholdSize, flushThresholdSize);
                 TranslogService.this.flushThresholdSize = flushThresholdSize;
             }
-            TimeValue flushThresholdPeriod = settings.getAsTime("index.translog.flush_threshold_period", TranslogService.this.flushThresholdPeriod);
+            TimeValue flushThresholdPeriod = settings.getAsTime(INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD, TranslogService.this.flushThresholdPeriod);
             if (!flushThresholdPeriod.equals(TranslogService.this.flushThresholdPeriod)) {
                 logger.info("updating flush_threshold_period from [{}] to [{}]", TranslogService.this.flushThresholdPeriod, flushThresholdPeriod);
                 TranslogService.this.flushThresholdPeriod = flushThresholdPeriod;
             }
-            boolean disableFlush = settings.getAsBoolean("index.translog.disable_flush", TranslogService.this.disableFlush);
+            boolean disableFlush = settings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, TranslogService.this.disableFlush);
             if (disableFlush != TranslogService.this.disableFlush) {
                 logger.info("updating disable_flush from [{}] to [{}]", TranslogService.this.disableFlush, disableFlush);
                 TranslogService.this.disableFlush = disableFlush;

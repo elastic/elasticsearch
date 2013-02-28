@@ -34,6 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,12 +49,14 @@ import static com.google.common.collect.Lists.newArrayList;
 public class TransportClearIndicesCacheAction extends TransportBroadcastOperationAction<ClearIndicesCacheRequest, ClearIndicesCacheResponse, ShardClearIndicesCacheRequest, ShardClearIndicesCacheResponse> {
 
     private final IndicesService indicesService;
+    private final IndicesTermsFilterCache termsFilterCache;
 
     @Inject
     public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                            TransportService transportService, IndicesService indicesService) {
+                                            TransportService transportService, IndicesService indicesService, IndicesTermsFilterCache termsFilterCache) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
+        this.termsFilterCache = termsFilterCache;
     }
 
     @Override
@@ -115,46 +118,49 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
 
     @Override
     protected ShardClearIndicesCacheResponse shardOperation(ShardClearIndicesCacheRequest request) throws ElasticSearchException {
-        IndexService service = indicesService.indexService(request.getIndex());
+        IndexService service = indicesService.indexService(request.index());
         if (service != null) {
             // we always clear the query cache
             service.cache().queryParserCache().clear();
             boolean clearedAtLeastOne = false;
-            if (request.isFilterCache()) {
+            if (request.filterCache()) {
                 clearedAtLeastOne = true;
                 service.cache().filter().clear("api");
+                termsFilterCache.clear("api");
             }
-            if (request.getFilterKeys() != null && request.getFilterKeys().length > 0) {
+            if (request.filterKeys() != null && request.filterKeys().length > 0) {
                 clearedAtLeastOne = true;
-                service.cache().filter().clear("api", request.getFilterKeys());
+                service.cache().filter().clear("api", request.filterKeys());
+                termsFilterCache.clear("api", request.filterKeys());
             }
-            if (request.isFieldDataCache()) {
+            if (request.fieldDataCache()) {
                 clearedAtLeastOne = true;
-                if (request.getFields() == null || request.getFields().length == 0) {
+                if (request.fields() == null || request.fields().length == 0) {
                     service.fieldData().clear();
                 } else {
-                    for (String field : request.getFields()) {
+                    for (String field : request.fields()) {
                         service.fieldData().clearField(field);
                     }
                 }
             }
-            if (request.isIdCache()) {
+            if (request.idCache()) {
                 clearedAtLeastOne = true;
                 service.cache().idCache().clear();
             }
             if (!clearedAtLeastOne) {
-                if (request.getFields() != null && request.getFields().length > 0) {
+                if (request.fields() != null && request.fields().length > 0) {
                     // only clear caches relating to the specified fields
-                    for (String field : request.getFields()) {
+                    for (String field : request.fields()) {
                         service.fieldData().clearField(field);
                     }
                 } else {
                     service.cache().clear("api");
+                    termsFilterCache.clear("api");
                 }
             }
-            service.cache().invalidateCache();
+            service.cache().invalidateStatsCache();
         }
-        return new ShardClearIndicesCacheResponse(request.getIndex(), request.getShardId());
+        return new ShardClearIndicesCacheResponse(request.index(), request.shardId());
     }
 
     /**

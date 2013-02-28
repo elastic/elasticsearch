@@ -93,7 +93,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         // update to actual index name
         ClusterState clusterState = clusterService.state();
         // update to the concrete index
-        final String concreteIndex = clusterState.metaData().concreteIndex(request.getIndex());
+        final String concreteIndex = clusterState.metaData().concreteIndex(request.index());
 
         RoutingNode routingNode = clusterState.getRoutingNodes().nodesToShards().get(clusterService.localNode().getId());
         if (routingNode == null) {
@@ -112,19 +112,19 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
             return;
         }
         Set<String> getFields = newHashSet();
-        if (request.getFields() != null) {
-            Collections.addAll(getFields, request.getFields());
+        if (request.fields() != null) {
+            Collections.addAll(getFields, request.fields());
         }
         // add the source, in case we need to parse it to get fields
         getFields.add(SourceFieldMapper.NAME);
 
         GetRequest getRequest = getRequest(concreteIndex)
-                .setFields(getFields.toArray(new String[getFields.size()]))
-                .setType(request.getType())
-                .setId(request.getId())
-                .setRouting(request.getRouting())
-                .setListenerThreaded(true)
-                .setOperationThreaded(true);
+                .fields(getFields.toArray(new String[getFields.size()]))
+                .type(request.type())
+                .id(request.id())
+                .routing(request.routing())
+                .listenerThreaded(true)
+                .operationThreaded(true);
 
         request.beforeLocalFork();
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
@@ -136,13 +136,13 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 }
                 final BoolQueryBuilder boolBuilder = boolQuery();
                 try {
-                    final DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.getType());
+                    final DocumentMapper docMapper = indicesService.indexServiceSafe(concreteIndex).mapperService().documentMapper(request.type());
                     if (docMapper == null) {
-                        throw new ElasticSearchException("No DocumentMapper found for type [" + request.getType() + "]");
+                        throw new ElasticSearchException("No DocumentMapper found for type [" + request.type() + "]");
                     }
                     final Set<String> fields = newHashSet();
-                    if (request.getFields() != null) {
-                        for (String field : request.getFields()) {
+                    if (request.fields() != null) {
+                        for (String field : request.fields()) {
                             FieldMappers fieldMappers = docMapper.mappers().smartName(field);
                             if (fieldMappers != null) {
                                 fields.add(fieldMappers.mapper().names().indexName());
@@ -180,36 +180,36 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                     }
 
                     // exclude myself
-                    Term uidTerm = docMapper.uidMapper().term(request.getType(), request.getId());
+                    Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
                     boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
                 } catch (Exception e) {
                     listener.onFailure(e);
                     return;
                 }
 
-                String[] searchIndices = request.getSearchIndices();
+                String[] searchIndices = request.searchIndices();
                 if (searchIndices == null) {
-                    searchIndices = new String[]{request.getIndex()};
+                    searchIndices = new String[]{request.index()};
                 }
-                String[] searchTypes = request.getSearchTypes();
+                String[] searchTypes = request.searchTypes();
                 if (searchTypes == null) {
-                    searchTypes = new String[]{request.getType()};
+                    searchTypes = new String[]{request.type()};
                 }
-                int size = request.getSearchSize() != 0 ? request.getSearchSize() : 10;
-                int from = request.getSearchFrom() != 0 ? request.getSearchFrom() : 0;
+                int size = request.searchSize() != 0 ? request.searchSize() : 10;
+                int from = request.searchFrom() != 0 ? request.searchFrom() : 0;
                 SearchRequest searchRequest = searchRequest(searchIndices)
-                        .setTypes(searchTypes)
-                        .setSearchType(request.getSearchType())
-                        .setScroll(request.getSearchScroll())
-                        .setExtraSource(searchSource()
+                        .types(searchTypes)
+                        .searchType(request.searchType())
+                        .scroll(request.searchScroll())
+                        .extraSource(searchSource()
                                 .query(boolBuilder)
                                 .from(from)
                                 .size(size)
                         )
-                        .setListenerThreaded(request.isListenerThreaded());
+                        .listenerThreaded(request.listenerThreaded());
 
-                if (request.getSearchSource() != null) {
-                    searchRequest.setSource(request.getSearchSource(), request.isSearchSourceUnsafe());
+                if (request.searchSource() != null) {
+                    searchRequest.source(request.searchSource(), request.searchSourceUnsafe());
                 }
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override
@@ -234,10 +234,10 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
     // Redirects the request to a data node, that has the index meta data locally available.
     private void redirect(MoreLikeThisRequest request, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
-        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.getIndex(), request.getType(), request.getId(), null, null);
+        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.index(), request.type(), request.id(), null, null);
         ShardRouting shardRouting = shardIterator.firstOrNull();
         if (shardRouting == null) {
-            throw new ElasticSearchException("No shards for index " + request.getIndex());
+            throw new ElasticSearchException("No shards for index " + request.index());
         }
         String nodeId = shardRouting.currentNodeId();
         DiscoveryNode discoveryNode = clusterState.nodes().get(nodeId);
@@ -269,7 +269,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         if (getResponse.isSourceEmpty()) {
             return;
         }
-        docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.getType()).id(request.getId()), new DocumentMapper.ParseListenerAdapter() {
+        docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
             @Override
             public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
                 if (fieldMapper instanceof InternalMapper) {
@@ -308,15 +308,15 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
     private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText) {
         MoreLikeThisFieldQueryBuilder mlt = moreLikeThisFieldQuery(fieldName)
                 .likeText(likeText)
-                .percentTermsToMatch(request.getPercentTermsToMatch())
-                .boostTerms(request.getBoostTerms())
-                .minDocFreq(request.getMinDocFreq())
-                .maxDocFreq(request.getMaxDocFreq())
-                .minWordLen(request.getMinWordLen())
-                .maxWordLen(request.getMaxWordLen())
-                .minTermFreq(request.getMinTermFreq())
-                .maxQueryTerms(request.getMaxQueryTerms())
-                .stopWords(request.getStopWords());
+                .percentTermsToMatch(request.percentTermsToMatch())
+                .boostTerms(request.boostTerms())
+                .minDocFreq(request.minDocFreq())
+                .maxDocFreq(request.maxDocFreq())
+                .minWordLen(request.minWordLen())
+                .maxWordLen(request.maxWordLen())
+                .minTermFreq(request.minTermFreq())
+                .maxQueryTerms(request.maxQueryTerms())
+                .stopWords(request.stopWords());
         boolBuilder.should(mlt);
     }
 
@@ -330,7 +330,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         @Override
         public void messageReceived(MoreLikeThisRequest request, final TransportChannel channel) throws Exception {
             // no need to have a threaded listener since we just send back a response
-            request.setListenerThreaded(false);
+            request.listenerThreaded(false);
             execute(request, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse result) {

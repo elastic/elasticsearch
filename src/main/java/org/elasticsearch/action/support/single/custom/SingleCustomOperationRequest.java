@@ -45,7 +45,7 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
     /**
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
-    public boolean isOperationThreaded() {
+    public boolean operationThreaded() {
         return threadedOperation;
     }
 
@@ -53,7 +53,7 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
      * Controls if the operation will be executed on a separate thread when executed locally.
      */
     @SuppressWarnings("unchecked")
-    public final T setOperationThreaded(boolean threadedOperation) {
+    public final T operationThreaded(boolean threadedOperation) {
         this.threadedOperation = threadedOperation;
         return (T) this;
     }
@@ -63,7 +63,7 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
      * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
      */
     @SuppressWarnings("unchecked")
-    public final T setPreferLocal(boolean preferLocal) {
+    public final T preferLocal(boolean preferLocal) {
         this.preferLocal = preferLocal;
         return (T) this;
     }
@@ -72,7 +72,7 @@ public abstract class SingleCustomOperationRequest<T extends SingleCustomOperati
      * if this operation hits a node with a local relevant shard, should it be preferred
      * to be executed on, or just do plain round robin. Defaults to <tt>true</tt>
      */
-    public boolean isPreferLocal() {
+    public boolean preferLocalShard() {
         return this.preferLocal;
     }
 

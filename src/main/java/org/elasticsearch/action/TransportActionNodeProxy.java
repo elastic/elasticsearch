@@ -54,7 +54,7 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
 
     public ActionFuture<Response> execute(DiscoveryNode node, Request request) throws ElasticSearchException {
         PlainActionFuture<Response> future = newFuture();
-        request.setListenerThreaded(false);
+        request.listenerThreaded(false);
         execute(node, request, future);
         return future;
     }
@@ -68,7 +68,7 @@ public class TransportActionNodeProxy<Request extends ActionRequest, Response ex
 
             @Override
             public String executor() {
-                if (request.isListenerThreaded()) {
+                if (request.listenerThreaded()) {
                     return ThreadPool.Names.GENERIC;
                 }
                 return ThreadPool.Names.SAME;

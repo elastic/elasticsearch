@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
@@ -369,8 +370,13 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
-        // we need to wait for the allocate dangled to kick in
-        Thread.sleep(500);
+        // spin a bit waiting for the index to exists
+        long time = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(10).millis()) {
+            if (client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists()) {
+                break;
+            }
+        }
 
         logger.info("--> verify that the dangling index exists");
         assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
@@ -426,8 +432,13 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
-        // we need to wait for the allocate dangled to kick in
-        Thread.sleep(500);
+        // spin a bit waiting for the index to exists
+        long time = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(10).millis()) {
+            if (client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists()) {
+                break;
+            }
+        }
 
         logger.info("--> verify that the dangling index exists");
         assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));

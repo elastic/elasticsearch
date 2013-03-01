@@ -114,12 +114,12 @@ public class UpdateByQueryStressTest {
             for (IndexUpdateByQueryResponse indexResponse : response.indexResponses()) {
                 for (Map.Entry<Integer, BulkItemResponse[]> bulkItemResponses : indexResponse.responsesByShard().entrySet()) {
                     for (BulkItemResponse bulkItemResponse : bulkItemResponses.getValue()) {
-                        IndexResponse indexRes = (IndexResponse) bulkItemResponse.response();
-                        if (indexRes.version() != 2) {
+                        IndexResponse indexRes = (IndexResponse) bulkItemResponse.getResponse();
+                        if (indexRes.getVersion() != 2) {
                             System.out.printf(
                                     "Version doesn't match for id[%s] expected version 2, but was %d\n",
-                                    indexRes.id(),
-                                    indexRes.version()
+                                    indexRes.getId(),
+                                    indexRes.getVersion()
                             );
                         }
                     }

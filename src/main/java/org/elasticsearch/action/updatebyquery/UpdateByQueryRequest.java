@@ -19,34 +19,23 @@
 
 package org.elasticsearch.action.updatebyquery;
 
-import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Represents an update by query request.
  */
-public class UpdateByQueryRequest extends IndicesReplicationOperationRequest {
+public class UpdateByQueryRequest extends IndicesReplicationOperationRequest<UpdateByQueryRequest> {
 
     private static final XContentType contentType = Requests.CONTENT_TYPE;
 
@@ -71,21 +60,6 @@ public class UpdateByQueryRequest extends IndicesReplicationOperationRequest {
 
     public UpdateByQueryRequest types(String... types) {
         this.types = types;
-        return this;
-    }
-
-    public UpdateByQueryRequest timeout(TimeValue timeout) {
-        this.timeout = timeout;
-        return this;
-    }
-
-    public UpdateByQueryRequest replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return this;
-    }
-
-    public UpdateByQueryRequest consistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        this.consistencyLevel = consistencyLevel;
         return this;
     }
 

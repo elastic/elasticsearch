@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.FixedBitSet;
@@ -48,8 +48,9 @@ public class TopLevelFixedBitSetCollector extends Collector {
         bitSet.set(docBase + doc);
     }
 
-    public void setNextReader(IndexReader reader, int docBase) throws IOException {
-        this.docBase = docBase;
+    @Override
+    public void setNextReader(AtomicReaderContext context) throws IOException {
+        this.docBase = context.docBase;
     }
 
     public boolean acceptsDocsOutOfOrder() {

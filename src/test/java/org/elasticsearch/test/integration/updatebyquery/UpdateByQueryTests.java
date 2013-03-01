@@ -36,7 +36,10 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -95,8 +98,8 @@ public class UpdateByQueryTests extends AbstractNodesTests {
     public void testUpdateByQuery() throws Exception {
         createIndex("test");
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         final long numDocs = 25;
         for (int i = 1; i <= numDocs; i++) {
@@ -113,7 +116,7 @@ public class UpdateByQueryTests extends AbstractNodesTests {
                 .setQuery(termQuery("field1", 2).buildAsBytes())
                 .execute()
                 .actionGet();
-        assertThat(countResponse.count(), equalTo(0L));
+        assertThat(countResponse.getCount(), equalTo(0L));
 
         Map<String, Object> scriptParams = new HashMap<String, Object>();
         UpdateByQueryResponse response = client.prepareUpdateByQuery()
@@ -135,10 +138,10 @@ public class UpdateByQueryTests extends AbstractNodesTests {
         assertThat(response.indexResponses()[0].failuresByShard().isEmpty(), equalTo(true));
         for (BulkItemResponse[] shardResponses : response.indexResponses()[0].responsesByShard().values()) {
             for (BulkItemResponse shardResponse : shardResponses) {
-                assertThat(shardResponse.version(), equalTo(2L));
-                assertThat(shardResponse.failed(), equalTo(false));
-                assertThat(shardResponse.failure(), nullValue());
-                assertThat(shardResponse.failureMessage(), nullValue());
+                assertThat(shardResponse.getVersion(), equalTo(2L));
+                assertThat(shardResponse.isFailed(), equalTo(false));
+                assertThat(shardResponse.getFailure(), nullValue());
+                assertThat(shardResponse.getFailureMessage(), nullValue());
             }
         }
 
@@ -147,7 +150,7 @@ public class UpdateByQueryTests extends AbstractNodesTests {
                 .setQuery(termQuery("field1", 2).buildAsBytes())
                 .execute()
                 .actionGet();
-        assertThat(countResponse.count(), equalTo(numDocs));
+        assertThat(countResponse.getCount(), equalTo(numDocs));
 
         response = client.prepareUpdateByQuery()
                 .setIndices("test")
@@ -171,7 +174,7 @@ public class UpdateByQueryTests extends AbstractNodesTests {
                 .setQuery(termQuery("field1", 3).buildAsBytes())
                 .execute()
                 .actionGet();
-        assertThat(countResponse.count(), equalTo(numDocs));
+        assertThat(countResponse.getCount(), equalTo(numDocs));
     }
 
     @Test
@@ -184,8 +187,8 @@ public class UpdateByQueryTests extends AbstractNodesTests {
         createIndex("test1");
         createIndex("test2");
         ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         final long numDocs = 100;
         final long docsPerIndex = 10;
@@ -208,7 +211,7 @@ public class UpdateByQueryTests extends AbstractNodesTests {
                 .setQuery(termQuery("field1", 2).buildAsBytes())
                 .execute()
                 .actionGet();
-        assertThat(countResponse.count(), equalTo(0L));
+        assertThat(countResponse.getCount(), equalTo(0L));
 
         Map<String, Object> scriptParams = new HashMap<String, Object>();
         UpdateByQueryResponse response = client.prepareUpdateByQuery()
@@ -242,10 +245,10 @@ public class UpdateByQueryTests extends AbstractNodesTests {
             assertThat(response.indexResponses()[i].failuresByShard().isEmpty(), equalTo(true));
             for (BulkItemResponse[] shardResponses : response.indexResponses()[i].responsesByShard().values()) {
                 for (BulkItemResponse shardResponse : shardResponses) {
-                    assertThat(shardResponse.version(), equalTo(2L));
-                    assertThat(shardResponse.failed(), equalTo(false));
-                    assertThat(shardResponse.failure(), nullValue());
-                    assertThat(shardResponse.failureMessage(), nullValue());
+                    assertThat(shardResponse.getVersion(), equalTo(2L));
+                    assertThat(shardResponse.isFailed(), equalTo(false));
+                    assertThat(shardResponse.getFailure(), nullValue());
+                    assertThat(shardResponse.getFailureMessage(), nullValue());
                 }
             }
         }
@@ -257,7 +260,7 @@ public class UpdateByQueryTests extends AbstractNodesTests {
                 .setQuery(termQuery("field1", 2).buildAsBytes())
                 .execute()
                 .actionGet();
-        assertThat(countResponse.count(), equalTo(numDocs));
+        assertThat(countResponse.getCount(), equalTo(numDocs));
     }
 
     @Test
@@ -284,10 +287,10 @@ public class UpdateByQueryTests extends AbstractNodesTests {
         client.prepareIndex("alias1", "type1", "3").setSource("field", "value1").setRefresh(true).execute().actionGet();
         client.prepareIndex("alias1", "type1", "4").setSource("field", "value2").setRefresh(true).execute().actionGet();
 
-        assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(true));
-        assertThat(client.prepareGet("alias0", "type1", "2").execute().actionGet().exists(), equalTo(true));
-        assertThat(client.prepareGet("alias1", "type1", "3").execute().actionGet().exists(), equalTo(true));
-        assertThat(client.prepareGet("alias1", "type1", "4").execute().actionGet().exists(), equalTo(true));
+        assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
+        assertThat(client.prepareGet("alias0", "type1", "2").execute().actionGet().isExists(), equalTo(true));
+        assertThat(client.prepareGet("alias1", "type1", "3").execute().actionGet().isExists(), equalTo(true));
+        assertThat(client.prepareGet("alias1", "type1", "4").execute().actionGet().isExists(), equalTo(true));
 
         UpdateByQueryResponse response = client.prepareUpdateByQuery()
                 .setIndices("alias1")
@@ -305,10 +308,10 @@ public class UpdateByQueryTests extends AbstractNodesTests {
         assertThat(response.totalHits(), equalTo(2L));
         assertThat(response.updated(), equalTo(2L));
 
-        assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().exists(), equalTo(false));
-        assertThat(client.prepareGet("alias0", "type1", "2").execute().actionGet().exists(), equalTo(false));
-        assertThat(client.prepareGet("alias1", "type1", "3").execute().actionGet().exists(), equalTo(true));
-        assertThat(client.prepareGet("alias1", "type1", "4").execute().actionGet().exists(), equalTo(false));
+        assertThat(client.prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+        assertThat(client.prepareGet("alias0", "type1", "2").execute().actionGet().isExists(), equalTo(false));
+        assertThat(client.prepareGet("alias1", "type1", "3").execute().actionGet().isExists(), equalTo(true));
+        assertThat(client.prepareGet("alias1", "type1", "4").execute().actionGet().isExists(), equalTo(false));
     }
 
 }

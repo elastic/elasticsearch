@@ -29,7 +29,8 @@ import java.io.IOException;
 /**
  * Update by query response from a single shard.
  */
-public class ShardUpdateByQueryResponse implements ActionResponse {
+// TODO: implement Iterabel for bulkResponses
+public class ShardUpdateByQueryResponse extends ActionResponse {
 
     private int shardId;
     private int totalHits;

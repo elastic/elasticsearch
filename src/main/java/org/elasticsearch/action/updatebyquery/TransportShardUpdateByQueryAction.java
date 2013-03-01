@@ -21,8 +21,11 @@ package org.elasticsearch.action.updatebyquery;
 
 import com.google.common.collect.Maps;
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DocumentStoredFieldVisitor;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -52,7 +55,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.*;
-import org.elasticsearch.index.mapper.selector.FieldMappersFieldSelector;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.ShardId;
@@ -60,10 +62,12 @@ import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.internal.InternalSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.*;
@@ -77,14 +81,14 @@ public class TransportShardUpdateByQueryAction extends TransportAction<ShardUpda
 
     public final static String ACTION_NAME = UpdateByQueryAction.NAME + "/shard";
 
-    private static final FieldMappersFieldSelector fieldSelector = new FieldMappersFieldSelector();
+    private static final Set<String> fields = new HashSet<String>();
 
     static {
-        fieldSelector.add(UidFieldMapper.NAME);
-        fieldSelector.add(SourceFieldMapper.NAME);
-        fieldSelector.add(RoutingFieldMapper.NAME);
-        fieldSelector.add(ParentFieldMapper.NAME);
-        fieldSelector.add(TTLFieldMapper.NAME);
+        fields.add(RoutingFieldMapper.NAME);
+        fields.add(ParentFieldMapper.NAME);
+        fields.add(TTLFieldMapper.NAME);
+        fields.add(SourceFieldMapper.NAME);
+        fields.add(UidFieldMapper.NAME);
     }
 
     private final TransportShardBulkAction bulkAction;
@@ -133,9 +137,12 @@ public class TransportShardUpdateByQueryAction extends TransportAction<ShardUpda
     private void doExecuteInternal(ShardUpdateByQueryRequest request, ActionListener<ShardUpdateByQueryResponse> listener) {
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest();
+        shardSearchRequest.types(request.types());
+        shardSearchRequest.filteringAliases(request.filteringAliases());
         SearchContext searchContext = new SearchContext(
                 0,
-                new InternalSearchRequest().types(request.types()).filteringAliases(request.filteringAliases()),
+                shardSearchRequest,
                 null, indexShard.searcher(), indexService, indexShard,
                 scriptService
         );
@@ -143,7 +150,8 @@ public class TransportShardUpdateByQueryAction extends TransportAction<ShardUpda
         try {
             UpdateByQueryContext ubqContext = parseRequestSource(indexService, request, searchContext);
             searchContext.preProcess();
-            TopLevelFixedBitSetCollector bitSetCollector = new TopLevelFixedBitSetCollector(searchContext.searcher().maxDoc());
+            // TODO: Work per segment. The collector should collect docs per segment instead of one big set of top level ids
+            TopLevelFixedBitSetCollector bitSetCollector = new TopLevelFixedBitSetCollector(searchContext.searcher().getIndexReader().maxDoc());
             searchContext.searcher().search(searchContext.query(), searchContext.aliasFilter(), bitSetCollector);
             FixedBitSet docsToUpdate = bitSetCollector.getBitSet();
 
@@ -243,7 +251,7 @@ public class TransportShardUpdateByQueryAction extends TransportAction<ShardUpda
         // need to continue with the bulk do it in a new thread. One thread will enter at the time.
         public synchronized void onResponse(BulkShardResponse bulkShardResponse) {
             try {
-                for (BulkItemResponse itemResponse : bulkShardResponse.responses()) {
+                for (BulkItemResponse itemResponse : bulkShardResponse.getResponses()) {
                     if (!itemResponse.isFailed()) {
                         updated++;
                     }
@@ -322,11 +330,14 @@ public class TransportShardUpdateByQueryAction extends TransportAction<ShardUpda
             finalResponseListener.onResponse(finalResponse);
         }
 
+        // TODO: Work per segment. The collector should collect docs per segment instead of one big set of top level ids
         private void fillBatch(DocIdSetIterator iterator, IndexReader indexReader, ShardUpdateByQueryRequest request,
                                List<BulkItemRequest> bulkItemRequests) throws IOException {
             int counter = 0;
             for (int docID = iterator.nextDoc(); docID != DocIdSetIterator.NO_MORE_DOCS; docID = iterator.nextDoc()) {
-                Document document = indexReader.document(docID, fieldSelector);
+                DocumentStoredFieldVisitor fieldVisitor = new DocumentStoredFieldVisitor(fields);
+                indexReader.document(docID, fieldVisitor);
+                Document document = fieldVisitor.getDocument();
                 bulkItemRequests.add(new BulkItemRequest(counter, createRequest(request, document, indexReader)));
 
                 if (++counter == batchSize) {
@@ -338,7 +349,13 @@ public class TransportShardUpdateByQueryAction extends TransportAction<ShardUpda
         // TODO: this is currently very similar to what we do in the update action, need to figure out how to nicely consolidate the two
         private ActionRequest createRequest(ShardUpdateByQueryRequest request, Document document, IndexReader indexReader) {
             Uid uid = Uid.createUid(document.get(UidFieldMapper.NAME));
-            long version = UidField.loadVersion(indexReader, UidFieldMapper.TERM_FACTORY.createTerm(uid.toString()));
+            long version = -2;
+            for (AtomicReaderContext atomicReaderContext : indexReader.leaves()) {
+                version = UidField.loadVersion(atomicReaderContext, new Term(UidFieldMapper.NAME, uid.toBytesRef()));
+                if (version > 0) {
+                    break;
+                }
+            }
             BytesReference _source = new BytesArray(document.getBinaryValue(SourceFieldMapper.NAME));
             String routing = document.get(RoutingFieldMapper.NAME);
             String parent = document.get(ParentFieldMapper.NAME);

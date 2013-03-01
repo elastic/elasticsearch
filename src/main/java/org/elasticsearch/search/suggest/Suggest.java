@@ -513,6 +513,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
                 }
                 
                 protected void mergeInto(Option otherOption) {
+                    score = Math.max(score, otherOption.score);
                 }
 
                 @Override

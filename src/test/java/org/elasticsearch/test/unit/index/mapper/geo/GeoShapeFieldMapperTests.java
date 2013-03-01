@@ -6,7 +6,6 @@ import static org.hamcrest.Matchers.instanceOf;
 
 import java.io.IOException;
 
-import org.apache.lucene.spatial.SpatialStrategy;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
@@ -32,7 +31,7 @@ public class GeoShapeFieldMapperTests {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        PrefixTreeStrategy strategy = geoShapeFieldMapper.spatialStrategy();
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.defaultStrategy();
 
         assertThat(strategy.getDistErrPct(), equalTo(GeoShapeFieldMapper.Defaults.DISTANCE_ERROR_PCT));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
@@ -55,7 +54,7 @@ public class GeoShapeFieldMapperTests {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        PrefixTreeStrategy strategy = geoShapeFieldMapper.spatialStrategy();
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.defaultStrategy();
 
         assertThat(strategy.getDistErrPct(), equalTo(0.1));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
@@ -78,7 +77,7 @@ public class GeoShapeFieldMapperTests {
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
 
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        PrefixTreeStrategy strategy = geoShapeFieldMapper.spatialStrategy();
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.defaultStrategy();
 
         assertThat(strategy.getDistErrPct(), equalTo(0.5));
         assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));

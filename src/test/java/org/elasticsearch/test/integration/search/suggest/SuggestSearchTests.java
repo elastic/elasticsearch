@@ -28,6 +28,8 @@ import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -115,8 +117,12 @@ public class SuggestSearchTests extends AbstractNodesTests {
                 )
                 .execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
-
+        
         SearchResponse search = client.prepareSearch()
+        .setQuery(matchQuery("text", "spellcecker")).execute().actionGet();
+        assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
+        
+        search = client.prepareSearch()
                 .setQuery(matchQuery("text", "spellcecker"))
                 .addSuggestion(
                         termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.

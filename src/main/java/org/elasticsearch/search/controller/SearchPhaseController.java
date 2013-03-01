@@ -380,12 +380,14 @@ public class SearchPhaseController extends AbstractComponent {
         // merge suggest results
         Suggest suggest = null;
         if (!queryResults.isEmpty()) {
-            Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<String, List<Suggest.Suggestion>>();
+            final Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<String, List<Suggest.Suggestion>>();
+            boolean hasSuggestions = false;
             for (QuerySearchResultProvider resultProvider : queryResults.values()) {
                 Suggest shardResult = resultProvider.queryResult().suggest();
                 if (shardResult == null) {
                     continue;
                 }
+                hasSuggestions = true;
                 for (Suggestion<? extends Entry<? extends Option>> suggestion : shardResult) {
                     List<Suggestion> list = groupedSuggestions.get(suggestion.getName());
                     if (list == null) {
@@ -404,7 +406,7 @@ public class SearchPhaseController extends AbstractComponent {
                 reduced.add(reduce);
                 
             }
-            suggest = new Suggest(reduced);
+            suggest = hasSuggestions ? new Suggest(reduced) : null;
         }
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);

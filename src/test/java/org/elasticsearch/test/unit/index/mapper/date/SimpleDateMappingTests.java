@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
@@ -48,8 +49,9 @@ public class SimpleDateMappingTests {
                 .startObject()
                 .field("date_field1", "2011/01/22")
                 .field("date_field2", "2011/01/22 00:00:00")
-//                .field("date_field3", "2011/01/22 +02")
-//                .field("date_field4", "2011/01/22 00:00:00 +02:00")
+                .field("wrong_date1", "-4")
+                .field("wrong_date2", "2012/2")
+                .field("wrong_date3", "2012/test")
                 .endObject()
                 .bytes());
 
@@ -57,10 +59,13 @@ public class SimpleDateMappingTests {
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field2");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
-//        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field3");
-//        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
-//        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field4");
-//        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
+
+        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date1");
+        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date2");
+        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date3");
+        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
     }
 
     @Test

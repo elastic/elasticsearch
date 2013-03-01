@@ -636,7 +636,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     if (!resolved && context.root().dateDetection()) {
                         String text = context.parser().text();
                         // a safe check since "1" gets parsed as well
-                        if (text.contains(":") || text.contains("-") || text.contains("/")) {
+                        if (Strings.countOccurrencesOf(text, ":") > 1 || Strings.countOccurrencesOf(text, "-") > 1 || Strings.countOccurrencesOf(text, "/") > 1) {
                             for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                                 try {
                                     dateTimeFormatter.parser().parseMillis(text);

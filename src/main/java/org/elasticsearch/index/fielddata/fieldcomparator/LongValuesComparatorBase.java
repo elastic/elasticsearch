@@ -25,7 +25,7 @@ import org.elasticsearch.index.fielddata.LongValues;
 
 import java.io.IOException;
 
-abstract class LongValuesComparatorBase<T extends Number> extends FieldComparator<T> {
+abstract class LongValuesComparatorBase<T extends Number> extends NumberComparatorBase<T> {
 
     protected final IndexNumericFieldData<?> indexFieldData;
     protected final long missingValue;

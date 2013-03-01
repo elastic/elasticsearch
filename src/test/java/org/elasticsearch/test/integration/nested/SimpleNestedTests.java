@@ -706,6 +706,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
+        // sum: 11
         client.prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
                 .field("grand_parent_values", 1l)
                 .startObject("parent")
@@ -737,6 +738,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .endObject()
                 .endObject()).execute().actionGet();
 
+        // sum: 7
         client.prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
                 .field("grand_parent_values", 2l)
                 .startObject("parent")
@@ -768,6 +770,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .endObject()
                 .endObject()).execute().actionGet();
 
+        // sum: 2
         client.prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
                 .field("grand_parent_values", 3l)
                 .startObject("parent")
@@ -900,6 +903,121 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .addSort(
                         SortBuilders.fieldSort("parent.child.child_obj.value")
                                 .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        // Sort mode: sum
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .sortMode("sum")
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("7"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("11"));
+
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .sortMode("sum")
+                                .order(SortOrder.DESC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("11"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("7"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("2"));
+
+        // Sort mode: sum with filter
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .sortMode("sum")
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        // Sort mode: avg
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .sortMode("avg")
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("0"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("2"));
+
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .sortMode("avg")
+                                .order(SortOrder.DESC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("0"));
+
+        // Sort mode: avg with filter
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .sortMode("avg")
                                 .order(SortOrder.ASC)
                 )
                 .execute().actionGet();

@@ -75,6 +75,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
     }
 
     @Override
+    protected boolean localExecute(ClusterHealthRequest request) {
+        return request.local();
+    }
+
+    @Override
     protected ClusterHealthResponse masterOperation(ClusterHealthRequest request, ClusterState unusedState) throws ElasticSearchException {
         long endTime = System.currentTimeMillis() + request.timeout().millis();
 

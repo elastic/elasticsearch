@@ -1,0 +1,5 @@
+{
+    "versions" : [
+        {"version": "1.0.0", "from": "0.20.0", "to": "0.20.99", "location":"http://dl.bintray.com/content/imotov/elasticsearch-plugins/elasticsearch-native-script-example-1.0.0.zip" }
+    ]
+}

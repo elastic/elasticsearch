@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -82,7 +83,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         logger.info("--> waiting for yellow status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
         if (health.isTimedOut()) {
             ClusterStateResponse response = client("node1").admin().cluster().prepareState().execute().actionGet();
             System.out.println("" + response);
@@ -100,7 +101,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node1", settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> waiting for yellow status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
         if (health.isTimedOut()) {
             ClusterStateResponse response = client("node1").admin().cluster().prepareState().execute().actionGet();
             System.out.println("" + response);
@@ -127,7 +128,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
@@ -146,7 +147,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> verifying that the state is green");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -161,7 +162,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         logger.info("--> creating another index (test2) by indexing into it");
         client("node1").prepareIndex("test2", "type1", "1").setSource("field1", "value1").execute().actionGet();
         logger.info("--> verifying that the state is green");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -169,7 +170,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
 
         logger.info("--> verifying that the state is green");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -197,7 +198,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("--> waiting for two nodes and green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
@@ -216,7 +217,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
@@ -252,7 +253,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node1", settingsBuilder().put("node.data", false).put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
 
         logger.info("--> waiting for test index to be created");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setIndices("test").execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify we have an index");
@@ -275,7 +276,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         logger.info("--> waiting for test index to be created");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setIndices("test").setWaitForYellowStatus().execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test").setWaitForYellowStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         client("node1").prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
@@ -296,7 +297,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
@@ -316,7 +317,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
@@ -345,7 +346,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
@@ -367,7 +368,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settings);
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         // spin a bit waiting for the index to exists
@@ -381,7 +382,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         logger.info("--> verify that the dangling index exists");
         assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify the doc is there");
@@ -407,7 +408,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
@@ -429,7 +430,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settings);
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         // spin a bit waiting for the index to exists
@@ -443,7 +444,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         logger.info("--> verify that the dangling index exists");
         assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify the index state is closed");
@@ -451,7 +452,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         logger.info("--> open the index");
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify the doc is there");
@@ -477,7 +478,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
@@ -499,7 +500,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settings);
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         // we need to wait for the allocate dangled to kick in (even though in this case its disabled)
@@ -518,7 +519,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settingsBuilder().put(settings).put("gateway.recover_after_nodes", 2).build());
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify that the dangling index does exists now!");
@@ -547,7 +548,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
@@ -568,7 +569,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settings);
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify that the dangling index does not exists");

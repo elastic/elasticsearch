@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -100,9 +101,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "green")
@@ -147,9 +148,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "green")
@@ -202,9 +203,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
@@ -267,7 +268,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
         client.admin().indices().prepareCreate("test1").execute().actionGet();
         client.admin().indices().prepareCreate("test2").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test1", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
@@ -316,7 +317,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
@@ -375,7 +376,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                         .startObject("dstag").field("type", "double").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
@@ -428,7 +429,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                         .startObject("dstag").field("type", "double").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
@@ -783,9 +784,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         // at the end of the index, we should have 10 of each `bar`, `foo`, and `baz`
         for (int i = 0; i < 5; i++) {
@@ -837,7 +838,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("multi_num").field("type", "float").endObject()
                 .endObject().endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1)
@@ -940,7 +941,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("num").field("type", "integer").endObject()
                 .endObject().endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 100)
                 .endObject()).execute().actionGet();
@@ -992,7 +993,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1055)
@@ -1166,7 +1167,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1055)
@@ -1336,7 +1337,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T01:01:01")
@@ -1455,7 +1456,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T23:31:01")
@@ -1527,7 +1528,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("multi_num").field("type", "float").endObject()
                 .endObject().endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("field", "xxx")
@@ -1718,7 +1719,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("multi_num").field("type", "integer").endObject()
                 .endObject().endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("lField", 100l)
@@ -1795,7 +1796,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("num").field("type", "float").endObject()
                 .endObject().endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 20; i++) {
             client.prepareIndex("test", "type1", Integer.toString(i)).setSource("num", i % 10).execute().actionGet();
@@ -1832,7 +1833,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 20; i++) {
             client.prepareIndex("test", "type1", Integer.toString(i)).setSource("num", i % 10).execute().actionGet();

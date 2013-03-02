@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -68,7 +69,7 @@ public class AliasRoutingTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test", "alias0").routing("0")).execute().actionGet();
 
@@ -154,7 +155,7 @@ public class AliasRoutingTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.admin().indices().prepareAliases()
                 .addAliasAction(newAddAliasAction("test", "alias"))
@@ -259,7 +260,7 @@ public class AliasRoutingTests extends AbstractNodesTests {
         }
         client.admin().indices().prepareCreate("test-a").execute().actionGet();
         client.admin().indices().prepareCreate("test-b").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.admin().indices().prepareAliases()
                 .addAliasAction(newAddAliasAction("test-a", "alias-a0").routing("0"))
@@ -323,7 +324,7 @@ public class AliasRoutingTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> indexing with id [1], and routing [0]");
         client.prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -370,7 +371,7 @@ public class AliasRoutingTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
 
         logger.info("--> creating alias with routing [3]");

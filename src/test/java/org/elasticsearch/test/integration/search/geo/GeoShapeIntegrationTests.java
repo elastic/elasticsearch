@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.search.geo;
 import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -70,7 +71,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject().endObject()
                 .endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
@@ -110,7 +111,8 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
-    @Test(enabled=false) // LUCENE MONITIR enable this test again once Lucene4.2 is out. This bug is fixed in Lucene 4.2
+    @Test(enabled = false)
+    // LUCENE MONITIR enable this test again once Lucene4.2 is out. This bug is fixed in Lucene 4.2
     public void testEdgeCases() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
@@ -121,17 +123,17 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject().endObject()
                 .endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "blakely").setSource(jsonBuilder().startObject()
                 .field("name", "Blakely Island")
                 .startObject("location")
                 .field("type", "polygon")
                 .startArray("coordinates").startArray()
-                    .startArray().value(-122.83).value(48.57).endArray()
-                    .startArray().value(-122.77).value(48.56).endArray()
-                    .startArray().value(-122.79).value(48.53).endArray()
-                    .startArray().value(-122.83).value(48.57).endArray() // close the polygon
+                .startArray().value(-122.83).value(48.57).endArray()
+                .startArray().value(-122.77).value(48.56).endArray()
+                .startArray().value(-122.79).value(48.53).endArray()
+                .startArray().value(-122.83).value(48.57).endArray() // close the polygon
                 .endArray().endArray()
                 .endObject()
                 .endObject()).execute().actionGet();
@@ -163,7 +165,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject().endObject()
                 .endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")

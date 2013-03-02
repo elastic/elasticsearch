@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.validate;
 
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -68,7 +69,7 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("foo").field("type", "string").endObject()
@@ -95,7 +96,7 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("foo").field("type", "string").endObject()
@@ -209,7 +210,7 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("foo").field("type", "string").endObject()

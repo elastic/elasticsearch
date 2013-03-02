@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.indices.analyze;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -63,7 +64,7 @@ public class AnalyzeActionTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
             AnalyzeResponse analyzeResponse = client.admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
@@ -92,7 +93,7 @@ public class AnalyzeActionTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.admin().indices().preparePutMapping("test")
                 .setType("document").setSource(

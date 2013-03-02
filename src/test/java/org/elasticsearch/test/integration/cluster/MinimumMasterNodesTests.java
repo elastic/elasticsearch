@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -86,7 +87,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> start second node, cluster should be formed");
         startNode("node2", settings);
 
-        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -130,7 +131,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> starting the previous master node again...");
         startNode(masterNodeName, settings);
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForNodes("2").execute().actionGet();
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -171,7 +172,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> starting the previous master node again...");
         startNode(nonMasterNodeName, settings);
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
@@ -243,7 +244,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         startNode("node3", settings);
         startNode("node4", settings);
 
-        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
@@ -300,7 +301,7 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
             startNode(nodeToShutdown, settings);
         }
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("Running Cluster Health");

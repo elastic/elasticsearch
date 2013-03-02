@@ -26,6 +26,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -80,7 +81,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
 
         // check on no data, see it works
@@ -215,7 +216,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
 
         for (int i = 0; i < total; i++) {
@@ -276,7 +277,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
 
         for (int i = 0; i < total; i++) {
@@ -313,7 +314,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder()
                 .startObject()
@@ -398,7 +399,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder()
                 .startObject()
@@ -508,7 +509,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
         client.admin().indices().prepareAliases()
                 .addAlias("test", "alias1", FilterBuilders.termFilter("field1", "value1")).execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -566,7 +567,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
@@ -615,7 +616,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", 1)
@@ -704,7 +705,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject()
                         .endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         // sum: 11
         client.prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()

@@ -3,7 +3,7 @@ package org.elasticsearch.examples.nativescript.script;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.field.data.DocFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.script.AbstractFloatSearchScript;
 import org.elasticsearch.script.AbstractLongSearchScript;
@@ -61,8 +61,8 @@ public class RandomSortScriptFactory implements NativeScriptFactory {
 
         @Override
         public long runAsLong() {
-            DocFieldData fieldData = doc().field(UidFieldMapper.NAME);
-            byte[] sort = org.elasticsearch.common.Digest.md5(fieldData.stringValue() + salt);
+            ScriptDocValues.Strings fieldData = (ScriptDocValues.Strings)doc().get(UidFieldMapper.NAME);
+            byte[] sort = org.elasticsearch.common.Digest.md5(fieldData.getValue() + salt);
             return (sort[0] & 0xFFL) << 56
                     | (sort[1] & 0xFFL) << 48
                     | (sort[2] & 0xFFL) << 40

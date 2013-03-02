@@ -3,7 +3,7 @@ package org.elasticsearch.examples.nativescript.script;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.field.data.DocFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
@@ -65,13 +65,13 @@ public class IsPrimeSearchScript extends AbstractSearchScript {
     @Override
     public Object run() {
         // First we get field using doc lookup
-        DocFieldData field = doc().field(fieldName);
+        ScriptDocValues.NumericLong  field = (ScriptDocValues.NumericLong)doc().get(fieldName);
 
         // Check if field exists
         if (field != null && !field.isEmpty()) {
             try {
                 // Try to parse it as an integer
-                BigInteger bigInteger = new BigInteger(field.stringValue());
+                BigInteger bigInteger = new BigInteger(Long.toString(field.getValue()));
                 // Check if it's prime
                 return bigInteger.isProbablePrime(certainty);
             } catch (NumberFormatException ex) {

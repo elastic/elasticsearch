@@ -54,16 +54,16 @@ public class RandomSortScriptTests extends AbstractSearchScriptTests {
                 .setSize(10)
                 .addSort(SortBuilders.scriptSort("random", "number").lang("native").setParams(MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
         // Check that random order was applied
-        assertThat(searchResponse.hits().getAt(0).field("name").getValue().toString(), not(equalTo("rec0")));
+        assertThat(searchResponse.getHits().getAt(0).field("name").getValue().toString(), not(equalTo("rec0")));
 
         String[] records = new String[10];
 
         // Store sort order
         for (int i = 0; i < 10; i++) {
-            records[i] = searchResponse.hits().getAt(i).field("name").getValue().toString();
+            records[i] = searchResponse.getHits().getAt(i).field("name").getValue().toString();
         }
 
         // Retrieve first 10 records again
@@ -73,11 +73,11 @@ public class RandomSortScriptTests extends AbstractSearchScriptTests {
                 .setSize(10)
                 .addSort(SortBuilders.scriptSort("random", "number").lang("native").setParams(MapBuilder.<String, Object>newMapBuilder().put("salt", "1234").map()))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
         // Verify the same sort order
         for (int i = 0; i < 10; i++) {
-            assertThat(searchResponse.hits().getAt(i).field("name").getValue().toString(), equalTo(records[i]));
+            assertThat(searchResponse.getHits().getAt(i).field("name").getValue().toString(), equalTo(records[i]));
         }
 
         // Retrieve first 10 records without salt
@@ -87,12 +87,12 @@ public class RandomSortScriptTests extends AbstractSearchScriptTests {
                 .setSize(10)
                 .addSort(SortBuilders.scriptSort("random", "number").lang("native"))
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
         // Verify different sort order
         boolean different = false;
         for (int i = 0; i < 10; i++) {
-            if (!records[i].equals(searchResponse.hits().getAt(i).field("name").getValue().toString())) {
+            if (!records[i].equals(searchResponse.getHits().getAt(i).field("name").getValue().toString())) {
                 different = true;
                 break;
             }

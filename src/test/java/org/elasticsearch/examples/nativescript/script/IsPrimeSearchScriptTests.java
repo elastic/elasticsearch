@@ -67,14 +67,14 @@ public class IsPrimeSearchScriptTests extends AbstractSearchScriptTests {
                 .setSize(10)
                 .addSort("number", SortOrder.ASC)
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
         // There should be 25 prime numbers between 0 and 100
-        assertThat(searchResponse.hits().totalHits(), equalTo(25l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(25l));
 
         // Verify that they are indeed prime numbers
         for (int i = 0; i < 10; i++) {
-            assertThat(searchResponse.hits().getAt(i).field("name").getValue().toString(), equalTo("rec " + PRIMES_10[i]));
+            assertThat(searchResponse.getHits().getAt(i).field("name").getValue().toString(), equalTo("rec " + PRIMES_10[i]));
         }
 
         // Check certainty parameter - with certainty == 0, it should return all numbers, but only if numbers are present
@@ -85,9 +85,9 @@ public class IsPrimeSearchScriptTests extends AbstractSearchScriptTests {
                 .setSize(10)
                 .addSort("number", SortOrder.ASC)
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
         // With certainty 0 no check is done so it should return all numbers
-        assertThat(searchResponse.hits().totalHits(), equalTo(100l));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(100l));
 
 
     }

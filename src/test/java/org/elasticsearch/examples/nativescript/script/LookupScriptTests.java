@@ -92,19 +92,19 @@ public class LookupScriptTests extends AbstractSearchScriptTests {
                 .setSize(10)
                 .addSort("population", SortOrder.DESC)
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
 
         // There should be 3 cities
-        assertThat(searchResponse.hits().totalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
 
-        assertThat(searchResponse.hits().getAt(0).field("city").getValue().toString(), equalTo("Burlington"));
-        assertThat(((Map<String, Object>) searchResponse.hits().getAt(0).field("state_info").getValue()).get("name").toString(), equalTo("Vermont"));
+        assertThat(searchResponse.getHits().getAt(0).field("city").getValue().toString(), equalTo("Burlington"));
+        assertThat(((Map<String, Object>) searchResponse.getHits().getAt(0).field("state_info").getValue()).get("name").toString(), equalTo("Vermont"));
 
-        assertThat(searchResponse.hits().getAt(1).field("city").getValue().toString(), equalTo("South Portland"));
-        assertThat(((Map<String, Object>) searchResponse.hits().getAt(1).field("state_info").getValue()).get("name").toString(), equalTo("Maine"));
+        assertThat(searchResponse.getHits().getAt(1).field("city").getValue().toString(), equalTo("South Portland"));
+        assertThat(((Map<String, Object>) searchResponse.getHits().getAt(1).field("state_info").getValue()).get("name").toString(), equalTo("Maine"));
 
-        assertThat(searchResponse.hits().getAt(2).field("city").getValue().toString(), equalTo("South Burlington"));
-        assertThat(((Map<String, Object>) searchResponse.hits().getAt(2).field("state_info").getValue()).get("name").toString(), equalTo("Vermont"));
+        assertThat(searchResponse.getHits().getAt(2).field("city").getValue().toString(), equalTo("South Burlington"));
+        assertThat(((Map<String, Object>) searchResponse.getHits().getAt(2).field("state_info").getValue()).get("name").toString(), equalTo("Vermont"));
     }
 
 

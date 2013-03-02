@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.field.data.DocFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -117,12 +117,12 @@ public class LookupScript extends AbstractSearchScript {
     @Override
     public Object run() {
         // First we get field using doc lookup
-        DocFieldData fieldData = doc().field(field);
+        ScriptDocValues.Strings  fieldData = (ScriptDocValues.Strings )doc().get(field);
 
         // This is not very efficient
         // Check if field exists
         if (fieldData != null && !fieldData.isEmpty()) {
-            final String fieldValue = fieldData.stringValue();
+            final String fieldValue = fieldData.getValue();
             if (fieldValue != null) {
                 try {
                     return cache.get(new Tuple<String, String>(lookupIndex + "/" + lookupType, fieldValue), new Callable<Map<String, Object>>() {
@@ -132,9 +132,9 @@ public class LookupScript extends AbstractSearchScript {
                             // for record lookup
                             GetResponse response = client.prepareGet(lookupIndex, lookupType, fieldValue).setPreference("_local").execute().actionGet();
                             if (logger.isTraceEnabled()) {
-                                logger.trace("lookup [{}]/[{}]/[{}], found: [{}]", lookupIndex, lookupType, fieldValue, response.exists());
+                                logger.trace("lookup [{}]/[{}]/[{}], found: [{}]", lookupIndex, lookupType, fieldValue, response.isExists());
                             }
-                            if (response.exists()) {
+                            if (response.isExists()) {
                                 return response.getSource();
                             }
                             return EMPTY_MAP;

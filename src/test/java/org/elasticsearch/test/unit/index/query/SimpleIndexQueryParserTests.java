@@ -21,6 +21,7 @@ package org.elasticsearch.test.unit.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BoostingQuery;
+import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.*;
@@ -67,6 +68,7 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -903,6 +905,40 @@ public class SimpleIndexQueryParserTests {
     }
 
     @Test
+    public void testBoolFilteredQueryBuilder() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), boolFilter().must(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")).mustNot(termFilter("name.first", "shay2")).should(termFilter("name.first", "shay3")))).query();
+
+        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
+        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        XBooleanFilter booleanFilter = (XBooleanFilter) filteredQuery.getFilter();
+
+        Iterator<FilterClause> iterator = booleanFilter.iterator();
+        assertThat(iterator.hasNext(), equalTo(true));
+        FilterClause clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay4")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay2")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay3")));
+
+        assertThat(iterator.hasNext(), equalTo(false));
+    }
+
+
+    @Test
     public void testBoolFilteredQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/bool-filter.json");
@@ -911,7 +947,28 @@ public class SimpleIndexQueryParserTests {
         XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
         XBooleanFilter booleanFilter = (XBooleanFilter) filteredQuery.getFilter();
 
-        // TODO get the content and test
+        Iterator<FilterClause> iterator = booleanFilter.iterator();
+        assertThat(iterator.hasNext(), equalTo(true));
+        FilterClause clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay4")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay2")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay3")));
+
+        assertThat(iterator.hasNext(), equalTo(false));
     }
 
     @Test

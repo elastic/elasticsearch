@@ -80,7 +80,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
 
         if (request.waitForEvents() != null) {
             final CountDownLatch latch = new CountDownLatch(1);
-            clusterService.submitStateUpdateTask("cluster_reroute (api)", request.waitForEvents(), new ProcessedClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", request.waitForEvents(), new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;

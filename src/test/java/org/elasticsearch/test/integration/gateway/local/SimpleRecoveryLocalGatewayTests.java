@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.gateway.Gateway;
@@ -421,7 +422,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         startNode("node2", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data2").build());
 
-        ClusterHealthResponse health = client("node2").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse health = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         closeNode("node1");
@@ -429,7 +430,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         startNode("node2", settingsBuilder().put("gateway.type", "local").put("path.data", "data/data2").build());
 
-        health = client("node2").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        health = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         assertThat(client("node2").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));

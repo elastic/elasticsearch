@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeOperationActio
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -35,6 +36,9 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -72,6 +76,30 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
 
     @Override
     protected ClusterHealthResponse masterOperation(ClusterHealthRequest request, ClusterState unusedState) throws ElasticSearchException {
+        long endTime = System.currentTimeMillis() + request.timeout().millis();
+
+        if (request.waitForEvents() != null) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            clusterService.submitStateUpdateTask("cluster_reroute (api)", request.waitForEvents(), new ProcessedClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return currentState;
+                }
+
+                @Override
+                public void clusterStateProcessed(ClusterState clusterState) {
+                    latch.countDown();
+                }
+            });
+
+            try {
+                latch.await(request.timeout().millis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                // ignore
+            }
+        }
+
+
         int waitFor = 5;
         if (request.waitForStatus() == null) {
             waitFor--;
@@ -93,7 +121,6 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
             ClusterState clusterState = clusterService.state();
             return clusterHealth(request, clusterState);
         }
-        long endTime = System.currentTimeMillis() + request.timeout().millis();
         while (true) {
             int waitForCounter = 0;
             ClusterState clusterState = clusterService.state();

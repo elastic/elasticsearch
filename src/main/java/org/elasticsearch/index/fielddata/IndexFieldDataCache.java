@@ -26,6 +26,7 @@ import com.google.common.cache.RemovalNotification;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.FieldMapper;
 
@@ -48,7 +49,7 @@ public interface IndexFieldDataCache {
 
         void onLoad(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData fieldData);
 
-        void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, RemovalNotification<Object, AtomicFieldData> notification);
+        void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, @Nullable AtomicFieldData fieldData);
     }
 
     /**
@@ -72,7 +73,7 @@ public interface IndexFieldDataCache {
 
         @Override
         public void onRemoval(RemovalNotification<Object, AtomicFieldData> notification) {
-            listener.onUnload(index, fieldNames, fieldDataType, notification);
+            listener.onUnload(index, fieldNames, fieldDataType, notification.wasEvicted(), notification.getValue());
         }
 
         @Override

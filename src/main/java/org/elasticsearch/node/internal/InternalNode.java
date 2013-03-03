@@ -67,6 +67,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.filter.IndicesFilterCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.jmx.JmxModule;
@@ -297,6 +298,7 @@ public final class InternalNode implements Node {
         injector.getInstance(IndicesClusterStateService.class).close();
         stopWatch.stop().start("indices");
         injector.getInstance(IndicesFilterCache.class).close();
+        injector.getInstance(IndicesFieldDataCache.class).close();
         injector.getInstance(IndexingMemoryController.class).close();
         injector.getInstance(IndicesTTLService.class).close();
         injector.getInstance(IndicesService.class).close();

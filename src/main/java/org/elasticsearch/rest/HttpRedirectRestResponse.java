@@ -20,12 +20,13 @@
 package org.elasticsearch.rest;
 
 /**
- * Redirect to another web page
+ * HTTP Header based redirect to another page
  */
 public class HttpRedirectRestResponse extends StringRestResponse {
 
     public HttpRedirectRestResponse(String url) {
-        super(RestStatus.MOVED_PERMANENTLY, "<head><meta http-equiv=\"refresh\" content=\"0; URL="+url+"\"></head>");
+        super(RestStatus.MOVED_PERMANENTLY);
+        addHeader("Location", url);
     }
 
     @Override

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.integration.rest.helper;
 
+import com.beust.jcommander.internal.Maps;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -30,6 +31,8 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.List;
+import java.util.Map;
 
 public class HttpClient {
 
@@ -71,6 +74,7 @@ public class HttpClient {
         HttpURLConnection urlConnection;
         try {
             urlConnection = (HttpURLConnection) url.openConnection();
+            urlConnection.setInstanceFollowRedirects(false);
             urlConnection.setRequestMethod(method);
             urlConnection.connect();
         } catch (IOException e) {
@@ -78,8 +82,10 @@ public class HttpClient {
         }
 
         int errorCode = -1;
+        Map<String,List<String>> headers = Maps.newHashMap();
         try {
             errorCode = urlConnection.getResponseCode();
+            headers = urlConnection.getHeaderFields();
             InputStream inputStream = urlConnection.getInputStream();
             String body = null;
             try {
@@ -87,7 +93,7 @@ public class HttpClient {
             } catch (IOException e1) {
                 throw new ElasticSearchException("problem reading error stream", e1);
             }
-            return new HttpClientResponse(body, errorCode, null);
+            return new HttpClientResponse(body, errorCode, headers, null);
         } catch (IOException e) {
             InputStream errStream = urlConnection.getErrorStream();
             String body = null;
@@ -97,7 +103,7 @@ public class HttpClient {
                 throw new ElasticSearchException("problem reading error stream", e1);
             }
 
-            return new HttpClientResponse(body, errorCode, e);
+            return new HttpClientResponse(body, errorCode, headers, e);
         } finally {
             urlConnection.disconnect();
         }

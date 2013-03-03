@@ -19,10 +19,16 @@
 
 package org.elasticsearch.rest;
 
+import com.google.common.collect.Maps;
+
+import java.util.Map;
+
 /**
  *
  */
 public abstract class AbstractRestResponse implements RestResponse {
+
+    Map<String, String> headers = Maps.newHashMapWithExpectedSize(2);
 
     @Override
     public byte[] prefixContent() {
@@ -52,5 +58,15 @@ public abstract class AbstractRestResponse implements RestResponse {
     @Override
     public int suffixContentOffset() {
         return 0;
+    }
+
+    @Override
+    public void addHeader(String name, String value) {
+        headers.put(name, value);
+    }
+
+    @Override
+    public Map<String, String> getHeaders() {
+        return Maps.newHashMap(headers);
     }
 }

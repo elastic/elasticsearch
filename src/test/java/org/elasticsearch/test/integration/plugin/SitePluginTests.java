@@ -34,8 +34,7 @@ import java.io.File;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  * We want to test site plugins
@@ -71,7 +70,9 @@ public class SitePluginTests extends AbstractNodesTests {
         // We use an HTTP Client to test redirection
         HttpClientResponse response = httpClient("test").request("/_plugin/dummy");
         assertThat(response.errorCode(), equalTo(RestStatus.MOVED_PERMANENTLY.getStatus()));
-        assertThat(response.response(), containsString("/_plugin/dummy/"));
+        assertThat(response.response(), isEmptyOrNullString());
+        assertThat(response.getHeaders(), hasKey("Location"));
+        assertThat(response.getHeaders().get("Location").get(0), containsString("/_plugin/dummy/"));
 
         // We test the real URL
         response = httpClient("test").request("/_plugin/dummy/");

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.fielddata;
 
+import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -73,6 +73,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
     private final ConcurrentMap<String, IndexFieldData> loadedFieldData = ConcurrentCollections.newConcurrentMap();
 
     private final CounterMetric memoryUsedInBytes = new CounterMetric();
+    private final CounterMetric evictions = new CounterMetric();
 
     public IndexFieldDataService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
@@ -114,15 +115,18 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
     }
 
     @Override
-    public void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, @Nullable AtomicFieldData fieldData) {
+    public void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, RemovalNotification<Object, AtomicFieldData> notification) {
         assert index.equals(this.index);
-        if (fieldData != null) {
-            memoryUsedInBytes.dec(fieldData.getMemorySizeInBytes());
+        if (notification.getValue() != null) {
+            memoryUsedInBytes.dec(notification.getValue().getMemorySizeInBytes());
+        }
+        if (notification.wasEvicted()) {
+            evictions.inc();
         }
     }
 
     public FieldDataStats stats() {
-        return new FieldDataStats(memoryUsedInBytes.count());
+        return new FieldDataStats(memoryUsedInBytes.count(), evictions.count());
     }
 
     public <IFD extends IndexFieldData> IFD getForField(FieldMapper mapper) {

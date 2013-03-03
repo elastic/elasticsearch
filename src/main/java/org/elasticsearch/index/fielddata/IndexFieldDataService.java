@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -35,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 
 import java.util.concurrent.ConcurrentMap;
 
@@ -70,18 +71,20 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
                 .immutableMap();
     }
 
+    private final IndicesFieldDataCache indicesFieldDataCache;
     private final ConcurrentMap<String, IndexFieldData> loadedFieldData = ConcurrentCollections.newConcurrentMap();
 
     private final CounterMetric memoryUsedInBytes = new CounterMetric();
     private final CounterMetric evictions = new CounterMetric();
 
     public IndexFieldDataService(Index index) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS);
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS));
     }
 
     @Inject
-    public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings) {
+    public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache) {
         super(index, indexSettings);
+        this.indicesFieldDataCache = indicesFieldDataCache;
     }
 
     public void clear() {
@@ -115,12 +118,12 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
     }
 
     @Override
-    public void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, RemovalNotification<Object, AtomicFieldData> notification) {
+    public void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, @Nullable AtomicFieldData fieldData) {
         assert index.equals(this.index);
-        if (notification.getValue() != null) {
-            memoryUsedInBytes.dec(notification.getValue().getMemorySizeInBytes());
+        if (fieldData != null) {
+            memoryUsedInBytes.dec(fieldData.getMemorySizeInBytes());
         }
-        if (notification.wasEvicted()) {
+        if (wasEvicted) {
             evictions.inc();
         }
     }
@@ -160,6 +163,8 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
                         cache = new IndexFieldDataCache.Resident(index, fieldNames, type, this);
                     } else if ("soft".equals(cacheType)) {
                         cache = new IndexFieldDataCache.Soft(index, fieldNames, type, this);
+                    } else if ("node".equals(cacheType)) {
+                        cache = indicesFieldDataCache.buildIndexFieldDataCache(index, fieldNames, type, this);
                     } else {
                         throw new ElasticSearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
                     }

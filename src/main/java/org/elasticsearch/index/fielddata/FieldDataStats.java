@@ -34,17 +34,20 @@ import java.io.IOException;
 public class FieldDataStats implements Streamable, ToXContent {
 
     long memorySize;
+    long evictions;
 
     public FieldDataStats() {
 
     }
 
-    public FieldDataStats(long memorySize) {
+    public FieldDataStats(long memorySize, long evictions) {
         this.memorySize = memorySize;
+        this.evictions = evictions;
     }
 
     public void add(FieldDataStats stats) {
         this.memorySize += stats.memorySize;
+        this.evictions += stats.evictions;
     }
 
     public long getMemorySizeInBytes() {
@@ -53,6 +56,10 @@ public class FieldDataStats implements Streamable, ToXContent {
 
     public ByteSizeValue getMemorySize() {
         return new ByteSizeValue(memorySize);
+    }
+
+    public long getEvictions() {
+        return this.evictions;
     }
 
     public static FieldDataStats readFieldDataStats(StreamInput in) throws IOException {
@@ -64,11 +71,13 @@ public class FieldDataStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
+        evictions = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
+        out.writeVLong(evictions);
     }
 
     @Override
@@ -76,6 +85,7 @@ public class FieldDataStats implements Streamable, ToXContent {
         builder.startObject(Fields.FIELD_DATA);
         builder.field(Fields.MEMORY_SIZE, memorySize);
         builder.field(Fields.MEMORY_SIZE_IN_BYTES, getMemorySize().toString());
+        builder.field(Fields.EVICTIONS, getEvictions());
         builder.endObject();
         return builder;
     }
@@ -84,5 +94,6 @@ public class FieldDataStats implements Streamable, ToXContent {
         static final XContentBuilderString FIELD_DATA = new XContentBuilderString("field_data");
         static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
+        static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
     }
 }

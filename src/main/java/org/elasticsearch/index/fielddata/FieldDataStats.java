@@ -83,8 +83,8 @@ public class FieldDataStats implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.FIELD_DATA);
-        builder.field(Fields.MEMORY_SIZE, memorySize);
-        builder.field(Fields.MEMORY_SIZE_IN_BYTES, getMemorySize().toString());
+        builder.field(Fields.MEMORY_SIZE, getMemorySize().toString());
+        builder.field(Fields.MEMORY_SIZE_IN_BYTES, memorySize);
         builder.field(Fields.EVICTIONS, getEvictions());
         builder.endObject();
         return builder;

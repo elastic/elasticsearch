@@ -18,7 +18,6 @@ package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.MoreTypes;
-import org.elasticsearch.common.inject.internal.ToStringBuilder;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
@@ -29,20 +28,20 @@ import static com.google.common.base.Preconditions.checkNotNull;
 /**
  * Binding key consisting of an injection type and an optional annotation.
  * Matches the type and annotation at a point of injection.
- * <p/>
+ *
  * <p>For example, {@code Key.get(Service.class, Transactional.class)} will
  * match:
- * <p/>
+ *
  * <pre>
  *   {@literal @}Inject
  *   public void setService({@literal @}Transactional Service service) {
  *     ...
  *   }
  * </pre>
- * <p/>
+ *
  * <p>{@code Key} supports generic types via subclassing just like {@link
  * TypeLiteral}.
- * <p/>
+ *
  * <p>Keys do not differentiate between primitive types (int, char, etc.) and
  * their correpsonding wrapper types (Integer, Character, etc.). Primitive
  * types will be replaced with their wrapper types when keys are created.
@@ -58,15 +57,15 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     *
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     * <p/>
-     * <p>Example usage for a binding of type {@code Foo} annotated with
+     *
+     * Example usage for a binding of type {@code Foo} annotated with
      * {@code @Bar}:
-     * <p/>
-     * <p>{@code new Key<Foo>(Bar.class) {}}.
+     *
+     * {@code new Key<Foo>(Bar.class) {}}.
      */
     @SuppressWarnings("unchecked")
     protected Key(Class<? extends Annotation> annotationType) {
@@ -77,15 +76,15 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     *
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     * <p/>
-     * <p>Example usage for a binding of type {@code Foo} annotated with
+     *
+     * Example usage for a binding of type {@code Foo} annotated with
      * {@code @Bar}:
-     * <p/>
-     * <p>{@code new Key<Foo>(new Bar()) {}}.
+     *
+     * {@code new Key<Foo>(new Bar()) {}}.
      */
     @SuppressWarnings("unchecked")
     protected Key(Annotation annotation) {
@@ -97,14 +96,14 @@ public class Key<T> {
 
     /**
      * Constructs a new key. Derives the type from this class's type parameter.
-     * <p/>
-     * <p>Clients create an empty anonymous subclass. Doing so embeds the type
+     *
+     * Clients create an empty anonymous subclass. Doing so embeds the type
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
-     * <p/>
-     * <p>Example usage for a binding of type {@code Foo}:
-     * <p/>
-     * <p>{@code new Key<Foo>() {}}.
+     *
+     * Example usage for a binding of type {@code Foo}:
+     *
+     * {@code new Key<Foo>() {}}.
      */
     @SuppressWarnings("unchecked")
     protected Key() {
@@ -119,16 +118,14 @@ public class Key<T> {
     @SuppressWarnings("unchecked")
     private Key(Type type, AnnotationStrategy annotationStrategy) {
         this.annotationStrategy = annotationStrategy;
-        this.typeLiteral = MoreTypes.makeKeySafe((TypeLiteral<T>) TypeLiteral.get(type));
+        this.typeLiteral = MoreTypes.canonicalizeForKey((TypeLiteral<T>) TypeLiteral.get(type));
         this.hashCode = computeHashCode();
     }
 
-    /**
-     * Constructs a key from a manually specified type.
-     */
+    /** Constructs a key from a manually specified type. */
     private Key(TypeLiteral<T> typeLiteral, AnnotationStrategy annotationStrategy) {
         this.annotationStrategy = annotationStrategy;
-        this.typeLiteral = MoreTypes.makeKeySafe(typeLiteral);
+        this.typeLiteral = MoreTypes.canonicalizeForKey(typeLiteral);
         this.hashCode = computeHashCode();
     }
 
@@ -202,10 +199,7 @@ public class Key<T> {
 
     @Override
     public final String toString() {
-        return new ToStringBuilder(Key.class)
-                .add("type", typeLiteral)
-                .add("annotation", annotationStrategy)
-                .toString();
+        return "Key[type=" + typeLiteral + ", annotation=" + annotationStrategy + "]";
     }
 
     /**
@@ -287,7 +281,7 @@ public class Key<T> {
      * Returns a new key of the specified type with the same annotation as this
      * key.
      */
-    <T> Key<T> ofType(Class<T> type) {
+    public <T> Key<T> ofType(Class<T> type) {
         return new Key<T>(type, annotationStrategy);
     }
 
@@ -295,7 +289,7 @@ public class Key<T> {
      * Returns a new key of the specified type with the same annotation as this
      * key.
      */
-    Key<?> ofType(Type type) {
+    public Key<?> ofType(Type type) {
         return new Key<Object>(type, annotationStrategy);
     }
 
@@ -303,14 +297,14 @@ public class Key<T> {
      * Returns a new key of the specified type with the same annotation as this
      * key.
      */
-    <T> Key<T> ofType(TypeLiteral<T> type) {
+    public <T> Key<T> ofType(TypeLiteral<T> type) {
         return new Key<T>(type, annotationStrategy);
     }
 
     /**
      * Returns true if this key has annotation attributes.
      */
-    boolean hasAttributes() {
+    public boolean hasAttributes() {
         return annotationStrategy.hasAttributes();
     }
 
@@ -318,25 +312,15 @@ public class Key<T> {
      * Returns this key without annotation attributes, i.e. with only the
      * annotation type.
      */
-    Key<T> withoutAttributes() {
+    public Key<T> withoutAttributes() {
         return new Key<T>(typeLiteral, annotationStrategy.withoutAttributes());
     }
 
     interface AnnotationStrategy {
         Annotation getAnnotation();
-
         Class<? extends Annotation> getAnnotationType();
-
         boolean hasAttributes();
-
         AnnotationStrategy withoutAttributes();
-    }
-
-    /**
-     * Returns {@code true} if the given annotation type has no attributes.
-     */
-    static boolean isMarker(Class<? extends Annotation> annotationType) {
-        return annotationType.getDeclaredMethods().length == 0;
     }
 
     /**
@@ -348,7 +332,7 @@ public class Key<T> {
         ensureRetainedAtRuntime(annotationType);
         ensureIsBindingAnnotation(annotationType);
 
-        if (annotationType.getDeclaredMethods().length == 0) {
+        if (Annotations.isMarker(annotationType)) {
             return new AnnotationTypeStrategy(annotationType, annotation);
         }
 
@@ -372,9 +356,8 @@ public class Key<T> {
                 annotationType.getName());
     }
 
-    private static void ensureIsBindingAnnotation(
-            Class<? extends Annotation> annotationType) {
-        checkArgument(isBindingAnnotation(annotationType),
+    private static void ensureIsBindingAnnotation(Class<? extends Annotation> annotationType) {
+        checkArgument(Annotations.isBindingAnnotation(annotationType),
                 "%s is not a binding annotation. Please annotate it with @BindingAnnotation.",
                 annotationType.getName());
     }
@@ -398,8 +381,7 @@ public class Key<T> {
             return null;
         }
 
-        @Override
-        public String toString() {
+        @Override public String toString() {
             return "[none]";
         }
     }
@@ -429,8 +411,7 @@ public class Key<T> {
             return annotation.annotationType();
         }
 
-        @Override
-        public boolean equals(Object o) {
+        @Override public boolean equals(Object o) {
             if (!(o instanceof AnnotationInstanceStrategy)) {
                 return false;
             }
@@ -439,13 +420,11 @@ public class Key<T> {
             return annotation.equals(other.annotation);
         }
 
-        @Override
-        public int hashCode() {
+        @Override public int hashCode() {
             return annotation.hashCode();
         }
 
-        @Override
-        public String toString() {
+        @Override public String toString() {
             return annotation.toString();
         }
     }
@@ -479,8 +458,7 @@ public class Key<T> {
             return annotationType;
         }
 
-        @Override
-        public boolean equals(Object o) {
+        @Override public boolean equals(Object o) {
             if (!(o instanceof AnnotationTypeStrategy)) {
                 return false;
             }
@@ -489,23 +467,12 @@ public class Key<T> {
             return annotationType.equals(other.annotationType);
         }
 
-        @Override
-        public int hashCode() {
+        @Override public int hashCode() {
             return annotationType.hashCode();
         }
 
-        @Override
-        public String toString() {
+        @Override public String toString() {
             return "@" + annotationType.getName();
         }
-    }
-
-    static boolean isBindingAnnotation(Annotation annotation) {
-        return isBindingAnnotation(annotation.annotationType());
-    }
-
-    static boolean isBindingAnnotation(
-            Class<? extends Annotation> annotationType) {
-        return annotationType.isAnnotationPresent(BindingAnnotation.class);
     }
 }

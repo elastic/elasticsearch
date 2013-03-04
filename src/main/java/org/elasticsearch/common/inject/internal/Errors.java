@@ -291,6 +291,10 @@ public final class Errors implements Serializable {
         addMessage("Could not expose() %s, it must be explicitly bound.", key);
     }
 
+    public Errors keyNotFullySpecified(TypeLiteral<?> typeLiteral) {
+        return addMessage("%s cannot be used as a key; It is not fully specified.", typeLiteral);
+    }
+
     public static Collection<Message> getMessagesFromThrowable(Throwable throwable) {
         if (throwable instanceof ProvisionException) {
             return ((ProvisionException) throwable).getErrorMessages();

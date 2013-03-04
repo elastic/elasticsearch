@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Message;
+import org.elasticsearch.common.inject.util.Types;
 
 import java.io.Serializable;
 import java.lang.reflect.*;
@@ -58,6 +59,27 @@ public class MoreTypes {
             .put(TypeLiteral.get(char.class), TypeLiteral.get(Character.class))
             .put(TypeLiteral.get(void.class), TypeLiteral.get(Void.class))
             .build();
+
+    /**
+     * Returns an type that's appropriate for use in a key.
+     *
+     * <p>If the type is a primitive, the corresponding wrapper type will be returned.
+     *
+     * @throws ConfigurationException if {@code type} contains a type variable
+     */
+    public static <T> TypeLiteral<T> canonicalizeForKey(TypeLiteral<T> typeLiteral) {
+        Type type = typeLiteral.getType();
+        if (!isFullySpecified(type)) {
+            Errors errors = new Errors().keyNotFullySpecified(typeLiteral);
+            throw new ConfigurationException(errors.getMessages());
+        }
+
+        @SuppressWarnings("unchecked")
+        TypeLiteral<T> wrappedPrimitives = (TypeLiteral<T>) PRIMITIVE_TO_WRAPPER.get(typeLiteral);
+        return wrappedPrimitives != null
+                ? wrappedPrimitives
+                : typeLiteral;
+    }
 
     /**
      * Returns an equivalent type that's safe for use in a key. The returned type will be free of

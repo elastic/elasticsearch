@@ -82,7 +82,7 @@ public class FieldDataStats implements Streamable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.FIELD_DATA);
+        builder.startObject(Fields.FIELDDATA);
         builder.field(Fields.MEMORY_SIZE, getMemorySize().toString());
         builder.field(Fields.MEMORY_SIZE_IN_BYTES, memorySize);
         builder.field(Fields.EVICTIONS, getEvictions());
@@ -91,7 +91,7 @@ public class FieldDataStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString FIELD_DATA = new XContentBuilderString("field_data");
+        static final XContentBuilderString FIELDDATA = new XContentBuilderString("fielddata");
         static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
         static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
         static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");

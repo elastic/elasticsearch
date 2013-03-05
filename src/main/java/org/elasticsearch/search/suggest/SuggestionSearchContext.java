@@ -45,7 +45,7 @@ public class SuggestionSearchContext {
         private String field;
         private Analyzer analyzer;
         private int size = 5;
-        private int shardSize = 5;
+        private int shardSize = -1;
 
         public BytesRef getText() {
             return text;
@@ -85,7 +85,7 @@ public class SuggestionSearchContext {
 
         public void setSize(int size) {
             if (size <= 0) {
-                throw new ElasticSearchIllegalArgumentException("Size must be positive");
+                throw new ElasticSearchIllegalArgumentException("Size must be positive but was: " + size);
             }
             this.size = size;
         }
@@ -95,6 +95,9 @@ public class SuggestionSearchContext {
         }
 
         public void setShardSize(int shardSize) {
+            if (shardSize <= 0) {
+                throw new ElasticSearchIllegalArgumentException("ShardSize must be positive but was: " + shardSize);
+            }
             this.shardSize = shardSize;
         }
     }

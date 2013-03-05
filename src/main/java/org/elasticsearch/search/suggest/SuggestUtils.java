@@ -270,6 +270,9 @@ public final class SuggestUtils {
         if (suggestion.getAnalyzer() == null) {
             suggestion.setAnalyzer(context.mapperService().searchAnalyzer());
         }
+        if (suggestion.getShardSize() == -1) {
+            suggestion.setShardSize(Math.max(suggestion.getSize(), 5));
+        }
     }
     
     

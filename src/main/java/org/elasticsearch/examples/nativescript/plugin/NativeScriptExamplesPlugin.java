@@ -2,6 +2,7 @@ package org.elasticsearch.examples.nativescript.plugin;
 
 import org.elasticsearch.examples.nativescript.script.IsPrimeSearchScript;
 import org.elasticsearch.examples.nativescript.script.LookupScript;
+import org.elasticsearch.examples.nativescript.script.PopularityScoreScriptFactory;
 import org.elasticsearch.examples.nativescript.script.RandomSortScriptFactory;
 import org.elasticsearch.plugins.AbstractPlugin;
 import org.elasticsearch.script.ScriptModule;
@@ -40,5 +41,6 @@ public class NativeScriptExamplesPlugin extends AbstractPlugin {
         module.registerScript("is_prime", IsPrimeSearchScript.Factory.class);
         module.registerScript("lookup", LookupScript.Factory.class);
         module.registerScript("random", RandomSortScriptFactory.class);
+        module.registerScript("popularity", PopularityScoreScriptFactory.class);
     }
 }

@@ -55,7 +55,6 @@ import org.elasticsearch.index.search.stats.ShardSearchModule;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShardCreationException;
-import org.elasticsearch.index.shard.IndexShardManagement;
 import org.elasticsearch.index.shard.IndexShardModule;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
@@ -396,11 +395,6 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
         } catch (Exception e) {
             logger.debug("failed to close translog service", e);
             // ignore
-        }
-
-        // close shard actions
-        if (indexShard != null) {
-            shardInjector.getInstance(IndexShardManagement.class).close();
         }
 
         // this logic is tricky, we want to close the engine so we rollback the changes done to it

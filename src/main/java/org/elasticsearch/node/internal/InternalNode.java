@@ -46,7 +46,6 @@ import org.elasticsearch.common.io.CachedStreams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -70,8 +69,6 @@ import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
-import org.elasticsearch.jmx.JmxModule;
-import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -143,7 +140,6 @@ public final class InternalNode implements Node {
         modules.add(new NetworkModule());
         modules.add(new NodeCacheModule(settings));
         modules.add(new ScriptModule(settings));
-        modules.add(new JmxModule(settings));
         modules.add(new EnvironmentModule(environment));
         modules.add(new NodeEnvironmentModule(nodeEnvironment));
         modules.add(new ClusterNameModule(settings));
@@ -217,7 +213,6 @@ public final class InternalNode implements Node {
             injector.getInstance(HttpServer.class).start();
         }
         injector.getInstance(BulkUdpService.class).start();
-        injector.getInstance(JmxService.class).connectAndRegister(discoService.nodeDescription(), injector.getInstance(NetworkService.class));
 
         logger.info("{{}}[{}]: started", Version.CURRENT, JvmInfo.jvmInfo().pid());
 
@@ -259,7 +254,6 @@ public final class InternalNode implements Node {
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
-        injector.getInstance(JmxService.class).close();
 
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).stop();

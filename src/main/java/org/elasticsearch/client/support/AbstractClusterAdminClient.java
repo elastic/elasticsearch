@@ -53,6 +53,10 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsActi
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequestBuilder;
@@ -203,4 +207,26 @@ public abstract class AbstractClusterAdminClient implements InternalClusterAdmin
     public NodesShutdownRequestBuilder prepareNodesShutdown(String... nodesIds) {
         return new NodesShutdownRequestBuilder(this).setNodesIds(nodesIds);
     }
+
+    @Override
+    public ActionFuture<ClusterSearchShardsResponse> searchShards(final ClusterSearchShardsRequest request) {
+        return execute(ClusterSearchShardsAction.INSTANCE, request);
+    }
+
+    @Override
+    public void searchShards(final ClusterSearchShardsRequest request, final ActionListener<ClusterSearchShardsResponse> listener) {
+        execute(ClusterSearchShardsAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ClusterSearchShardsRequestBuilder prepareSearchShards() {
+        return new ClusterSearchShardsRequestBuilder(this);
+    }
+
+    @Override
+    public ClusterSearchShardsRequestBuilder prepareSearchShards(String... indices) {
+        return new ClusterSearchShardsRequestBuilder(this).setIndices(indices);
+    }
+
+
 }

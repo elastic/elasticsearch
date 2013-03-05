@@ -56,6 +56,10 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     }
 
     @Override
+    public void close() {
+    }
+
+    @Override
     public boolean isMultiValued() {
         return ordinals.isMultiValued();
     }

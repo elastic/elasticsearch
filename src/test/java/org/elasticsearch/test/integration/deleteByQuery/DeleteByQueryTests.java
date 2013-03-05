@@ -22,8 +22,10 @@ package org.elasticsearch.test.integration.deleteByQuery;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -32,6 +34,7 @@ import org.testng.annotations.Test;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.testng.Assert.fail;
 
 public class DeleteByQueryTests extends AbstractNodesTests {
     
@@ -81,6 +84,36 @@ public class DeleteByQueryTests extends AbstractNodesTests {
         assertThat(actionGet.getIndex("twitter"), notNullValue());
         assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));
         
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        search = client.prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(search.getHits().totalHits(), equalTo(0l));
+    }
+
+    @Test
+    public void testMissing() {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        String json = "{" + "\"user\":\"kimchy\"," + "\"postDate\":\"2013-01-30\"," + "\"message\":\"trying out Elastic Search\"" + "}";
+
+        client.prepareIndex("twitter", "tweet").setSource(json).setRefresh(true).execute().actionGet();
+
+        SearchResponse search = client.prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(search.getHits().totalHits(), equalTo(1l));
+        DeleteByQueryRequestBuilder deleteByQueryRequestBuilder = new DeleteByQueryRequestBuilder(client);
+        deleteByQueryRequestBuilder.setIndices("twitter", "missing");
+        deleteByQueryRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
+
+        try {
+            DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
+            fail("Exception should have been thrown.");
+        } catch (IndexMissingException e) {
+        }
+
+        deleteByQueryRequestBuilder.setIgnoreIndices(IgnoreIndices.MISSING);
+        DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
+        assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));
+        assertThat(actionGet.getIndex("twitter"), notNullValue());
+
         client.admin().indices().prepareRefresh().execute().actionGet();
         search = client.prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertThat(search.getHits().totalHits(), equalTo(0l));

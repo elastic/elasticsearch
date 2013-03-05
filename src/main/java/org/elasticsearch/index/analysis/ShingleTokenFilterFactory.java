@@ -32,48 +32,83 @@ import org.elasticsearch.index.settings.IndexSettings;
  */
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final int maxShingleSize;
-
-    private final boolean outputUnigrams;
-
-    private final boolean outputUnigramsIfNoShingles;
-
-    private String tokenSeparator;
-
-    private int minShingleSize;
+    private final Factory factory;
 
     @Inject
     public ShingleTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
-        minShingleSize = settings.getAsInt("min_shingle_size", ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE);
-        outputUnigrams = settings.getAsBoolean("output_unigrams", true);
-        outputUnigramsIfNoShingles = settings.getAsBoolean("output_unigrams_if_no_shingles", false);
-        tokenSeparator = settings.get("token_separator", ShingleFilter.TOKEN_SEPARATOR);
+        Integer maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
+        Integer minShingleSize = settings.getAsInt("min_shingle_size", ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE);
+        Boolean outputUnigrams = settings.getAsBoolean("output_unigrams", true);
+        Boolean outputUnigramsIfNoShingles = settings.getAsBoolean("output_unigrams_if_no_shingles", false);
+        String tokenSeparator = settings.get("token_separator", ShingleFilter.TOKEN_SEPARATOR);
+        factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator);
     }
+    
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        ShingleFilter filter = new ShingleFilter(tokenStream, minShingleSize, maxShingleSize);
-        filter.setOutputUnigrams(outputUnigrams);
-        filter.setOutputUnigramsIfNoShingles(outputUnigramsIfNoShingles);
-        filter.setTokenSeparator(tokenSeparator);
-        return filter;
+       return factory.create(tokenStream);
     }
     
-    public int getMaxShingleSize() {
-        return maxShingleSize;
+    
+    public Factory getInnerFactory() {
+        return this.factory;
     }
     
-    public int getMinShingleSize() {
-        return minShingleSize;
-    }
-    
-    public boolean getOutputUnigrams() {
-        return outputUnigrams;
-    }
-    
-    public boolean getOutputUnigramsIfNoShingles() {
-        return outputUnigramsIfNoShingles;
+    public static final class Factory implements TokenFilterFactory {
+        private final int maxShingleSize;
+
+        private final boolean outputUnigrams;
+
+        private final boolean outputUnigramsIfNoShingles;
+
+        private final String tokenSeparator;
+        
+        private int minShingleSize;
+
+        private final String name;
+        
+        public Factory(String name) {
+            this(name, ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE, true, false, ShingleFilter.TOKEN_SEPARATOR);
+        }
+        
+        Factory(String name, int minShingleSize, int maxShingleSize, boolean outputUnigrams, boolean outputUnigramsIfNoShingles, String tokenSeparator) {
+            this.maxShingleSize = maxShingleSize;
+            this.outputUnigrams = outputUnigrams;
+            this.outputUnigramsIfNoShingles = outputUnigramsIfNoShingles;
+            this.tokenSeparator = tokenSeparator;
+            this.minShingleSize = minShingleSize;
+            this.name = name;
+        }
+        
+        public TokenStream create(TokenStream tokenStream) {
+            ShingleFilter filter = new ShingleFilter(tokenStream, minShingleSize, maxShingleSize);
+            filter.setOutputUnigrams(outputUnigrams);
+            filter.setOutputUnigramsIfNoShingles(outputUnigramsIfNoShingles);
+            filter.setTokenSeparator(tokenSeparator);
+            return filter;
+        }
+
+        public int getMaxShingleSize() {
+            return maxShingleSize;
+        }
+        
+        public int getMinShingleSize() {
+            return minShingleSize;
+        }
+        
+        public boolean getOutputUnigrams() {
+            return outputUnigrams;
+        }
+        
+        public boolean getOutputUnigramsIfNoShingles() {
+            return outputUnigramsIfNoShingles;
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
     }
 }

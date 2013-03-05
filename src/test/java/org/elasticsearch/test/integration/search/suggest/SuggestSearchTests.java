@@ -77,6 +77,65 @@ public class SuggestSearchTests extends AbstractNodesTests {
     protected Client getClient() {
         return client("server1");
     }
+    
+    @Test // see #2729
+    public void testSizeOneShard() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put(SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0))
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        for (int i = 0; i < 15; i++) {
+            client.prepareIndex("test", "type1")
+            .setSource(XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("text", "abc" + i)
+                    .endObject()
+            )
+            .execute().actionGet();
+        }
+        
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        
+        SearchResponse search = client.prepareSearch()
+        .setQuery(matchQuery("text", "spellchecker")).execute().actionGet();
+        assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
+        
+        search = client.prepareSearch()
+                .setQuery(matchQuery("text", "spellchecker"))
+                .addSuggestion(
+                        termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+                                .text("abcd")
+                                .field("text").size(10))
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertThat(search.getSuggest(), notNullValue());
+        assertThat(search.getSuggest().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("test").getName(), equalTo("test"));
+        assertThat(search.getSuggest().getSuggestion("test").getEntries().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
+        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(10));
+
+        
+        search = client.prepareSearch()
+        .setQuery(matchQuery("text", "spellchecker"))
+        .addSuggestion(
+                termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+                        .text("abcd")
+                        .field("text").size(10).shardSize(5))
+        .execute().actionGet();
+        
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertThat(search.getSuggest(), notNullValue());
+        assertThat(search.getSuggest().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("test").getName(), equalTo("test"));
+        assertThat(search.getSuggest().getSuggestion("test").getEntries().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
+        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(5));
+    }
 
     @Test
     public void testSimple() throws Exception {

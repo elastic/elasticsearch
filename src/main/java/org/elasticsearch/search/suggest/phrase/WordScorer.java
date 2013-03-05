@@ -74,7 +74,7 @@ public abstract class WordScorer {
    
    public double score(Candidate[] path, CandidateSet[] candidateSet, int at, int gramSize) throws IOException {
        if (at == 0 || gramSize == 1) {
-           return Math.log10(channelScore(path[0], candidateSet[0].originalTerm) * scoreUnigram(path[0]));
+           return Math.log10(channelScore(path[at], candidateSet[at].originalTerm) * scoreUnigram(path[at]));
        } else if (at == 1 || gramSize == 2) {
            return Math.log10(channelScore(path[at], candidateSet[at].originalTerm) * scoreBigram(path[at], path[at - 1]));
        } else {

@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
@@ -38,9 +39,11 @@ import java.io.InputStream;
 /**
  *
  */
-public interface Translog extends IndexShardComponent {
+public interface Translog extends IndexShardComponent, CloseableIndexComponent {
 
     public static final String TRANSLOG_ID_KEY = "translog_id";
+
+    void closeWithDelete();
 
     /**
      * Returns the id of the current transaction log.
@@ -121,13 +124,6 @@ public interface Translog extends IndexShardComponent {
     boolean syncNeeded();
 
     void syncOnEachOperation(boolean syncOnEachOperation);
-
-    /**
-     * Closes the transaction log.
-     * <p/>
-     * <p>Can only be called by one thread.
-     */
-    void close(boolean delete);
 
     static class Location {
         public final long translogId;

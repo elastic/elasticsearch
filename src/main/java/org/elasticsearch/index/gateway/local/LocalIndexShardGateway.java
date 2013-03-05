@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.gateway.local;
 
-import com.google.common.io.Closeables;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
@@ -234,10 +233,14 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             }
         } catch (Throwable e) {
             // we failed to recovery, make sure to delete the translog file (and keep the recovering one)
-            indexShard.translog().close(true);
+            indexShard.translog().closeWithDelete();
             throw new IndexShardGatewayRecoveryException(shardId, "failed to recover shard", e);
         } finally {
-            Closeables.closeQuietly(fs);
+            try {
+                fs.close();
+            } catch (IOException e) {
+                // ignore
+            }
         }
         indexShard.performRecoveryFinalization(true);
 
@@ -277,7 +280,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     }
 
     @Override
-    public void close(boolean delete) {
+    public void close() {
         if (flushScheduler != null) {
             flushScheduler.cancel(false);
         }

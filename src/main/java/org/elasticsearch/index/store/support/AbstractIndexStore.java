@@ -102,7 +102,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
     }
 
     @Override
-    public void close(boolean delete) throws ElasticSearchException {
+    public void close() throws ElasticSearchException {
         indexService.settingsService().removeListener(applySettings);
     }
 

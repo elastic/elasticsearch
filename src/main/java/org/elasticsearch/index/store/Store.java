@@ -33,6 +33,7 @@ import org.elasticsearch.common.lucene.store.BufferedChecksumIndexOutput;
 import org.elasticsearch.common.lucene.store.ChecksumIndexOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -50,7 +51,7 @@ import java.util.zip.Adler32;
 
 /**
  */
-public class Store extends AbstractIndexShardComponent {
+public class Store extends AbstractIndexShardComponent implements CloseableIndexComponent {
 
     static final String CHECKSUMS_PREFIX = "_checksums-";
 
@@ -112,6 +113,9 @@ public class Store extends AbstractIndexShardComponent {
         return md;
     }
 
+    /**
+     * Deletes the content of a shard store. Be careful calling this!.
+     */
     public void deleteContent() throws IOException {
         String[] files = directory.listAll();
         IOException lastException = null;
@@ -134,13 +138,6 @@ public class Store extends AbstractIndexShardComponent {
         }
         if (lastException != null) {
             throw lastException;
-        }
-    }
-
-    public void fullDelete() throws IOException {
-        deleteContent();
-        for (Directory delegate : directory.delegates()) {
-            directoryService.fullDelete(delegate);
         }
     }
 
@@ -248,8 +245,12 @@ public class Store extends AbstractIndexShardComponent {
         return false;
     }
 
-    public void close() throws IOException {
-        directory.close();
+    public void close() {
+        try {
+            directory.close();
+        } catch (IOException e) {
+            logger.debug("failed to close directory", e);
+        }
     }
 
     /**

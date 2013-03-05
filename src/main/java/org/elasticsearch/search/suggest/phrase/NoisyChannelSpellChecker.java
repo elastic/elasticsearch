@@ -81,7 +81,7 @@ public final class NoisyChannelSpellChecker {
                 anyUnigram = true;
                 if (posIncAttr.getPositionIncrement() == 0 && typeAttribute.type() == SynonymFilter.TYPE_SYNONYM) {
                     assert currentSet != null;
-                    int freq = 0;
+                    long freq = 0;
                     if ((freq = generator.frequency(term)) > 0) {
                         currentSet.addOneCandidate(generator.createCandidate(BytesRef.deepCopyOf(term), freq, realWordLikelihood));
                     }

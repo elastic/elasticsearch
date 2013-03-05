@@ -25,7 +25,6 @@ import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
@@ -35,11 +34,13 @@ public abstract class WordScorer {
     protected final IndexReader reader;
     protected final String field;
     protected final Terms terms;
-    protected final int totalDocuments;
+    protected final long vocabluarySize;
     protected double realWordLikelyhood;
     protected final BytesRef spare = new BytesRef();
     protected final BytesRef separator;
     protected final TermsEnum termsEnum;
+    private final long numTerms;
+    private final boolean useTotalTermFreq;
     
     public WordScorer(IndexReader reader, String field, double realWordLikelyHood, BytesRef separator) throws IOException {
         this.field = field;
@@ -47,17 +48,19 @@ public abstract class WordScorer {
         if (terms == null) {
             throw new ElasticSearchIllegalArgumentException("Field: [" + field + "] does not exist");
         }
-        final int docCount = terms.getDocCount();
-        this.totalDocuments =  docCount == -1 ? reader.maxDoc() : docCount;
+        final long vocSize = terms.getSumTotalTermFreq();
+        this.vocabluarySize =  vocSize == -1 ? reader.maxDoc() : vocSize;
+        this.useTotalTermFreq = vocSize != -1;
+        this.numTerms = terms.size();
         this.termsEnum = terms.iterator(null);
         this.reader = reader;
         this.realWordLikelyhood = realWordLikelyHood;
         this.separator = separator;
    }
     
-   public int frequency(BytesRef term) throws IOException {
+   public long frequency(BytesRef term) throws IOException {
       if (termsEnum.seekExact(term, true)) {
-          return termsEnum.docFreq();
+          return useTotalTermFreq ? termsEnum.totalTermFreq() : termsEnum.docFreq();
       }
       return 0;
    }
@@ -80,7 +83,7 @@ public abstract class WordScorer {
    }
    
    protected double scoreUnigram(Candidate word)  throws IOException {
-       return (1.0 + word.frequency) / (1.0 + totalDocuments);
+       return (1.0 + frequency(word.term)) / (vocabluarySize + numTerms);
    }
    
    protected double scoreBigram(Candidate word, Candidate w_1) throws IOException {

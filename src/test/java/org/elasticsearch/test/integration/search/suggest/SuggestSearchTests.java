@@ -740,6 +740,8 @@ public class SuggestSearchTests extends AbstractNodesTests {
         builder.putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase");
         builder.put("index.analysis.analyzer.ngram.tokenizer", "standard");
         builder.putArray("index.analysis.analyzer.ngram.filter", "my_shingle2", "lowercase");
+        builder.put("index.analysis.analyzer.myDefAnalyzer.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.myDefAnalyzer.filter", "shingle", "lowercase");
         builder.put("index.analysis.filter.my_shingle.type", "shingle");
         builder.put("index.analysis.filter.my_shingle.output_unigrams", false);
         builder.put("index.analysis.filter.my_shingle.min_shingle_size", 2);
@@ -834,6 +836,23 @@ public class SuggestSearchTests extends AbstractNodesTests {
         .setSearchType(SearchType.COUNT)
         .setSuggestText("Xor the Got-Jewel")
         .addSuggestion(
+                phraseSuggestion("simple_phrase").maxErrors(0.5f).field("ngram").analyzer("myDefAnalyzer")
+                  .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                        .size(1)).execute().actionGet();
+        
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertThat(search.getSuggest(), notNullValue());
+        assertThat(search.getSuggest().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        
+        search = client.prepareSearch()
+        .setSearchType(SearchType.COUNT)
+        .setSuggestText("Xor the Got-Jewel")
+        .addSuggestion(
                 phraseSuggestion("simple_phrase").maxErrors(0.5f).field("ngram")
                   .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                         .size(1)).execute().actionGet();
@@ -846,6 +865,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        
     }
     
     

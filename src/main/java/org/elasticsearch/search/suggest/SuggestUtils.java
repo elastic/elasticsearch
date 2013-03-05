@@ -23,7 +23,6 @@ import java.util.Comparator;
 import java.util.Locale;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.CustomAnalyzerWrapper;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
@@ -276,21 +275,21 @@ public final class SuggestUtils {
     }
     
     
-    public static ShingleTokenFilterFactory getShingleFilterFactory(Analyzer analyzer) {
+    public static ShingleTokenFilterFactory.Factory getShingleFilterFactory(Analyzer analyzer) {
         if (analyzer instanceof NamedAnalyzer) {
             analyzer = ((NamedAnalyzer)analyzer).analyzer();
         }
         if (analyzer instanceof CustomAnalyzer) {
-            CustomAnalyzer a = (CustomAnalyzer) analyzer;
-            TokenFilterFactory[] tokenFilters = a.tokenFilters();
+            final CustomAnalyzer a = (CustomAnalyzer) analyzer;
+            final TokenFilterFactory[] tokenFilters = a.tokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory instanceof ShingleTokenFilterFactory) {
-                    return ((ShingleTokenFilterFactory) tokenFilterFactory);
+                    return ((ShingleTokenFilterFactory)tokenFilterFactory).getInnerFactory();
+                } else if (tokenFilterFactory instanceof ShingleTokenFilterFactory.Factory) {
+                    return (ShingleTokenFilterFactory.Factory) tokenFilterFactory;
                 }
             }
         }
         return null;
     }
-
-
 }

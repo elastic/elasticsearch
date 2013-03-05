@@ -216,7 +216,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         }
         
         if (!gramSizeSet || suggestion.generators().isEmpty()) {
-            final ShingleTokenFilterFactory shingleFilterFactory = SuggestUtils.getShingleFilterFactory(suggestion.getAnalyzer() == null ? context.mapperService().fieldSearchAnalyzer(suggestion.getField()) : suggestion.getAnalyzer()); ;
+            final ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils.getShingleFilterFactory(suggestion.getAnalyzer() == null ? context.mapperService().fieldSearchAnalyzer(suggestion.getField()) : suggestion.getAnalyzer()); ;
             if (!gramSizeSet) {
                 // try to detect the shingle size
                 if (shingleFilterFactory != null) {

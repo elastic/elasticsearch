@@ -353,7 +353,6 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         indexInjector.getInstance(IndexFieldDataService.class).clear();
         indexInjector.getInstance(AnalysisService.class).close();
         indexInjector.getInstance(IndexEngine.class).close();
-        indexInjector.getInstance(IndexServiceManagement.class).close();
 
         indexInjector.getInstance(IndexGateway.class).close(delete);
         indexInjector.getInstance(MapperService.class).close();

@@ -121,6 +121,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
     public void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, @Nullable AtomicFieldData fieldData) {
         assert index.equals(this.index);
         if (fieldData != null) {
+            fieldData.close();
             memoryUsedInBytes.dec(fieldData.getMemorySizeInBytes());
         }
         if (wasEvicted) {

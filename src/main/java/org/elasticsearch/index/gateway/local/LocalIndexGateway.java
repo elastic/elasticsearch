@@ -53,6 +53,6 @@ public class LocalIndexGateway extends AbstractIndexComponent implements IndexGa
     }
 
     @Override
-    public void close(boolean delete) {
+    public void close() {
     }
 }

@@ -87,27 +87,27 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void beforeIndexClosed(IndexService indexService, boolean delete) {
+    public void beforeIndexClosed(IndexService indexService) {
         for (Listener listener : listeners) {
-            listener.beforeIndexClosed(indexService, delete);
+            listener.beforeIndexClosed(indexService);
         }
     }
 
-    public void afterIndexClosed(Index index, boolean delete) {
+    public void afterIndexClosed(Index index) {
         for (Listener listener : listeners) {
-            listener.afterIndexClosed(index, delete);
+            listener.afterIndexClosed(index);
         }
     }
 
-    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
         for (Listener listener : listeners) {
-            listener.beforeIndexShardClosed(shardId, indexShard, delete);
+            listener.beforeIndexShardClosed(shardId, indexShard);
         }
     }
 
-    public void afterIndexShardClosed(ShardId shardId, boolean delete) {
+    public void afterIndexShardClosed(ShardId shardId) {
         for (Listener listener : listeners) {
-            listener.afterIndexShardClosed(shardId, delete);
+            listener.afterIndexShardClosed(shardId);
         }
     }
 }

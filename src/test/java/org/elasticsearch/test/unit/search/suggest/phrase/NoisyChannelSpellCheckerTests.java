@@ -123,15 +123,15 @@ public class NoisyChannelSpellCheckerTests {
         assertThat(corrections.length, equalTo(4));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
         assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
-        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the got jewel"));
-        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the got jewel"));
         
         corrections = suggester.getCorrections(wrapper, new BytesRef("Xor the Got-Jewel"), generator, 5, 0.5f, 4, ir, "body", wordScorer, 1, 2);
         assertThat(corrections.length, equalTo(4));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
         assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
-        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the got jewel"));
-        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the got jewel"));
         
 
         // test synonyms
@@ -219,11 +219,11 @@ public class NoisyChannelSpellCheckerTests {
         NoisyChannelSpellChecker suggester = new NoisyChannelSpellChecker();
         DirectSpellChecker spellchecker = new DirectSpellChecker();
         spellchecker.setMinQueryLength(1);
-        DirectCandidateGenerator forward = new DirectCandidateGenerator(spellchecker, "body", SuggestMode.SUGGEST_MORE_POPULAR, ir, 0.95);
-        DirectCandidateGenerator reverse = new DirectCandidateGenerator(spellchecker, "body_reverse", SuggestMode.SUGGEST_MORE_POPULAR, ir, 0.95, wrapper, wrapper);
+        DirectCandidateGenerator forward = new DirectCandidateGenerator(spellchecker, "body", SuggestMode.SUGGEST_ALWAYS, ir, 0.95);
+        DirectCandidateGenerator reverse = new DirectCandidateGenerator(spellchecker, "body_reverse", SuggestMode.SUGGEST_ALWAYS, ir, 0.95, wrapper, wrapper);
         CandidateGenerator generator = new MultiCandidateGeneratorWrapper(forward, reverse);
         
-        Correction[] corrections = suggester.getCorrections(wrapper, new BytesRef("american cae"), generator, 5, 1, 1, ir, "body", wordScorer, 1, 2);
+        Correction[] corrections = suggester.getCorrections(wrapper, new BytesRef("american cae"), generator, 10, 1, 1, ir, "body", wordScorer, 1, 2);
         assertThat(corrections.length, equalTo(1));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("american ace"));
         
@@ -241,9 +241,9 @@ public class NoisyChannelSpellCheckerTests {
         corrections = suggester.getCorrections(wrapper, new BytesRef("Zorr the Got-Jewel"), generator, 5, 0.5f, 4, ir, "body", wordScorer, 0, 2);
         assertThat(corrections.length, equalTo(4));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
-        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the got jewel"));
-        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("zorr the god jewel"));
-        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("gorr the god jewel"));
+        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("zorr the god jewel"));
+        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("gorr the god jewel"));
+        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("tarr the god jewel"));
         
         
 
@@ -316,9 +316,9 @@ public class NoisyChannelSpellCheckerTests {
         corrections = suggester.getCorrections(wrapper, new BytesRef("Xor the Got-Jewel"), generator, 5, 0.5f, 4, ir, "body", wordScorer, 0, 3);
         assertThat(corrections.length, equalTo(4));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
-        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
-        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
-        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the gog jewel"));
+        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
+        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the got jewel"));
         
       
 
@@ -326,9 +326,9 @@ public class NoisyChannelSpellCheckerTests {
         corrections = suggester.getCorrections(wrapper, new BytesRef("Xor the Got-Jewel"), generator, 5, 0.5f, 4, ir, "body", wordScorer, 1, 3);
         assertThat(corrections.length, equalTo(4));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
-        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
-        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
-        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the gog jewel"));
+        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
+        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[3].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the got jewel"));
         
 
         corrections = suggester.getCorrections(wrapper, new BytesRef("Xor the Got-Jewel"), generator, 5, 0.5f, 1, ir, "body", wordScorer, 100, 3);
@@ -362,20 +362,16 @@ public class NoisyChannelSpellCheckerTests {
         wordScorer = new LinearInterpoatingScorer(ir, "body_ngram", 0.95d, new BytesRef(" "),  0.5, 0.4, 0.1);
         corrections = suggester.getCorrections(analyzer, new BytesRef("captian usa"), generator, 10, 2, 4, ir, "body", wordScorer, 1, 3);
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("captain america"));
-        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("captain american"));
-        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("captain ursa"));
         
         generator = new DirectCandidateGenerator(spellchecker, "body", SuggestMode.SUGGEST_MORE_POPULAR, ir, 0.95, null, analyzer);
         corrections = suggester.getCorrections(analyzer, new BytesRef("captian usw"), generator, 10, 2, 4, ir, "body", wordScorer, 1, 3);
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("captain america"));
-        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("captain american"));
-        assertThat(corrections[2].join(new BytesRef(" ")).utf8ToString(), equalTo("captain usw"));
         
         
         wordScorer = new StupidBackoffScorer(ir, "body_ngram", 0.85d, new BytesRef(" "), 0.4);
         corrections = suggester.getCorrections(wrapper, new BytesRef("Xor the Got-Jewel"), generator, 5, 0.5f, 2, ir, "body", wordScorer, 0, 3);
         assertThat(corrections.length, equalTo(2));
         assertThat(corrections[0].join(new BytesRef(" ")).utf8ToString(), equalTo("xorr the god jewel"));
-        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xorn the god jewel"));
+        assertThat(corrections[1].join(new BytesRef(" ")).utf8ToString(), equalTo("xor the god jewel"));
     }
 }

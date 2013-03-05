@@ -49,6 +49,7 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.ScheduledFuture;
 
 /**
@@ -103,9 +104,15 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             SegmentInfos si = null;
             try {
                 si = Lucene.readSegmentInfos(indexShard.store().directory());
-            } catch (IOException e) {
+            } catch (Exception e) {
+                String files = "_unknown_";
+                try {
+                    files = Arrays.toString(indexShard.store().directory().listAll());
+                } catch (Exception e1) {
+                    // ignore
+                }
                 if (indexShouldExists && indexShard.store().indexStore().persistent()) {
-                    throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exists, but doesn't", e);
+                    throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exists, but doesn't, current files: " + files, e);
                 }
             }
             if (si != null) {

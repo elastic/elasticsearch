@@ -159,93 +159,95 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
-                break;
-            }
-        }
-        if ("linear".equals(fieldName)) {
-            ensureNoSmoothing(suggestion);
-            final double[] lambdas = new double[3];
-            while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                }
-                if (token.isValue()) {
-                    if ("trigram_lambda".equals(fieldName)) {
-                        lambdas[0] = parser.doubleValue();
-                        if (lambdas[0] < 0) {
-                            throw new ElasticSearchIllegalArgumentException("trigram_lambda must be positive");
+                if ("linear".equals(fieldName)) {
+                    ensureNoSmoothing(suggestion);
+                    final double[] lambdas = new double[3];
+                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
                         }
-                    } else if ("bigram_lambda".equals(fieldName)) {
-                        lambdas[1] = parser.doubleValue();
-                        if (lambdas[1] < 0) {
-                            throw new ElasticSearchIllegalArgumentException("bigram_lambda must be positive");
+                        if (token.isValue()) {
+                            if ("trigram_lambda".equals(fieldName)) {
+                                lambdas[0] = parser.doubleValue();
+                                if (lambdas[0] < 0) {
+                                    throw new ElasticSearchIllegalArgumentException("trigram_lambda must be positive");
+                                }
+                            } else if ("bigram_lambda".equals(fieldName)) {
+                                lambdas[1] = parser.doubleValue();
+                                if (lambdas[1] < 0) {
+                                    throw new ElasticSearchIllegalArgumentException("bigram_lambda must be positive");
+                                }
+                            } else if ("unigram_lambda".equals(fieldName)) {
+                                lambdas[2] = parser.doubleValue();
+                                if (lambdas[2] < 0) {
+                                    throw new ElasticSearchIllegalArgumentException("unigram_lambda must be positive");
+                                }
+                            } else {
+                                throw new ElasticSearchIllegalArgumentException(
+                                        "suggester[phrase][smoothing][linear] doesn't support field [" + fieldName + "]");
+                            }
                         }
-                    } else if ("unigram_lambda".equals(fieldName)) {
-                        lambdas[2] = parser.doubleValue();
-                        if (lambdas[2] < 0) {
-                            throw new ElasticSearchIllegalArgumentException("unigram_lambda must be positive");
-                        }
-                    } else {
-                        throw new ElasticSearchIllegalArgumentException("suggester[phrase][smoothing][linear] doesn't support field [" + fieldName + "]");
                     }
-                }
-            }
-            double sum = 0.0d;
-            for (int i = 0; i < lambdas.length; i++) {
-                sum += lambdas[i];
-            }
-            if (Math.abs(sum - 1.0) > 0.001) {
-                throw new ElasticSearchIllegalArgumentException("linear smoothing lambdas must sum to 1");
-            }
-            suggestion.setModel(new WordScorer.WordScorerFactory() {
-                @Override
-                public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator)
-                        throws IOException {
-                    return new LinearInterpoatingScorer(reader, field, realWordLikelyhood, separator, lambdas[0], lambdas[1],
-                            lambdas[2]);
-                }
-            });
-        } else if ("laplace".equals(fieldName)) {
-            ensureNoSmoothing(suggestion);
-            double theAlpha = 0.5;
+                    double sum = 0.0d;
+                    for (int i = 0; i < lambdas.length; i++) {
+                        sum += lambdas[i];
+                    }
+                    if (Math.abs(sum - 1.0) > 0.001) {
+                        throw new ElasticSearchIllegalArgumentException("linear smoothing lambdas must sum to 1");
+                    }
+                    suggestion.setModel(new WordScorer.WordScorerFactory() {
+                        @Override
+                        public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator)
+                                throws IOException {
+                            return new LinearInterpoatingScorer(reader, field, realWordLikelyhood, separator, lambdas[0], lambdas[1],
+                                    lambdas[2]);
+                        }
+                    });
+                } else if ("laplace".equals(fieldName)) {
+                    ensureNoSmoothing(suggestion);
+                    double theAlpha = 0.5;
 
-            while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                }
-                if (token.isValue() && "alpha".equals(fieldName)) {
-                        theAlpha = parser.doubleValue();
-                }
-            }
-            final double alpha = theAlpha;
-            suggestion.setModel( new WordScorer.WordScorerFactory() {
-                @Override
-                public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator) throws IOException {
-                    return new LaplaceScorer(reader, field, realWordLikelyhood, separator, alpha);
-                }
-            });
+                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        }
+                        if (token.isValue() && "alpha".equals(fieldName)) {
+                            theAlpha = parser.doubleValue();
+                        }
+                    }
+                    final double alpha = theAlpha;
+                    suggestion.setModel(new WordScorer.WordScorerFactory() {
+                        @Override
+                        public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator)
+                                throws IOException {
+                            return new LaplaceScorer(reader, field, realWordLikelyhood, separator, alpha);
+                        }
+                    });
 
-        } else if ("stupid_backoff".equals(fieldName)) {
-            ensureNoSmoothing(suggestion);
-            double theDiscount = 0.4;
-            while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    fieldName = parser.currentName();
-                }
-                if (token.isValue() && "discount".equals(fieldName)) {
-                    theDiscount = parser.doubleValue();
+                } else if ("stupid_backoff".equals(fieldName)) {
+                    ensureNoSmoothing(suggestion);
+                    double theDiscount = 0.4;
+                    while ((token = parser.nextToken()) != Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            fieldName = parser.currentName();
+                        }
+                        if (token.isValue() && "discount".equals(fieldName)) {
+                            theDiscount = parser.doubleValue();
+                        }
+                    }
+                    final double discount = theDiscount;
+                    suggestion.setModel(new WordScorer.WordScorerFactory() {
+                        @Override
+                        public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator)
+                                throws IOException {
+                            return new StupidBackoffScorer(reader, field, realWordLikelyhood, separator, discount);
+                        }
+                    });
+
+                } else {
+                    throw new ElasticSearchIllegalArgumentException("suggester[phrase] doesn't support object field [" + fieldName + "]");
                 }
             }
-            final double discount = theDiscount; 
-            suggestion.setModel( new WordScorer.WordScorerFactory() {
-                @Override
-                public WordScorer newScorer(IndexReader reader, String field, double realWordLikelyhood, BytesRef separator) throws IOException {
-                    return new StupidBackoffScorer(reader, field, realWordLikelyhood, separator, discount);
-                }
-            });
-           
-        } else {
-            throw new ElasticSearchIllegalArgumentException("suggester[phrase] doesn't support object field [" + fieldName + "]");
         }
     }
 

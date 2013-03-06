@@ -68,11 +68,15 @@ public class SitePluginTests extends AbstractNodesTests {
     @Test
     public void testRedirectSitePlugin() throws Exception {
         // We use an HTTP Client to test redirection
-        HttpClientResponse response = httpClient("test").request("/_plugin/dummy");
+        HttpClient httpClient = httpClient("test");
+        HttpClientResponse response = httpClient.request("/_plugin/dummy");
         assertThat(response.errorCode(), equalTo(RestStatus.MOVED_PERMANENTLY.getStatus()));
         assertThat(response.response(), isEmptyOrNullString());
         assertThat(response.getHeaders(), hasKey("Location"));
-        assertThat(response.getHeaders().get("Location").get(0), containsString("/_plugin/dummy/"));
+
+        String expectedUrlPart = String.format("http://%s:%s%s", httpClient.getBaseUrl().getHost(),
+                httpClient.getBaseUrl().getPort(), "/_plugin/dummy/");
+        assertThat(response.getHeaders().get("Location").get(0), containsString(expectedUrlPart));
 
         // We test the real URL
         response = httpClient("test").request("/_plugin/dummy/");

@@ -19,18 +19,22 @@
 
 package org.elasticsearch.http;
 
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -154,8 +158,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             pluginName = path;
             sitePath = null;
             // If a trailing / is missing, we redirect to the right page #2654
-            String redirect = "http://" + request.header("Host") + request.rawPath() + "/";
-            channel.sendResponse(new HttpRedirectRestResponse(redirect));
+            channel.sendResponse(new HttpRedirectRestResponse(getRedirectUrl(request)));
             return;
         } else {
             pluginName = path.substring(0, i1);
@@ -192,6 +195,21 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         }
     }
 
+    private String getRedirectUrl(HttpRequest request) {
+        String hostname;
+        if (Strings.isNullOrEmpty(request.header("Host"))) {
+            InetSocketTransportAddress transportAddress = (InetSocketTransportAddress)transport.boundAddress().boundAddress();
+            try {
+                hostname = InetAddress.getLocalHost().getHostName() + ":" + transportAddress.address().getPort();
+            } catch (UnknownHostException e) {
+                hostname = transportAddress.address().getHostString() + ":" + transportAddress.address().getPort();
+            }
+        } else {
+            hostname = request.header("Host");
+        }
+
+        return "http://" + hostname + request.rawPath() + "/";
+    }
 
     // TODO: Don't respond with a mime type that violates the request's Accept header
     private String guessMimeType(String path) {

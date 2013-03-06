@@ -59,6 +59,10 @@ public class HttpClient {
         baseUrl = url;
     }
 
+    public URL getBaseUrl() {
+        return baseUrl;
+    }
+
     public HttpClientResponse request(String path) {
         return request("GET", path);
     }

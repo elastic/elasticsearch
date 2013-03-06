@@ -172,7 +172,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             }
         }
         if (model != null) {
-            builder.startObject(model.type);
+            builder.startObject("smoothing");
             model.toXContent(builder, params);
             builder.endObject();
         }
@@ -214,8 +214,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder = super.toXContent(builder, params);
+        protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("discount", discount);
             return builder;
         }
@@ -245,15 +244,14 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder = super.toXContent(builder, params);
+        protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("alpha", alpha);
             return builder;
         }
     }
     
     
-    public static class SmoothingModel implements ToXContent {
+    public static abstract class SmoothingModel implements ToXContent {
         private final String type;
 
         protected SmoothingModel(String type) {
@@ -262,8 +260,13 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(type);
+            innerToXContent(builder,params);
+            builder.endObject();
             return builder;
         }
+        
+        protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
     }
 
     /**
@@ -299,8 +302,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder = super.toXContent(builder, params);
+        protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field("trigram_lambda", trigramLambda);
             builder.field("bigram_lambda", bigramLambda);
             builder.field("unigram_lambda", unigramLambda);

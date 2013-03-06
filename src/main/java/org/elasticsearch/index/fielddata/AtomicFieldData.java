@@ -64,6 +64,11 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
      */
     Script getScriptValues();
 
+    /**
+     * Close the field data.
+     */
+    void close();
+
     interface WithOrdinals<Script extends ScriptDocValues> extends AtomicFieldData<Script> {
 
         /**

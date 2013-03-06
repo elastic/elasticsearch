@@ -17,29 +17,29 @@
  * under the License.
  */
 
-package org.elasticsearch.jmx;
+package org.elasticsearch.action.admin.cluster.shards;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.action.admin.cluster.ClusterAction;
+import org.elasticsearch.client.ClusterAdminClient;
 
 /**
- * Simple based class for JMX related services with {@link #doConfigure()} only being called if
- * jmx is enabled.
  */
-public abstract class AbstractJmxModule extends AbstractModule {
+public class ClusterSearchShardsAction extends ClusterAction<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {
 
-    private final Settings settings;
+    public static final ClusterSearchShardsAction INSTANCE = new ClusterSearchShardsAction();
+    public static final String NAME = "cluster/shards/search_shards";
 
-    protected AbstractJmxModule(Settings settings) {
-        this.settings = settings;
+    private ClusterSearchShardsAction() {
+        super(NAME);
     }
 
     @Override
-    protected void configure() {
-        if (JmxService.shouldExport(settings)) {
-            doConfigure();
-        }
+    public ClusterSearchShardsResponse newResponse() {
+        return new ClusterSearchShardsResponse();
     }
 
-    protected abstract void doConfigure();
+    @Override
+    public ClusterSearchShardsRequestBuilder newRequestBuilder(ClusterAdminClient client) {
+        return new ClusterSearchShardsRequestBuilder(client);
+    }
 }

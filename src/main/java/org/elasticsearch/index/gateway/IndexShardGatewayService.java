@@ -311,18 +311,14 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         }
     }
 
-    public synchronized void close(boolean delete) {
+    @Override
+    public synchronized void close() {
         indexSettingsService.removeListener(applySettings);
         if (snapshotScheduleFuture != null) {
             snapshotScheduleFuture.cancel(true);
             snapshotScheduleFuture = null;
         }
-        // don't really delete the shard gateway if we are *not* primary,
-        // the primary will close it
-        if (!indexShard.routingEntry().primary()) {
-            delete = false;
-        }
-        shardGateway.close(delete);
+        shardGateway.close();
         if (snapshotLock != null) {
             snapshotLock.release();
         }

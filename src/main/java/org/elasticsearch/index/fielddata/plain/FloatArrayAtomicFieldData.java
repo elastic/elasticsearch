@@ -21,13 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.HashedBytesValues;
-import org.elasticsearch.index.fielddata.LongValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.StringValues;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.util.DoubleArrayRef;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
@@ -47,6 +41,10 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
     public FloatArrayAtomicFieldData(float[] values, int numDocs) {
         this.values = values;
         this.numDocs = numDocs;
+    }
+
+    @Override
+    public void close() {
     }
 
     @Override
@@ -147,7 +145,7 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
         public StringValues getStringValues() {
             return new StringValues.DoubleBased(getDoubleValues());
         }
-        
+
         @Override
         public ScriptDocValues getScriptValues() {
             return new ScriptDocValues.NumericDouble(getDoubleValues());

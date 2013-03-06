@@ -54,11 +54,12 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  */
 public class ImmutableSettings implements Settings {
 
-    private ImmutableMap<String, String> settings;
+    public static final Settings EMPTY = new Builder().build();
 
+    private ImmutableMap<String, String> settings;
     private transient ClassLoader classLoader;
 
-    private ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
+    ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
         this.settings = ImmutableMap.copyOf(settings);
         this.classLoader = classLoader;
     }
@@ -125,8 +126,29 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public String get(String[] settings) {
+        for (String setting : settings) {
+            String retVal = this.settings.get(setting);
+            if (retVal != null) {
+                return retVal;
+            }
+            retVal = this.settings.get(toCamelCase(setting));
+            if (retVal != null) {
+                return retVal;
+            }
+        }
+        return null;
+    }
+
+    @Override
     public String get(String setting, String defaultValue) {
-        String retVal = settings.get(setting);
+        String retVal = get(setting);
+        return retVal == null ? defaultValue : retVal;
+    }
+
+    @Override
+    public String get(String[] settings, String defaultValue) {
+        String retVal = get(settings);
         return retVal == null ? defaultValue : retVal;
     }
 
@@ -144,6 +166,19 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Float getAsFloat(String[] settings, Float defaultValue) throws SettingsException {
+        String sValue = get(settings);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Float.parseFloat(sValue);
+        } catch (NumberFormatException e) {
+            throw new SettingsException("Failed to parse float setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    @Override
     public Double getAsDouble(String setting, Double defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
@@ -157,6 +192,20 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Double getAsDouble(String[] settings, Double defaultValue) {
+        String sValue = get(settings);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(sValue);
+        } catch (NumberFormatException e) {
+            throw new SettingsException("Failed to parse double setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
+        }
+    }
+
+
+    @Override
     public Integer getAsInt(String setting, Integer defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
@@ -166,6 +215,19 @@ public class ImmutableSettings implements Settings {
             return Integer.parseInt(sValue);
         } catch (NumberFormatException e) {
             throw new SettingsException("Failed to parse int setting [" + setting + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    @Override
+    public Integer getAsInt(String[] settings, Integer defaultValue) {
+        String sValue = get(settings);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(sValue);
+        } catch (NumberFormatException e) {
+            throw new SettingsException("Failed to parse int setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
         }
     }
 
@@ -183,8 +245,26 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Long getAsLong(String[] settings, Long defaultValue) {
+        String sValue = get(settings);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(sValue);
+        } catch (NumberFormatException e) {
+            throw new SettingsException("Failed to parse long setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    @Override
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
         return Booleans.parseBoolean(get(setting), defaultValue);
+    }
+
+    @Override
+    public Boolean getAsBoolean(String[] settings, Boolean defaultValue) {
+        return Booleans.parseBoolean(get(settings), defaultValue);
     }
 
     @Override
@@ -193,13 +273,28 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public TimeValue getAsTime(String[] settings, TimeValue defaultValue) {
+        return parseTimeValue(get(settings), defaultValue);
+    }
+
+    @Override
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(setting), defaultValue);
     }
 
     @Override
+    public ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException {
+        return parseBytesSizeValue(get(settings), defaultValue);
+    }
+
+    @Override
     public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
         return parseSizeValue(get(setting), defaultValue);
+    }
+
+    @Override
+    public SizeValue getAsSize(String[] settings, SizeValue defaultValue) throws SettingsException {
+        return parseSizeValue(get(settings), defaultValue);
     }
 
     @SuppressWarnings({"unchecked"})

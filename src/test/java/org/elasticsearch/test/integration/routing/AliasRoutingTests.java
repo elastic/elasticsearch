@@ -315,6 +315,34 @@ public class AliasRoutingTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testAliasSearchRoutingWithConcreteAndAliasedIndices() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("index").execute().actionGet();
+            client.admin().indices().prepareDelete("index_2").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("index").execute().actionGet();
+        client.admin().indices().prepareCreate("index_2").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+
+        client.admin().indices().prepareAliases()
+                .addAliasAction(newAddAliasAction("index", "index_1").routing("1"))
+                .execute().actionGet();
+
+        logger.info("--> indexing on index_1 which is an alias for index with routing [1]");
+        client.prepareIndex("index_1", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
+        logger.info("--> indexing on index_2 which is a concrete index");
+        client.prepareIndex("index_2", "type2", "2").setSource("field", "value2").setRefresh(true).execute().actionGet();
+
+
+        logger.info("--> search all on index_* should find two");
+        for (int i = 0; i < 5; i++) {
+            assertThat(client.prepareSearch("index_*").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
+        }
+    }
+
+    @Test
     public void testRequiredRoutingMappingWithAlias() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

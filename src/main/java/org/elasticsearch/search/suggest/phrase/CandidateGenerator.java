@@ -29,7 +29,7 @@ public abstract class CandidateGenerator {
 
     public abstract boolean isKnownWord(BytesRef term) throws IOException;
 
-    public abstract int frequency(BytesRef term) throws IOException;
+    public abstract long frequency(BytesRef term) throws IOException;
 
     public CandidateSet drawCandidates(BytesRef term, int numCandidates) throws IOException {
         CandidateSet set = new CandidateSet(Candidate.EMPTY,  createCandidate(term));
@@ -39,7 +39,7 @@ public abstract class CandidateGenerator {
     public Candidate createCandidate(BytesRef term) throws IOException {
         return createCandidate(term, frequency(term), 1.0);
     }
-    public abstract Candidate createCandidate(BytesRef term, int frequency, double channelScore) throws IOException;
+    public abstract Candidate createCandidate(BytesRef term, long frequency, double channelScore) throws IOException;
 
     public abstract CandidateSet drawCandidates(CandidateSet set, int numCandidates) throws IOException;
 

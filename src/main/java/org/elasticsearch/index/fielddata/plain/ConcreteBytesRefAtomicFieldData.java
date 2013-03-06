@@ -51,6 +51,10 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
     }
 
     @Override
+    public void close() {
+    }
+
+    @Override
     public boolean isMultiValued() {
         return ordinals.isMultiValued();
     }

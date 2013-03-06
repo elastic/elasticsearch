@@ -664,12 +664,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     class CleanContextOnIndicesLifecycleListener extends IndicesLifecycle.Listener {
 
         @Override
-        public void beforeIndexClosed(IndexService indexService, boolean delete) {
+        public void beforeIndexClosed(IndexService indexService) {
             releaseContextsForIndex(indexService.index());
         }
 
         @Override
-        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
             releaseContextsForShard(shardId);
         }
     }

@@ -40,7 +40,7 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
     }
 
     @Override
-    public int frequency(BytesRef term) throws IOException {
+    public long frequency(BytesRef term) throws IOException {
         return candidateGenerator[0].frequency(term);
     }
 
@@ -70,7 +70,7 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
         return set;
     }
     @Override
-    public Candidate createCandidate(BytesRef term, int frequency, double channelScore) throws IOException {
+    public Candidate createCandidate(BytesRef term, long frequency, double channelScore) throws IOException {
         return candidateGenerator[0].createCandidate(term, frequency, channelScore);
     }
 

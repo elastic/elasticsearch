@@ -29,6 +29,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.search.spell.SuggestWord;
@@ -43,13 +44,17 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     private final DirectSpellChecker spellchecker;
     private final String field;
     private final SuggestMode suggestMode;
+    private final TermsEnum termsEnum;
     private final IndexReader reader;
-    private final int docCount;
+    private final long dictSize;
     private final double logBase = 5;
-    private final int frequencyPlateau;
+    private final long frequencyPlateau;
     private final Analyzer preFilter;
     private final Analyzer postFilter;
     private final double nonErrorLikelihood;
+    private final boolean useTotalTermFrequency;
+    private final CharsRef spare = new CharsRef();
+    private final BytesRef byteSpare = new BytesRef();
     
     public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood) throws IOException {
         this(spellchecker, field, suggestMode, reader,  nonErrorLikelihood, null, null);
@@ -65,13 +70,15 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         if (terms == null) {
             throw new ElasticSearchIllegalArgumentException("generator field [" + field + "] doesn't exist");
         }
-        final int docCount = terms.getDocCount();
-        this.docCount =  docCount == -1 ? reader.maxDoc() : docCount;
+        final long dictSize = terms.getSumTotalTermFreq();
+        this.useTotalTermFrequency = dictSize != -1;
+        this.dictSize =  dictSize == -1 ? reader.maxDoc() : dictSize;
         this.preFilter = preFilter;
         this.postFilter = postFilter;
         this.nonErrorLikelihood = nonErrorLikelihood;
         float thresholdFrequency = spellchecker.getThresholdFrequency();
-        this.frequencyPlateau = thresholdFrequency >= 1.0f ? (int) thresholdFrequency: (int)(docCount * thresholdFrequency);
+        this.frequencyPlateau = thresholdFrequency >= 1.0f ? (int) thresholdFrequency: (int)(dictSize * thresholdFrequency);
+        termsEnum = terms.iterator(null);
     }
 
     /* (non-Javadoc)
@@ -86,8 +93,17 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
      * @see org.elasticsearch.search.suggest.phrase.CandidateGenerator#frequency(org.apache.lucene.util.BytesRef)
      */
     @Override
-    public int frequency(BytesRef term) throws IOException {
-        return reader.docFreq(new Term(field, term));
+    public long frequency(BytesRef term) throws IOException {
+        term = preFilter(term, spare, byteSpare);
+        return internalFrequency(term);
+    }
+
+
+    public long internalFrequency(BytesRef term) throws IOException {
+        if (termsEnum.seekExact(term, true)) {
+            return useTotalTermFrequency ? termsEnum.totalTermFreq() : termsEnum.docFreq(); 
+        }
+        return 0;
     }
     
     public String getField() {
@@ -99,18 +115,16 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
      */
     @Override
     public CandidateSet drawCandidates(CandidateSet set, int numCandidates) throws IOException {
-        CharsRef spare = new CharsRef();
-        BytesRef byteSpare = new BytesRef();
         Candidate original = set.originalTerm;
         BytesRef term = preFilter(original.term, spare, byteSpare);
-        final int frequency = original.frequency;
-        spellchecker.setThresholdFrequency(thresholdFrequency(frequency, docCount));
+        final long frequency = original.frequency;
+        spellchecker.setThresholdFrequency(thresholdFrequency(frequency, dictSize));
         SuggestWord[] suggestSimilar = spellchecker.suggestSimilar(new Term(field, term), numCandidates, reader, this.suggestMode);
         List<Candidate> candidates = new ArrayList<Candidate>(suggestSimilar.length);
         for (int i = 0; i < suggestSimilar.length; i++) {
             SuggestWord suggestWord = suggestSimilar[i];
             BytesRef candidate = new BytesRef(suggestWord.string);
-            postFilter(new Candidate(candidate, suggestWord.freq, suggestWord.score, score(suggestWord.freq, suggestWord.score, docCount)), spare, byteSpare, candidates);
+            postFilter(new Candidate(candidate, internalFrequency(candidate), suggestWord.score, score(suggestWord.freq, suggestWord.score, dictSize)), spare, byteSpare, candidates);
         }
         set.addCandidates(candidates);
         return set;
@@ -140,24 +154,26 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                 @Override
                 public void nextToken() throws IOException {
                     this.fillBytesRef(result);
+                    
                     if (posIncAttr.getPositionIncrement() > 0 && result.bytesEquals(candidate.term))  {
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(result), candidate.frequency, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, docCount)));
+                        BytesRef term = BytesRef.deepCopyOf(result);    
+                        long freq = frequency(term);
+                        candidates.add(new Candidate(BytesRef.deepCopyOf(term), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize)));
                     } else {
-                        int freq = frequency(result);
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(result), freq, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, docCount)));
+                        candidates.add(new Candidate(BytesRef.deepCopyOf(result), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize)));
                     }
                 }
             }, spare);
         }
     }
     
-    private double score(int frequency, double errorScore, int docCount) {
-        return errorScore * (((double)frequency + 1) / ((double)docCount +1));
+    private double score(long frequency, double errorScore, long dictionarySize) {
+        return errorScore * (((double)frequency + 1) / ((double)dictionarySize +1));
     }
     
-    protected int thresholdFrequency(int termFrequency, int docCount) {
+    protected long thresholdFrequency(long termFrequency, long dictionarySize) {
         if (termFrequency > 0) {
-            return (int) Math.round(termFrequency * (Math.log10(termFrequency - frequencyPlateau) * (1.0 / Math.log10(logBase))) + 1);
+            return (long) Math.round(termFrequency * (Math.log10(termFrequency - frequencyPlateau) * (1.0 / Math.log10(logBase))) + 1);
         }
         return 0;
         
@@ -193,10 +209,10 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         public static final Candidate[] EMPTY = new Candidate[0];
         public final BytesRef term;
         public final double stringDistance;
-        public final int frequency;
+        public final long frequency;
         public final double score;
 
-        public Candidate(BytesRef term, int frequency, double stringDistance, double score) {
+        public Candidate(BytesRef term, long frequency, double stringDistance, double score) {
             this.frequency = frequency;
             this.term = term;
             this.stringDistance = stringDistance;
@@ -235,8 +251,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     @Override
-    public Candidate createCandidate(BytesRef term, int frequency, double channelScore) throws IOException {
-        return new Candidate(term, frequency, channelScore, score(frequency, channelScore, docCount));
+    public Candidate createCandidate(BytesRef term, long frequency, double channelScore) throws IOException {
+        return new Candidate(term, frequency, channelScore, score(frequency, channelScore, dictSize));
     }
 
 }

@@ -950,6 +950,63 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(response.getHits().hits()[0].highlightFields().get("tags").fragments()[0].string(), equalTo("this is a really long <em>tag</em> i would like to highlight"));
         assertThat(response.getHits().hits()[0].highlightFields().get("tags").fragments()[1].string(), equalTo("here is another one that is very long and has the <em>tag</em> token near the end"));
     }
+    
+    
+    @Test
+    public void testBoostingQuery() {
+        try {   
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+            // its ok
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1")
+                .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
+                .setRefresh(true).execute().actionGet();
+
+        logger.info("--> highlighting and searching on field1");
+        SearchSourceBuilder source = searchSource()
+                .query(boostingQuery().positive(termQuery("field2", "brown")).negative(termQuery("field2", "foobar")).negativeBoost(0.5f))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
+
+        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
+    }
+    
+    @Test
+    public void testBoostingQueryTermVector() throws ElasticSearchException, IOException {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
+                .setRefresh(true).execute().actionGet();
+
+        logger.info("--> highlighting and searching on field1");
+        SearchSourceBuilder source = searchSource()
+                .query(boostingQuery().positive(termQuery("field2", "brown")).negative(termQuery("field2", "foobar")).negativeBoost(0.5f))
+                .from(0).size(60).explain(true)
+                .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
+
+        SearchResponse searchResponse = client.search(
+                searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(),
+                equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
+    }
+
 
     @Test
     public void testCommonTermsQuery() {

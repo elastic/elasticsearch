@@ -644,13 +644,11 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
 
-        // Note, this test fails, i.e returns 0 results, the reason is that Lucene QP only supports numbers after the ~
-        // once this is changed in lucene to support strings, then this test will fail (good!)
         searchResponse = client.prepareSearch()
                 .setQuery(queryString("date:2012-02-02~1d"))
                 .execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
-        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
     @Test

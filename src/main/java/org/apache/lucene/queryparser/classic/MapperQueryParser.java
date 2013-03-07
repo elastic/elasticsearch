@@ -129,45 +129,14 @@ public class MapperQueryParser extends QueryParser {
     }
 
     /**
-     * We override this one so we can get the fuzzy part to be treated as string, so people can do: "age:10~5". Note,
-     * we would love to support also "timestamp:2012-10-10~5d", but sadly the parser expects only numbers after the ~,
-     * hopefully we can change that in Lucene.
+     * We override this one so we can get the fuzzy part to be treated as string, so people can do: "age:10~5" or "timestamp:2012-10-10~5d"
      */
     @Override
-    Query handleBareTokenQuery(String qfield, Token term, Token fuzzySlop, boolean prefix, boolean wildcard, boolean fuzzy, boolean regexp) throws ParseException {
-        Query q;
-
-        String termImage = discardEscapeChar(term.image);
-        if (wildcard) {
-            q = getWildcardQuery(qfield, term.image);
-        } else if (prefix) {
-            q = getPrefixQuery(qfield,
-                    discardEscapeChar(term.image.substring
-                            (0, term.image.length() - 1)));
-        } else if (regexp) {
-            q = getRegexpQuery(qfield, term.image.substring(1, term.image.length() - 1));
-        } else if (fuzzy) {
-//            float fms = fuzzyMinSim;
-//            try {
-//                fms = Float.valueOf(fuzzySlop.image.substring(1)).floatValue();
-//            } catch (Exception ignored) {
-//            }
-//            if (fms < 0.0f) {
-//                throw new ParseException("Minimum similarity for a FuzzyQuery has to be between 0.0f and 1.0f !");
-//            } else if (fms >= 1.0f && fms != (int) fms) {
-//                throw new ParseException("Fractional edit distances are not allowed!");
-//            }
-//            q = getFuzzyQuery(qfield, termImage, fms);
-            if (fuzzySlop.image.length() == 1) {
-                q = getFuzzyQuery(qfield, termImage, Float.toString(fuzzyMinSim));
-            } else {
-                q = getFuzzyQuery(qfield, termImage, fuzzySlop.image.substring(1));
-            }
-        } else {
-
-            q = getFieldQuery(qfield, termImage, false);
+    Query handleBareFuzzy(String qfield, Token fuzzySlop, String termImage) throws ParseException {
+        if (fuzzySlop.image.length() == 1) {
+            return getFuzzyQuery(qfield, termImage, Float.toString(fuzzyMinSim));
         }
-        return q;
+        return getFuzzyQuery(qfield, termImage, fuzzySlop.image.substring(1));
     }
 
     @Override

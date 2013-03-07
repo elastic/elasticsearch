@@ -25,7 +25,7 @@ import org.elasticsearch.common.lucene.search.Queries;
  * <tt>minimumNumberShouldMatch</tt> specification that uses the actual num of high frequent terms
  * to calculate the minimum matching terms.
  */
-public class ExtendedCommonTermsQuery extends XCommonTermsQuery {
+public class ExtendedCommonTermsQuery extends CommonTermsQuery {
 
     public ExtendedCommonTermsQuery(Occur highFreqOccur, Occur lowFreqOccur, float maxTermFrequency, boolean disableCoord) {
         super(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoord);
@@ -38,7 +38,7 @@ public class ExtendedCommonTermsQuery extends XCommonTermsQuery {
     private String minNumShouldMatchSpec;
 
     @Override
-    protected int getMinimumNumberShouldMatch(int numOptional) {
+    protected int calcLowFreqMinimumNumberShouldMatch(int numOptional) {
         if (minNumShouldMatchSpec == null) {
             return 0;
         }

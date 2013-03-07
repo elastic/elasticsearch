@@ -96,8 +96,6 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(sourceQuery.rewrite(reader), reader, flatQueries);
         } else if (sourceQuery instanceof FiltersFunctionScoreQuery) {
             flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
-        } else if (sourceQuery instanceof ExtendedCommonTermsQuery) {
-            flatten(((ExtendedCommonTermsQuery)sourceQuery).rewrite(reader), reader, flatQueries);
         } else if (sourceQuery instanceof MultiPhraseQuery) {
             MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
             convertMultiPhraseQuery(0, new int[q.getTermArrays().size()] , q, q.getTermArrays(), q.getPositions(), reader, flatQueries);

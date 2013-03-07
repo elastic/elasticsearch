@@ -26,7 +26,7 @@ import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
-import org.apache.lucene.spatial.prefix.RecursivePrefixTreeFilter;
+import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.ClusterService;
@@ -2027,7 +2027,7 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
         XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        assertThat(constantScoreQuery.getFilter(), instanceOf(RecursivePrefixTreeFilter.class));
+        assertThat(constantScoreQuery.getFilter(), instanceOf(IntersectsPrefixTreeFilter.class));
     }
 
     @Test
@@ -2037,6 +2037,6 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery csq = (ConstantScoreQuery) parsedQuery;
-        assertThat(csq.getFilter(), instanceOf(RecursivePrefixTreeFilter.class));
+        assertThat(csq.getFilter(), instanceOf(IntersectsPrefixTreeFilter.class));
     }
 }

@@ -48,11 +48,13 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
     private int[] hashes;
     private long size = -1;
+    private final long readerBytesSize;
 
-    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals ordinals) {
+    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, long readerBytesSize, PackedInts.Reader termOrdToBytesOffset, Ordinals ordinals) {
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;
         this.ordinals = ordinals;
+        this.readerBytesSize = readerBytesSize;
     }
 
     @Override
@@ -79,10 +81,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         if (size == -1) {
             long size = ordinals.getMemorySizeInBytes();
             // PackedBytes
-            size += RamUsage.NUM_BYTES_ARRAY_HEADER + bytes.getBlocks().length;
-            for (byte[] b : bytes.getBlocks()) {
-                size += b.length;
-            }
+            size += readerBytesSize;
             // PackedInts
             size += termOrdToBytesOffset.ramBytesUsed();
             this.size = size;
@@ -102,8 +101,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             int[] hashes = new int[numberOfValues];
             BytesRef scratch = new BytesRef();
             for (int i = 0; i < numberOfValues; i++) {
-                BytesRef value = bytes.fill(scratch, termOrdToBytesOffset.get(i));
-                hashes[i] = value == null ? 0 : value.hashCode();
+                bytes.fill(scratch, termOrdToBytesOffset.get(i));
+                hashes[i] = scratch.hashCode();
             }
             this.hashes = hashes;
         }
@@ -141,17 +140,21 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
         @Override
         public BytesRef getValueByOrd(int ord) {
-            return bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+            return scratch;
         }
 
         @Override
         public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
-            return bytes.fill(ret, termOrdToBytesOffset.get(ord));
+            bytes.fill(ret, termOrdToBytesOffset.get(ord));
+            return ret;
         }
 
         @Override
         public BytesRef getSafeValueByOrd(int ord) {
-            return bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord));
+            final BytesRef retVal = new BytesRef();
+            bytes.fill(retVal, termOrdToBytesOffset.get(ord));
+            return retVal;
         }
 
         @Override
@@ -168,12 +171,14 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         public BytesRef getValue(int docId) {
             int ord = ordinals.getOrd(docId);
             if (ord == 0) return null;
-            return bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+            return scratch;
         }
 
         @Override
         public BytesRef getValueScratch(int docId, BytesRef ret) {
-            return bytes.fill(ret, termOrdToBytesOffset.get(ordinals.getOrd(docId)));
+            bytes.fill(ret, termOrdToBytesOffset.get(ordinals.getOrd(docId)));
+            return ret;
         }
 
         static class Single extends BytesValues {
@@ -194,7 +199,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             public BytesRefArrayRef getValues(int docId) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) return BytesRefArrayRef.EMPTY;
-                arrayScratch.values[0] = bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord));
+                arrayScratch.values[0] = new BytesRef();
+                bytes.fill(arrayScratch.values[0], termOrdToBytesOffset.get(ord));
                 return arrayScratch;
             }
 
@@ -202,7 +208,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             public Iter getIter(int docId) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) return Iter.Empty.INSTANCE;
-                return iter.reset(bytes.fill(scratch, termOrdToBytesOffset.get(ord)));
+                bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+                return iter.reset(scratch);
             }
 
             @Override
@@ -211,7 +218,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
                 if (ord == 0) {
                     proc.onMissing(docId);
                 } else {
-                    proc.onValue(docId, bytes.fill(scratch, termOrdToBytesOffset.get(ord)));
+                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+                    proc.onValue(docId, scratch);
                 }
             }
         }
@@ -239,7 +247,9 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
                 arrayScratch.reset(size);
                 for (int i = ords.start; i < ords.end; i++) {
-                    arrayScratch.values[arrayScratch.end++] = bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ords.values[i]));
+                    final BytesRef bytesRef = new BytesRef();
+                    bytes.fill(bytesRef, termOrdToBytesOffset.get(ords.values[i]));
+                    arrayScratch.values[arrayScratch.end++] = bytesRef;
                 }
                 return arrayScratch;
             }
@@ -258,7 +268,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
                     return;
                 }
                 do {
-                    proc.onValue(docId, bytes.fill(scratch, termOrdToBytesOffset.get(ord)));
+                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+                    proc.onValue(docId, scratch);
                 } while ((ord = iter.next()) != 0);
             }
 
@@ -288,9 +299,9 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
                 @Override
                 public BytesRef next() {
-                    BytesRef value = bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
                     ord = ordsIter.next();
-                    return value;
+                    return scratch;
                 }
             }
         }
@@ -320,12 +331,15 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
         @Override
         public HashedBytesRef getValueByOrd(int ord) {
-            return scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]);
+            bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
+            return scratch.reset(scratch1, hashes[ord]);
         }
 
         @Override
         public HashedBytesRef getSafeValueByOrd(int ord) {
-            return new HashedBytesRef(bytes.fill(new BytesRef(), termOrdToBytesOffset.get(ord)), hashes[ord]);
+            final BytesRef bytesRef = new BytesRef();
+            bytes.fill(bytesRef, termOrdToBytesOffset.get(ord));
+            return new HashedBytesRef(bytesRef, hashes[ord]);
         }
 
         @Override
@@ -342,7 +356,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         public HashedBytesRef getValue(int docId) {
             int ord = ordinals.getOrd(docId);
             if (ord == 0) return null;
-            return scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]);
+            bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
+            return scratch.reset(scratch1, hashes[ord]);
         }
 
         static class Single extends HashedBytesValues {
@@ -362,7 +377,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             public Iter getIter(int docId) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) return Iter.Empty.INSTANCE;
-                return iter.reset(scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]));
+                bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
+                return iter.reset(scratch.reset(scratch1, hashes[ord]));
             }
 
             @Override
@@ -371,7 +387,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
                 if (ord == 0) {
                     proc.onMissing(docId);
                 } else {
-                    proc.onValue(docId, scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]));
+                    bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
+                    proc.onValue(docId, scratch.reset(scratch1, hashes[ord]));
                 }
             }
         }
@@ -404,7 +421,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
                     return;
                 }
                 do {
-                    proc.onValue(docId, scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]));
+                    bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
+                    proc.onValue(docId, scratch.reset(scratch1, hashes[ord]));
                 } while ((ord = iter.next()) != 0);
             }
 
@@ -438,7 +456,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
                 @Override
                 public HashedBytesRef next() {
-                    HashedBytesRef value = scratch.reset(bytes.fill(scratch1, termOrdToBytesOffset.get(ord)), hashes[ord]);
+                    bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
+                    HashedBytesRef value = scratch.reset(scratch1, hashes[ord]);
                     ord = ordsIter.next();
                     return value;
                 }
@@ -467,8 +486,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
         @Override
         public String getValueByOrd(int ord) {
-            BytesRef value = bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-            return value.utf8ToString();
+            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+            return scratch.utf8ToString();
         }
 
         @Override
@@ -480,8 +499,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         public String getValue(int docId) {
             int ord = ordinals.getOrd(docId);
             if (ord == 0) return null;
-            BytesRef value = bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-            return value.utf8ToString();
+            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+            return scratch.utf8ToString();
         }
 
         static class Single extends StringValues {
@@ -502,8 +521,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             public StringArrayRef getValues(int docId) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) return StringArrayRef.EMPTY;
-                BytesRef value = bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                arrayScratch.values[0] = value == null ? null : value.utf8ToString();
+                bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+                arrayScratch.values[0] = scratch.utf8ToString();
                 return arrayScratch;
             }
 
@@ -511,7 +530,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             public Iter getIter(int docId) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) return Iter.Empty.INSTANCE;
-                return iter.reset(bytes.fill(scratch, termOrdToBytesOffset.get(ord)).utf8ToString());
+                bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+                return iter.reset(scratch.utf8ToString());
             }
 
             @Override
@@ -521,7 +541,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
                     proc.onMissing(docId);
                     return;
                 }
-                proc.onValue(docId, bytes.fill(scratch, termOrdToBytesOffset.get(ord)).utf8ToString());
+                bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+                proc.onValue(docId, scratch.utf8ToString());
             }
         }
 
@@ -548,8 +569,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
                 arrayScratch.reset(size);
                 for (int i = ords.start; i < ords.end; i++) {
-                    BytesRef value = bytes.fill(scratch, termOrdToBytesOffset.get(ords.values[i]));
-                    arrayScratch.values[arrayScratch.end++] = value == null ? null : value.utf8ToString();
+                    bytes.fill(scratch, termOrdToBytesOffset.get(ords.values[i]));
+                    arrayScratch.values[arrayScratch.end++] = scratch.utf8ToString();
                 }
                 return arrayScratch;
             }
@@ -568,8 +589,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
                     return;
                 }
                 do {
-                    BytesRef value = bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                    proc.onValue(docId, value == null ? null : value.utf8ToString());
+                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+                    proc.onValue(docId, scratch.utf8ToString());
                 } while ((ord = iter.next()) != 0);
             }
 
@@ -599,9 +620,9 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
                 @Override
                 public String next() {
-                    BytesRef value = bytes.fill(scratch, termOrdToBytesOffset.get(ord));
+                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
                     ord = ordsIter.next();
-                    return value == null ? null : value.utf8ToString();
+                    return scratch.utf8ToString();
                 }
             }
         }
@@ -610,7 +631,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     static class Empty extends PagedBytesAtomicFieldData {
 
         Empty(int numDocs) {
-            super(emptyBytes(), new GrowableWriter(1, 2, PackedInts.FASTEST).getMutable(), new EmptyOrdinals(numDocs));
+            super(emptyBytes(), 0, new GrowableWriter(1, 2, PackedInts.FASTEST).getMutable(), new EmptyOrdinals(numDocs));
         }
 
         static PagedBytes.Reader emptyBytes() {

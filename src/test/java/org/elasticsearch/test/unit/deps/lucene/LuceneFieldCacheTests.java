@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.IntField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.FieldCache;
+import org.apache.lucene.search.FieldCache.Ints;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
@@ -56,8 +57,7 @@ public class LuceneFieldCacheTests {
         indexWriter.addDocument(doc);
 
         AtomicReader reader = SlowCompositeReaderWrapper.wrap(IndexReader.open(indexWriter, true));
-        int[] ints = FieldCache.DEFAULT.getInts(reader, "int1", false);
-        assertThat(ints.length, equalTo(1));
-        assertThat(ints[0], equalTo(2));
+        Ints ints = FieldCache.DEFAULT.getInts(reader, "int1", false);
+        assertThat(ints.get(0), equalTo(2));
     }
 }

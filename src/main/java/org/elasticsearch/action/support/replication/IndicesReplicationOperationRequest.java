@@ -72,6 +72,9 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
     }
 
     public T ignoreIndices(IgnoreIndices ignoreIndices) {
+        if (ignoreIndices == null) {
+            throw new IllegalArgumentException("IgnoreIndices must not be null");
+        }
         this.ignoreIndices = ignoreIndices;
         return (T) this;
     }
@@ -94,6 +97,9 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      */
     @SuppressWarnings("unchecked")
     public final T replicationType(ReplicationType replicationType) {
+        if (replicationType == null) {
+            throw new IllegalArgumentException("ReplicationType must not be null");
+        }
         this.replicationType = replicationType;
         return (T) this;
     }
@@ -114,6 +120,9 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      */
     @SuppressWarnings("unchecked")
     public final T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        if (consistencyLevel == null) {
+            throw new IllegalArgumentException("WriteConsistencyLevel must not be null");
+        }
         this.consistencyLevel = consistencyLevel;
         return (T) this;
     }

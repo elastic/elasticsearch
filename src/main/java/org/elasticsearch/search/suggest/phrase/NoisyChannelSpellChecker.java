@@ -55,7 +55,7 @@ public final class NoisyChannelSpellChecker {
         this.requireUnigram = requireUnigram;
     }
 
-    public Correction[] getCorrections(TokenStream stream, final CandidateGenerator generator, final int numCandidates,
+    public Correction[] getCorrections(TokenStream stream, final CandidateGenerator generator,
             float maxErrors, int numCorrections, IndexReader reader, WordScorer wordScorer, BytesRef separator, float confidence, int gramSize) throws IOException {
         
         final List<CandidateSet> candidateSetsList = new ArrayList<DirectCandidateGenerator.CandidateSet>();
@@ -105,7 +105,7 @@ public final class NoisyChannelSpellChecker {
         });
         
         for (CandidateSet candidateSet : candidateSetsList) {
-            generator.drawCandidates(candidateSet, numCandidates);
+            generator.drawCandidates(candidateSet);
         }
         double cutoffScore = Double.MIN_VALUE;
         CandidateScorer scorer = new CandidateScorer(wordScorer, numCorrections, gramSize);
@@ -122,10 +122,10 @@ public final class NoisyChannelSpellChecker {
         return findBestCandiates;
     }
 
-    public Correction[] getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator, int numCandidates,
+    public Correction[] getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,
             float maxErrors, int numCorrections, IndexReader reader, String analysisField, WordScorer scorer, float confidence, int gramSize) throws IOException {
        
-        return getCorrections(tokenStream(analyzer, query, new CharsRef(), analysisField), generator, numCandidates, maxErrors, numCorrections, reader, scorer, new BytesRef(" "), confidence, gramSize);
+        return getCorrections(tokenStream(analyzer, query, new CharsRef(), analysisField), generator, maxErrors, numCorrections, reader, scorer, new BytesRef(" "), confidence, gramSize);
 
     }
 

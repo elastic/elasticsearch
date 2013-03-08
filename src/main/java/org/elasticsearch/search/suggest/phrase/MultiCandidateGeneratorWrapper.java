@@ -30,9 +30,11 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
 
     
     private final CandidateGenerator[] candidateGenerator;
+    private int numCandidates ;
 
-    public MultiCandidateGeneratorWrapper(CandidateGenerator...candidateGenerators) {
+    public MultiCandidateGeneratorWrapper(int numCandidates, CandidateGenerator...candidateGenerators) {
         this.candidateGenerator = candidateGenerators;
+        this.numCandidates = numCandidates;
     }
     @Override
     public boolean isKnownWord(BytesRef term) throws IOException {
@@ -45,9 +47,9 @@ public final class MultiCandidateGeneratorWrapper extends CandidateGenerator {
     }
 
     @Override
-    public CandidateSet drawCandidates(CandidateSet set, int numCandidates) throws IOException {
+    public CandidateSet drawCandidates(CandidateSet set) throws IOException {
         for (CandidateGenerator generator : candidateGenerator) {
-            generator.drawCandidates(set, numCandidates);
+            generator.drawCandidates(set);
         }
         return reduce(set, numCandidates);
     }

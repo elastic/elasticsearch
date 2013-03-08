@@ -82,6 +82,7 @@ public final class SuggestUtils {
         directSpellChecker.setMinPrefix(suggestion.prefixLength());
         directSpellChecker.setMinQueryLength(suggestion.minWordLength());
         directSpellChecker.setThresholdFrequency(suggestion.minDocFreq());
+        directSpellChecker.setLowerCaseTerms(false);
         return directSpellChecker;
     }
     

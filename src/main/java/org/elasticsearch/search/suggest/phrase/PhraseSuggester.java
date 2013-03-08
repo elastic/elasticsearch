@@ -58,7 +58,7 @@ final class PhraseSuggester implements Suggester<PhraseSuggestionContext> {
         for (int i = 0; i < gens.length; i++) {
             PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
             DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(generator);
-            gens[i] = new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(), indexReader, realWordErrorLikelihood, generator.preFilter(), generator.postFilter());
+            gens[i] = new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(), indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter());
         }
         
         
@@ -66,7 +66,7 @@ final class PhraseSuggester implements Suggester<PhraseSuggestionContext> {
         final BytesRef separator = suggestion.separator();
         TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField());
         WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestion.getField(), realWordErrorLikelihood, separator);
-        Correction[] corrections = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(gens), suggestion.getShardSize(), suggestion.maxErrors(),
+        Correction[] corrections = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens), suggestion.maxErrors(),
                 suggestion.getShardSize(), indexReader,wordScorer , separator, suggestion.confidence(), suggestion.gramSize());
         
         UnicodeUtil.UTF8toUTF16(suggestion.getText(), spare);

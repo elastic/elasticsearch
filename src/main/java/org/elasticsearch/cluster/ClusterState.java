@@ -210,6 +210,19 @@ public class ClusterState implements ToXContent {
     }
 
     @Override
+    public String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            builder.startObject();
+            toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
+        } catch (IOException e) {
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+        }
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (!params.paramAsBoolean("filter_nodes", false)) {
             builder.field("master_node", nodes().masterNodeId());
@@ -305,7 +318,10 @@ public class ClusterState implements ToXContent {
                 builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
 
                 builder.startObject("settings");
-                Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
+                Settings settings = indexMetaData.settings();
+                if (settingsFilter != null) {
+                    settings = settingsFilter.filterSettings(indexMetaData.settings());
+                }
                 for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
                 }

@@ -159,7 +159,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     @Override
     public BytesRef indexedValueForSearch(Object value) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.longToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
+        NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef);  // 0 because of exact match
         return bytesRef;
     }
 

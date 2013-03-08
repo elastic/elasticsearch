@@ -55,15 +55,17 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     private final boolean useTotalTermFrequency;
     private final CharsRef spare = new CharsRef();
     private final BytesRef byteSpare = new BytesRef();
+    private final int numCandidates;
     
-    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood) throws IOException {
-        this(spellchecker, field, suggestMode, reader,  nonErrorLikelihood, null, null);
+    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood, int numCandidates) throws IOException {
+        this(spellchecker, field, suggestMode, reader,  nonErrorLikelihood, numCandidates, null, null);
     }
 
 
-    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood, Analyzer preFilter, Analyzer postFilter) throws IOException {
+    public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood,  int numCandidates, Analyzer preFilter, Analyzer postFilter) throws IOException {
         this.spellchecker = spellchecker;
         this.field = field;
+        this.numCandidates = numCandidates;
         this.suggestMode = suggestMode;
         this.reader = reader;
         Terms terms = MultiFields.getTerms(reader, field);
@@ -114,7 +116,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
      * @see org.elasticsearch.search.suggest.phrase.CandidateGenerator#drawCandidates(org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet, int)
      */
     @Override
-    public CandidateSet drawCandidates(CandidateSet set, int numCandidates) throws IOException {
+    public CandidateSet drawCandidates(CandidateSet set) throws IOException {
         Candidate original = set.originalTerm;
         BytesRef term = preFilter(original.term, spare, byteSpare);
         final long frequency = original.frequency;

@@ -725,6 +725,91 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
         assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        
+    }
+    
+    @Test
+    public void testSizePararm() throws IOException {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.number_of_shards", 1);
+        builder.put("index.number_of_replicas", 1);
+        builder.put("index.analysis.analyzer.reverse.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse");
+        builder.put("index.analysis.analyzer.body.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.body.filter", "lowercase");
+        builder.put("index.analysis.analyzer.bigram.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase");
+        builder.put("index.analysis.filter.my_shingle.type", "shingle");
+        builder.put("index.analysis.filter.my_shingle.output_unigrams", false);
+        builder.put("index.analysis.filter.my_shingle.min_shingle_size", 2);
+        builder.put("index.analysis.filter.my_shingle.max_shingle_size", 2);
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_all")
+                .field("store", "yes").field("termVector", "with_positions_offsets").endObject().startObject("properties")
+                .startObject("body").field("type", "string").field("analyzer", "body").endObject().startObject("body_reverse")
+                .field("type", "string").field("analyzer", "reverse").endObject().startObject("bigram").field("type", "string")
+                .field("analyzer", "bigram").endObject().endObject().endObject().endObject();
+
+        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        String line = "xorr the god jewel";
+        client.prepareIndex("test", "type1")
+                .setSource(
+                        XContentFactory.jsonBuilder().startObject().field("body", line).field("body_reverse", line).field("bigram", line)
+                                .endObject()).execute().actionGet();
+        line = "I got it this time";
+        client.prepareIndex("test", "type1")
+                .setSource(
+                        XContentFactory.jsonBuilder().startObject().field("body", line).field("body_reverse", line).field("bigram", line)
+                                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        SearchResponse search = client // initially draw candidates with a size 1 so "got" will be the only candidate since it's LD1
+                .prepareSearch()
+                .setSearchType(SearchType.COUNT)
+                .setSuggestText("Xorr the Gut-Jewel")
+                .addSuggestion(
+                        phraseSuggestion("simple_phrase")
+                                .realWordErrorLikelihood(0.95f)
+                                .field("bigram")
+                                .gramSize(2)
+                                .analyzer("body")
+                                .addCandidateGenerator(
+                                        PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).prefixLength(1)
+                                                .suggestMode("always").size(1).accuracy(0.1f))
+                                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1)).maxErrors(1.0f).size(5)).execute()
+                .actionGet();
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertThat(search.getSuggest(), notNullValue());
+        assertThat(search.getSuggest().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
+
+        search = client // we allow a size of 2 now on the shard generator level so "god" will be found since it's LD2
+                .prepareSearch()
+                .setSearchType(SearchType.COUNT)
+                .setSuggestText("Xorr the Gut-Jewel")
+                .addSuggestion(
+                        phraseSuggestion("simple_phrase")
+                                .realWordErrorLikelihood(0.95f)
+                                .field("bigram")
+                                .gramSize(2)
+                                .analyzer("body")
+                                .addCandidateGenerator(
+                                        PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).prefixLength(1)
+                                                .suggestMode("always").size(2).accuracy(0.1f))
+                                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1)).maxErrors(1.0f).size(5)).execute()
+                .actionGet();
+        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        assertThat(search.getSuggest(), notNullValue());
+        assertThat(search.getSuggest().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xorr the Gut-Jewel"));
+        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(),
+                equalTo("xorr the god jewel"));
     }
     
     
@@ -831,7 +916,6 @@ public class SuggestSearchTests extends AbstractNodesTests {
                 phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").analyzer("ngram").maxErrors(0.5f)
                         .size(1)).execute().actionGet();
      
-        
         SearchResponse search = client.prepareSearch()
         .setSearchType(SearchType.COUNT)
         .setSuggestText("Xor the Got-Jewel")

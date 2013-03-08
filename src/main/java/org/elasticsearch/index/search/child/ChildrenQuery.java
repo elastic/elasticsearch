@@ -303,6 +303,23 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
                 }
             }
         }
+
+        @Override
+        public int advance(int target) throws IOException {
+            currentDocId = parentsIterator.advance(target);
+            if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                return currentDocId;
+            }
+
+            HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
+            currentScore = uidToScore.get(uid);
+            if (Float.compare(currentScore, 0) > 0) {
+                currentScore /= uidToCount.get(currentUid);
+                return currentDocId;
+            } else {
+                return nextDoc();
+            }
+        }
     }
 
     static class ChildUidCollector extends NoopCollector {

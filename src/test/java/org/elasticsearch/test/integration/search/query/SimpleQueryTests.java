@@ -923,4 +923,133 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
     }
+
+    @Test
+    public void testNumericTermsAndRanges() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("num_byte").field("type", "byte").endObject()
+                        .startObject("num_short").field("type", "short").endObject()
+                        .startObject("num_integer").field("type", "integer").endObject()
+                        .startObject("num_long").field("type", "long").endObject()
+                        .startObject("num_float").field("type", "float").endObject()
+                        .startObject("num_double").field("type", "double").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("num_byte", 1)
+                .field("num_short", 1)
+                .field("num_integer", 1)
+                .field("num_long", 1)
+                .field("num_float", 1)
+                .field("num_double", 1)
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("num_byte", 2)
+                .field("num_short", 2)
+                .field("num_integer", 2)
+                .field("num_long", 2)
+                .field("num_float", 2)
+                .field("num_double", 2)
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "17").setSource(jsonBuilder().startObject()
+                .field("num_byte", 17)
+                .field("num_short", 17)
+                .field("num_integer", 17)
+                .field("num_long", 17)
+                .field("num_float", 17)
+                .field("num_double", 17)
+                .endObject())
+                .execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse;
+
+        logger.info("--> term query on 1");
+        searchResponse = client.prepareSearch("test").setQuery(termQuery("num_byte", 1)).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termQuery("num_short", 1)).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termQuery("num_integer", 1)).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termQuery("num_long", 1)).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termQuery("num_float", 1)).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termQuery("num_double", 1)).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+
+        logger.info("--> terms query on 1");
+        searchResponse = client.prepareSearch("test").setQuery(termsQuery("num_byte", new int[]{1})).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termsQuery("num_short", new int[]{1})).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termsQuery("num_integer", new int[]{1})).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termsQuery("num_long", new int[]{1})).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termsQuery("num_float", new double[]{1})).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(termsQuery("num_double", new double[]{1})).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+
+        logger.info("--> term filter on 1");
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_byte", 1))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_short", 1))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_integer", 1))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_long", 1))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_float", 1))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termFilter("num_double", 1))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+
+        logger.info("--> terms filter on 1");
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_byte", new int[]{1}))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_short", new int[]{1}))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_integer", new int[]{1}))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_long", new int[]{1}))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_float", new int[]{1}))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), termsFilter("num_double", new int[]{1}))).execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+    }
 }

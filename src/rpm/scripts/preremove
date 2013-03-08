@@ -1,0 +1,4 @@
+if [ $1 -eq 0 ] ; then
+    /sbin/service elasticsearch stop >/dev/null 2>&1
+    /sbin/chkconfig --del elasticsearch
+fi

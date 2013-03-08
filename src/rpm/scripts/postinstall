@@ -1,0 +1,1 @@
+/sbin/chkconfig --add elasticsearch

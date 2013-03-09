@@ -642,6 +642,17 @@ public class IndicesAnalysisService extends AbstractComponent {
                 return new SnowballFilter(tokenStream, "Russian");
             }
         }));
+        tokenFilterFactories.put("keyword_repeat", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "keyword_repeat";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new KeywordRepeatFilter(tokenStream);
+            }
+        }));
 
         // Char Filter
         charFilterFactories.put("html_strip", new PreBuiltCharFilterFactoryFactory(new CharFilterFactory() {

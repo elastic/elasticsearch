@@ -62,4 +62,14 @@ public final class IntValuesComparator extends LongValuesComparatorBase<Integer>
     public Integer value(int slot) {
         return Integer.valueOf(values[slot]);
     }
+
+    @Override
+    public void add(int slot, int doc) {
+        values[slot] += (int) readerValues.getValueMissing(doc, missingValue);
+    }
+
+    @Override
+    public void divide(int slot, int divisor) {
+        values[slot] /= divisor;
+    }
 }

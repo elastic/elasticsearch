@@ -65,6 +65,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
         try {
+            logger.info("deleting shard content");
             indexShard.store().deleteContent();
         } catch (IOException e) {
             logger.warn("failed to clean store before starting shard", e);
@@ -106,7 +107,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     }
 
     @Override
-    public void close(boolean delete) {
+    public void close() {
     }
 
     @Override

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.translog.fs;
 
 import jsr166y.ThreadLocalRandom;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -118,7 +119,16 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public void close(boolean delete) {
+    public void closeWithDelete() {
+        close(true);
+    }
+
+    @Override
+    public void close() throws ElasticSearchException {
+        close(false);
+    }
+
+    private void close(boolean delete) {
         if (indexSettingsService != null) {
             indexSettingsService.removeListener(applySettings);
         }

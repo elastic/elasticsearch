@@ -89,7 +89,10 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> {
                 continue;
             }
 
-            SearchRequest searchRequest = new SearchRequest(indices);
+            SearchRequest searchRequest = new SearchRequest();
+            if (indices != null) {
+                searchRequest.indices(indices);
+            }
             if (ignoreIndices != null) {
                 searchRequest.ignoreIndices(ignoreIndices);
             }

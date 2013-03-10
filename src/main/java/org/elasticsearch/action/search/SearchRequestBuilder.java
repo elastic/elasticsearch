@@ -657,9 +657,9 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#addSuggestion(org.elasticsearch.search.suggest.SuggestBuilder.Suggestion)}.
+     * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#addSuggestion(org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder)}.
      */
-    public SearchRequestBuilder addSuggestion(SuggestBuilder.Suggestion suggestion) {
+    public SearchRequestBuilder addSuggestion(SuggestBuilder.SuggestionBuilder<?> suggestion) {
         suggestBuilder().addSuggestion(suggestion);
         return this;
     }

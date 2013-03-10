@@ -56,4 +56,14 @@ public final class DoubleValuesComparator extends DoubleValuesComparatorBase<Dou
     public Double value(int slot) {
         return Double.valueOf(values[slot]);
     }
+
+    @Override
+    public void add(int slot, int doc) {
+        values[slot] += readerValues.getValueMissing(doc, missingValue);
+    }
+
+    @Override
+    public void divide(int slot, int divisor) {
+        values[slot] /= divisor;
+    }
 }

@@ -139,6 +139,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private final ApplySettings applySettings = new ApplySettings();
 
+    private volatile boolean failOnMergeFailure;
     private Throwable failedEngine = null;
     private final Object failedEngineMutex = new Object();
     private final CopyOnWriteArrayList<FailedEngineListener> failedEngineListeners = new CopyOnWriteArrayList<FailedEngineListener>();
@@ -185,6 +186,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
 
         this.indexSettingsService.addListener(applySettings);
+
+        this.failOnMergeFailure = indexSettings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, true);
+        if (failOnMergeFailure) {
+            this.mergeScheduler.addFailureListener(new FailEngineOnMergeFailure());
+        }
     }
 
     @Override
@@ -1225,6 +1231,13 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
     }
 
+    class FailEngineOnMergeFailure implements MergeSchedulerProvider.FailureListener {
+        @Override
+        public void onFailedMerge(MergePolicy.MergeException e) {
+            failEngine(e);
+        }
+    }
+
     private void failEngine(Throwable failure) {
         synchronized (failedEngineMutex) {
             if (failedEngine != null) {
@@ -1331,6 +1344,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";
     public static final String INDEX_GC_DELETES = "index.gc_deletes";
     public static final String INDEX_CODEC = "index.codec";
+    public static final String INDEX_FAIL_ON_MERGE_FAILURE = "index.fail_on_merge_failure";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
@@ -1344,9 +1358,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             int termIndexInterval = settings.getAsInt(INDEX_TERM_INDEX_INTERVAL, RobinEngine.this.termIndexInterval);
             int termIndexDivisor = settings.getAsInt(INDEX_TERM_INDEX_DIVISOR, RobinEngine.this.termIndexDivisor); // IndexReader#DEFAULT_TERMS_INDEX_DIVISOR
             int indexConcurrency = settings.getAsInt(INDEX_INDEX_CONCURRENCY, RobinEngine.this.indexConcurrency);
+            boolean failOnMergeFailure = settings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE, RobinEngine.this.failOnMergeFailure);
             String codecName = settings.get(INDEX_CODEC, RobinEngine.this.codecName);
             boolean requiresFlushing = false;
-            if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor || indexConcurrency != RobinEngine.this.indexConcurrency || !codecName.equals(RobinEngine.this.codecName)) {
+            if (termIndexInterval != RobinEngine.this.termIndexInterval || termIndexDivisor != RobinEngine.this.termIndexDivisor || indexConcurrency != RobinEngine.this.indexConcurrency || !codecName.equals(RobinEngine.this.codecName) || failOnMergeFailure != RobinEngine.this.failOnMergeFailure) {
                 rwl.readLock().lock();
                 try {
                     if (termIndexInterval != RobinEngine.this.termIndexInterval) {
@@ -1372,6 +1387,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         RobinEngine.this.codecName = codecName;
                         // we want to flush in this case, so the new codec will be reflected right away...
                         requiresFlushing = true;
+                    }
+                    if (failOnMergeFailure != RobinEngine.this.failOnMergeFailure) {
+                        logger.info("updating {} from [{}] to [{}]", RobinEngine.INDEX_FAIL_ON_MERGE_FAILURE, RobinEngine.this.failOnMergeFailure, failOnMergeFailure);
+                        RobinEngine.this.failOnMergeFailure = failOnMergeFailure;
                     }
                 } finally {
                     rwl.readLock().unlock();

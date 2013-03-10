@@ -29,9 +29,6 @@ public interface CloseableIndexComponent {
     /**
      * Closes the index component. A boolean indicating if its part of an actual index
      * deletion or not is passed.
-     *
-     * @param delete <tt>true</tt> if the index is being deleted.
-     * @throws ElasticSearchException
      */
-    void close(boolean delete) throws ElasticSearchException;
+    void close() throws ElasticSearchException;
 }

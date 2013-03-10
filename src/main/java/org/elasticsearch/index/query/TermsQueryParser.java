@@ -25,6 +25,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -67,7 +68,7 @@ public class TermsQueryParser implements QueryParser {
         boolean disableCoord = false;
         float boost = 1.0f;
         String minimumShouldMatch = null;
-        List<String> values = newArrayList();
+        List<Object> values = newArrayList();
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -77,7 +78,7 @@ public class TermsQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 fieldName = currentFieldName;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    String value = parser.text();
+                    Object value = parser.objectBytes();
                     if (value == null) {
                         throw new QueryParsingException(parseContext.index(), "No value specified for terms query");
                     }
@@ -116,11 +117,11 @@ public class TermsQueryParser implements QueryParser {
 
         try {
             BooleanQuery query = new BooleanQuery(disableCoord);
-            for (String value : values) {
+            for (Object value : values) {
                 if (mapper != null) {
                     query.add(new BooleanClause(mapper.termQuery(value, parseContext), BooleanClause.Occur.SHOULD));
                 } else {
-                    query.add(new TermQuery(new Term(fieldName, value)), BooleanClause.Occur.SHOULD);
+                    query.add(new TermQuery(new Term(fieldName, BytesRefs.toString(value))), BooleanClause.Occur.SHOULD);
                 }
             }
             query.setBoost(boost);

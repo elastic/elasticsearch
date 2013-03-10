@@ -53,6 +53,6 @@ public class NoneIndexGateway extends AbstractIndexComponent implements IndexGat
     }
 
     @Override
-    public void close(boolean delete) {
+    public void close() {
     }
 }

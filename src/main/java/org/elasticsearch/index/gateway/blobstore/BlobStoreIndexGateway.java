@@ -82,9 +82,6 @@ public abstract class BlobStoreIndexGateway extends AbstractIndexComponent imple
     }
 
     @Override
-    public void close(boolean delete) throws ElasticSearchException {
-        if (delete) {
-            blobStore.delete(indexPath);
-        }
+    public void close() throws ElasticSearchException {
     }
 }

@@ -63,4 +63,13 @@ public final class FloatValuesComparator extends DoubleValuesComparatorBase<Floa
         return Float.valueOf(values[slot]);
     }
 
+    @Override
+    public void add(int slot, int doc) {
+        values[slot] += (float) readerValues.getValueMissing(doc, missingValue);
+    }
+
+    @Override
+    public void divide(int slot, int divisor) {
+        values[slot] /= divisor;
+    }
 }

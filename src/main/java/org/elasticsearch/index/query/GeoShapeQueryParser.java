@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
@@ -58,7 +59,8 @@ public class GeoShapeQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
-        ShapeRelation shapeRelation = null;
+        ShapeRelation shapeRelation = ShapeRelation.INTERSECTS;
+        String strategyName = null;
         Shape shape = null;
 
         String id = null;
@@ -82,10 +84,15 @@ public class GeoShapeQueryParser implements QueryParser {
                         token = parser.nextToken();
                         if ("shape".equals(currentFieldName)) {
                             shape = GeoJSONShapeParser.parse(parser);
+                        } else if ("strategy".equals(currentFieldName)) {
+                            strategyName = parser.text();
                         } else if ("relation".equals(currentFieldName)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {
                                 throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + " ]");
+                            }
+                            if (shapeRelation != ShapeRelation.INTERSECTS) {
+                                throw new QueryParsingException(parseContext.index(), String.format("Unsupported shape operation [%s]. Only [%s] operation is supported", parser.text(), ShapeRelation.INTERSECTS.getRelationName()));
                             }
                         } else if ("indexed_shape".equals(currentFieldName) || "indexedShape".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -138,7 +145,11 @@ public class GeoShapeQueryParser implements QueryParser {
 
         GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
 
-        Query query = shapeFieldMapper.spatialStrategy().makeQuery(getArgs(shape, shapeRelation));
+        PrefixTreeStrategy strategy = shapeFieldMapper.defaultStrategy();
+        if (strategyName != null) {
+            strategy = shapeFieldMapper.resolveStrategy(strategyName);
+        }
+        Query query = strategy.makeQuery(getArgs(shape, shapeRelation));
         query.setBoost(boost);
         return query;
     }

@@ -56,4 +56,14 @@ public final class ByteValuesComparator extends LongValuesComparatorBase<Byte> {
     public Byte value(int slot) {
         return Byte.valueOf(values[slot]);
     }
+
+    @Override
+    public void add(int slot, int doc) {
+        values[slot] += (byte) readerValues.getValueMissing(doc, missingValue);
+    }
+
+    @Override
+    public void divide(int slot, int divisor) {
+        values[slot] /= divisor;
+    }
 }

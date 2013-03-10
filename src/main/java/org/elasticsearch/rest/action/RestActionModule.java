@@ -31,6 +31,7 @@ import org.elasticsearch.rest.action.admin.cluster.node.stats.RestNodesStatsActi
 import org.elasticsearch.rest.action.admin.cluster.reroute.RestClusterRerouteAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterGetSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.settings.RestClusterUpdateSettingsAction;
+import org.elasticsearch.rest.action.admin.cluster.shards.RestClusterSearchShardsAction;
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestGetIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
@@ -108,6 +109,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestClusterUpdateSettingsAction.class).asEagerSingleton();
         bind(RestClusterGetSettingsAction.class).asEagerSingleton();
         bind(RestClusterRerouteAction.class).asEagerSingleton();
+        bind(RestClusterSearchShardsAction.class).asEagerSingleton();
 
         bind(RestIndicesExistsAction.class).asEagerSingleton();
         bind(RestTypesExistsAction.class).asEagerSingleton();

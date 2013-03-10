@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -81,7 +82,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -120,7 +121,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -304,7 +305,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -366,7 +367,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -465,7 +466,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 3)
                         .put("index.number_of_replicas", 0)
         ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -565,7 +566,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -616,7 +617,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -681,7 +682,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 0)
         ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -717,7 +718,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -748,7 +749,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -801,7 +802,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
         ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(
                 jsonBuilder()
                         .startObject()
@@ -845,7 +846,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();
@@ -917,7 +918,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 0)
         ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         // Parent 1 and its children
         client.prepareIndex("test", "parent", "1")
@@ -1104,7 +1105,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
         ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         SearchResponse response = client.prepareSearch("test")
                 .setQuery(QueryBuilders.hasChildQuery("child", matchQuery("text", "value")))
@@ -1150,7 +1151,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
         ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(
                 jsonBuilder()
                         .startObject()
@@ -1195,7 +1196,7 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                         .put("index.number_of_shards", 2)
                         .put("index.number_of_replicas", 0)
         ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         client.admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
                 .startObject("_parent").field("type", "parent").endObject()
                 .endObject().endObject()).execute().actionGet();

@@ -16,68 +16,62 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.suggest;
-
-import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.spell.StringDistance;
-import org.apache.lucene.search.spell.SuggestMode;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 /**
  */
 public class SuggestionSearchContext {
 
-    private final Map<String, Suggestion> suggestions = new LinkedHashMap<String, Suggestion>(4);
+    private final Map<String, SuggestionContext> suggestions = new LinkedHashMap<String, SuggestionContext>(4);
 
-    public void addSuggestion(String name, Suggestion suggestion) {
+    public void addSuggestion(String name, SuggestionContext suggestion) {
         suggestions.put(name, suggestion);
     }
 
-    public Map<String, Suggestion> suggestions() {
+    public Map<String, SuggestionContext> suggestions() {
         return suggestions;
     }
-
-    public static class Suggestion {
-
+    
+    public static class SuggestionContext {
+        
         private BytesRef text;
+        private final Suggester suggester;
         private String field;
         private Analyzer analyzer;
-        private SuggestMode suggestMode;
-        private Float accuracy;
-        private Integer size;
-        private Suggest.Suggestion.Sort sort;
-        private StringDistance stringDistance;
-        private Boolean lowerCaseTerms;
-        private Integer maxEdits;
-        private Integer factor;
-        private Float maxTermFreq;
-        private Integer prefixLength;
-        private Integer minWordLength;
-        private Float minDocFreq;
-        private Integer shardSize;
+        private int size = 5;
+        private int shardSize = -1;
 
-        public BytesRef text() {
+        public BytesRef getText() {
             return text;
         }
 
-        public void text(BytesRef text) {
+        public void setText(BytesRef text) {
             this.text = text;
         }
+        
+        protected SuggestionContext(Suggester  suggester) {
+            this.suggester = suggester;
+        }
+        
+        public Suggester<SuggestionContext> getSuggester() {
+            return this.suggester;
+        }
 
-        public Analyzer analyzer() {
+        public Analyzer getAnalyzer() {
             return analyzer;
         }
 
-        public void analyzer(Analyzer analyzer) {
+        public void setAnalyzer(Analyzer analyzer) {
             this.analyzer = analyzer;
         }
 
-        public String field() {
+        public String getField() {
             return field;
         }
 
@@ -85,111 +79,25 @@ public class SuggestionSearchContext {
             this.field = field;
         }
 
-        public SuggestMode suggestMode() {
-            return suggestMode;
-        }
-
-        public void suggestMode(SuggestMode suggestMode) {
-            this.suggestMode = suggestMode;
-        }
-
-        public Float accuracy() {
-            return accuracy;
-        }
-
-        public void accuracy(float accuracy) {
-            this.accuracy = accuracy;
-        }
-
-        public Integer size() {
+        public int getSize() {
             return size;
         }
 
-        public void size(int size) {
+        public void setSize(int size) {
             if (size <= 0) {
-                throw new ElasticSearchIllegalArgumentException("Size must be positive");
+                throw new ElasticSearchIllegalArgumentException("Size must be positive but was: " + size);
             }
-
             this.size = size;
         }
 
-        public Suggest.Suggestion.Sort sort() {
-            return sort;
-        }
-
-        public void sort(Suggest.Suggestion.Sort sort) {
-            this.sort = sort;
-        }
-
-        public StringDistance stringDistance() {
-            return stringDistance;
-        }
-
-        public void stringDistance(StringDistance distance) {
-            this.stringDistance = distance;
-        }
-
-        public Boolean lowerCaseTerms() {
-            return lowerCaseTerms;
-        }
-
-        public void lowerCaseTerms(boolean lowerCaseTerms) {
-            this.lowerCaseTerms = lowerCaseTerms;
-        }
-
-        public Integer maxEdits() {
-            return maxEdits;
-        }
-
-        public void maxEdits(int maxEdits) {
-            this.maxEdits = maxEdits;
-        }
-
-        public Integer factor() {
-            return factor;
-        }
-
-        public void factor(int factor) {
-            this.factor = factor;
-        }
-
-        public Float maxTermFreq() {
-            return maxTermFreq;
-        }
-
-        public void maxTermFreq(float maxTermFreq) {
-            this.maxTermFreq = maxTermFreq;
-        }
-
-        public Integer prefixLength() {
-            return prefixLength;
-        }
-
-        public void prefixLength(int prefixLength) {
-            this.prefixLength = prefixLength;
-        }
-
-        public Integer minWordLength() {
-            return minWordLength;
-        }
-
-        public void minQueryLength(int minQueryLength) {
-            this.minWordLength = minQueryLength;
-        }
-
-        public Float minDocFreq() {
-            return minDocFreq;
-        }
-
-        public void minDocFreq(float minDocFreq) {
-            this.minDocFreq = minDocFreq;
-        }
-
-        public Integer shardSize() {
+        public Integer getShardSize() {
             return shardSize;
         }
 
-        public void shardSize(Integer shardSize) {
+        public void setShardSize(int shardSize) {
+            if (shardSize <= 0) {
+                throw new ElasticSearchIllegalArgumentException("ShardSize must be positive but was: " + shardSize);
+            }
             this.shardSize = shardSize;
         }
     }

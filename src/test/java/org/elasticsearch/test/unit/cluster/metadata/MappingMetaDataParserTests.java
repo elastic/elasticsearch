@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.cluster.metadata;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -48,6 +49,33 @@ public class MappingMetaDataParserTests {
         assertThat(parseContext.routingResolved(), equalTo(false));
         assertThat(parseContext.timestamp(), nullValue());
         assertThat(parseContext.timestampResolved(), equalTo(false));
+    }
+    
+    @Test
+    public void testFailIfIdIsNoValue() throws Exception {
+        MappingMetaData md = new MappingMetaData("type1", new CompressedString(""),
+                new MappingMetaData.Id("id"),
+                new MappingMetaData.Routing(true, "routing"),
+                new MappingMetaData.Timestamp(true, "timestamp", "dateOptionalTime"));
+        byte[] bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
+                .startArray("id").value("id").endArray().field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
+        MappingMetaData.ParseContext parseContext = md.createParseContext(null, "routing_value", "1");
+        try {
+            md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assert false;
+        } catch (MapperParsingException ex) {
+            // bogus its an array
+        }
+        
+        bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
+                .startObject("id").field("x", "id").endObject().field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
+        parseContext = md.createParseContext(null, "routing_value", "1");
+        try {
+            md.parse(XContentFactory.xContent(bytes).createParser(bytes), parseContext);
+        assert false;
+        } catch (MapperParsingException ex) {
+            // bogus its an object
+        }
     }
 
     @Test

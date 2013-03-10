@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.percolator.PercolatorExecutor;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -125,10 +126,10 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(2).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(2).execute().actionGet();
 
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
@@ -158,7 +159,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> register a query");
         client.prepareIndex("_percolator", "test", "kuku")
@@ -167,7 +168,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                         .field("query", termQuery("field1", "value1"))
                         .endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
             PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
@@ -211,7 +212,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> register a query");
         client.prepareIndex("_percolator", "test", "kuku")
@@ -221,7 +222,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
             IndexResponse index = client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "value1")
@@ -271,7 +272,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> register a query 1");
         client.prepareIndex("_percolator", "test", "kuku")
@@ -281,7 +282,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
 
         logger.info("--> register a query 2");
         client.prepareIndex("_percolator", "test", "bubu")
@@ -323,7 +324,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> register a query 1");
         client.prepareIndex("_percolator", "test", "kuku")
@@ -333,7 +334,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
 
         PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject().startObject("doc")
                 .field("field1", "value1")
@@ -407,9 +408,9 @@ public class SimplePercolatorTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 2))
-                .addMapping("type1",mapping)
+                .addMapping("type1", mapping)
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> register a query");
         client.prepareIndex("_percolator", "test", "kuku")
@@ -418,7 +419,7 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
 
         logger.info("--> percolate a document");
         PercolateResponse percolate = client.preparePercolate("test", "type1").setSource(jsonBuilder().startObject()

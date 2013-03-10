@@ -19,17 +19,14 @@
 
 package org.elasticsearch.index.merge.scheduler;
 
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.MergeScheduler;
-import org.apache.lucene.index.TrackingSerialMergeScheduler;
+import org.apache.lucene.index.*;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Set;
@@ -38,13 +35,13 @@ import java.util.concurrent.CopyOnWriteArraySet;
 /**
  *
  */
-public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent implements MergeSchedulerProvider {
+public class SerialMergeSchedulerProvider extends MergeSchedulerProvider {
 
     private Set<CustomSerialMergeScheduler> schedulers = new CopyOnWriteArraySet<CustomSerialMergeScheduler>();
 
     @Inject
-    public SerialMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings) {
-        super(shardId, indexSettings);
+    public SerialMergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
+        super(shardId, indexSettings, threadPool);
         logger.trace("using [serial] merge scheduler");
     }
 
@@ -78,9 +75,10 @@ public class SerialMergeSchedulerProvider extends AbstractIndexShardComponent im
         public void merge(IndexWriter writer) throws CorruptIndexException, IOException {
             try {
                 super.merge(writer);
-            } catch (IOException e) {
+            } catch (Throwable e) {
                 logger.warn("failed to merge", e);
-                throw e;
+                provider.failedMerge(new MergePolicy.MergeException(e, writer.getDirectory()));
+                throw new MergePolicy.MergeException(e, writer.getDirectory());
             }
         }
 

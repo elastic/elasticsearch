@@ -237,6 +237,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         super.readFrom(in);
         minScore = in.readFloat();
         routing = in.readOptionalString();
+        preference = in.readOptionalString();
         querySourceUnsafe = false;
         querySource = in.readBytesReference();
         types = in.readStringArray();
@@ -247,6 +248,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         super.writeTo(out);
         out.writeFloat(minScore);
         out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
         out.writeBytesReference(querySource);
         out.writeStringArray(types);
     }

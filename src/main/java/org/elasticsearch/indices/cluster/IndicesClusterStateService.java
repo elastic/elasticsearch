@@ -160,7 +160,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                             logger.warn("[{}] failed to remove shard (disabled block persistence)", e, index);
                         }
                     }
-                    indicesService.cleanIndex(index, "cleaning index (disabled block persistence)");
+                    indicesService.removeIndex(index, "cleaning index (disabled block persistence)");
                 }
                 return;
             }
@@ -218,7 +218,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 // clean the index
                 try {
-                    indicesService.cleanIndex(index, "cleaning index (no shards allocated)");
+                    indicesService.removeIndex(index, "removing index (no shards allocated)");
                 } catch (Exception e) {
                     logger.warn("[{}] failed to clean index (no shards of that index are allocated on this node)", e, index);
                 }
@@ -233,7 +233,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] cleaning index, no longer part of the metadata", index);
                 }
                 try {
-                    indicesService.cleanIndex(index, "index no longer part of the metadata");
+                    indicesService.removeIndex(index, "index no longer part of the metadata");
                 } catch (Exception e) {
                     logger.warn("failed to clean index", e);
                 }

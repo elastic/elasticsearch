@@ -23,6 +23,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
@@ -48,7 +49,7 @@ public class WriteConsistencyLevelTests extends AbstractNodesTests {
         startNode("node1");
         client("node1").admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 2)).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(1).setWaitForYellowStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(1).setWaitForYellowStatus().execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -66,7 +67,7 @@ public class WriteConsistencyLevelTests extends AbstractNodesTests {
 
         startNode("node2");
 
-        clusterHealth = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(2).setWaitForYellowStatus().execute().actionGet();
+        clusterHealth = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(2).setWaitForYellowStatus().execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -87,7 +88,7 @@ public class WriteConsistencyLevelTests extends AbstractNodesTests {
 
         startNode("node3");
 
-        clusterHealth = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(3).setWaitForGreenStatus().execute().actionGet();
+        clusterHealth = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(3).setWaitForGreenStatus().execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

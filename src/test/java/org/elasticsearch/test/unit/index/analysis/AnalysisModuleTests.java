@@ -20,7 +20,12 @@
 package org.elasticsearch.test.unit.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.lucene.Lucene;
@@ -42,6 +47,7 @@ import org.testng.annotations.Test;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
+import java.io.StringReader;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -64,6 +70,15 @@ public class AnalysisModuleTests {
     public void testSimpleConfigurationYaml() {
         Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/test/unit/index/analysis/test1.yml").build();
         testSimpleConfiguration(settings);
+    }
+    
+    @Test
+    public void testDefaultFactory() {
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(ImmutableSettings.settingsBuilder().build());
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter("keyword_repeat");
+        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_36, new StringReader("foo bar"));
+        TokenStream stream = tokenFilter.create(tokenizer);
+        assertThat(stream, instanceOf(KeywordRepeatFilter.class));
     }
 
     private void testSimpleConfiguration(Settings settings) {

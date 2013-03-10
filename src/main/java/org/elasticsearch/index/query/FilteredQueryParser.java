@@ -51,8 +51,7 @@ public class FilteredQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        Query query = null;
-        boolean queryFound = false;
+        Query query = Queries.MATCH_ALL_QUERY;
         Filter filter = null;
         boolean filterFound = false;
         float boost = 1.0f;
@@ -68,7 +67,6 @@ public class FilteredQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
-                    queryFound = true;
                     query = parseContext.parseInnerQuery();
                 } else if ("filter".equals(currentFieldName)) {
                     filterFound = true;
@@ -109,12 +107,12 @@ public class FilteredQueryParser implements QueryParser {
                 }
             }
         }
-        if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[filtered] requires 'query' element");
-        }
+
+        // parsed internally, but returned null during parsing...
         if (query == null) {
             return null;
         }
+
         if (filter == null) {
             if (!filterFound) {
                 // we allow for null filter, so it makes compositions on the client side to be simpler

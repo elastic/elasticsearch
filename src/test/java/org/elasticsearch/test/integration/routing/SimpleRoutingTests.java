@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -68,7 +69,7 @@ public class SimpleRoutingTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> indexing with id [1], and routing [0]");
         client.prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -131,7 +132,7 @@ public class SimpleRoutingTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> indexing with id [1], and routing [0]");
         client.prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -205,7 +206,7 @@ public class SimpleRoutingTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> indexing with id [1], and routing [0]");
         client.prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -256,7 +257,7 @@ public class SimpleRoutingTests extends AbstractNodesTests {
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
                         .endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> indexing with id [1], and routing [0]");
         client.prepareIndex("test", "type1", "1").setSource("field", "value1", "routing_field", "0").setRefresh(true).execute().actionGet();
@@ -292,7 +293,7 @@ public class SimpleRoutingTests extends AbstractNodesTests {
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
                         .endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> indexing with id [1], and routing [0]");
         client.prepareBulk().add(
@@ -318,7 +319,7 @@ public class SimpleRoutingTests extends AbstractNodesTests {
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject()
                         .endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         logger.info("--> indexing with id [1], and routing [0]");
         client.prepareIndex("test", "type1", "1").setSource("field", "value1", "routing_field", 0).execute().actionGet();

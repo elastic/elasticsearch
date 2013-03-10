@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -75,7 +76,7 @@ public class LocalNodeMasterListenerTests extends AbstractZenNodesTests {
         ClusterService clusterService2 = node2.injector().getInstance(ClusterService.class);
         MasterAwareService testService2 = node2.injector().getInstance(MasterAwareService.class);
 
-        ClusterHealthResponse clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // the second node should not be the master as node1 is already the master.
@@ -84,7 +85,7 @@ public class LocalNodeMasterListenerTests extends AbstractZenNodesTests {
 
         node1.close();
 
-        clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForNodes("1").execute().actionGet();
+        clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // now that node1 is closed, node2 should be elected as master
@@ -106,7 +107,7 @@ public class LocalNodeMasterListenerTests extends AbstractZenNodesTests {
         clusterService1 = node1.injector().getInstance(ClusterService.class);
         testService1 = node1.injector().getInstance(MasterAwareService.class);
 
-        clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        clusterHealth = node2.client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
         // now that we started node1 again, a new master should be elected

@@ -200,7 +200,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
 
         @Override
-        public void afterIndexShardClosed(ShardId shardId, boolean delete) {
+        public void afterIndexShardClosed(ShardId shardId) {
             synchronized (mutex) {
                 calcAndSetShardIndexingBuffer("removed_shard[" + shardId.index().name() + "][" + shardId.id() + "]");
                 shardsIndicesStatus.remove(shardId);

@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
@@ -370,6 +371,20 @@ public class Requests {
     }
 
     /**
+     * List all shards for the give search
+     */
+    public static ClusterSearchShardsRequest clusterSearchShardsRequest() {
+        return new ClusterSearchShardsRequest();
+    }
+
+    /**
+     * List all shards for the give search
+     */
+    public static ClusterSearchShardsRequest clusterSearchShardsRequest(String... indices) {
+        return new ClusterSearchShardsRequest(indices);
+    }
+
+    /**
      * Creates a nodes info request against all the nodes.
      *
      * @return The nodes info request
@@ -436,4 +451,5 @@ public class Requests {
     public static NodesRestartRequest nodesRestartRequest(String... nodesIds) {
         return new NodesRestartRequest(nodesIds);
     }
+
 }

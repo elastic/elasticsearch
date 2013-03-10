@@ -504,17 +504,7 @@ public class IndicesAnalysisService extends AbstractComponent {
             }
         }));
 
-        tokenFilterFactories.put("shingle", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override
-            public String name() {
-                return "shingle";
-            }
-
-            @Override
-            public TokenStream create(TokenStream tokenStream) {
-                return new ShingleFilter(tokenStream, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
-            }
-        }));
+        tokenFilterFactories.put("shingle", new PreBuiltTokenFilterFactoryFactory(new ShingleTokenFilterFactory.Factory("shingle")));
 
         tokenFilterFactories.put("unique", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override
@@ -650,6 +640,17 @@ public class IndicesAnalysisService extends AbstractComponent {
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new SnowballFilter(tokenStream, "Russian");
+            }
+        }));
+        tokenFilterFactories.put("keyword_repeat", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "keyword_repeat";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new KeywordRepeatFilter(tokenStream);
             }
         }));
 

@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.distributor.Distributor;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.store.distributor.RandomWeightedDistributor;
-import org.elasticsearch.jmx.JmxService;
 
 /**
  *
@@ -50,9 +49,6 @@ public class StoreModule extends AbstractModule {
     protected void configure() {
         bind(DirectoryService.class).to(indexStore.shardDirectory()).asEagerSingleton();
         bind(Store.class).asEagerSingleton();
-        if (JmxService.shouldExport(settings)) {
-            bind(StoreManagement.class).asEagerSingleton();
-        }
         if (distributor == null) {
             distributor = loadDistributor(settings);
         }

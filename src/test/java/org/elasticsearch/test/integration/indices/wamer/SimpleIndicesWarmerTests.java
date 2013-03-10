@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.indices.wamer;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmerMissingException;
@@ -65,7 +66,7 @@ public class SimpleIndicesWarmerTests extends AbstractNodesTests {
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.admin().indices().preparePutWarmer("warmer_1")
                 .setSearchRequest(client.prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value1")))
@@ -102,7 +103,7 @@ public class SimpleIndicesWarmerTests extends AbstractNodesTests {
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         ClusterState clusterState = client.admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
@@ -153,8 +154,7 @@ public class SimpleIndicesWarmerTests extends AbstractNodesTests {
         try {
             client.admin().indices().prepareDeleteWarmer().setIndices("test").setName("foo").execute().actionGet(1000);
             assert false : "warmer foo should not exist";
-        }
-        catch(IndexWarmerMissingException ex) {
+        } catch (IndexWarmerMissingException ex) {
             assertThat(ex.name(), equalTo("foo"));
         }
     }

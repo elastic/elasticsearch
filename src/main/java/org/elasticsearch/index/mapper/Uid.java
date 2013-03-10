@@ -140,13 +140,15 @@ public final class Uid {
     }
 
     public static BytesRef[] createTypeUids(Collection<String> types, List<? extends Object> ids) {
+        final int numIds = ids.size();
         BytesRef[] uids = new BytesRef[types.size() * ids.size()];
         BytesRef typeBytes = new BytesRef();
         BytesRef idBytes = new BytesRef();
+        int index = 0;
         for (String type : types) {
             UnicodeUtil.UTF16toUTF8(type, 0, type.length(), typeBytes);
-            for (int i = 0; i < uids.length; i++) {
-                uids[i] = Uid.createUidAsBytes(typeBytes, BytesRefs.toBytesRef(ids.get(i), idBytes));
+            for (int i = 0; i < numIds; i++, index++) {
+                uids[index] = Uid.createUidAsBytes(typeBytes, BytesRefs.toBytesRef(ids.get(i), idBytes));
             }
         }
         return uids;

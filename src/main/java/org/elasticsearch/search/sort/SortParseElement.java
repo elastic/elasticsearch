@@ -224,10 +224,6 @@ public class SortParseElement implements SearchParseElement {
                 } else {
                     innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
                 }
-                // For now the nested sorting doesn't support SUM or AVG
-                if (sortMode == SortMode.SUM || sortMode == SortMode.AVG) {
-                    sortMode = resolveDefaultSortMode(reverse);
-                }
                 fieldComparatorSource = new NestedFieldComparatorSource(sortMode, fieldComparatorSource, rootDocumentsFilter, innerDocumentsFilter);
             }
             sortFields.add(new SortField(fieldMapper.names().indexName(), fieldComparatorSource, reverse));

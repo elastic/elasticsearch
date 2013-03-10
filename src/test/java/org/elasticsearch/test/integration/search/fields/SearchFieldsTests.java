@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.search.fields;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -74,7 +75,7 @@ public class SearchFieldsTests extends AbstractNodesTests {
     public void testStoredFields() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field1").field("type", "string").field("store", "yes").endObject()
@@ -132,7 +133,7 @@ public class SearchFieldsTests extends AbstractNodesTests {
     public void testScriptDocAndFields() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("num1").field("type", "double").field("store", "yes").endObject()
@@ -200,7 +201,7 @@ public class SearchFieldsTests extends AbstractNodesTests {
     public void testScriptFieldUsingSource() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject()
@@ -250,7 +251,7 @@ public class SearchFieldsTests extends AbstractNodesTests {
     public void testPartialFields() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
 
         client.prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject()
@@ -288,7 +289,7 @@ public class SearchFieldsTests extends AbstractNodesTests {
     public void testStoredFieldsWithoutSource() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("_source").field("enabled", false).endObject()

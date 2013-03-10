@@ -79,6 +79,7 @@ public class IndexDynamicSettingsModule extends AbstractModule {
                 RobinEngine.INDEX_INDEX_CONCURRENCY,
                 RobinEngine.INDEX_GC_DELETES,
                 RobinEngine.INDEX_CODEC,
+                RobinEngine.INDEX_FAIL_ON_MERGE_FAILURE,
                 ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN,
                 ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO,
                 ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG,

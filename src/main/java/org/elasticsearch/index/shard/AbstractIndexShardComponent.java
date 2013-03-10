@@ -23,9 +23,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.jmx.ManagedGroupName;
-
-import static org.elasticsearch.index.shard.IndexShardManagement.buildShardGroupName;
 
 /**
  *
@@ -68,10 +65,5 @@ public abstract class AbstractIndexShardComponent implements IndexShardComponent
 
     public String nodeName() {
         return indexSettings.get("name", "");
-    }
-
-    @ManagedGroupName
-    public String managementGroupName() {
-        return buildShardGroupName(shardId);
     }
 }

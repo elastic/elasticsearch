@@ -111,7 +111,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     // ignore
                 }
                 if (indexShouldExists && indexShard.store().indexStore().persistent()) {
-                    throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exists, but doesn't, current files: " + files, e);
+                    throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
                 }
             }
             if (si != null) {

@@ -380,36 +380,24 @@ public class SearchPhaseController extends AbstractComponent {
         // merge suggest results
         Suggest suggest = null;
         if (!queryResults.isEmpty()) {
+            
             final Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<String, List<Suggest.Suggestion>>();
             boolean hasSuggestions = false;
             for (QuerySearchResultProvider resultProvider : queryResults.values()) {
                 Suggest shardResult = resultProvider.queryResult().suggest();
+                
                 if (shardResult == null) {
                     continue;
                 }
                 hasSuggestions = true;
-                for (Suggestion<? extends Entry<? extends Option>> suggestion : shardResult) {
-                    List<Suggestion> list = groupedSuggestions.get(suggestion.getName());
-                    if (list == null) {
-                        list = new ArrayList<Suggest.Suggestion>();
-                        groupedSuggestions.put(suggestion.getName(), list);
-                    }
-                    list.add(suggestion);
-                }
-                
+                Suggest.group(groupedSuggestions, shardResult);
             }
-            List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<Suggestion<? extends Entry<? extends Option>>>();
-            for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
-                List<Suggestion> value = unmergedResults.getValue();
-                Suggestion reduce = value.get(0).reduce(value);
-                reduce.trim();
-                reduced.add(reduce);
-                
-            }
-            suggest = hasSuggestions ? new Suggest(reduced) : null;
+
+            suggest = hasSuggestions ? new Suggest(Suggest.Fields.SUGGEST, Suggest.reduce(groupedSuggestions)) : null;
         }
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
         return new InternalSearchResponse(searchHits, facets, suggest, timedOut);
     }
+    
 }

@@ -45,6 +45,9 @@ import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.suggest.SuggestRequest;
+import org.elasticsearch.action.suggest.SuggestRequestBuilder;
+import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -330,6 +333,29 @@ public interface Client {
      * A count of all the documents matching a specific query.
      */
     CountRequestBuilder prepareCount(String... indices);
+
+    /**
+     * Suggestion matching a specific phrase.
+     *
+     * @param request The suggest request
+     * @return The result future
+     * @see Requests#suggestRequest(String...)
+     */
+    ActionFuture<SuggestResponse> suggest(SuggestRequest request);
+
+    /**
+     * Suggestions matching a specific phrase.
+     *
+     * @param request  The suggest request
+     * @param listener A listener to be notified of the result
+     * @see Requests#suggestRequest(String...)
+     */
+    void suggest(SuggestRequest request, ActionListener<SuggestResponse> listener);
+
+    /**
+     * Suggestions matching a specific phrase.
+     */
+    SuggestRequestBuilder prepareSuggest(String... indices);
 
     /**
      * Search across one or more indices and one or more types with a query.

@@ -55,7 +55,7 @@ public class SuggestionSearchContext {
             this.text = text;
         }
         
-        protected SuggestionContext(Suggester  suggester) {
+        protected SuggestionContext(Suggester suggester) {
             this.suggester = suggester;
         }
         

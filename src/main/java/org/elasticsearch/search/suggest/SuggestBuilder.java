@@ -37,10 +37,19 @@ import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
  */
 public class SuggestBuilder implements ToXContent {
 
+    private final String name;
     private String globalText;
 
     private final List<SuggestionBuilder<?>> suggestions = new ArrayList<SuggestionBuilder<?>>();
 
+    public SuggestBuilder() {
+        this.name = null;
+    }
+    
+    public SuggestBuilder(String name) {
+        this.name = name;
+    }
+    
     /**
      * Sets the text to provide suggestions for. The suggest text is a required option that needs
      * to be set either via this setter or via the {@link org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder#setText(String)} method.
@@ -61,7 +70,7 @@ public class SuggestBuilder implements ToXContent {
         suggestions.add(suggestion);
         return this;
     }
-
+    
     /**
      * Returns all suggestions with the defined names.
      */
@@ -71,7 +80,12 @@ public class SuggestBuilder implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("suggest");
+        if(name == null) {
+            builder.startObject();
+        } else {
+            builder.startObject(name);
+        }
+        
         if (globalText != null) {
             builder.field("text", globalText);
         }

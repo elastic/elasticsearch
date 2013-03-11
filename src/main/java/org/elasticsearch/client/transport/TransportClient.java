@@ -42,6 +42,8 @@ import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.suggest.SuggestRequest;
+import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.AdminClient;
@@ -376,6 +378,16 @@ public class TransportClient extends AbstractClient {
     @Override
     public void count(CountRequest request, ActionListener<CountResponse> listener) {
         internalClient.count(request, listener);
+    }
+
+    @Override
+    public ActionFuture<SuggestResponse> suggest(SuggestRequest request) {
+        return internalClient.suggest(request);
+    }
+
+    @Override
+    public void suggest(SuggestRequest request, ActionListener<SuggestResponse> listener) {
+        internalClient.suggest(request, listener);
     }
 
     @Override

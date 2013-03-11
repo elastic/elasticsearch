@@ -16,16 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest;
-import java.io.IOException;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.util.CharsRef;
-import org.elasticsearch.search.suggest.Suggest.Suggestion;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+package org.elasticsearch.action.suggest;
 
-public interface Suggester<T extends SuggestionSearchContext.SuggestionContext> {
-    public abstract Suggestion<? extends Entry<? extends Option>> execute(String name, T suggestion, IndexReader indexReader, CharsRef spare)
-            throws IOException;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.search.suggest.Suggest;
+
+/**
+ */
+public class SuggestAction extends Action<SuggestRequest, SuggestResponse, SuggestRequestBuilder> {
+
+    public static final SuggestAction INSTANCE = new SuggestAction();
+    public static final String NAME = "suggest";
+
+    private SuggestAction() {
+        super(NAME);
+    }
+
+    @Override
+    public SuggestResponse newResponse() {
+        return new SuggestResponse(new Suggest());
+    }
+
+    @Override
+    public SuggestRequestBuilder newRequestBuilder(Client client) {
+        return new SuggestRequestBuilder(client);
+    }
 }

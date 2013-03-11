@@ -30,7 +30,6 @@ import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -50,8 +49,7 @@ final class PhraseSuggester implements Suggester<PhraseSuggestionContext> {
      */
     @Override
     public Suggestion<? extends Entry<? extends Option>> execute(String name, PhraseSuggestionContext suggestion,
-            SearchContext context, CharsRef spare) throws IOException {
-        final IndexReader indexReader = context.searcher().getIndexReader();
+            IndexReader indexReader, CharsRef spare) throws IOException {
         double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
         List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();
         CandidateGenerator[] gens = new CandidateGenerator[generators.size()];

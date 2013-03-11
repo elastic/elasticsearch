@@ -48,6 +48,7 @@ import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -231,12 +232,12 @@ public final class SuggestUtils {
             return true;
     }
     
-    public static boolean parseSuggestContext(XContentParser parser, SearchContext context, String fieldName,
+    public static boolean parseSuggestContext(XContentParser parser, MapperService mapperService, String fieldName,
             SuggestionSearchContext.SuggestionContext suggestion) throws IOException {
         
         if ("analyzer".equals(fieldName)) {
             String analyzerName = parser.text();
-            Analyzer analyzer = context.mapperService().analysisService().analyzer(analyzerName);
+            Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
             if (analyzer == null) {
                 throw new ElasticSearchIllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
             }
@@ -255,7 +256,7 @@ public final class SuggestUtils {
     }
     
     
-    public static void verifySuggestion(SearchContext context, BytesRef globalText, SuggestionContext suggestion) {
+    public static void verifySuggestion(MapperService mapperService, BytesRef globalText, SuggestionContext suggestion) {
         // Verify options and set defaults
         if (suggestion.getField() == null) {
             throw new ElasticSearchIllegalArgumentException("The required field option is missing");
@@ -267,7 +268,7 @@ public final class SuggestUtils {
             suggestion.setText(globalText);
         }
         if (suggestion.getAnalyzer() == null) {
-            suggestion.setAnalyzer(context.mapperService().searchAnalyzer());
+            suggestion.setAnalyzer(mapperService.searchAnalyzer());
         }
         if (suggestion.getShardSize() == -1) {
             suggestion.setShardSize(Math.max(suggestion.getSize(), 5));

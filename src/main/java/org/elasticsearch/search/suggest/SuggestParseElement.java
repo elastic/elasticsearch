@@ -23,6 +23,7 @@ import java.io.IOException;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -38,6 +39,11 @@ public class SuggestParseElement implements SearchParseElement {
     
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
+        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService());
+        context.suggest(suggestionSearchContext);
+    }
+
+    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
         BytesRef globalText = null;
         String fieldName = null;
@@ -76,20 +82,20 @@ public class SuggestParseElement implements SearchParseElement {
                         } else {
                             throw new ElasticSearchIllegalArgumentException("Suggester[" + fieldName + "] not supported");
                         }
-                        parseAndVerify(parser, context, suggestionSearchContext, globalText, suggestionName, suggestText, contextParser);
+                        parseAndVerify(parser, mapperService, suggestionSearchContext, globalText, suggestionName, suggestText, contextParser);
                         
                     }
                 }
             }
         }
-        context.suggest(suggestionSearchContext);
+        return suggestionSearchContext;
     }
 
-    public void parseAndVerify(XContentParser parser, SearchContext context, SuggestionSearchContext suggestionSearchContext,
+    public void parseAndVerify(XContentParser parser, MapperService mapperService, SuggestionSearchContext suggestionSearchContext,
             BytesRef globalText, String suggestionName, BytesRef suggestText, SuggestContextParser suggestParser ) throws IOException {
-        SuggestionContext suggestion = suggestParser.parse(parser, context);
+        SuggestionContext suggestion = suggestParser.parse(parser, mapperService);
         suggestion.setText(suggestText);
-        SuggestUtils.verifySuggestion(context, globalText, suggestion);
+        SuggestUtils.verifySuggestion(mapperService, globalText, suggestion);
         suggestionSearchContext.addSuggestion(suggestionName, suggestion);
     }
 

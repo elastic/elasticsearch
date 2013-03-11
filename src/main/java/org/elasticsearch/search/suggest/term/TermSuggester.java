@@ -32,7 +32,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -40,7 +39,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContex
 final class TermSuggester implements Suggester<TermSuggestionContext> {
 
     @Override
-    public TermSuggestion execute(String name, TermSuggestionContext suggestion, SearchContext context, CharsRef spare) throws IOException {
+    public TermSuggestion execute(String name, TermSuggestionContext suggestion, IndexReader indexReader, CharsRef spare) throws IOException {
         DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(suggestion.getDirectSpellCheckerSettings());
 
         TermSuggestion response = new TermSuggestion(
@@ -48,7 +47,6 @@ final class TermSuggester implements Suggester<TermSuggestionContext> {
         );
         List<Token> tokens = queryTerms(suggestion, spare);
         for (Token token : tokens) {
-            IndexReader indexReader = context.searcher().getIndexReader();
             // TODO: Extend DirectSpellChecker in 4.1, to get the raw suggested words as BytesRef
             SuggestWord[] suggestedWords = directSpellChecker.suggestSimilar(
                     token.term, suggestion.getShardSize(), indexReader, suggestion.getDirectSpellCheckerSettings().suggestMode()

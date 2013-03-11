@@ -52,7 +52,7 @@ public class RestActions {
         builder.field("total", response.getTotalShards());
         builder.field("successful", response.getSuccessfulShards());
         builder.field("failed", response.getFailedShards());
-        if (!response.getShardFailures().isEmpty()) {
+        if (response.getShardFailures()!=null && response.getShardFailures().length>0) {
             builder.startArray("failures");
             for (ShardOperationFailedException shardFailure : response.getShardFailures()) {
                 builder.startObject();

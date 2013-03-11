@@ -112,6 +112,8 @@ import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.suggest.SuggestAction;
+import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
@@ -205,6 +207,7 @@ public class ActionModule extends AbstractModule {
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,
                 TransportIndexDeleteAction.class, TransportShardDeleteAction.class);
         registerAction(CountAction.INSTANCE, TransportCountAction.class);
+        registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
                 TransportShardMultiGetAction.class);

@@ -30,7 +30,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -39,16 +38,21 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.suggest.SuggestRequestBuilder;
+import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -99,42 +103,32 @@ public class SuggestSearchTests extends AbstractNodesTests {
         
         client.admin().indices().prepareRefresh().execute().actionGet();
         
-        SearchResponse search = client.prepareSearch()
+        SearchResponse _search = client.prepareSearch()
         .setQuery(matchQuery("text", "spellchecker")).execute().actionGet();
-        assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
+        assertThat("didn't ask for suggestions but got some", _search.getSuggest(), nullValue());
         
-        search = client.prepareSearch()
-                .setQuery(matchQuery("text", "spellchecker"))
-                .addSuggestion(
-                        termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        Suggest suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
-                                .field("text").size(10))
-                .execute().actionGet();
-
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getName(), equalTo("test"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(10));
+                                .field("text").size(10));
+        
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
+        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(10));
 
         
-        search = client.prepareSearch()
-        .setQuery(matchQuery("text", "spellchecker"))
-        .addSuggestion(
-                termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                         .text("abcd")
-                        .field("text").size(10).shardSize(5))
-        .execute().actionGet();
+                        .field("text").size(10).shardSize(5));
         
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getName(), equalTo("test"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(5));
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
+        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(5));
     }
 
     @Test
@@ -177,45 +171,36 @@ public class SuggestSearchTests extends AbstractNodesTests {
                 .execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
         
-        SearchResponse search = client.prepareSearch()
+        SearchResponse _search = client.prepareSearch()
         .setQuery(matchQuery("text", "spellcecker")).execute().actionGet();
-        assertThat("didn't ask for suggestions but got some", search.getSuggest(), nullValue());
+        assertThat("didn't ask for suggestions but got some", _search.getSuggest(), nullValue());
         
-        search = client.prepareSearch()
-                .setQuery(matchQuery("text", "spellcecker"))
-                .addSuggestion(
-                        termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        Suggest suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
-                                .field("text"))
-                .execute().actionGet();
+                                .field("text"));
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getName(), equalTo("test"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(3));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("aacd"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("abbd"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("abcc"));
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
+        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(3));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("aacd"));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("abbd"));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("abcc"));
 
-        client.prepareSearch()
-                .addSuggestion(
-                        termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
-                                .field("text"))
-                .execute().actionGet();
+                                .field("text"));
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getName(), equalTo("test"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(3));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("aacd"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("abbd"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("abcc"));
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
+        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(3));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("aacd"));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("abbd"));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("abcc"));
     }
 
     @Test
@@ -228,35 +213,26 @@ public class SuggestSearchTests extends AbstractNodesTests {
                 .execute().actionGet();
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        SearchResponse search = client.prepareSearch()
-                .setQuery(matchQuery("text", "spellcecker"))
-                .addSuggestion(
-                        termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        Suggest suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
-                                .field("text"))
-                .execute().actionGet();
+                                .field("text"));
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getName(), equalTo("test"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(0));
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
+        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(0));
 
-        client.prepareSearch()
-                .addSuggestion(
-                        termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
-                                .field("text"))
-                .execute().actionGet();
+                                .field("text"));
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getName(), equalTo("test"));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(0));
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getName(), equalTo("test"));
+        assertThat(suggest.getSuggestion("test").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(0));
     }
 
     @Test
@@ -303,40 +279,37 @@ public class SuggestSearchTests extends AbstractNodesTests {
                 .execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse search = client.prepareSearch()
-                .addSuggestion(termSuggestion("size1")
+        Suggest suggest = searchSuggest(client, termSuggestion("size1")
                         .size(1).text("prefix_abcd").maxTermFreq(10).minDocFreq(0)
-                        .field("field1").suggestMode("always"))
-                .addSuggestion(termSuggestion("field2")
+                        .field("field1").suggestMode("always"),
+                termSuggestion("field2")
                         .field("field2").text("prefix_eeeh prefix_efgh")
-                        .maxTermFreq(10).minDocFreq(0).suggestMode("always"))
-                .addSuggestion(termSuggestion("accuracy")
+                        .maxTermFreq(10).minDocFreq(0).suggestMode("always"),
+                termSuggestion("accuracy")
                         .field("field2").text("prefix_efgh").setAccuracy(1f)
-                        .maxTermFreq(10).minDocFreq(0).suggestMode("always"))
-                .execute().actionGet();
+                        .maxTermFreq(10).minDocFreq(0).suggestMode("always"));
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(3));
-        assertThat(search.getSuggest().getSuggestion("size1").getName(), equalTo("size1"));
-        assertThat(search.getSuggest().getSuggestion("size1").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("size1").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("size1").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
-        assertThat(search.getSuggest().getSuggestion("field2").getName(), equalTo("field2"));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().size(), equalTo(2));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(0).getText().string(), equalTo("prefix_eeeh"));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(0).getOffset(), equalTo(0));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(0).getLength(), equalTo(11));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(1).getText().string(), equalTo("prefix_efgh"));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(1).getOffset(), equalTo(12));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(1).getLength(), equalTo(11));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(1).getOptions().size(), equalTo(3));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(1).getOptions().get(0).getText().string(), equalTo("prefix_eeeh"));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(1).getOptions().get(1).getText().string(), equalTo("prefix_efff"));
-        assertThat(search.getSuggest().getSuggestion("field2").getEntries().get(1).getOptions().get(2).getText().string(), equalTo("prefix_eggg"));
-        assertThat(search.getSuggest().getSuggestion("accuracy").getName(), equalTo("accuracy"));
-        assertThat(search.getSuggest().getSuggestion("accuracy").getEntries().get(0).getOptions().isEmpty(), equalTo(true));
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(3));
+        assertThat(suggest.getSuggestion("size1").getName(), equalTo("size1"));
+        assertThat(suggest.getSuggestion("size1").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("size1").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("size1").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
+        assertThat(suggest.getSuggestion("field2").getName(), equalTo("field2"));
+        assertThat(suggest.getSuggestion("field2").getEntries().size(), equalTo(2));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(0).getText().string(), equalTo("prefix_eeeh"));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(0).getOffset(), equalTo(0));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(0).getLength(), equalTo(11));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getText().string(), equalTo("prefix_efgh"));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOffset(), equalTo(12));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getLength(), equalTo(11));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOptions().size(), equalTo(3));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOptions().get(0).getText().string(), equalTo("prefix_eeeh"));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOptions().get(1).getText().string(), equalTo("prefix_efff"));
+        assertThat(suggest.getSuggestion("field2").getEntries().get(1).getOptions().get(2).getText().string(), equalTo("prefix_eggg"));
+        assertThat(suggest.getSuggestion("accuracy").getName(), equalTo("accuracy"));
+        assertThat(suggest.getSuggestion("accuracy").getEntries().get(0).getOptions().isEmpty(), equalTo(true));
     }
 
     @Test
@@ -377,60 +350,57 @@ public class SuggestSearchTests extends AbstractNodesTests {
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse search = client.prepareSearch()
-                .setSuggestText("prefix_abcd")
-                .addSuggestion(termSuggestion("size3SortScoreFirst")
-                        .size(3).minDocFreq(0).field("field1").suggestMode("always"))
-                .addSuggestion(termSuggestion("size10SortScoreFirst")
-                        .size(10).minDocFreq(0).field("field1").suggestMode("always").shardSize(50))
-                .addSuggestion(termSuggestion("size3SortScoreFirstMaxEdits1")
+        Suggest suggest = searchSuggest(client,"prefix_abcd",
+                termSuggestion("size3SortScoreFirst")
+                        .size(3).minDocFreq(0).field("field1").suggestMode("always"),
+                termSuggestion("size10SortScoreFirst")
+                        .size(10).minDocFreq(0).field("field1").suggestMode("always").shardSize(50),
+                termSuggestion("size3SortScoreFirstMaxEdits1")
                         .maxEdits(1)
-                        .size(10).minDocFreq(0).field("field1").suggestMode("always"))
-                .addSuggestion(termSuggestion("size10SortFrequencyFirst")
+                        .size(10).minDocFreq(0).field("field1").suggestMode("always"),
+                termSuggestion("size10SortFrequencyFirst")
                         .size(10).sort("frequency").shardSize(1000)
-                        .minDocFreq(0).field("field1").suggestMode("always"))
-                .execute().actionGet();
+                        .minDocFreq(0).field("field1").suggestMode("always"));
 
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(4));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirst").getName(), equalTo("size3SortScoreFirst"));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirst").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().size(), equalTo(3));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abcc"));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_accd"));
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(4));
+        assertThat(suggest.getSuggestion("size3SortScoreFirst").getName(), equalTo("size3SortScoreFirst"));
+        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().size(), equalTo(3));
+        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
+        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abcc"));
+        assertThat(suggest.getSuggestion("size3SortScoreFirst").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_accd"));
 
-        assertThat(search.getSuggest().getSuggestion("size10SortScoreFirst").getName(), equalTo("size10SortScoreFirst"));
-        assertThat(search.getSuggest().getSuggestion("size10SortScoreFirst").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().size(), equalTo(10));
-        assertThat(search.getSuggest().getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
-        assertThat(search.getSuggest().getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abcc"));
-        assertThat(search.getSuggest().getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_accd"));
+        assertThat(suggest.getSuggestion("size10SortScoreFirst").getName(), equalTo("size10SortScoreFirst"));
+        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().size(), equalTo(10));
+        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
+        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abcc"));
+        assertThat(suggest.getSuggestion("size10SortScoreFirst").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_accd"));
         // This fails sometimes. Depending on how the docs are sharded. The suggested suggest corrections get the df on shard level, which
         // isn't correct comparing it to the index level.
 //        assertThat(search.suggest().suggestions().get(1).getSuggestedWords().get("prefix_abcd").get(3).getTerm(), equalTo("prefix_aaad"));
 
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirstMaxEdits1").getName(), equalTo("size3SortScoreFirstMaxEdits1"));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().size(), equalTo(3));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abcc"));
-        assertThat(search.getSuggest().getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_accd"));
+        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getName(), equalTo("size3SortScoreFirstMaxEdits1"));
+        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().size(), equalTo(3));
+        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aacd"));
+        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abcc"));
+        assertThat(suggest.getSuggestion("size3SortScoreFirstMaxEdits1").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_accd"));
 
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getName(), equalTo("size10SortFrequencyFirst"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().size(), equalTo(10));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aaad"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abbb"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_aaca"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(3).getText().string(), equalTo("prefix_abba"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(4).getText().string(), equalTo("prefix_accc"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(5).getText().string(), equalTo("prefix_addd"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(6).getText().string(), equalTo("prefix_abaa"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(7).getText().string(), equalTo("prefix_dbca"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(8).getText().string(), equalTo("prefix_cbad"));
-        assertThat(search.getSuggest().getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(9).getText().string(), equalTo("prefix_aacd"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getName(), equalTo("size10SortFrequencyFirst"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().size(), equalTo(10));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("prefix_aaad"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("prefix_abbb"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("prefix_aaca"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(3).getText().string(), equalTo("prefix_abba"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(4).getText().string(), equalTo("prefix_accc"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(5).getText().string(), equalTo("prefix_addd"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(6).getText().string(), equalTo("prefix_abaa"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(7).getText().string(), equalTo("prefix_dbca"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(8).getText().string(), equalTo("prefix_cbad"));
+        assertThat(suggest.getSuggestion("size10SortFrequencyFirst").getEntries().get(0).getOptions().get(9).getText().string(), equalTo("prefix_aacd"));
 //        assertThat(search.suggest().suggestions().get(3).getSuggestedWords().get("prefix_abcd").get(4).getTerm(), equalTo("prefix_abcc"));
 //        assertThat(search.suggest().suggestions().get(3).getSuggestedWords().get("prefix_abcd").get(4).getTerm(), equalTo("prefix_accd"));
     }
@@ -477,254 +447,218 @@ public class SuggestSearchTests extends AbstractNodesTests {
             .execute().actionGet();
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        SearchResponse search = client.prepareSearch()
-        .setSuggestText("american ame")
-        .addSuggestion(phraseSuggestion("simple_phrase")
+        
+        Suggest searchSuggest = searchSuggest(client, "american ame", phraseSuggestion("simple_phrase")
                 .field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .size(1)).execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("american ame"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("american ace"));
+                .size(1));
+
+        
+        SearchResponse search;
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("american ame"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("american ace"));
         
         
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .maxErrors(0.5f)
-                .size(1))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+                        phraseSuggestion("simple_phrase").
+                            realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
+                            .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                            .maxErrors(0.5f)
+                            .size(1));
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
         
         // pass in a correct phrase
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xorr the God-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
+        searchSuggest = searchSuggest(client, "Xorr the God-Jewel",
+                phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .maxErrors(0.5f)
                 .confidence(0.f)
-                .size(1))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xorr the God-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+                .size(1));
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xorr the God-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
         
         // pass in a correct phrase - set confidence to 2
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xorr the God-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
+        searchSuggest = searchSuggest(client, "Xorr the God-Jewel",
+                phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .maxErrors(0.5f)
-                .confidence(2.f))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
+                .confidence(2.f));
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
         
         
         // pass in a correct phrase - set confidence to 0.99
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xorr the God-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .maxErrors(0.5f)
-                .confidence(0.99f))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xorr the God-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        searchSuggest = searchSuggest(client, "Xorr the God-Jewel",
+                phraseSuggestion("simple_phrase").
+                    realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
+                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                    .maxErrors(0.5f)
+                    .confidence(0.99f));
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xorr the God-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
         
         //test reverse suggestions with pre & post filter
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("xor the yod-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
-                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body_reverse").minWordLength(1).suggestMode("always").preFilter("reverse").postFilter("reverse"))
-                .maxErrors(0.5f)
-                .size(1))
-        .execute().actionGet();
-        
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("xor the yod-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        searchSuggest = searchSuggest(client, "xor the yod-Jewel",
+                phraseSuggestion("simple_phrase").
+                    realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
+                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                    .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body_reverse").minWordLength(1).suggestMode("always").preFilter("reverse").postFilter("reverse"))
+                    .maxErrors(0.5f)
+                    .size(1));
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("xor the yod-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
         // set all mass to trigrams (not indexed)
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
+        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+                phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(1,0,0))
                 .maxErrors(0.5f)
-                .size(1))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
+                .size(1));
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
         
         
         // set all mass to bigrams
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
+        searchSuggest =  searchSuggest(client, "Xor the Got-Jewel",
+                phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0,1,0))
                 .maxErrors(0.5f)
-                .size(1))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+                .size(1));
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
         // distribute mass
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
+        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+                phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2))
                 .maxErrors(0.5f)
-                .size(1))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+                .size(1));
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
-        search = client.prepareSearch()
-        .setSuggestText("american ame")
-        .addSuggestion(phraseSuggestion("simple_phrase")
+        searchSuggest = searchSuggest(client, "american ame",
+                phraseSuggestion("simple_phrase")
                 .field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2))
-                .size(1)).execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("american ame"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("american ace"));
+                .size(1));;
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("american ame"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("american ace"));
 
         
         // try all smoothing methods
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
+        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+                phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .smoothingModel(new PhraseSuggestionBuilder.LinearInterpolation(0.4,0.4,0.2))
                 .maxErrors(0.5f)
-                .size(1))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+                .size(1));
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
+        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+                phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .smoothingModel(new PhraseSuggestionBuilder.Laplace(0.2))
                 .maxErrors(0.5f)
-                .size(1))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+                .size(1));
+
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(phraseSuggestion("simple_phrase").
+        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+                phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
                 .maxErrors(0.5f)
-                .size(1))
-        .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+                .size(1));
+        
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
     }
     
     
@@ -778,10 +712,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
        
         try {
-            client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
-                    .setSuggestText("Xor the Got-Jewel")
-                    .addSuggestion(
+            Suggest suggest = searchSuggest(client, "Xor the Got-Jewel", 5, 
                             phraseSuggestion("simple_phrase")
                                     .realWordErrorLikelihood(0.95f)
                                     .field("bigram")
@@ -789,86 +720,85 @@ public class SuggestSearchTests extends AbstractNodesTests {
                                     .analyzer("body")
                                     .addCandidateGenerator(
                                             PhraseSuggestionBuilder.candidateGenerator("does_not_exists").minWordLength(1)
-                                                    .suggestMode("always")).maxErrors(0.5f).size(1)).execute().actionGet();
+                                                    .suggestMode("always")).maxErrors(0.5f).size(1));
+            
             assert false : "field does not exists";
+        } catch (SearchPhaseExecutionException e) {}
+        
+        try {
+            Suggest suggest = searchSuggest(client, "Xor the Got-Jewel", 5,
+                    phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").maxErrors(0.5f).size(1));
+
+            assert false : "analyzer does only produce ngrams";
         } catch (SearchPhaseExecutionException e) {
         }
         
         try {
-            client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
-                    .setSuggestText("Xor the Got-Jewel")
-                    .addSuggestion(
-                            phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").maxErrors(0.5f)
-                                    .size(1)).execute().actionGet();
-            assert false : "analyzer does only produce ngrams";
-        } catch (SearchPhaseExecutionException e) {
-        }
-        try {
-            client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
-                    .setSuggestText("Xor the Got-Jewel")
-                    .addSuggestion(
-                            phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").analyzer("bigram").maxErrors(0.5f)
-                                    .size(1)).execute().actionGet();
+            Suggest suggest = searchSuggest(client, "Xor the Got-Jewel", 5,
+                        phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").analyzer("bigram").maxErrors(0.5f)
+                                .size(1));
             assert false : "analyzer does only produce ngrams";
         } catch (SearchPhaseExecutionException e) {
         }
         
         // don't force unigrams
-        client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(
+        searchSuggest(client, "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("bigram").forceUnigrams(false).maxErrors(0.5f)
-                        .size(1)).execute().actionGet();
+                        .size(1));
         
         
-        client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(
+        searchSuggest(client, "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").analyzer("ngram").maxErrors(0.5f)
-                        .size(1)).execute().actionGet();
+                        .size(1));
      
         
-        SearchResponse search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(
+        Suggest suggest = searchSuggest(client, "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").maxErrors(0.5f).field("ngram").analyzer("myDefAnalyzer")
                   .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                        .size(1)).execute().actionGet();
+                        .size(1));
         
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(1));
+        assertThat(suggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(suggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
-        search = client.prepareSearch()
-        .setSearchType(SearchType.COUNT)
-        .setSuggestText("Xor the Got-Jewel")
-        .addSuggestion(
+        suggest = searchSuggest(client, "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").maxErrors(0.5f).field("ngram")
                   .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
-                        .size(1)).execute().actionGet();
+                        .size(1));
         
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
-        assertThat(search.getSuggest().getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(1));
+        assertThat(suggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(suggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
+        assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
     }
     
+    protected Suggest searchSuggest(Client client, SuggestionBuilder<?>... suggestion) {
+        return searchSuggest(client, null, suggestion);
+    }
     
+    protected Suggest searchSuggest(Client client, String suggestText, SuggestionBuilder<?>... suggestions) {
+        return searchSuggest(client, suggestText, 0, suggestions);
+    }
+    
+    protected Suggest searchSuggest(Client client, String suggestText, int expectShardsFailed, SuggestionBuilder<?>... suggestions) {
+        SearchRequestBuilder builder = client.prepareSearch().setSearchType(SearchType.COUNT);
+        if (suggestText != null) {
+            builder.setSuggestText(suggestText);
+        }
+        for (SuggestionBuilder<?> suggestion : suggestions) {
+            builder.addSuggestion(suggestion);
+        }
+        SearchResponse actionGet = builder.execute().actionGet();
+        return actionGet.getSuggest();
+    }
     
     @Test
     public void testDifferentShardSize() throws Exception {
@@ -904,17 +834,15 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse search = client.prepareSearch()
-                .setSuggestText("foobar")
-                .addSuggestion(termSuggestion("simple")
-                        .size(10).minDocFreq(0).field("field1").suggestMode("always"))
-                .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
-        assertThat(search.getSuggest(), notNullValue());
-        assertThat(search.getSuggest().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple").getName(), equalTo("simple"));
-        assertThat(search.getSuggest().getSuggestion("simple").getEntries().size(), equalTo(1));
-        assertThat(search.getSuggest().getSuggestion("simple").getEntries().get(0).getOptions().size(), equalTo(3));
+        Suggest suggest = searchSuggest(client, "foobar",
+                termSuggestion("simple")
+                        .size(10).minDocFreq(0).field("field1").suggestMode("always"));
+
+        assertThat(suggest, notNullValue());
+        assertThat(suggest.size(), equalTo(1));
+        assertThat(suggest.getSuggestion("simple").getName(), equalTo("simple"));
+        assertThat(suggest.getSuggestion("simple").getEntries().size(), equalTo(1));
+        assertThat(suggest.getSuggestion("simple").getEntries().get(0).getOptions().size(), equalTo(3));
     }
 
 }

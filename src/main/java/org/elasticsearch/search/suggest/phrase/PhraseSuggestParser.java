@@ -44,7 +44,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -54,7 +54,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
 
     private final PhraseSuggester suggester = new PhraseSuggester();
 
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, SearchContext context) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService) throws IOException {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
         XContentParser.Token token;
         String fieldName = null;
@@ -63,7 +63,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (!SuggestUtils.parseSuggestContext(parser, context, fieldName, suggestion)) {
+                if (!SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion)) {
                     if ("real_word_error_likelihood".equals(fieldName)) {
                         suggestion.setRealWordErrorLikelihood(parser.floatValue());
                         if (suggestion.realworldErrorLikelyhood() <= 0.0) {
@@ -103,10 +103,10 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                                 fieldName = parser.currentName();
                             }
                             if (token.isValue()) {
-                                parseCandidateGenerator(parser, context, fieldName, generator);
+                                parseCandidateGenerator(parser, mapperService, fieldName, generator);
                             }
                         }
-                        verifyGenerator(context, generator);
+                        verifyGenerator(generator);
                         suggestion.addGenerator(generator);
                     }
                 } else {
@@ -128,7 +128,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         }
         
         if (!gramSizeSet || suggestion.generators().isEmpty()) {
-            final ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils.getShingleFilterFactory(suggestion.getAnalyzer() == null ? context.mapperService().fieldSearchAnalyzer(suggestion.getField()) : suggestion.getAnalyzer()); ;
+            final ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils.getShingleFilterFactory(suggestion.getAnalyzer() == null ? mapperService.fieldSearchAnalyzer(suggestion.getField()) : suggestion.getAnalyzer()); ;
             if (!gramSizeSet) {
                 // try to detect the shingle size
                 if (shingleFilterFactory != null) {
@@ -257,14 +257,14 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         }
     }
 
-    private void verifyGenerator(SearchContext context, PhraseSuggestionContext.DirectCandidateGenerator suggestion) {
+    private void verifyGenerator(PhraseSuggestionContext.DirectCandidateGenerator suggestion) {
         // Verify options and set defaults
         if (suggestion.field() == null) {
             throw new ElasticSearchIllegalArgumentException("The required field option is missing");
         }
     }
 
-    private void parseCandidateGenerator(XContentParser parser, SearchContext context, String fieldName,
+    private void parseCandidateGenerator(XContentParser parser, MapperService mapperService, String fieldName,
             PhraseSuggestionContext.DirectCandidateGenerator generator) throws IOException {
         if (!SuggestUtils.parseDirectSpellcheckerSettings(parser, fieldName, generator)) {
             if ("field".equals(fieldName)) {
@@ -273,14 +273,14 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                 generator.size(parser.intValue());
             } else if ("pre_filter".equals(fieldName) || "preFilter".equals(fieldName)) {
                 String analyzerName = parser.text();
-                Analyzer analyzer = context.mapperService().analysisService().analyzer(analyzerName);
+                Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
                 if (analyzer == null) {
                     throw new ElasticSearchIllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
                 }
                 generator.preFilter(analyzer);
             } else if ("post_filter".equals(fieldName) || "postFilter".equals(fieldName)) {
                 String analyzerName = parser.text();
-                Analyzer analyzer = context.mapperService().analysisService().analyzer(analyzerName);
+                Analyzer analyzer = mapperService.analysisService().analyzer(analyzerName);
                 if (analyzer == null) {
                     throw new ElasticSearchIllegalArgumentException("Analyzer [" + analyzerName + "] doesn't exists");
                 }

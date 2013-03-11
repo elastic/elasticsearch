@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.GetDocSet;
-import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -158,7 +157,7 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             collectedUids = null;
         }
 
-        static class ParentDocSet extends GetDocSet {
+        final static class ParentDocSet extends GetDocSet {
 
             final IndexReader reader;
             final THashSet<HashedBytesArray> parents;
@@ -176,32 +175,17 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
             }
         }
 
-        static class UidCollector extends NoopCollector {
-
-            final String parentType;
-            final SearchContext context;
-            final THashSet<HashedBytesArray> collectedUids;
-
-            private IdReaderTypeCache typeCache;
+        final static class UidCollector extends ParentIdCollector {
+            private final THashSet<HashedBytesArray> collectedUids;
 
             UidCollector(String parentType, SearchContext context, THashSet<HashedBytesArray> collectedUids) {
-                this.parentType = parentType;
-                this.context = context;
+                super(parentType, context);
                 this.collectedUids = collectedUids;
             }
 
             @Override
-            public void collect(int doc) throws IOException {
-                // It can happen that for particular segment no document exist for an specific type. This prevents NPE
-                if (typeCache != null) {
-                    collectedUids.add(typeCache.parentIdByDoc(doc));
-                }
-
-            }
-
-            @Override
-            public void setNextReader(IndexReader reader, int docBase) throws IOException {
-                typeCache = context.idCache().reader(reader).type(parentType);
+            public void collect(int doc, HashedBytesArray parentIdByDoc){
+                collectedUids.add(parentIdByDoc);
             }
         }
     }

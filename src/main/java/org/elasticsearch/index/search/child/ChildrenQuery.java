@@ -30,7 +30,6 @@ import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
-import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.ScopePhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -322,30 +321,25 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
         }
     }
 
-    static class ChildUidCollector extends NoopCollector {
+    static class ChildUidCollector extends ParentIdCollector {
 
         final TObjectFloatHashMap<HashedBytesArray> uidToScore;
         final ScoreType scoreType;
-        final SearchContext searchContext;
-        final String childType;
-
         Scorer scorer;
-        IdReaderTypeCache typeCache;
 
         ChildUidCollector(ScoreType scoreType, SearchContext searchContext, String childType, TObjectFloatHashMap<HashedBytesArray> uidToScore) {
+            super(childType, searchContext);
             this.uidToScore = uidToScore;
             this.scoreType = scoreType;
-            this.searchContext = searchContext;
-            this.childType = childType;
         }
 
         @Override
-        public void collect(int doc) throws IOException {
-            if (typeCache == null) {
-                return;
-            }
+        public void setScorer(Scorer scorer) throws IOException {
+            this.scorer = scorer;
+        }
 
-            HashedBytesArray parentUid = typeCache.parentIdByDoc(doc);
+        @Override
+        protected void collect(int doc, HashedBytesArray parentUid) throws IOException {
             float previousScore = uidToScore.get(parentUid);
             float currentScore = scorer.score();
             if (Float.compare(previousScore, 0) == 0) {
@@ -360,23 +354,18 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
                             uidToScore.put(parentUid, currentScore);
                         }
                         break;
+                    case AVG:
+                        assert false : "AVG has it's own collector";
+                        
+                    default:
+                        assert false : "Are we missing a sore type here? -- " + scoreType;
+                        break;
                 }
             }
         }
-
-        @Override
-        public void setScorer(Scorer scorer) throws IOException {
-            this.scorer = scorer;
-        }
-
-        @Override
-        public void setNextReader(IndexReader reader, int docBase) throws IOException {
-            typeCache = searchContext.idCache().reader(reader).type(childType);
-        }
-
     }
 
-    static class AvgChildUidCollector extends ChildUidCollector {
+    final static class AvgChildUidCollector extends ChildUidCollector {
 
         final TObjectIntHashMap<HashedBytesArray> uidToCount;
 
@@ -387,12 +376,7 @@ public class ChildrenQuery extends Query implements ScopePhase.CollectorPhase {
         }
 
         @Override
-        public void collect(int doc) throws IOException {
-            if (typeCache == null) {
-                return;
-            }
-
-            HashedBytesArray parentUid = typeCache.parentIdByDoc(doc);
+        protected void collect(int doc, HashedBytesArray parentUid) throws IOException {
             float previousScore = uidToScore.get(parentUid);
             float currentScore = scorer.score();
             if (Float.compare(previousScore, 0) == 0) {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.child;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -33,6 +34,7 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -111,6 +113,33 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
                 .execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.shardFailures()), searchResponse.shardFailures().length, equalTo(0));
         assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+    }
+    
+    
+    @Test // see #2744
+    public void test2744() throws ElasticSearchException, IOException {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().indices().preparePutMapping("test").setType("test").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "foo").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client.prepareIndex("test", "foo", "1").setSource("foo", 1).execute().actionGet();
+        client.prepareIndex("test", "test").setSource("foo", 1).setParent("1").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        SearchResponse searchResponse =  client.prepareSearch("test").setQuery(hasChildQuery("test", matchQuery("foo", 1))).execute().actionGet();
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+
     }
 
     @Test

@@ -99,7 +99,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             facets = InternalFacets.readFacets(in);
         }
         if (in.readBoolean()) {
-            suggest = Suggest.readSuggest(in);
+            suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         timedOut = in.readBoolean();
     }

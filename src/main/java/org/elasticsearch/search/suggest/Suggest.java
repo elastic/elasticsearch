@@ -35,7 +35,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
@@ -45,8 +44,8 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    static class Fields {
-        static final XContentBuilderString SUGGEST = new XContentBuilderString("suggest");
+    public static class Fields {
+        public static final XContentBuilderString SUGGEST = new XContentBuilderString("suggest");
     }
 
     private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
@@ -60,14 +59,26 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
          }
     };
 
+    private final XContentBuilderString name;
+
     private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
     public Suggest() {
+        this.name = null;
+    }
+
+    public Suggest(XContentBuilderString name) {
+        this.name = name;
     }
 
     public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
+        this(null, suggestions);
+    }
+
+    public Suggest(XContentBuilderString name, List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
+        this.name = name;
         this.suggestions = suggestions;
     }
     
@@ -128,18 +139,48 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.SUGGEST);
-        for (Suggestion<?> suggestion : suggestions) {
-            suggestion.toXContent(builder, params);
+        if(name == null) {
+            for (Suggestion<?> suggestion : suggestions) {
+                suggestion.toXContent(builder, params);
+            }
+        } else {
+            builder.startObject(name);
+            for (Suggestion<?> suggestion : suggestions) {
+                suggestion.toXContent(builder, params);
+            }
+            builder.endObject();
         }
-        builder.endObject();
-        return null;
+        
+        return builder;
     }
 
-    public static Suggest readSuggest(StreamInput in) throws IOException {
-        Suggest result = new Suggest();
+    public static Suggest readSuggest(XContentBuilderString name, StreamInput in) throws IOException {
+        Suggest result = new Suggest(name);
         result.readFrom(in);
         return result;
+    }
+    
+    public static Map<String, List<Suggest.Suggestion>> group(Map<String, List<Suggest.Suggestion>> groupedSuggestions, Suggest suggest) {
+        for (Suggestion<? extends Entry<? extends Option>> suggestion : suggest) {
+            List<Suggestion> list = groupedSuggestions.get(suggestion.getName());
+            if (list == null) {
+                list = new ArrayList<Suggest.Suggestion>();
+                groupedSuggestions.put(suggestion.getName(), list);
+            }
+            list.add(suggestion);
+        }
+        return groupedSuggestions;
+    }
+
+    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+        List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<Suggestion<? extends Entry<? extends Option>>>(groupedSuggestions.size());
+        for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
+            List<Suggestion> value = unmergedResults.getValue();
+            Suggestion reduce = value.get(0).reduce(value);
+            reduce.trim();
+            reduced.add(reduce);
+        }
+        return reduced;
     }
 
     /**

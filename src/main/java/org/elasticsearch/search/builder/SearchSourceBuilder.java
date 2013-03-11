@@ -408,7 +408,7 @@ public class SearchSourceBuilder implements ToXContent {
 
     public SuggestBuilder suggest() {
         if (suggestBuilder == null) {
-            suggestBuilder = new SuggestBuilder();
+            suggestBuilder = new SuggestBuilder("suggest");
         }
         return suggestBuilder;
     }

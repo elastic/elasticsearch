@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -60,27 +61,27 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
 
     @Override
     public void execute(SearchContext context) throws ElasticSearchException {
-        try {
-        SuggestionSearchContext suggest = context.suggest();
+        final SuggestionSearchContext suggest = context.suggest();
         if (suggest == null) {
             return;
         }
+        context.queryResult().suggest(execute(suggest, context.searcher().getIndexReader()));
+    }
+    
+    public Suggest execute(SuggestionSearchContext suggest, IndexReader reader) {
         try {
             CharsRef spare = new CharsRef(); // Maybe add CharsRef to CacheRecycler?
             final List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<Suggestion<? extends Entry<? extends Option>>>(suggest.suggestions().size());
             for (Map.Entry<String, SuggestionSearchContext.SuggestionContext> entry : suggest.suggestions().entrySet()) {
                 SuggestionSearchContext.SuggestionContext suggestion = entry.getValue();
                 Suggester<SuggestionContext> suggester = suggestion.getSuggester();
-                Suggestion<? extends Entry<? extends Option>> result = suggester.execute(entry.getKey(), suggestion, context, spare);
+                Suggestion<? extends Entry<? extends Option>> result = suggester.execute(entry.getKey(), suggestion, reader, spare);
                 assert entry.getKey().equals(result.name);
                 suggestions.add(result);
             }
-            context.queryResult().suggest(new Suggest(suggestions));
+            return new Suggest(Suggest.Fields.SUGGEST, suggestions);
         } catch (IOException e) {
             throw new ElasticSearchException("I/O exception during suggest phase", e);
-        }
-        } catch (NullPointerException e) {
-            e.printStackTrace();
         }
     }
 }

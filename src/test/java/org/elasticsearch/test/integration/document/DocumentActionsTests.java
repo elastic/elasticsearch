@@ -220,7 +220,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         for (int i = 0; i < 5; i++) {
             // test successful
             CountResponse countResponse = client1.prepareCount("test").setQuery(termQuery("_type", "type1")).setOperationThreading(BroadcastOperationThreading.NO_THREADS).execute().actionGet();
-            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures().size(), equalTo(0));
+            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures()==null?0:countResponse.getShardFailures().length, equalTo(0));
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));
@@ -244,7 +244,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
 
             // count with no query is a match all one
             countResponse = client1.prepareCount("test").execute().actionGet();
-            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures().size(), equalTo(0));
+            assertThat("Failures " + countResponse.getShardFailures(), countResponse.getShardFailures()==null?0:countResponse.getShardFailures().length, equalTo(0));
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
             assertThat(countResponse.getFailedShards(), equalTo(0));

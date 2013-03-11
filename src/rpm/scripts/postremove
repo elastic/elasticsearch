@@ -1,0 +1,13 @@
+echo "Removing elasticsearch user and group if existing"
+
+getent passwd elasticsearch > /dev/null
+if [ "$?" == "1" ] ; then
+    userdel elasticsearch
+fi
+
+getent group elasticsearch >/dev/null
+if [ "$?" == "1" ] ; then
+    groupdel elasticsearch
+fi
+
+exit

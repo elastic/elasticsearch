@@ -110,8 +110,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
-    @Test(enabled = false)
-    // LUCENE MONITIR enable this test again once Lucene4.2 is out. This bug is fixed in Lucene 4.2
+    @Test
     public void testEdgeCases() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 

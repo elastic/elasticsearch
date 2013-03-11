@@ -102,7 +102,7 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
             collectedUids = null;
         }
 
-        static class ParentDocSet extends MatchDocIdSet {
+        final static class ParentDocSet extends MatchDocIdSet {
 
             final IndexReader reader;
             final THashSet<HashedBytesArray> parents;
@@ -121,33 +121,19 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
             }
         }
 
-        static class UidCollector extends NoopCollector {
-
-            final String parentType;
-            final SearchContext context;
-            final THashSet<HashedBytesArray> collectedUids;
-
-            private IdReaderTypeCache typeCache;
+        final static class UidCollector extends ParentIdCollector {
+            private final THashSet<HashedBytesArray> collectedUids;
 
             UidCollector(String parentType, SearchContext context, THashSet<HashedBytesArray> collectedUids) {
-                this.parentType = parentType;
-                this.context = context;
+                super(parentType, context);
                 this.collectedUids = collectedUids;
             }
 
             @Override
-            public void collect(int doc) throws IOException {
-                // It can happen that for particular segment no document exist for an specific type. This prevents NPE
-                if (typeCache != null) {
-                    collectedUids.add(typeCache.parentIdByDoc(doc));
-                }
-
+            public void collect(int doc, HashedBytesArray parentIdByDoc){
+                collectedUids.add(parentIdByDoc);
             }
 
-            @Override
-            public void setNextReader(AtomicReaderContext readerContext) throws IOException {
-                typeCache = context.idCache().reader(readerContext.reader()).type(parentType);
-            }
         }
     }
 }

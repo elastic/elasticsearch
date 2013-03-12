@@ -38,6 +38,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
     private boolean network = false;
     private boolean transport = false;
     private boolean http = false;
+    private boolean plugins = false;
 
     public NodesInfoRequest() {
     }
@@ -62,6 +63,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         network = false;
         transport = false;
         http = false;
+        plugins = false;
         return this;
     }
 
@@ -77,6 +79,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         network = true;
         transport = true;
         http = true;
+        plugins = true;
         return this;
     }
 
@@ -200,6 +203,21 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         return this;
     }
 
+    /**
+     * Should the node plugins be returned.
+     */
+    public boolean plugins() {
+        return this.plugins;
+    }
+
+    /**
+     * Should the node plugins be returned.
+     */
+    public NodesInfoRequest plugins(boolean plugins) {
+        this.plugins = plugins;
+        return this;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -211,6 +229,7 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         network = in.readBoolean();
         transport = in.readBoolean();
         http = in.readBoolean();
+        plugins = in.readBoolean();
     }
 
     @Override
@@ -224,5 +243,6 @@ public class NodesInfoRequest extends NodesOperationRequest<NodesInfoRequest> {
         out.writeBoolean(network);
         out.writeBoolean(transport);
         out.writeBoolean(http);
+        out.writeBoolean(plugins);
     }
 }

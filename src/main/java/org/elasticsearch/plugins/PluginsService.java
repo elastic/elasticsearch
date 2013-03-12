@@ -134,6 +134,14 @@ public class PluginsService extends AbstractComponent {
         return plugins;
     }
 
+    public PluginsInfo info() {
+        String[] mandatoryPlugins = settings.getAsArray("plugin.mandatory", null);
+        return new PluginsInfo(
+                mandatoryPlugins == null ? null : new HashSet<String>(Arrays.asList(mandatoryPlugins)),
+                PluginsHelper.sitePlugins(this.environment),
+                plugins.keySet());
+    }
+
     public void processModules(Iterable<Module> modules) {
         for (Module module : modules) {
             processModule(module);

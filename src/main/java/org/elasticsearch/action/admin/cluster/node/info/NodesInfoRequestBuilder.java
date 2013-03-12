@@ -113,6 +113,14 @@ public class NodesInfoRequestBuilder extends NodesOperationRequestBuilder<NodesI
         return this;
     }
 
+    /**
+     * Should the node plugins info be returned.
+     */
+    public NodesInfoRequestBuilder setPlugins(boolean plugins) {
+        request.plugins(plugins);
+        return this;
+    }
+
 
     @Override
     protected void doExecute(ActionListener<NodesInfoResponse> listener) {

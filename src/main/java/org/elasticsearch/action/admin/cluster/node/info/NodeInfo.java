@@ -33,6 +33,7 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.network.NetworkInfo;
 import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.process.ProcessInfo;
+import org.elasticsearch.plugins.PluginsInfo;
 import org.elasticsearch.threadpool.ThreadPoolInfo;
 import org.elasticsearch.transport.TransportInfo;
 
@@ -76,12 +77,15 @@ public class NodeInfo extends NodeOperationResponse {
     @Nullable
     private HttpInfo http;
 
+    @Nullable
+    private PluginsInfo plugins;
+
     NodeInfo() {
     }
 
     public NodeInfo(@Nullable String hostname, Version version, DiscoveryNode node, @Nullable ImmutableMap<String, String> serviceAttributes, @Nullable Settings settings,
                     @Nullable OsInfo os, @Nullable ProcessInfo process, @Nullable JvmInfo jvm, @Nullable ThreadPoolInfo threadPool, @Nullable NetworkInfo network,
-                    @Nullable TransportInfo transport, @Nullable HttpInfo http) {
+                    @Nullable TransportInfo transport, @Nullable HttpInfo http, @Nullable PluginsInfo plugins) {
         super(node);
         this.hostname = hostname;
         this.version = version;
@@ -94,6 +98,7 @@ public class NodeInfo extends NodeOperationResponse {
         this.network = network;
         this.transport = transport;
         this.http = http;
+        this.plugins = plugins;
     }
 
     /**
@@ -174,6 +179,11 @@ public class NodeInfo extends NodeOperationResponse {
         return http;
     }
 
+    @Nullable
+    public PluginsInfo getPlugins() {
+        return plugins;
+    }
+
     public static NodeInfo readNodeInfo(StreamInput in) throws IOException {
         NodeInfo nodeInfo = new NodeInfo();
         nodeInfo.readFrom(in);
@@ -218,6 +228,9 @@ public class NodeInfo extends NodeOperationResponse {
         }
         if (in.readBoolean()) {
             http = HttpInfo.readHttpInfo(in);
+        }
+        if (in.readBoolean()) {
+            plugins = PluginsInfo.readPluginsInfo(in);
         }
     }
 
@@ -288,6 +301,12 @@ public class NodeInfo extends NodeOperationResponse {
         } else {
             out.writeBoolean(true);
             http.writeTo(out);
+        }
+        if (plugins == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            plugins.writeTo(out);
         }
     }
 }

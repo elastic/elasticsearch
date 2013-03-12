@@ -144,7 +144,6 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             channel.sendResponse(new StringRestResponse(FORBIDDEN));
             return;
         }
-        // TODO for a "/_plugin" endpoint, we should have a page that lists all the plugins?
 
         String path = request.rawPath().substring("/_plugin/".length());
         int i1 = path.indexOf('/');

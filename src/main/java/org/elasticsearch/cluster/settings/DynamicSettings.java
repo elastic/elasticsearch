@@ -19,20 +19,20 @@
 
 package org.elasticsearch.cluster.settings;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Map;
 
 /**
  */
 public class DynamicSettings {
 
-    private ImmutableSet<String> dynamicSettings = ImmutableSet.of();
+    private ImmutableMap<String, Validator> dynamicSettings = ImmutableMap.of();
 
     public boolean hasDynamicSetting(String key) {
-        for (String dynamicSetting : dynamicSettings) {
+        for (String dynamicSetting : dynamicSettings.keySet()) {
             if (Regex.simpleMatch(dynamicSetting, key)) {
                 return true;
             }
@@ -40,10 +40,32 @@ public class DynamicSettings {
         return false;
     }
 
+    public String validateDynamicSetting(String dynamicSetting, String value) {
+        for (Map.Entry<String, Validator> setting : dynamicSettings.entrySet()) {
+            if (Regex.simpleMatch(dynamicSetting, setting.getKey())) {
+                return setting.getValue().validate(dynamicSetting, value);
+            }
+        }
+        return null;
+    }
+
+    public synchronized void addDynamicSetting(String setting, Validator validator) {
+        MapBuilder<String, Validator> updatedSettings = MapBuilder.newMapBuilder(dynamicSettings);
+        updatedSettings.put(setting, validator);
+        dynamicSettings = updatedSettings.immutableMap();
+    }
+
+    public synchronized void addDynamicSetting(String setting) {
+        addDynamicSetting(setting, Validator.EmptyValidator.INSTANCE);
+    }
+
+
     public synchronized void addDynamicSettings(String... settings) {
-        HashSet<String> updatedSettings = new HashSet<String>(dynamicSettings);
-        updatedSettings.addAll(Arrays.asList(settings));
-        dynamicSettings = ImmutableSet.copyOf(updatedSettings);
+        MapBuilder<String, Validator> updatedSettings = MapBuilder.newMapBuilder(dynamicSettings);
+        for (String setting : settings) {
+            updatedSettings.put(setting, Validator.EmptyValidator.INSTANCE);
+        }
+        dynamicSettings = updatedSettings.immutableMap();
     }
 
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.settings.DynamicSettings;
+import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.gateway.local.LocalGatewayAllocator;
 import org.elasticsearch.index.engine.robin.RobinEngine;
@@ -46,73 +47,76 @@ public class IndexDynamicSettingsModule extends AbstractModule {
 
     public IndexDynamicSettingsModule() {
         indexDynamicSettings = new DynamicSettings();
-        indexDynamicSettings.addDynamicSettings(
-                AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC,
-                AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE,
-                FilterAllocationDecider.INDEX_ROUTING_REQUIRE_GROUP + "*",
-                FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "*",
-                FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "*",
-                FsTranslog.INDEX_TRANSLOG_FS_TYPE,
-                FsTranslog.INDEX_TRANSLOG_FS_BUFFER_SIZE,
-                FsTranslog.INDEX_TRANSLOG_FS_TRANSIENT_BUFFER_SIZE,
-                IndexMetaData.SETTING_NUMBER_OF_REPLICAS,
-                IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS,
-                IndexMetaData.SETTING_READ_ONLY,
-                IndexMetaData.SETTING_BLOCKS_READ,
-                IndexMetaData.SETTING_BLOCKS_WRITE,
-                IndexMetaData.SETTING_BLOCKS_METADATA,
-                IndexShardGatewayService.INDEX_GATEWAY_SNAPSHOT_INTERVAL,
-                IndicesTTLService.INDEX_TTL_DISABLE_PURGE,
-                InternalIndexShard.INDEX_REFRESH_INTERVAL,
-                LocalGatewayAllocator.INDEX_RECOVERY_INITIAL_SHARDS,
-                LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MIN_MERGE_SIZE,
-                LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_SIZE,
-                LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_DOCS,
-                LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MERGE_FACTOR,
-                LogByteSizeMergePolicyProvider.INDEX_COMPOUND_FORMAT,
-                LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MIN_MERGE_DOCS,
-                LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_DOCS,
-                LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MERGE_FACTOR,
-                LogDocMergePolicyProvider.INDEX_COMPOUND_FORMAT,
-                RobinEngine.INDEX_TERM_INDEX_INTERVAL,
-                RobinEngine.INDEX_TERM_INDEX_DIVISOR,
-                RobinEngine.INDEX_INDEX_CONCURRENCY,
-                RobinEngine.INDEX_GC_DELETES,
-                RobinEngine.INDEX_CODEC,
-                RobinEngine.INDEX_FAIL_ON_MERGE_FAILURE,
-                ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN,
-                ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO,
-                ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG,
-                ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE,
-                ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_REFORMAT,
-                ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_LEVEL,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_REFORMAT,
-                ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_LEVEL,
-                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE,
-                TieredMergePolicyProvider.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED,
-                TieredMergePolicyProvider.INDEX_MERGE_POLICY_FLOOR_SEGMENT,
-                TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE,
-                TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT,
-                TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT,
-                TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER,
-                TieredMergePolicyProvider.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT,
-                TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT,
-                TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS,
-                TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE,
-                TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD,
-                TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH);
+        indexDynamicSettings.addDynamicSetting(AbstractIndexStore.INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC);
+        indexDynamicSettings.addDynamicSetting(AbstractIndexStore.INDEX_STORE_THROTTLE_TYPE);
+        indexDynamicSettings.addDynamicSetting(FilterAllocationDecider.INDEX_ROUTING_REQUIRE_GROUP + "*");
+        indexDynamicSettings.addDynamicSetting(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "*");
+        indexDynamicSettings.addDynamicSetting(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "*");
+        indexDynamicSettings.addDynamicSetting(FsTranslog.INDEX_TRANSLOG_FS_TYPE);
+        indexDynamicSettings.addDynamicSetting(FsTranslog.INDEX_TRANSLOG_FS_BUFFER_SIZE);
+        indexDynamicSettings.addDynamicSetting(FsTranslog.INDEX_TRANSLOG_FS_TRANSIENT_BUFFER_SIZE);
+        indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_NUMBER_OF_REPLICAS);
+        indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS);
+        indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_READ_ONLY);
+        indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_BLOCKS_READ);
+        indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_BLOCKS_WRITE);
+        indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_BLOCKS_METADATA);
+        indexDynamicSettings.addDynamicSetting(IndexShardGatewayService.INDEX_GATEWAY_SNAPSHOT_INTERVAL);
+        indexDynamicSettings.addDynamicSetting(IndicesTTLService.INDEX_TTL_DISABLE_PURGE);
+        indexDynamicSettings.addDynamicSetting(InternalIndexShard.INDEX_REFRESH_INTERVAL, Validator.TimeValueValidator.INSTANCE);
+        indexDynamicSettings.addDynamicSetting(LocalGatewayAllocator.INDEX_RECOVERY_INITIAL_SHARDS);
+        indexDynamicSettings.addDynamicSetting(LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MIN_MERGE_SIZE);
+        indexDynamicSettings.addDynamicSetting(LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_SIZE);
+        indexDynamicSettings.addDynamicSetting(LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_DOCS);
+        indexDynamicSettings.addDynamicSetting(LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MERGE_FACTOR);
+        indexDynamicSettings.addDynamicSetting(LogByteSizeMergePolicyProvider.INDEX_COMPOUND_FORMAT);
+        indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MIN_MERGE_DOCS);
+        indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_DOCS);
+        indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_MERGE_POLICY_MERGE_FACTOR);
+        indexDynamicSettings.addDynamicSetting(LogDocMergePolicyProvider.INDEX_COMPOUND_FORMAT);
+        indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_TERM_INDEX_INTERVAL);
+        indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_TERM_INDEX_DIVISOR);
+        indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_INDEX_CONCURRENCY);
+        indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_GC_DELETES);
+        indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_CODEC);
+        indexDynamicSettings.addDynamicSetting(RobinEngine.INDEX_FAIL_ON_MERGE_FAILURE);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_REFORMAT);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogIndexingService.INDEX_INDEXING_SLOWLOG_LEVEL);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_REFORMAT);
+        indexDynamicSettings.addDynamicSetting(ShardSlowLogSearchService.INDEX_SEARCH_SLOWLOG_LEVEL);
+        indexDynamicSettings.addDynamicSetting(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE);
+        indexDynamicSettings.addDynamicSetting(TieredMergePolicyProvider.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED);
+        indexDynamicSettings.addDynamicSetting(TieredMergePolicyProvider.INDEX_MERGE_POLICY_FLOOR_SEGMENT);
+        indexDynamicSettings.addDynamicSetting(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE);
+        indexDynamicSettings.addDynamicSetting(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT);
+        indexDynamicSettings.addDynamicSetting(TieredMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT);
+        indexDynamicSettings.addDynamicSetting(TieredMergePolicyProvider.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER);
+        indexDynamicSettings.addDynamicSetting(TieredMergePolicyProvider.INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT);
+        indexDynamicSettings.addDynamicSetting(TieredMergePolicyProvider.INDEX_COMPOUND_FORMAT);
+        indexDynamicSettings.addDynamicSetting(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS);
+        indexDynamicSettings.addDynamicSetting(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE);
+        indexDynamicSettings.addDynamicSetting(TranslogService.INDEX_TRANSLOG_FLUSH_THRESHOLD_PERIOD);
+        indexDynamicSettings.addDynamicSetting(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH);
     }
 
-    public void addDynamicSetting(String... settings) {
+    public void addDynamicSettings(String... settings) {
         indexDynamicSettings.addDynamicSettings(settings);
+    }
+
+    public void addDynamicSetting(String setting, Validator validator) {
+        indexDynamicSettings.addDynamicSetting(setting, validator);
     }
 
     @Override

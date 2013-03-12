@@ -71,9 +71,14 @@ public class ClusterDynamicSettingsModule extends AbstractModule {
         );
     }
 
-    public void addDynamicSetting(String... settings) {
+    public void addDynamicSettings(String... settings) {
         clusterDynamicSettings.addDynamicSettings(settings);
     }
+
+    public void addDynamicSetting(String setting, Validator validator) {
+        clusterDynamicSettings.addDynamicSetting(setting, validator);
+    }
+
 
     @Override
     protected void configure() {

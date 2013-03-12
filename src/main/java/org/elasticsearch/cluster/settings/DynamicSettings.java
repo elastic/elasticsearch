@@ -56,14 +56,14 @@ public class DynamicSettings {
     }
 
     public synchronized void addDynamicSetting(String setting) {
-        addDynamicSetting(setting, Validator.EmptyValidator.INSTANCE);
+        addDynamicSetting(setting, Validator.EMPTY);
     }
 
 
     public synchronized void addDynamicSettings(String... settings) {
         MapBuilder<String, Validator> updatedSettings = MapBuilder.newMapBuilder(dynamicSettings);
         for (String setting : settings) {
-            updatedSettings.put(setting, Validator.EmptyValidator.INSTANCE);
+            updatedSettings.put(setting, Validator.EMPTY);
         }
         dynamicSettings = updatedSettings.immutableMap();
     }

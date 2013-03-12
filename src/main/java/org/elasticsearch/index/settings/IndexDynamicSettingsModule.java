@@ -63,7 +63,7 @@ public class IndexDynamicSettingsModule extends AbstractModule {
         indexDynamicSettings.addDynamicSetting(IndexMetaData.SETTING_BLOCKS_METADATA);
         indexDynamicSettings.addDynamicSetting(IndexShardGatewayService.INDEX_GATEWAY_SNAPSHOT_INTERVAL);
         indexDynamicSettings.addDynamicSetting(IndicesTTLService.INDEX_TTL_DISABLE_PURGE);
-        indexDynamicSettings.addDynamicSetting(InternalIndexShard.INDEX_REFRESH_INTERVAL, Validator.TimeValueValidator.INSTANCE);
+        indexDynamicSettings.addDynamicSetting(InternalIndexShard.INDEX_REFRESH_INTERVAL, Validator.TIME);
         indexDynamicSettings.addDynamicSetting(LocalGatewayAllocator.INDEX_RECOVERY_INITIAL_SHARDS);
         indexDynamicSettings.addDynamicSetting(LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MIN_MERGE_SIZE);
         indexDynamicSettings.addDynamicSetting(LogByteSizeMergePolicyProvider.INDEX_MERGE_POLICY_MAX_MERGE_SIZE);

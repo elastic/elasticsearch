@@ -23,32 +23,20 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
+ * Validates a setting, returning a failure message if applicable.
  */
 public interface Validator {
+
     String validate(String setting, String value);
 
-    public static class EmptyValidator implements Validator {
-
-        public static final EmptyValidator INSTANCE = new EmptyValidator();
-
-        private EmptyValidator() {
-
-        }
-
+    public static final Validator EMPTY = new Validator() {
         @Override
         public String validate(String setting, String value) {
             return null;
         }
-    }
+    };
 
-    public static class TimeValueValidator implements Validator {
-
-        public static final TimeValueValidator INSTANCE = new TimeValueValidator();
-
-        private TimeValueValidator() {
-
-        }
-
+    public static final Validator TIME = new Validator() {
         @Override
         public String validate(String setting, String value) {
             try {
@@ -60,5 +48,5 @@ public interface Validator {
             }
             return null;
         }
-    }
+    };
 }

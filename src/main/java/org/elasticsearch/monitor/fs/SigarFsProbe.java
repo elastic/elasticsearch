@@ -26,7 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.sigar.SigarService;
 import org.hyperic.sigar.FileSystem;
+import org.hyperic.sigar.FileSystemMap;
 import org.hyperic.sigar.FileSystemUsage;
+import org.hyperic.sigar.Sigar;
 import org.hyperic.sigar.SigarException;
 
 import java.io.File;
@@ -64,24 +66,31 @@ public class SigarFsProbe extends AbstractComponent implements FsProbe {
 
             try {
                 FileSystem fileSystem = fileSystems.get(dataLocation);
+                Sigar sigar = sigarService.sigar();
                 if (fileSystem == null) {
-                    fileSystem = sigarService.sigar().getFileSystemMap().getMountPoint(dataLocation.getPath());
-                    fileSystems.put(dataLocation, fileSystem);
+                    FileSystemMap fileSystemMap = sigar.getFileSystemMap();
+                    if (fileSystemMap != null) {
+                        fileSystem = fileSystemMap.getMountPoint(dataLocation.getPath());
+                        fileSystems.put(dataLocation, fileSystem);
+                    }
                 }
-
-                FileSystemUsage fileSystemUsage = sigarService.sigar().getFileSystemUsage(fileSystem.getDirName());
-                info.mount = fileSystem.getDirName();
-                info.dev = fileSystem.getDevName();
-                // total/free/available seem to be in megabytes?
-                info.total = fileSystemUsage.getTotal() * 1024;
-                info.free = fileSystemUsage.getFree() * 1024;
-                info.available = fileSystemUsage.getAvail() * 1024;
-                info.diskReads = fileSystemUsage.getDiskReads();
-                info.diskWrites = fileSystemUsage.getDiskWrites();
-                info.diskReadBytes = fileSystemUsage.getDiskReadBytes();
-                info.diskWriteBytes = fileSystemUsage.getDiskWriteBytes();
-                info.diskQueue = fileSystemUsage.getDiskQueue();
-                info.diskServiceTime = fileSystemUsage.getDiskServiceTime();
+                if (fileSystem != null) {
+                    info.mount = fileSystem.getDirName();
+                    info.dev = fileSystem.getDevName();
+                    FileSystemUsage fileSystemUsage = sigar.getFileSystemUsage(fileSystem.getDirName());
+                    if (fileSystemUsage != null) {
+                        // total/free/available seem to be in megabytes?
+                        info.total = fileSystemUsage.getTotal() * 1024;
+                        info.free = fileSystemUsage.getFree() * 1024;
+                        info.available = fileSystemUsage.getAvail() * 1024;
+                        info.diskReads = fileSystemUsage.getDiskReads();
+                        info.diskWrites = fileSystemUsage.getDiskWrites();
+                        info.diskReadBytes = fileSystemUsage.getDiskReadBytes();
+                        info.diskWriteBytes = fileSystemUsage.getDiskWriteBytes();
+                        info.diskQueue = fileSystemUsage.getDiskQueue();
+                        info.diskServiceTime = fileSystemUsage.getDiskServiceTime();
+                    }
+                }
             } catch (SigarException e) {
                 // failed...
             }

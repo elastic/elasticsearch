@@ -1,0 +1,13 @@
+#!/bin/bash
+
+SHA=$(git rev-parse --short HEAD)
+BRANCH=$(git branch --no-color 2>/dev/null | grep '^*' | colrm 1 2)
+BUCKET=download.elasticsearch.org
+KEYPRE=elasticsearch/elasticsearch
+
+for src in target/releases/elasticsearch-*.{deb,tar.gz,zip}; do
+  f=$(echo $src | perl -pe "s,(elasticsearch)-.*?\.(tar.gz|zip|deb)\$,\$1-$BRANCH.\$2,")
+  cmd="s3cmd put $src s3://$BUCKET/$KEYPRE/$(basename $f)"
+  echo $cmd
+  $cmd
+done

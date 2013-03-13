@@ -18,11 +18,7 @@
  */
 package org.elasticsearch.search.suggest;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.ElasticSearchException;
@@ -37,22 +33,32 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
-import com.google.common.collect.ImmutableMap;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  */
 public class SuggestPhase extends AbstractComponent implements SearchPhase {
 
+    private final SuggestParseElement parseElement;
+
     @Inject
     public SuggestPhase(Settings settings) {
         super(settings);
+        this.parseElement = new SuggestParseElement();
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
         ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("suggest", new SuggestParseElement());
+        parseElements.put("suggest", parseElement);
         return parseElements.build();
+    }
+
+    public SuggestParseElement parseElement() {
+        return parseElement;
     }
 
     @Override
@@ -67,7 +73,7 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
         }
         context.queryResult().suggest(execute(suggest, context.searcher().getIndexReader()));
     }
-    
+
     public Suggest execute(SuggestionSearchContext suggest, IndexReader reader) {
         try {
             CharsRef spare = new CharsRef(); // Maybe add CharsRef to CacheRecycler?

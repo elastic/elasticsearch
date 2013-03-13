@@ -88,7 +88,7 @@ public class GeoJSONShapeParser {
                 } else if ("coordinates".equals(fieldName)) {
                     parser.nextToken();
                     node = parseCoordinates(parser);
-                } else if ("crs".equals(fieldName) || "bbox".equals(fieldName)) { // valid geojson, but not interesting
+                } else {
                     parser.nextToken();
                     parser.skipChildren();
                 }

@@ -211,16 +211,20 @@ public class GeoJSONShapeParserTests {
     }
 
     @Test
-    public void testThatValidGeoJsonIncludingCrsCanBeParsed() throws IOException {
+    public void testThatParserExtractsCorrectTypeAndCoordinatesFromArbitraryJson() throws IOException {
         String pointGeoJson = XContentFactory.jsonBuilder().startObject()
-                .field("type", "point")
-                .startArray("coordinates").value(100.0).value(0.0).endArray()
                 .startObject("crs")
                     .field("type", "name")
                     .startObject("properties")
                         .field("name", "urn:ogc:def:crs:OGC:1.3:CRS84")
                     .endObject()
                 .endObject()
+                .field("bbox", "foobar")
+                .field("type", "point")
+                .field("bubu", "foobar")
+                .startArray("coordinates").value(100.0).value(0.0).endArray()
+                .startObject("lala").field("type", "NotAPoint").endObject()
+                .startObject("nested").startArray("coordinates").value(100.0).value(0.0).endArray().endObject()
                 .endObject().string();
 
         Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));

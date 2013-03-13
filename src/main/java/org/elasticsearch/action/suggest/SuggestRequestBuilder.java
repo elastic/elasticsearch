@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.suggest;
 
-import java.io.IOException;
-
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
@@ -32,25 +30,27 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 
+import java.io.IOException;
+
 /**
  * A suggest action request builder.
  */
 public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<SuggestRequest, SuggestResponse, SuggestRequestBuilder> {
 
     final SuggestBuilder suggest = new SuggestBuilder();
-    
+
     public SuggestRequestBuilder(Client client) {
         super((InternalClient) client, new SuggestRequest());
     }
 
     /**
-     * Add a definition for suggestions to the request 
+     * Add a definition for suggestions to the request
      */
     public <T> SuggestRequestBuilder addSuggestion(SuggestionBuilder<T> suggestion) {
         suggest.addSuggestion(suggestion);
         return this;
     }
-    
+
     /**
      * A comma separated list of routing values to control the shards the search will be executed on.
      */
@@ -58,12 +58,12 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
         request.routing(routing);
         return this;
     }
-    
+
     public SuggestRequestBuilder setSuggestText(String globalText) {
         this.suggest.setText(globalText);
         return this;
     }
-    
+
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
      * <tt>_local</tt> to prefer local shards, <tt>_primary</tt> to execute only on primary shards,
@@ -87,9 +87,8 @@ public class SuggestRequestBuilder extends BroadcastOperationRequestBuilder<Sugg
     protected void doExecute(ActionListener<SuggestResponse> listener) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(SuggestRequest.contentType);
-            XContentBuilder content = suggest.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            content.close();
-            request.suggest(content.bytes());
+            suggest.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            request.suggest(builder.bytes());
         } catch (IOException e) {
             throw new ElasticSearchException("Unable to build suggestion request", e);
         }

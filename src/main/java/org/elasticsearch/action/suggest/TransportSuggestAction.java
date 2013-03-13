@@ -19,14 +19,6 @@
 
 package org.elasticsearch.action.suggest;
 
-import static com.google.common.collect.Lists.newArrayList;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicReferenceArray;
-
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -49,14 +41,21 @@ import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestParseElement;
 import org.elasticsearch.search.suggest.SuggestPhase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static com.google.common.collect.Lists.newArrayList;
+
 /**
- * Defines the transport of a suggestion request across the cluster 
+ * Defines the transport of a suggestion request across the cluster
  */
 public class TransportSuggestAction extends TransportBroadcastOperationAction<SuggestRequest, SuggestResponse, ShardSuggestRequest, ShardSuggestResponse> {
 
@@ -66,7 +65,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
 
     @Inject
     public TransportSuggestAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                IndicesService indicesService) {
+                                  IndicesService indicesService) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.suggestPhase = new SuggestPhase(settings);
@@ -142,7 +141,7 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
                 successfulShards++;
             }
         }
-        
+
         return new SuggestResponse(new Suggest(Suggest.reduce(groupedSuggestions)), shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
@@ -151,26 +150,26 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(request.shardId());
         final Engine.Searcher searcher = indexShard.searcher();
+        XContentParser parser = null;
         try {
             BytesReference suggest = request.suggest();
             if (suggest != null && suggest.length() > 0) {
-                final SuggestParseElement element = new SuggestParseElement();
-                final XContentParser parser = XContentFactory.xContent(suggest).createParser(suggest);
-
-                if(parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticSearchIllegalArgumentException("Object expected");
+                parser = XContentFactory.xContent(suggest).createParser(suggest);
+                if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                    throw new ElasticSearchIllegalArgumentException("suggest content missing");
                 }
-                
-                final SuggestionSearchContext context = element.parseInternal(parser, indexService.mapperService());
+                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService());
                 final Suggest result = suggestPhase.execute(context, searcher.reader());
                 return new ShardSuggestResponse(request.index(), request.shardId(), result);
             }
             return new ShardSuggestResponse(request.index(), request.shardId(), new Suggest());
-
-        } catch(Throwable ex) {
-            throw new ElasticSearchException("Failed to execute suggest", ex);
+        } catch (Throwable ex) {
+            throw new ElasticSearchException("failed to execute suggest", ex);
         } finally {
             searcher.release();
+            if (parser != null) {
+                parser.close();
+            }
         }
     }
 }

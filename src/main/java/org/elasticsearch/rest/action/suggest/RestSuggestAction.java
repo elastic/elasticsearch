@@ -19,33 +19,28 @@
 
 package org.elasticsearch.rest.action.suggest;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
-
-import java.io.IOException;
-
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.XContentRestResponse;
-import org.elasticsearch.rest.XContentThrowableRestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import org.elasticsearch.search.suggest.Suggest;
+
+import java.io.IOException;
+
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
 /**
  *
@@ -82,10 +77,7 @@ public class RestSuggestAction extends BaseRestHandler {
                 if (source != null) {
                     suggestRequest.suggest(source);
                 } else {
-                    BytesReference querySource = RestActions.parseQuerySource(request);
-                    if (querySource != null) {
-                        suggestRequest.suggest(querySource, false);
-                    }
+                    throw new ElasticSearchIllegalArgumentException("no content or source provided to execute suggestion");
                 }
             }
             suggestRequest.routing(request.param("routing"));
@@ -109,7 +101,7 @@ public class RestSuggestAction extends BaseRestHandler {
                     buildBroadcastShardsHeader(builder, response);
                     Suggest suggest = response.getSuggest();
                     if (suggest != null) {
-                        suggest.toXContent(builder, request);    
+                        suggest.toXContent(builder, request);
                     }
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));

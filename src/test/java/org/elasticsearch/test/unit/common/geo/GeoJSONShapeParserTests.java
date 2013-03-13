@@ -223,8 +223,8 @@ public class GeoJSONShapeParserTests {
                 .field("type", "point")
                 .field("bubu", "foobar")
                 .startArray("coordinates").value(100.0).value(0.0).endArray()
+                .startObject("nested").startArray("coordinates").value(200.0).value(0.0).endArray().endObject()
                 .startObject("lala").field("type", "NotAPoint").endObject()
-                .startObject("nested").startArray("coordinates").value(100.0).value(0.0).endArray().endObject()
                 .endObject().string();
 
         Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));

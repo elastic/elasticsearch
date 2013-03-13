@@ -63,12 +63,12 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
     private Boolean useDisMax;
 
-    private Integer tieBreaker;
+    private Float tieBreaker;
 
     private Boolean lenient;
 
     private Float cutoffFrequency = null;
-    
+
     /**
      * Constructs a new text query.
      */
@@ -181,7 +181,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         return this;
     }
 
-    public MultiMatchQueryBuilder tieBreaker(Integer tieBreaker) {
+    public MultiMatchQueryBuilder tieBreaker(Float tieBreaker) {
         this.tieBreaker = tieBreaker;
         return this;
     }
@@ -193,8 +193,8 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         this.lenient = lenient;
         return this;
     }
-    
-    
+
+
     /**
      * Set a cutoff value in [0..1] (or absolute number >=1) representing the
      * maximum threshold of a terms document frequency to be considered a low
@@ -268,7 +268,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         if (lenient != null) {
             builder.field("lenient", lenient);
         }
-        
+
         if (cutoffFrequency != null) {
             builder.field("cutoff_frequency", cutoffFrequency);
         }

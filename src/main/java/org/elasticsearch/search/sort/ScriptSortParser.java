@@ -136,4 +136,9 @@ public class ScriptSortParser implements SortParser {
 
         return new SortField("_script", fieldComparatorSource, reverse);
     }
+
+    @Override
+    public SortField createDefault(SearchContext context) {
+        return null;
+    }
 }

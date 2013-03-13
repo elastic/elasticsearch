@@ -60,4 +60,15 @@ public class SortBuilders {
     public static GeoDistanceSortBuilder geoDistanceSort(String fieldName) {
         return new GeoDistanceSortBuilder(fieldName);
     }
+
+    /**
+     * A pseudo random sort.
+     *
+     * @param seed The seed to initialize the PRNG for the query
+     * @return
+     */
+    public static RandomSortBuilder randomSort(long seed) {
+        return new RandomSortBuilder(seed);
+    }
+
 }

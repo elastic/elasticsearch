@@ -29,6 +29,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
@@ -144,6 +145,11 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 parseUpperInclusive, ignoreMalformed, provider, null, fieldDataSettings);
         this.enabledState = enabledState;
         this.path = path;
+    }
+
+    @Override
+    public FieldDataType defaultFieldDataType() {
+        return new FieldDataType("long");
     }
 
     @Override

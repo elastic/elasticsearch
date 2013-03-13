@@ -31,4 +31,6 @@ public interface SortParser {
     String[] names();
 
     SortField parse(XContentParser parser, SearchContext context) throws Exception;
+
+    SortField createDefault(SearchContext context);
 }

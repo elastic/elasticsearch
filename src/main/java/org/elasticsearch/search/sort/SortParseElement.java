@@ -60,6 +60,7 @@ public class SortParseElement implements SearchParseElement {
         ImmutableMap.Builder<String, SortParser> builder = ImmutableMap.builder();
         addParser(builder, new ScriptSortParser());
         addParser(builder, new GeoDistanceSortParser());
+        addParser(builder, new RandomSortParser());
         this.parsers = builder.build();
     }
 
@@ -188,6 +189,16 @@ public class SortParseElement implements SearchParseElement {
                 sortFields.add(SORT_DOC);
             }
         } else {
+
+            if (parsers.containsKey(fieldName)) {
+                SortField sortField = parsers.get(fieldName).createDefault(context);
+                if (sortField == null) {
+                    throw new SearchParseException(context, "[" + fieldName + "] sort does not support default values and must be configured with the appropriate settings");
+                }
+                sortFields.add(sortField);
+                return;
+            }
+
             FieldMapper fieldMapper = context.smartNameFieldMapper(fieldName);
             if (fieldMapper == null) {
                 if (ignoreUnmapped) {

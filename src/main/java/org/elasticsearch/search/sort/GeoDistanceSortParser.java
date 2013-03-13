@@ -150,4 +150,9 @@ public class GeoDistanceSortParser implements SortParser {
 
         return new SortField(fieldName, geoDistanceComparatorSource, reverse);
     }
+
+    @Override
+    public SortField createDefault(SearchContext context) {
+        return null;
+    }
 }

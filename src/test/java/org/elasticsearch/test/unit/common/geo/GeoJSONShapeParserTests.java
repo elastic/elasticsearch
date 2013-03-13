@@ -210,6 +210,27 @@ public class GeoJSONShapeParserTests {
         assertGeometryEquals(new JtsGeometry(expected, GeoShapeConstants.SPATIAL_CONTEXT, false), multiPolygonGeoJson);
     }
 
+    @Test
+    public void testThatParserExtractsCorrectTypeAndCoordinatesFromArbitraryJson() throws IOException {
+        String pointGeoJson = XContentFactory.jsonBuilder().startObject()
+                .startObject("crs")
+                    .field("type", "name")
+                    .startObject("properties")
+                        .field("name", "urn:ogc:def:crs:OGC:1.3:CRS84")
+                    .endObject()
+                .endObject()
+                .field("bbox", "foobar")
+                .field("type", "point")
+                .field("bubu", "foobar")
+                .startArray("coordinates").value(100.0).value(0.0).endArray()
+                .startObject("nested").startArray("coordinates").value(200.0).value(0.0).endArray().endObject()
+                .startObject("lala").field("type", "NotAPoint").endObject()
+                .endObject().string();
+
+        Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
+        assertGeometryEquals(new JtsPoint(expected, GeoShapeConstants.SPATIAL_CONTEXT), pointGeoJson);
+    }
+
     private void assertGeometryEquals(Shape expected, String geoJson) throws IOException {
         XContentParser parser = JsonXContent.jsonXContent.createParser(geoJson);
         parser.nextToken();

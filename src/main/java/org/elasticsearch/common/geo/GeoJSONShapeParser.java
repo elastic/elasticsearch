@@ -80,14 +80,17 @@ public class GeoJSONShapeParser {
                 String fieldName = parser.currentName();
 
                 if ("type".equals(fieldName)) {
-                    token = parser.nextToken();
+                    parser.nextToken();
                     shapeType = parser.text().toLowerCase(Locale.ENGLISH);
                     if (shapeType == null) {
                         throw new ElasticSearchParseException("Unknown Shape type [" + parser.text() + "]");
                     }
                 } else if ("coordinates".equals(fieldName)) {
-                    token = parser.nextToken();
+                    parser.nextToken();
                     node = parseCoordinates(parser);
+                } else {
+                    parser.nextToken();
+                    parser.skipChildren();
                 }
             }
         }

@@ -124,7 +124,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         }
         
         if (suggestion.model() == null) {
-            suggestion.setModel(LaplaceScorer.FACTORY);
+            suggestion.setModel(StupidBackoffScorer.FACTORY);
         }
         
         if (!gramSizeSet || suggestion.generators().isEmpty()) {

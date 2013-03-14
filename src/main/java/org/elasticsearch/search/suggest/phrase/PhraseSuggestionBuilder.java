@@ -133,8 +133,8 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     }
 
     /**
-     * Sets an explict smoothing model used for this suggester. The default is
-     * {@link #LAPLACE}.
+     * Sets an explicit smoothing model used for this suggester. The default is
+     * {@link PhraseSuggester#StupidBackoff}.
      */
     public PhraseSuggestionBuilder smoothingModel(SmoothingModel model) {
         this.model = model;
@@ -192,7 +192,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     /**
      * A "stupid-backoff" smoothing model simialr to <a
      * href="http://en.wikipedia.org/wiki/Katz's_back-off_model"> Katz's
-     * Backoff</a>.
+     * Backoff</a>. This model is used as the default if no model is configured.
      * <p>
      * See <a
      * href="http://en.wikipedia.org/wiki/N-gram#Smoothing_techniques">N-Gram
@@ -222,8 +222,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
 
     /**
      * An <a href="http://en.wikipedia.org/wiki/Additive_smoothing">additive
-     * smoothing</a> model. Laplace is used as the default if no smoothing model
-     * is configured.
+     * smoothing</a> model. 
      * <p>
      * See <a
      * href="http://en.wikipedia.org/wiki/N-gram#Smoothing_techniques">N-Gram

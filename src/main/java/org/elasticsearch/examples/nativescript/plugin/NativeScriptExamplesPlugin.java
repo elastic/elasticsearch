@@ -33,7 +33,7 @@ public class NativeScriptExamplesPlugin extends AbstractPlugin {
      */
     @Override
     public String description() {
-        return "Examples of native script";
+        return "Native script examples";
     }
 
     public void onModule(ScriptModule module) {

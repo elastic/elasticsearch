@@ -3,7 +3,7 @@ package org.elasticsearch.examples.nativescript.script;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues.NumericLong;
 import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.NativeScriptFactory;
@@ -65,7 +65,7 @@ public class IsPrimeSearchScript extends AbstractSearchScript {
     @Override
     public Object run() {
         // First we get field using doc lookup
-        ScriptDocValues.NumericLong  field = (ScriptDocValues.NumericLong)doc().get(fieldName);
+        NumericLong field = (NumericLong) doc().get(fieldName);
 
         // Check if field exists
         if (field != null && !field.isEmpty()) {

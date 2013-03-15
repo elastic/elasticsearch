@@ -23,10 +23,7 @@ import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.impl.RectangleImpl;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.GeometryFactory;
-import com.vividsolutions.jts.geom.LinearRing;
-import com.vividsolutions.jts.geom.Polygon;
+import com.vividsolutions.jts.geom.*;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -152,6 +149,12 @@ public class GeoJSONShapeParser {
         } else if ("envelope".equals(shapeType)) {
             Coordinate[] coordinates = toCoordinates(node);
             return new RectangleImpl(coordinates[0].x, coordinates[1].x, coordinates[1].y, coordinates[0].y, GeoShapeConstants.SPATIAL_CONTEXT);
+        } else if ("multilinestring".equals(shapeType)) {
+            LineString[] linestrings = new LineString[node.children.size()];
+            for (int i = 0; i < node.children.size(); i++) {
+                linestrings[i] = GEOMETRY_FACTORY.createLineString(toCoordinates(node.children.get(i)));
+            }
+            return new JtsGeometry(GEOMETRY_FACTORY.createMultiLineString(linestrings), GeoShapeConstants.SPATIAL_CONTEXT, true);
         } else if ("multipolygon".equals(shapeType)) {
             Polygon[] polygons = new Polygon[node.children.size()];
             for (int i = 0; i < node.children.size(); i++) {

@@ -53,6 +53,34 @@ public class GeoJSONShapeParserTests {
     }
 
     @Test
+    public void testParse_multiLineString() throws IOException {
+        String multilinesGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "MultiLineString")
+                .startArray("coordinates")
+                .startArray()
+                .startArray().value(100.0).value(0.0).endArray()
+                .startArray().value(101.0).value(1.0).endArray()
+                .endArray()
+                .startArray()
+                .startArray().value(102.0).value(2.0).endArray()
+                .startArray().value(103.0).value(3.0).endArray()
+                .endArray()
+                .endArray()
+                .endObject().string();
+
+        MultiLineString expected = GEOMETRY_FACTORY.createMultiLineString(new LineString[]{
+                GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                        new Coordinate(100, 0),
+                        new Coordinate(101, 1),
+                }),
+                GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                        new Coordinate(102, 2),
+                        new Coordinate(103, 3),
+                }),
+        });
+        assertGeometryEquals(new JtsGeometry(expected, GeoShapeConstants.SPATIAL_CONTEXT, false), multilinesGeoJson);
+    }
+
+    @Test
     public void testParse_polygonNoHoles() throws IOException {
         String polygonGeoJson = XContentFactory.jsonBuilder().startObject().field("type", "Polygon")
                 .startArray("coordinates")
@@ -205,7 +233,7 @@ public class GeoJSONShapeParserTests {
                 shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon withoutHoles = GEOMETRY_FACTORY.createPolygon(shell, null);
 
-        MultiPolygon expected = GEOMETRY_FACTORY.createMultiPolygon(new Polygon[] {withoutHoles, withHoles});
+        MultiPolygon expected = GEOMETRY_FACTORY.createMultiPolygon(new Polygon[]{withoutHoles, withHoles});
 
         assertGeometryEquals(new JtsGeometry(expected, GeoShapeConstants.SPATIAL_CONTEXT, false), multiPolygonGeoJson);
     }

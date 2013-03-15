@@ -53,8 +53,8 @@ public class StoreRateLimiting {
         }
     }
 
-    private final RateLimiter.SimpleRateLimiter rateLimiter = new RateLimiter.SimpleRateLimiter(0);
-    private volatile RateLimiter.SimpleRateLimiter actualRateLimiter;
+    private final XSimpleRateLimiter rateLimiter = new XSimpleRateLimiter(0);
+    private volatile XSimpleRateLimiter actualRateLimiter;
 
     private volatile Type type;
 

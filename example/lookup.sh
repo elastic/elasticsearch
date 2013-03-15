@@ -3,7 +3,7 @@ echo
 curl -XPUT "http://localhost:9200/test/" -d '{
     "settings": {
         "index.number_of_shards": 1,
-        "index.nubmer_of_replicas": 0
+        "index.number_of_replicas": 0
     },
     "mappings": {
         "state": {

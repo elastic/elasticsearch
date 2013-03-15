@@ -18,10 +18,10 @@
  */
 package org.apache.lucene.store;
 
+import org.apache.lucene.store.IOContext.Context;
+
 import java.io.IOException;
 import java.util.Collection;
-
-import org.apache.lucene.store.IOContext.Context;
 
 public final class RateLimitedFSDirectory extends Directory {
     private final FSDirectory delegate;
@@ -31,7 +31,7 @@ public final class RateLimitedFSDirectory extends Directory {
     private final StoreRateLimiting.Listener rateListener;
 
     public RateLimitedFSDirectory(FSDirectory wrapped, StoreRateLimiting.Provider rateLimitingProvider,
-            StoreRateLimiting.Listener rateListener) {
+                                  StoreRateLimiting.Listener rateListener) {
         this.delegate = wrapped;
         this.rateLimitingProvider = rateLimitingProvider;
         this.rateListener = rateListener;
@@ -160,7 +160,7 @@ public final class RateLimitedFSDirectory extends Directory {
         private final StoreRateLimiting.Listener rateListener;
 
         RateLimitedIndexOutput(final RateLimiter rateLimiter, final StoreRateLimiting.Listener rateListener, final IndexOutput delegate) {
-            // TODO should we make buffer size configurable
+            // TODO if Lucene exposed in BufferedIndexOutput#getBufferSize, we could initialize it if the delegate is buffered
             if (delegate instanceof BufferedIndexOutput) {
                 bufferedDelegate = (BufferedIndexOutput) delegate;
                 this.delegate = delegate;

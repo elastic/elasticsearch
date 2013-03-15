@@ -136,7 +136,7 @@ public class SortParseElement implements SearchParseElement {
                             } else if (token.isValue()) {
                                 if ("reverse".equals(innerJsonName)) {
                                     reverse = parser.booleanValue();
-                                } else if ("order".equals(innerJsonName)) {
+                                } else if ("order".equals(innerJsonName) || "sort_order".equals(innerJsonName) || "sortOrder".equals(innerJsonName)) {
                                     if ("asc".equals(parser.text())) {
                                         reverse = SCORE_FIELD_NAME.equals(fieldName);
                                     } else if ("desc".equals(parser.text())) {

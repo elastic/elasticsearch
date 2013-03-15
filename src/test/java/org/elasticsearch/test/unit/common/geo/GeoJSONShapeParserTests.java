@@ -1,5 +1,6 @@
 package org.elasticsearch.test.unit.common.geo;
 
+import com.spatial4j.core.shape.MultiShape;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
@@ -236,6 +237,39 @@ public class GeoJSONShapeParserTests {
         MultiPolygon expected = GEOMETRY_FACTORY.createMultiPolygon(new Polygon[]{withoutHoles, withHoles});
 
         assertGeometryEquals(new JtsGeometry(expected, GeoShapeConstants.SPATIAL_CONTEXT, false), multiPolygonGeoJson);
+    }
+
+    @Test
+    public void testParse_geometryCollection() throws IOException {
+        String geometryCollectionGeoJson = XContentFactory.jsonBuilder().startObject()
+                .field("type","GeometryCollection")
+                .startArray("geometries")
+                    .startObject()
+                        .field("type", "LineString")
+                        .startArray("coordinates")
+                            .startArray().value(100.0).value(0.0).endArray()
+                            .startArray().value(101.0).value(1.0).endArray()
+                        .endArray()
+                    .endObject()
+                    .startObject()
+                        .field("type", "Point")
+                        .startArray("coordinates").value(102.0).value(2.0).endArray()
+                    .endObject()
+                .endArray()
+                .endObject()
+                .string();
+
+        List<Shape> expected = new ArrayList<Shape>();
+        LineString expectedLineString = GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(100, 0),
+                new Coordinate(101, 1),
+        });
+        expected.add(new JtsGeometry(expectedLineString, GeoShapeConstants.SPATIAL_CONTEXT, false));
+        Point expectedPoint = GEOMETRY_FACTORY.createPoint(new Coordinate(102.0, 2.0));
+        expected.add(new JtsPoint(expectedPoint, GeoShapeConstants.SPATIAL_CONTEXT));
+
+        //equals returns true only if geometries are in the same order
+        assertGeometryEquals(new MultiShape(expected, GeoShapeConstants.SPATIAL_CONTEXT), geometryCollectionGeoJson);
     }
 
     @Test

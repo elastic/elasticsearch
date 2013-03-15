@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.geo;
 
+import com.spatial4j.core.shape.MultiShape;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.impl.RectangleImpl;
 import com.spatial4j.core.shape.jts.JtsGeometry;
@@ -64,12 +65,24 @@ public class GeoJSONShapeParser {
      * @throws IOException Thrown if an error occurs while reading from the XContentParser
      */
     public static Shape parse(XContentParser parser) throws IOException {
+        ParseResult parseResult = parseObject(parser);
+        return buildShape(parseResult);
+    }
+
+    /**
+     * Parses the current object from the given {@link XContentParser}, returns a {@link ParseResult}
+     * to be transformed in a {@link Shape} representation or reused in a geometry collection
+     *
+     * @param parser Parser that will be read from
+     * @return ParseResult non-null type and node or geometries parsed from the geojson
+     * @throws IOException Thrown if an error occurs while reading from the XContentParser
+     */
+    public static ParseResult parseObject(XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticSearchParseException("Shape must be an object consisting of type and coordinates");
         }
 
-        String shapeType = null;
-        CoordinateNode node = null;
+        ParseResult result = new ParseResult();
 
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -78,13 +91,13 @@ public class GeoJSONShapeParser {
 
                 if ("type".equals(fieldName)) {
                     parser.nextToken();
-                    shapeType = parser.text().toLowerCase(Locale.ENGLISH);
-                    if (shapeType == null) {
-                        throw new ElasticSearchParseException("Unknown Shape type [" + parser.text() + "]");
-                    }
+                    result.shapeType = parser.text().toLowerCase(Locale.ENGLISH);
                 } else if ("coordinates".equals(fieldName)) {
                     parser.nextToken();
-                    node = parseCoordinates(parser);
+                    result.node = parseCoordinates(parser);
+                } else if ("geometries".equals(fieldName)) {
+                    parser.nextToken();
+                    result.geometries = parseGeometries(parser);
                 } else {
                     parser.nextToken();
                     parser.skipChildren();
@@ -92,13 +105,10 @@ public class GeoJSONShapeParser {
             }
         }
 
-        if (shapeType == null) {
+        if (result.shapeType == null) {
             throw new ElasticSearchParseException("Shape type not included");
-        } else if (node == null) {
-            throw new ElasticSearchParseException("Coordinates not included");
         }
-
-        return buildShape(shapeType, node);
+        return result;
     }
 
     /**
@@ -114,9 +124,9 @@ public class GeoJSONShapeParser {
         // Base case
         if (token != XContentParser.Token.START_ARRAY) {
             double lon = parser.doubleValue();
-            token = parser.nextToken();
+            parser.nextToken();
             double lat = parser.doubleValue();
-            token = parser.nextToken();
+            parser.nextToken();
             return new CoordinateNode(new Coordinate(lon, lat));
         }
 
@@ -130,43 +140,111 @@ public class GeoJSONShapeParser {
     }
 
     /**
-     * Builds the actual {@link Shape} with the given shape type from the tree
+     * Parse the geometries array of a GeometryCollection
+     *
+     * @param parser Parser that will be read from
+     * @return Geometry[] geometries of the GeometryCollection
+     * @throws IOException Thrown if an error occurs while reading from the XContentParser
+     */
+    private static Geometry[] parseGeometries(XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            throw new ElasticSearchParseException("Geometries must be an array of geojson objects");
+        }
+
+        XContentParser.Token token = parser.nextToken();
+        List<Geometry> geometries = new ArrayList<Geometry>();
+        while (token != XContentParser.Token.END_ARRAY) {
+            ParseResult geometryParseResult = parseObject(parser);
+            geometries.add(buildGeometry(geometryParseResult));
+            token = parser.nextToken();
+        }
+
+        return geometries.toArray(new Geometry[geometries.size()]);
+    }
+
+    /**
+     * Builds the actual {@link Geometry} with the given shape type from the tree
      * of coordinates
      *
-     * @param shapeType Type of Shape to be built
-     * @param node      Root node of the coordinate tree
-     * @return Shape built from the coordinates
+     * @param parseResult parsed data to create the geometry from.
+     * @return Geometry built from the coordinates
      */
-    private static Shape buildShape(String shapeType, CoordinateNode node) {
-        if ("point".equals(shapeType)) {
-            return new JtsPoint(GEOMETRY_FACTORY.createPoint(node.coordinate), GeoShapeConstants.SPATIAL_CONTEXT);
-        } else if ("linestring".equals(shapeType)) {
-            return new JtsGeometry(GEOMETRY_FACTORY.createLineString(toCoordinates(node)), GeoShapeConstants.SPATIAL_CONTEXT, true);
-        } else if ("polygon".equals(shapeType)) {
-            return new JtsGeometry(buildPolygon(node), GeoShapeConstants.SPATIAL_CONTEXT, true);
-        } else if ("multipoint".equals(shapeType)) {
-            return new JtsGeometry(GEOMETRY_FACTORY.createMultiPoint(toCoordinates(node)), GeoShapeConstants.SPATIAL_CONTEXT, true);
-        } else if ("envelope".equals(shapeType)) {
-            Coordinate[] coordinates = toCoordinates(node);
-            return new RectangleImpl(coordinates[0].x, coordinates[1].x, coordinates[1].y, coordinates[0].y, GeoShapeConstants.SPATIAL_CONTEXT);
-        } else if ("multilinestring".equals(shapeType)) {
-            LineString[] linestrings = new LineString[node.children.size()];
-            for (int i = 0; i < node.children.size(); i++) {
-                linestrings[i] = GEOMETRY_FACTORY.createLineString(toCoordinates(node.children.get(i)));
+    private static Geometry buildGeometry(ParseResult parseResult) {
+        String shapeType = parseResult.shapeType;
+        if ("geometrycollection".equals(shapeType)) {
+            if (parseResult.geometries == null) {
+                throw new ElasticSearchParseException("Geometries not included");
             }
-            return new JtsGeometry(GEOMETRY_FACTORY.createMultiLineString(linestrings), GeoShapeConstants.SPATIAL_CONTEXT, true);
-        } else if ("multipolygon".equals(shapeType)) {
-            Polygon[] polygons = new Polygon[node.children.size()];
-            for (int i = 0; i < node.children.size(); i++) {
-                polygons[i] = buildPolygon(node.children.get(i));
+            return GEOMETRY_FACTORY.createGeometryCollection(parseResult.geometries);
+        } else {
+            CoordinateNode node = parseResult.node;
+            if (node == null) {
+                throw new ElasticSearchParseException("Coordinates not included");
             }
-            return new JtsGeometry(
-                    GEOMETRY_FACTORY.createMultiPolygon(polygons),
-                    GeoShapeConstants.SPATIAL_CONTEXT,
-                    true);
+            if ("point".equals(shapeType)) {
+                return GEOMETRY_FACTORY.createPoint(node.coordinate);
+            } else if ("linestring".equals(shapeType)) {
+                return GEOMETRY_FACTORY.createLineString(toCoordinates(node));
+            } else if ("polygon".equals(shapeType)) {
+                return buildPolygon(node);
+            } else if ("multipoint".equals(shapeType)) {
+                return GEOMETRY_FACTORY.createMultiPoint(toCoordinates(node));
+            } else if ("multilinestring".equals(shapeType)) {
+                LineString[] linestrings = new LineString[node.children.size()];
+                for (int i = 0; i < node.children.size(); i++) {
+                    linestrings[i] = GEOMETRY_FACTORY.createLineString(toCoordinates(node.children.get(i)));
+                }
+                return GEOMETRY_FACTORY.createMultiLineString(linestrings);
+            } else if ("multipolygon".equals(shapeType)) {
+                Polygon[] polygons = new Polygon[node.children.size()];
+                for (int i = 0; i < node.children.size(); i++) {
+                    polygons[i] = buildPolygon(node.children.get(i));
+                }
+                return GEOMETRY_FACTORY.createMultiPolygon(polygons);
+            }
         }
 
         throw new UnsupportedOperationException("ShapeType [" + shapeType + "] not supported");
+    }
+
+    /**
+     * Builds the actual {@link Shape} with the given shape type from the tree
+     * of coordinates
+     *
+     * @param parseResult parsed data to create the shape from.
+     * @return Shape built from the coordinates
+     */
+    private static Shape buildShape(ParseResult parseResult) {
+        if ("envelope".equals(parseResult.shapeType)) {
+            Coordinate[] coordinates = toCoordinates(parseResult.node);
+            return new RectangleImpl(coordinates[0].x, coordinates[1].x, coordinates[1].y, coordinates[0].y, GeoShapeConstants.SPATIAL_CONTEXT);
+        }
+
+        return convertGeometryToShape(buildGeometry(parseResult));
+    }
+
+    /**
+     * Convert a JTS {@link Geometry} to a {@link Shape}
+     *
+     * @param geometry The JTS geometry
+     * @return Shape built from the geometry
+     */
+    private static Shape convertGeometryToShape(Geometry geometry) {
+        if (geometry instanceof Point) {
+            return new JtsPoint((Point) geometry, GeoShapeConstants.SPATIAL_CONTEXT);
+        } else if (GeometryCollection.class.equals(geometry.getClass())) {
+            //JtsGeometry does not support GeometryCollection but does support its subclasses.
+            // we use MultiShape instead
+            GeometryCollection geometryCollection = (GeometryCollection) geometry;
+            List<Shape> shapes = new ArrayList<Shape>();
+            for (int geometryIndex = 0; geometryIndex < geometryCollection.getNumGeometries(); ++geometryIndex) {
+                Geometry geometryInCollection = geometryCollection.getGeometryN(geometryIndex);
+                shapes.add(convertGeometryToShape(geometryInCollection));
+            }
+            return new MultiShape(shapes, GeoShapeConstants.SPATIAL_CONTEXT);
+        } else {
+            return new JtsGeometry(geometry, GeoShapeConstants.SPATIAL_CONTEXT, true);
+        }
     }
 
     /**
@@ -229,5 +307,23 @@ public class GeoJSONShapeParser {
         private CoordinateNode(List<CoordinateNode> children) {
             this.children = children;
         }
+    }
+
+    /**
+     * Result of parsed json object, to be transformed in a geometry or shape
+     */
+    private static class ParseResult {
+        /**
+         * shapeType Type of Shape to be built
+         */
+        private String shapeType;
+        /**
+         * Root node of the coordinate tree
+         */
+        private CoordinateNode node;
+        /**
+         * Geometries of a GeometryCollection object
+         */
+        private Geometry[] geometries;
     }
 }

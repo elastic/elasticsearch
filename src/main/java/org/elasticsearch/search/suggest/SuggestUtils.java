@@ -49,7 +49,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 public final class SuggestUtils {
@@ -189,7 +188,7 @@ public final class SuggestUtils {
     public static StringDistance resolveDistance(String distanceVal) {
         if ("internal".equals(distanceVal)) {
             return DirectSpellChecker.INTERNAL_LEVENSHTEIN;
-        } else if ("damerau_levenshtein".equals(distanceVal)) {
+        } else if ("damerau_levenshtein".equals(distanceVal) || "damerauLevenshtein".equals(distanceVal)) {
             return new LuceneLevenshteinDistance();
         } else if ("levenstein".equals(distanceVal)) {
             return new LevensteinDistance();
@@ -212,12 +211,12 @@ public final class SuggestUtils {
                 suggestion.sort(SuggestUtils.resolveSort(parser.text()));
             } else if ("string_distance".equals(fieldName) || "stringDistance".equals(fieldName)) {
                 suggestion.stringDistance(SuggestUtils.resolveDistance(parser.text()));
-            } else if ("max_edits".equals(fieldName) || "maxEdits".equals(fieldName) || "fuzziness".equals(fieldName)) {
+            } else if ("max_edits".equals(fieldName) || "maxEdits".equals(fieldName)) {
                 suggestion.maxEdits(parser.intValue());
                 if (suggestion.maxEdits() < 1 || suggestion.maxEdits() > LevenshteinAutomata.MAXIMUM_SUPPORTED_DISTANCE) {
                     throw new ElasticSearchIllegalArgumentException("Illegal max_edits value " + suggestion.maxEdits());
                 }
-            } else if ("max_inspections".equals(fieldName)) {
+            } else if ("max_inspections".equals(fieldName) || "maxInspections".equals(fieldName)) {
                 suggestion.maxInspections(parser.intValue());
             } else if ("max_term_freq".equals(fieldName) || "maxTermFreq".equals(fieldName)) {
                 suggestion.maxTermFreq(parser.floatValue());

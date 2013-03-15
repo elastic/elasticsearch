@@ -18,23 +18,6 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-/*
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership. ElasticSearch licenses this
- * file to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
 import java.io.IOException;
 
 import org.apache.lucene.analysis.Analyzer;
@@ -64,7 +47,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (!SuggestUtils.parseSuggestContext(parser, mapperService, fieldName, suggestion)) {
-                    if ("real_word_error_likelihood".equals(fieldName)) {
+                    if ("real_word_error_likelihood".equals(fieldName) || "realWorldErrorLikelihood".equals(fieldName)) {
                         suggestion.setRealWordErrorLikelihood(parser.floatValue());
                         if (suggestion.realworldErrorLikelyhood() <= 0.0) {
                             throw new ElasticSearchIllegalArgumentException("real_word_error_likelihood must be > 0.0");
@@ -76,25 +59,25 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                         }
                     } else if ("separator".equals(fieldName)) {
                         suggestion.setSeparator(new BytesRef(parser.text()));
-                    } else if ("max_errors".equals(fieldName)) {
+                    } else if ("max_errors".equals(fieldName) || "maxErrors".equals(fieldName)) {
                         suggestion.setMaxErrors(parser.floatValue());
                         if (suggestion.maxErrors() <= 0.0) {
                             throw new ElasticSearchIllegalArgumentException("max_error must be > 0.0");
                         }
-                    } else if ("gram_size".equals(fieldName)) {
+                    } else if ("gram_size".equals(fieldName) || "gramSize".equals(fieldName)) {
                         suggestion.setGramSize(parser.intValue());
                         if (suggestion.gramSize() < 1) {
                             throw new ElasticSearchIllegalArgumentException("gram_size must be >= 1");
                         }
                         gramSizeSet = true;
-                    } else if ("force_unigrams".equals(fieldName)) {
+                    } else if ("force_unigrams".equals(fieldName) || "forceUnigrams".equals(fieldName)) {
                         suggestion.setRequireUnigram(parser.booleanValue());
                     } else {
                         throw new ElasticSearchIllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
                     }
                 }
             } else if (token == Token.START_ARRAY) {
-                if ("direct_generator".equals(fieldName)) {
+                if ("direct_generator".equals(fieldName) || "directGenerator".equals(fieldName)) {
                     // for now we only have a single type of generators
                     while ((token = parser.nextToken()) == Token.START_OBJECT) {
                         PhraseSuggestionContext.DirectCandidateGenerator generator = new PhraseSuggestionContext.DirectCandidateGenerator();
@@ -167,17 +150,17 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             fieldName = parser.currentName();
                         }
                         if (token.isValue()) {
-                            if ("trigram_lambda".equals(fieldName)) {
+                            if ("trigram_lambda".equals(fieldName) || "trigramLambda".equals(fieldName)) {
                                 lambdas[0] = parser.doubleValue();
                                 if (lambdas[0] < 0) {
                                     throw new ElasticSearchIllegalArgumentException("trigram_lambda must be positive");
                                 }
-                            } else if ("bigram_lambda".equals(fieldName)) {
+                            } else if ("bigram_lambda".equals(fieldName) || "bigramLambda".equals(fieldName)) {
                                 lambdas[1] = parser.doubleValue();
                                 if (lambdas[1] < 0) {
                                     throw new ElasticSearchIllegalArgumentException("bigram_lambda must be positive");
                                 }
-                            } else if ("unigram_lambda".equals(fieldName)) {
+                            } else if ("unigram_lambda".equals(fieldName) || "unigramLambda".equals(fieldName)) {
                                 lambdas[2] = parser.doubleValue();
                                 if (lambdas[2] < 0) {
                                     throw new ElasticSearchIllegalArgumentException("unigram_lambda must be positive");
@@ -224,7 +207,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                         }
                     });
 
-                } else if ("stupid_backoff".equals(fieldName)) {
+                } else if ("stupid_backoff".equals(fieldName) || "stupidBackoff".equals(fieldName)) {
                     ensureNoSmoothing(suggestion);
                     double theDiscount = 0.4;
                     while ((token = parser.nextToken()) != Token.END_OBJECT) {

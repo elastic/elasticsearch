@@ -127,7 +127,7 @@ public class FieldSortBuilder extends SortBuilder {
             builder.field("ignore_unmapped", ignoreUnampped);
         }
         if (sortMode != null) {
-            builder.field("sort_mode", sortMode);
+            builder.field("mode", sortMode);
         }
         if (nestedFilter != null) {
             builder.field("nested_filter", nestedFilter, params);

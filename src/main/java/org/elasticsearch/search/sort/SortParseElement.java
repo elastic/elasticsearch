@@ -136,7 +136,7 @@ public class SortParseElement implements SearchParseElement {
                             } else if (token.isValue()) {
                                 if ("reverse".equals(innerJsonName)) {
                                     reverse = parser.booleanValue();
-                                } else if ("order".equals(innerJsonName) || "sort_order".equals(innerJsonName) || "sortOrder".equals(innerJsonName)) {
+                                } else if ("order".equals(innerJsonName)) {
                                     if ("asc".equals(parser.text())) {
                                         reverse = SCORE_FIELD_NAME.equals(fieldName);
                                     } else if ("desc".equals(parser.text())) {
@@ -146,7 +146,7 @@ public class SortParseElement implements SearchParseElement {
                                     missing = parser.textOrNull();
                                 } else if ("ignore_unmapped".equals(innerJsonName) || "ignoreUnmapped".equals(innerJsonName)) {
                                     ignoreUnmapped = parser.booleanValue();
-                                } else if ("sort_mode".equals(innerJsonName) || "sortMode".equals(innerJsonName) || "mode".equals(innerJsonName)) {
+                                } else if ("mode".equals(innerJsonName)) {
                                     sortMode = SortMode.fromString(parser.text());
                                 } else if ("nested_path".equals(innerJsonName) || "nestedPath".equals(innerJsonName)) {
                                     nestedPath = parser.text();

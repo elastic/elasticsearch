@@ -97,7 +97,8 @@ public class TransportNodesInfoAction extends TransportNodesOperationAction<Node
     @Override
     protected NodeInfo nodeOperation(NodeInfoRequest nodeRequest) throws ElasticSearchException {
         NodesInfoRequest request = nodeRequest.request;
-        return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(), request.network(), request.transport(), request.http());
+        return nodeService.info(request.settings(), request.os(), request.process(), request.jvm(), request.threadPool(),
+                request.network(), request.transport(), request.http(), request.plugin());
     }
 
     @Override

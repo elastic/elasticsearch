@@ -60,7 +60,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
     static final class Fields {
         static final String SITE_PLUGIN = "dummy";
         static final String SITE_PLUGIN_DESCRIPTION = "This is a description for a dummy test site plugin.";
-        static final String SITE_PLUGIN_NO_DESCRIPTION = "No description found for dummy.";
+        static final String SITE_PLUGIN_VERSION = "0.0.7-BOND-SITE";
     }
 
 
@@ -129,32 +129,41 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
-        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setPlugin(true).execute().actionGet();
         logger.info("--> full json answer, status " + response.toString());
 
-        assertNodeContainsPlugins(response, server1NodeId, Collections.EMPTY_LIST, Collections.EMPTY_LIST,
-                Collections.EMPTY_LIST, Collections.EMPTY_LIST);
+        assertNodeContainsPlugins(response, server1NodeId,
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST, // No JVM Plugin
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST);// No Site Plugin
 
-        assertNodeContainsPlugins(response, server2NodeId, Collections.EMPTY_LIST, Collections.EMPTY_LIST,
-                Lists.newArrayList(Fields.SITE_PLUGIN),
-                Lists.newArrayList(Fields.SITE_PLUGIN_DESCRIPTION));
+        assertNodeContainsPlugins(response, server2NodeId,
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST, // No JVM Plugin
+                Lists.newArrayList(Fields.SITE_PLUGIN),                                 // Site Plugin
+                Lists.newArrayList(Fields.SITE_PLUGIN_DESCRIPTION),
+                Lists.newArrayList(Fields.SITE_PLUGIN_VERSION));
 
-        assertNodeContainsPlugins(response, server3NodeId, Lists.newArrayList(TestPlugin.Fields.NAME),
+        assertNodeContainsPlugins(response, server3NodeId,
+                Lists.newArrayList(TestPlugin.Fields.NAME),                             // JVM Plugin
                 Lists.newArrayList(TestPlugin.Fields.DESCRIPTION),
-                Collections.EMPTY_LIST, Collections.EMPTY_LIST);
+                Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE),
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST, Collections.EMPTY_LIST);// No site Plugin
 
         assertNodeContainsPlugins(response, server4NodeId,
-                Lists.newArrayList(TestNoVersionPlugin.Fields.NAME),
+                Lists.newArrayList(TestNoVersionPlugin.Fields.NAME),                    // JVM Plugin
                 Lists.newArrayList(TestNoVersionPlugin.Fields.DESCRIPTION),
-                Lists.newArrayList(Fields.SITE_PLUGIN, TestNoVersionPlugin.Fields.NAME),
-                Lists.newArrayList(Fields.SITE_PLUGIN_NO_DESCRIPTION, TestNoVersionPlugin.Fields.DESCRIPTION));
+                Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE),
+                Lists.newArrayList(Fields.SITE_PLUGIN, TestNoVersionPlugin.Fields.NAME),// Site Plugin
+                Lists.newArrayList(PluginInfo.DESCRIPTION_NOT_AVAILABLE),
+                Lists.newArrayList(PluginInfo.VERSION_NOT_AVAILABLE));
     }
 
     private void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,
                                            List<String> expectedJvmPluginNames,
                                            List<String> expectedJvmPluginDescriptions,
+                                           List<String> expectedJvmVersions,
                                            List<String> expectedSitePluginNames,
-                                           List<String> expectedSitePluginDescriptions) {
+                                           List<String> expectedSitePluginDescriptions,
+                                           List<String> expectedSiteVersions) {
 
         assertThat(response.getNodesMap().get(nodeId), notNullValue());
 
@@ -169,6 +178,11 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         List<String> pluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(descriptionFunction).toList();
         for (String expectedJvmPluginDescription : expectedJvmPluginDescriptions) {
             assertThat(pluginDescriptions, hasItem(expectedJvmPluginDescription));
+        }
+
+        List<String> jvmPluginVersions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(versionFunction).toList();
+        for (String pluginVersion : expectedJvmVersions) {
+            assertThat(jvmPluginVersions, hasItem(pluginVersion));
         }
 
         FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getInfos())
@@ -189,6 +203,12 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
 
         List<String> sitePluginUrls = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(urlFunction).toList();
         assertThat(sitePluginUrls, not(contains(nullValue())));
+
+
+        List<String> sitePluginVersions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(versionFunction).toList();
+        for (String pluginVersion : expectedSiteVersions) {
+            assertThat(sitePluginVersions, hasItem(pluginVersion));
+        }
     }
 
     private String startNodeWithPlugins(int nodeId, String ... pluginClassNames) throws URISyntaxException {
@@ -240,6 +260,12 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
     private Function<PluginInfo, String> urlFunction = new Function<PluginInfo, String>() {
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getUrl();
+        }
+    };
+
+    private Function<PluginInfo, String> versionFunction = new Function<PluginInfo, String>() {
+        public String apply(PluginInfo pluginInfo) {
+            return pluginInfo.getVersion();
         }
     };
 }

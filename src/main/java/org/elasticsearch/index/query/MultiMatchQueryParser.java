@@ -149,6 +149,15 @@ public class MultiMatchQueryParser implements QueryParser {
                     multiMatchQuery.setCommonTermsCutoff(parser.floatValue());
                 } else if ("lenient".equals(currentFieldName)) {
                     multiMatchQuery.setLenient(parser.booleanValue());
+                } else if ("zero_terms_query".equals(currentFieldName)) {
+                    String zeroTermsDocs = parser.text();
+                    if ("none".equalsIgnoreCase(zeroTermsDocs)) {
+                        multiMatchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE);
+                    } else if ("all".equalsIgnoreCase(zeroTermsDocs)) {
+                        multiMatchQuery.setZeroTermsQuery(MatchQuery.ZeroTermsQuery.ALL);
+                    } else {
+                        throw new QueryParsingException(parseContext.index(), "Unsupported zero_terms_docs value [" + zeroTermsDocs + "]");
+                    }
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[match] query does not support [" + currentFieldName + "]");
                 }

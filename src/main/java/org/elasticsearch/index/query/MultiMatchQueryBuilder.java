@@ -23,6 +23,7 @@ import com.google.common.collect.Lists;
 import gnu.trove.impl.Constants;
 import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder.ZeroTermsQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -68,6 +69,8 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     private Boolean lenient;
 
     private Float cutoffFrequency = null;
+
+    private ZeroTermsQuery zeroTermsQuery = null;
 
     /**
      * Constructs a new text query.
@@ -205,6 +208,12 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         return this;
     }
 
+
+    public MultiMatchQueryBuilder zeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+        this.zeroTermsQuery = zeroTermsQuery;
+        return this;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(MultiMatchQueryParser.NAME);
@@ -271,6 +280,10 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
         if (cutoffFrequency != null) {
             builder.field("cutoff_frequency", cutoffFrequency);
+        }
+
+        if (zeroTermsQuery != null) {
+            builder.field("zero_terms_query", zeroTermsQuery.toString());
         }
 
         builder.endObject();

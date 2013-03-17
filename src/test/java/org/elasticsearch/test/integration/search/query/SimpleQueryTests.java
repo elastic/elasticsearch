@@ -622,6 +622,43 @@ public class SimpleQueryTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testMultiMatchQueryZeroTermsQuery() {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "value3", "field2", "value4").execute().actionGet();
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        BoolQueryBuilder boolQuery = boolQuery()
+                .must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE))
+                .must(multiMatchQuery("value1", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.NONE)); // Fields are ORed together
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(boolQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
+
+        boolQuery = boolQuery()
+                .must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL))
+                .must(multiMatchQuery("value4", "field1", "field2").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
+        searchResponse = client.prepareSearch()
+                .setQuery(boolQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+        boolQuery = boolQuery()
+                .must(multiMatchQuery("a", "field1").zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery.ALL));
+        searchResponse = client.prepareSearch()
+                .setQuery(boolQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+    }
+
+    @Test
     public void testFuzzyQueryString() {
         client.admin().indices().prepareDelete().execute().actionGet();
 

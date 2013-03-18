@@ -9,12 +9,22 @@
 
     <fileSets>
         <fileSet>
+            <filtered>true</filtered>
+            <directory>bin</directory>
+            <outputDirectory>bin</outputDirectory>
+            <lineEnding>dos</lineEnding>
+            <includes>
+                <include>elasticsearch.bat</include>
+                <include>plugin.bat</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <filtered>true</filtered>
             <directory>bin</directory>
             <outputDirectory>bin</outputDirectory>
             <fileMode>0755</fileMode>
             <directoryMode>0755</directoryMode>
             <lineEnding>unix</lineEnding>
-            <filtered>true</filtered>
             <includes>
                 <include>elasticsearch.in.sh</include>
                 <include>elasticsearch</include>
@@ -25,9 +35,9 @@
         <fileSet>
             <directory>lib/sigar</directory>
             <outputDirectory>lib/sigar</outputDirectory>
-            <excludes>
-                <exclude>*.dll</exclude>
-            </excludes>
+            <includes>
+                <include>*</include>
+            </includes>
         </fileSet>
     </fileSets>
 

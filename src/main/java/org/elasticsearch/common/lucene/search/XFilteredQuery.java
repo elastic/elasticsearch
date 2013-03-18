@@ -160,7 +160,7 @@ public class XFilteredQuery extends Query {
      */
     @Override
     public boolean equals(Object o) {
-       return delegate.equals(o);
+        return delegate.equals(o);
     }
 
     /**
@@ -178,12 +178,17 @@ public class XFilteredQuery extends Query {
     public static final CustomRandomAccessFilterStrategy CUSTOM_FILTER_STRATEGY = new CustomRandomAccessFilterStrategy();
 
     /**
-     * A {@link FilterStrategy} that conditionally uses a random access filter if
-     * the given {@link DocIdSet} supports random access (returns a non-null value
-     * from {@link DocIdSet#bits()}) and
-     * {@link RandomAccessFilterStrategy#useRandomAccess(Bits, int)} returns
-     * <code>true</code>. Otherwise this strategy falls back to a "zig-zag join" (
-     * {@link XFilteredQuery#LEAP_FROG_FILTER_FIRST_STRATEGY}) strategy .
+     * Extends {@link org.apache.lucene.search.FilteredQuery.RandomAccessFilterStrategy}.
+     * <p/>
+     * Adds a threshold value, which defaults to -1. When set to -1, it will check if the filter docSet is
+     * *not*  a fast docSet, and if not, it will use {@link FilteredQuery#QUERY_FIRST_FILTER_STRATEGY} (since
+     * the assumption is that its a "slow" filter and better computed only on whatever matched the query).
+     * <p/>
+     * If the threshold value is 0, it always tries to pass "down" the filter as acceptDocs, and it the filter
+     * can't be represented as Bits (never really), then it uses {@link FilteredQuery#LEAP_FROG_QUERY_FIRST_STRATEGY}.
+     * <p/>
+     * If the above conditions are not met, then it reverts to the {@link FilteredQuery.RandomAccessFilterStrategy} logic,
+     * with the threshold used to control {@link #useRandomAccess(org.apache.lucene.util.Bits, int)}.
      */
     public static class CustomRandomAccessFilterStrategy extends FilteredQuery.RandomAccessFilterStrategy {
 
@@ -217,9 +222,19 @@ public class XFilteredQuery extends Query {
                 }
             }
 
-           return super.filteredScorer(context, scoreDocsInOrder, topScorer, weight, docIdSet);
+            return super.filteredScorer(context, scoreDocsInOrder, topScorer, weight, docIdSet);
         }
 
+        /**
+         * Expert: decides if a filter should be executed as "random-access" or not.
+         * random-access means the filter "filters" in a similar way as deleted docs are filtered
+         * in Lucene. This is faster when the filter accepts many documents.
+         * However, when the filter is very sparse, it can be faster to execute the query+filter
+         * as a conjunction in some cases.
+         * <p/>
+         * The default implementation returns <code>true</code> if the first document accepted by the
+         * filter is < threshold, if threshold is -1 (the default), then it checks for < 100.
+         */
         protected boolean useRandomAccess(Bits bits, int firstFilterDoc) {
             // "default"
             if (threshold == -1) {
@@ -229,5 +244,5 @@ public class XFilteredQuery extends Query {
             return firstFilterDoc < threshold;
         }
     }
-    
+
 }

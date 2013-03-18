@@ -193,9 +193,6 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     @Override
     protected void doStop() throws ElasticSearchException {
-        if (receiver != null) {
-            receiver.stop();
-        }
         if (receiverThread != null) {
             receiverThread.interrupt();
         }
@@ -352,15 +349,9 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     private class Receiver implements Runnable {
 
-        private volatile boolean running = true;
-
-        public void stop() {
-            running = false;
-        }
-
         @Override
         public void run() {
-            while (running) {
+            while (!Thread.currentThread().isInterrupted())  {
                 try {
                     int id = -1;
                     DiscoveryNode requestingNodeX = null;
@@ -372,13 +363,20 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     synchronized (receiveMutex) {
                         try {
                             multicastSocket.receive(datagramPacketReceive);
-                        } catch (SocketException ignore) {
-                            running = false;
+                        } catch (SocketException e) {
+                            // if multicast socket is closed by other thread, a SocketException "Socket closed" is expected here
+                            if ("Socket closed".equals(e.getMessage())) {
+                                Thread.currentThread().interrupt();
+                            } else {
+                                if (!Thread.currentThread().isInterrupted()) {
+                                    logger.warn("socket failure", e);
+                                }
+                            }
                             continue;
                         } catch (SocketTimeoutException ignore) {
                             continue;
                         } catch (Exception e) {
-                            if (running) {
+                            if (!Thread.currentThread().isInterrupted()) {
                                 logger.warn("failed to receive packet", e);
                             }
                             continue;

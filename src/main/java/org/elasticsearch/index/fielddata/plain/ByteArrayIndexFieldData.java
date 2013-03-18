@@ -100,27 +100,44 @@ public class ByteArrayIndexFieldData extends AbstractIndexFieldData<ByteArrayAto
         }
         try {
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued()) {
-                Docs ordinals = build.ordinals();
-                byte[] sValues = new byte[reader.maxDoc()];
-                int maxDoc = reader.maxDoc();
-                for (int i = 0; i < maxDoc; i++) {
-                    sValues[i] = values.get(ordinals.getOrd(i));
+            return build(reader, builder, build, new BuilderBytes() {
+                @Override
+                public byte get(int index) {
+                    return values.get(index);
                 }
-                final FixedBitSet set = builder.buildDocsWithValuesSet();
-                if (set == null) {
-                    return new ByteArrayAtomicFieldData.Single(sValues, reader.maxDoc());
-                } else {
-                    return new ByteArrayAtomicFieldData.SingleFixedSet(sValues, reader.maxDoc(), set);
+
+                @Override
+                public byte[] toArray() {
+                    return values.toArray();
                 }
-            } else {
-                return new ByteArrayAtomicFieldData.WithOrdinals(
-                        values.toArray(new byte[values.size()]),
-                        reader.maxDoc(),
-                        build);
-            }
+            });
         } finally {
             builder.close();
+        }
+    }
+
+    static interface BuilderBytes {
+        byte get(int index);
+
+        byte[] toArray();
+    }
+
+    static ByteArrayAtomicFieldData build(AtomicReader reader, OrdinalsBuilder builder, Ordinals build, BuilderBytes values) {
+        if (!build.isMultiValued()) {
+            Docs ordinals = build.ordinals();
+            byte[] sValues = new byte[reader.maxDoc()];
+            int maxDoc = reader.maxDoc();
+            for (int i = 0; i < maxDoc; i++) {
+                sValues[i] = values.get(ordinals.getOrd(i));
+            }
+            final FixedBitSet set = builder.buildDocsWithValuesSet();
+            if (set == null) {
+                return new ByteArrayAtomicFieldData.Single(sValues, reader.maxDoc());
+            } else {
+                return new ByteArrayAtomicFieldData.SingleFixedSet(sValues, reader.maxDoc(), set);
+            }
+        } else {
+            return new ByteArrayAtomicFieldData.WithOrdinals(values.toArray(), reader.maxDoc(), build);
         }
     }
 

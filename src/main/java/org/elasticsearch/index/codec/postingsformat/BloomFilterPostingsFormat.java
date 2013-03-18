@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.*;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Bits;
@@ -82,7 +83,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public FieldsConsumer fieldsConsumer(SegmentWriteState state)
+    public BloomFilteredFieldsConsumer fieldsConsumer(SegmentWriteState state)
             throws IOException {
         if (delegatePostingsFormat == null) {
             throw new UnsupportedOperationException("Error - " + getClass().getName()
@@ -94,14 +95,19 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public FieldsProducer fieldsProducer(SegmentReadState state)
+    public BloomFilteredFieldsProducer fieldsProducer(SegmentReadState state)
             throws IOException {
         return new BloomFilteredFieldsProducer(state);
     }
 
-    public class BloomFilteredFieldsProducer extends FieldsProducer {
+    public final class BloomFilteredFieldsProducer extends FieldsProducer {
         private FieldsProducer delegateFieldsProducer;
         HashMap<String, BloomFilter> bloomsByFieldName = new HashMap<String, BloomFilter>();
+        
+        // for internal use only
+        FieldsProducer getDelegate() {
+            return delegateFieldsProducer;
+        }
 
         public BloomFilteredFieldsProducer(SegmentReadState state)
                 throws IOException {
@@ -119,15 +125,18 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 // Load the delegate postings format
                 PostingsFormat delegatePostingsFormat = PostingsFormat.forName(bloomIn
                         .readString());
-
+                
                 this.delegateFieldsProducer = delegatePostingsFormat
                         .fieldsProducer(state);
                 int numBlooms = bloomIn.readInt();
-                for (int i = 0; i < numBlooms; i++) {
-                    int fieldNum = bloomIn.readInt();
-                    BloomFilter bloom = BloomFilter.deserialize(bloomIn);
-                    FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldNum);
-                    bloomsByFieldName.put(fieldInfo.name, bloom);
+                if (state.context.context != IOContext.Context.MERGE) {
+                    // if we merge we don't need to load the bloom filters
+                    for (int i = 0; i < numBlooms; i++) {
+                        int fieldNum = bloomIn.readInt();
+                        BloomFilter bloom = BloomFilter.deserialize(bloomIn);
+                        FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldNum);
+                        bloomsByFieldName.put(fieldInfo.name, bloom);
+                    }
                 }
                 IOUtils.close(bloomIn);
                 success = true;
@@ -332,7 +341,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
 
     }
 
-    class BloomFilteredFieldsConsumer extends FieldsConsumer {
+    final class BloomFilteredFieldsConsumer extends FieldsConsumer {
         private FieldsConsumer delegateFieldsConsumer;
         private Map<FieldInfo, BloomFilter> bloomFilters = new HashMap<FieldInfo, BloomFilter>();
         private SegmentWriteState state;
@@ -344,6 +353,11 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             this.delegateFieldsConsumer = fieldsConsumer;
             // this.delegatePostingsFormat=delegatePostingsFormat;
             this.state = state;
+        }
+        
+        // for internal use only
+        FieldsConsumer getDelegate() {
+            return delegateFieldsConsumer;
         }
 
         @Override
@@ -447,6 +461,10 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             return delegateTermsConsumer.getComparator();
         }
 
+    }
+
+    public PostingsFormat getDelegate() {
+        return this.delegatePostingsFormat;
     }
 
 }

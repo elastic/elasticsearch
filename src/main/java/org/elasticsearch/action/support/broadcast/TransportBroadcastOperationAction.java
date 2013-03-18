@@ -263,7 +263,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                     } else {
                         try {
                             onOperation(shard, shardOperation(shardRequest));
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             onOperation(shard, shardIt, e);
                         }
                     }

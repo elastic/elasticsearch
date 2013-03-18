@@ -182,7 +182,6 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             datagramPacketSend = null;
             if (multicastSocket != null) {
                 multicastSocket.close();
-                multicastSocket = null;
             }
             logger.warn("disabled, failed to setup multicast discovery on port [{}], [{}]: {}", port, multicastInterface, e.getMessage());
             if (logger.isDebugEnabled()) {
@@ -198,7 +197,6 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
         if (multicastSocket != null) {
             multicastSocket.close();
-            multicastSocket = null;
         }
     }
 
@@ -365,11 +363,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                             multicastSocket.receive(datagramPacketReceive);
                         } catch (SocketException e) {
                             // if multicast socket is closed by other thread, a SocketException "Socket closed" is expected here
-                            if ("Socket closed".equals(e.getMessage())) {
+                            if (multicastSocket.isClosed()) {
                                 Thread.currentThread().interrupt();
+                                multicastSocket = null;
                             } else {
                                 if (!Thread.currentThread().isInterrupted()) {
-                                    logger.warn("socket failure", e);
+                                    // error while receive in progress
+                                    logger.warn("socket failure while receiving packet", e);
                                 }
                             }
                             continue;

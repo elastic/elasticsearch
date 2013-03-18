@@ -79,7 +79,7 @@ public class FilteredQueryParser implements QueryParser {
                     String value = parser.text();
                     if ("query_first".equals(value) || "queryFirst".equals(value)) {
                         filterStrategy = FilteredQuery.QUERY_FIRST_FILTER_STRATEGY;
-                    } else if ("random_access_random".equals(value) || "randomAccessAlways".equals(value)) {
+                    } else if ("random_access_always".equals(value) || "randomAccessAlways".equals(value)) {
                         filterStrategy = XFilteredQuery.ALWAYS_RANDOM_ACCESS_FILTER_STRATEGY;
                     } else if ("leap_frog".equals(value) || "leapFrog".equals(value)) {
                         filterStrategy = FilteredQuery.LEAP_FROG_QUERY_FIRST_STRATEGY;

@@ -76,7 +76,7 @@ public final class ProviderMethodsModule implements Module {
         List<ProviderMethod<?>> result = Lists.newArrayList();
         for (Class<?> c = delegate.getClass(); c != Object.class; c = c.getSuperclass()) {
             for (Method method : c.getDeclaredMethods()) {
-                if (method.isAnnotationPresent(Provides.class)) {
+                if (method.getAnnotation(Provides.class) != null) {
                     result.add(createProviderMethod(binder, method));
                 }
             }

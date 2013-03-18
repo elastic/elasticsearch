@@ -53,7 +53,7 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
         this.dependencies = dependencies;
         this.method = method;
         this.parameterProviders = parameterProviders;
-        this.exposed = method.isAnnotationPresent(Exposed.class);
+        this.exposed = method.getAnnotation(Exposed.class) != null;
 
         method.setAccessible(true);
     }

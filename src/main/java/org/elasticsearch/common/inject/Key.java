@@ -506,6 +506,6 @@ public class Key<T> {
 
     static boolean isBindingAnnotation(
             Class<? extends Annotation> annotationType) {
-        return annotationType.isAnnotationPresent(BindingAnnotation.class);
+        return annotationType.getAnnotation(BindingAnnotation.class) != null;
     }
 }

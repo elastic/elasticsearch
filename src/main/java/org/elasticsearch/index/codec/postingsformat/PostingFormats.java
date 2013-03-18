@@ -23,10 +23,6 @@ import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
-import org.apache.lucene.codecs.lucene41.Lucene41PostingsFormat;
-import org.apache.lucene.codecs.memory.DirectPostingsFormat;
-import org.apache.lucene.codecs.memory.MemoryPostingsFormat;
-import org.apache.lucene.codecs.pulsing.Pulsing41PostingsFormat;
 import org.elasticsearch.common.collect.MapBuilder;
 
 /**
@@ -69,14 +65,15 @@ public class PostingFormats {
         for (String luceneName : PostingsFormat.availablePostingsFormats()) {
             buildInPostingFormatsX.put(luceneName, new PreBuiltPostingsFormatProvider.Factory(PostingsFormat.forName(luceneName)));
         }
-        buildInPostingFormatsX.put("direct", new PreBuiltPostingsFormatProvider.Factory("direct", new DirectPostingsFormat()));
-        buildInPostingFormatsX.put("memory", new PreBuiltPostingsFormatProvider.Factory("memory", new MemoryPostingsFormat()));
+        final ElasticSearch090PostingsFormat defaultFormat = new ElasticSearch090PostingsFormat();
+        buildInPostingFormatsX.put("direct", new PreBuiltPostingsFormatProvider.Factory("direct", PostingsFormat.forName("Direct")));
+        buildInPostingFormatsX.put("memory", new PreBuiltPostingsFormatProvider.Factory("memory", PostingsFormat.forName("Memory")));
         // LUCENE UPGRADE: Need to change this to the relevant ones on a lucene upgrade
-        buildInPostingFormatsX.put("pulsing", new PreBuiltPostingsFormatProvider.Factory("pulsing", new Pulsing41PostingsFormat()));
-        buildInPostingFormatsX.put("default", new PreBuiltPostingsFormatProvider.Factory("default", new Lucene41PostingsFormat()));
+        buildInPostingFormatsX.put("pulsing", new PreBuiltPostingsFormatProvider.Factory("pulsing", PostingsFormat.forName("Pulsing41")));
+        buildInPostingFormatsX.put("default", new PreBuiltPostingsFormatProvider.Factory("default", defaultFormat));
 
-        buildInPostingFormatsX.put("bloom_pulsing", new PreBuiltPostingsFormatProvider.Factory("bloom_pulsing", wrapInBloom(new Pulsing41PostingsFormat())));
-        buildInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", wrapInBloom(new Lucene41PostingsFormat())));
+        buildInPostingFormatsX.put("bloom_pulsing", new PreBuiltPostingsFormatProvider.Factory("bloom_pulsing", wrapInBloom(PostingsFormat.forName("Pulsing41"))));
+        buildInPostingFormatsX.put("bloom_default", new PreBuiltPostingsFormatProvider.Factory("bloom_default", wrapInBloom(PostingsFormat.forName("Lucene41"))));
 
         builtInPostingFormats = buildInPostingFormatsX.immutableMap();
     }

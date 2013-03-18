@@ -134,7 +134,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     protected String defaultPostingFormat() {
-        return "bloom_default";
+        return "default";
     }
 
     @Override

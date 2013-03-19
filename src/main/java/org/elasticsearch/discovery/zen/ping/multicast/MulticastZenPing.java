@@ -361,7 +361,23 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                             continue;
                         } catch (Exception e) {
                             if (running) {
-                                logger.warn("failed to receive packet", e);
+                                if (multicastSocket.isClosed()) {
+                                    logger.warn("multicast socket closed while running, restarting...");
+                                    // for some reason, the socket got closed on us while we are still running
+                                    // make a best effort in trying to start the multicast socket again...
+                                    threadPool.generic().execute(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            MulticastZenPing.this.stop();
+                                            MulticastZenPing.this.start();
+                                        }
+                                    });
+                                    running = false;
+                                    return;
+                                } else {
+                                    logger.warn("failed to receive packet, throttling...", e);
+                                    Thread.sleep(500);
+                                }
                             }
                             continue;
                         }
@@ -407,7 +423,9 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                         handleNodePingRequest(id, requestingNodeX, clusterName);
                     }
                 } catch (Exception e) {
-                    logger.warn("unexpected exception in multicast receiver", e);
+                    if (running) {
+                        logger.warn("unexpected exception in multicast receiver", e);
+                    }
                 }
             }
         }

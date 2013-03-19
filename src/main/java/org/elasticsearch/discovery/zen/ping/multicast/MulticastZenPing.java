@@ -62,44 +62,29 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
     private static final byte[] INTERNAL_HEADER = new byte[]{1, 9, 8, 4};
 
     private final String address;
-
     private final int port;
-
     private final String group;
-
     private final int bufferSize;
-
     private final int ttl;
 
     private final ThreadPool threadPool;
-
     private final TransportService transportService;
-
     private final ClusterName clusterName;
-
     private final NetworkService networkService;
+    private volatile DiscoveryNodesProvider nodesProvider;
 
     private final boolean pingEnabled;
 
-
-    private volatile DiscoveryNodesProvider nodesProvider;
-
     private volatile Receiver receiver;
-
     private volatile Thread receiverThread;
-
-    private MulticastSocket multicastSocket;
-
+    private volatile MulticastSocket multicastSocket;
     private DatagramPacket datagramPacketSend;
-
     private DatagramPacket datagramPacketReceive;
 
     private final AtomicInteger pingIdGenerator = new AtomicInteger();
-
     private final Map<Integer, ConcurrentMap<DiscoveryNode, PingResponse>> receivedResponses = newConcurrentMap();
 
     private final Object sendMutex = new Object();
-
     private final Object receiveMutex = new Object();
 
     public MulticastZenPing(ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {

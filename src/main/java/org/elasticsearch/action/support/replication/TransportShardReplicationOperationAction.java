@@ -469,7 +469,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 }
                 break;
             }
-            // we should never get here, but here we go
+            // we won't find a primary if there are no shards in the shard iterator, retry...
             if (!foundPrimary) {
                 retry(fromClusterEvent, null);
                 return false;

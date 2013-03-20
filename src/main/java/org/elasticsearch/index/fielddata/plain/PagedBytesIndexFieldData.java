@@ -142,11 +142,12 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
                     builder.addDoc(docId);
                 }
             }
+            final long sizePointer = bytes.getPointer();
             PagedBytes.Reader bytesReader = bytes.freeze(true);
             PackedInts.Reader termOrdToBytesOffsetReader = termOrdToBytesOffset.getMutable();
             final Ordinals ordinals = builder.build(fieldDataType.getSettings());
 
-            return new PagedBytesAtomicFieldData(bytesReader, termOrdToBytesOffsetReader, ordinals);
+            return new PagedBytesAtomicFieldData(bytesReader, sizePointer, termOrdToBytesOffsetReader, ordinals);
         } finally {
             builder.close();
         }

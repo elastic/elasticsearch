@@ -98,7 +98,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
             @Override
-            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
                 if (indexShard != null) {
                     removeAndCleanOnGoingRecovery(findRecoveryByShard(indexShard));
                 }

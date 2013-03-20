@@ -28,6 +28,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -92,7 +93,7 @@ public class RelocationTests extends AbstractNodesTests {
 
         logger.info("--> start another node");
         startNode("node2");
-        ClusterHealthResponse clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
@@ -100,9 +101,9 @@ public class RelocationTests extends AbstractNodesTests {
                 .add(new MoveAllocationCommand(new ShardId("test", 0), "node1", "node2"))
                 .execute().actionGet();
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-        clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+        clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count again...");
@@ -223,9 +224,9 @@ public class RelocationTests extends AbstractNodesTests {
             client("node1").admin().cluster().prepareReroute()
                     .add(new MoveAllocationCommand(new ShardId("test", 0), fromNode, toNode))
                     .execute().actionGet();
-            ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+            ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
             assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-            clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+            clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
             assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
         }
@@ -321,13 +322,13 @@ public class RelocationTests extends AbstractNodesTests {
         logger.info("--> starting [node2] ...");
         startNode("node2");
 
-        ClusterHealthResponse healthResponse = client("node2").admin().cluster().prepareHealth().setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse healthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> starting [node3] ...");
         startNode("node3");
 
-        healthResponse = client("node3").admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().execute().actionGet();
+        healthResponse = client("node3").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setWaitForGreenStatus().execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         final AtomicLong idGenerator = new AtomicLong();
@@ -399,9 +400,9 @@ public class RelocationTests extends AbstractNodesTests {
             client("node1").admin().cluster().prepareReroute()
                     .add(new MoveAllocationCommand(new ShardId("test", 0), fromNode, toNode))
                     .execute().actionGet();
-            ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+            ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
             assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-            clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+            clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
             assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
         }

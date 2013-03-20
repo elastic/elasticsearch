@@ -27,6 +27,7 @@
             <outputDirectory>lib/sigar</outputDirectory>
             <excludes>
                 <exclude>*.dll</exclude>
+                <exclude>**winnt**</exclude>
             </excludes>
         </fileSet>
     </fileSets>

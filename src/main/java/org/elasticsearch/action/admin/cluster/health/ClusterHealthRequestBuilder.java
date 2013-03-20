@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
 /**
@@ -79,6 +80,11 @@ public class ClusterHealthRequestBuilder extends MasterNodeOperationRequestBuild
      */
     public ClusterHealthRequestBuilder setWaitForNodes(String waitForNodes) {
         request.waitForNodes(waitForNodes);
+        return this;
+    }
+
+    public ClusterHealthRequestBuilder setWaitForEvents(Priority waitForEvents) {
+        request.waitForEvents(waitForEvents);
         return this;
     }
 

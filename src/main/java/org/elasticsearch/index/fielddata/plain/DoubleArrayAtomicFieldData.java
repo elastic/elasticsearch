@@ -45,6 +45,10 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
     }
 
     @Override
+    public void close() {
+    }
+
+    @Override
     public int getNumDocs() {
         return numDocs;
     }
@@ -508,6 +512,7 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
         public LongValues getLongValues() {
             return new LongValues(values, set);
         }
+
         @Override
         public DoubleValues getDoubleValues() {
             return new DoubleValues(values, set);

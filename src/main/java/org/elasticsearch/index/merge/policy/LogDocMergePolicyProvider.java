@@ -70,7 +70,7 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
     }
 
     @Override
-    public void close(boolean delete) throws ElasticSearchException {
+    public void close() throws ElasticSearchException {
         indexSettingsService.removeListener(applySettings);
     }
 

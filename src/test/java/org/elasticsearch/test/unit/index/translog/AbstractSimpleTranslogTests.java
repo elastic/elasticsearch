@@ -53,7 +53,7 @@ public abstract class AbstractSimpleTranslogTests {
 
     @AfterMethod
     public void tearDown() {
-        translog.close(true);
+        translog.closeWithDelete();
     }
 
     protected abstract Translog create();

@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
@@ -118,7 +118,7 @@ public class SuggestSearchBenchMark {
             String term = "prefix" + startChar;
             SearchResponse response = client.prepareSearch()
                     .setQuery(prefixQuery("field", term))
-                    .addSuggestion(new SuggestBuilder.FuzzySuggestion("field").setField("field").setText(term).setSuggestMode("always"))
+                    .addSuggestion(SuggestBuilder.termSuggestion("field").field("field").text(term).suggestMode("always"))
                     .execute().actionGet();
             if (response.getHits().totalHits() == 0) {
                 System.err.println("No hits");
@@ -135,14 +135,14 @@ public class SuggestSearchBenchMark {
             String term = "prefix" + startChar;
             SearchResponse response = client.prepareSearch()
                     .setQuery(matchQuery("field", term))
-                    .addSuggestion(new SuggestBuilder.FuzzySuggestion("field").setText(term).setField("field").setSuggestMode("always"))
+                    .addSuggestion(SuggestBuilder.termSuggestion("field").text(term).field("field").suggestMode("always"))
                     .execute().actionGet();
             timeTaken += response.getTookInMillis();
             if (response.getSuggest() == null) {
                 System.err.println("No suggestions");
                 continue;
             }
-            List<Suggest.Suggestion.Entry.Option> options = response.getSuggest().getSuggestions().get(0).getEntries().get(0).getOptions();
+            List<? extends Option> options = response.getSuggest().getSuggestion("field").getEntries().get(0).getOptions();
             if (options == null || options.isEmpty()) {
                 System.err.println("No suggestions");
             }

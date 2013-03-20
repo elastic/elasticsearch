@@ -147,7 +147,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             facets = InternalFacets.readFacets(in);
         }
         if (in.readBoolean()) {
-            suggest = Suggest.readSuggest(in);
+            suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
     }

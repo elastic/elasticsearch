@@ -365,7 +365,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     logger.warn("[{}] failed to create", e, request.index);
                     if (indexCreated) {
                         // Index was already partially created - need to clean up
-                        indicesService.deleteIndex(request.index, failureReason != null ? failureReason : "failed to create index");
+                        indicesService.removeIndex(request.index, failureReason != null ? failureReason : "failed to create index");
                     }
                     listener.onFailure(e);
                     return currentState;

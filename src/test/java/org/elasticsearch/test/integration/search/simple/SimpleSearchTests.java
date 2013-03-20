@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.simple;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -52,6 +53,24 @@ public class SimpleSearchTests extends AbstractNodesTests {
 
     protected Client getClient() {
         return client("node1");
+    }
+    
+    
+    @Test
+    public void testSearchNullIndex() {
+        try {
+            client.prepareSearch((String)null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
+            assert false;
+        } catch (ElasticSearchIllegalArgumentException e) {
+            
+        }
+        
+        try {
+            client.prepareSearch((String[])null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
+            assert false;
+        } catch (ElasticSearchIllegalArgumentException e) {
+            
+        }
     }
 
     @Test

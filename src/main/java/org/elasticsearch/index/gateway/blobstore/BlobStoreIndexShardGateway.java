@@ -130,10 +130,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     }
 
     @Override
-    public void close(boolean delete) throws ElasticSearchException {
-        if (delete) {
-            blobStore.delete(shardPath);
-        }
+    public void close() throws ElasticSearchException {
     }
 
     @Override

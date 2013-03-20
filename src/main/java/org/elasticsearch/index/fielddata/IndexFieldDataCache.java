@@ -49,7 +49,7 @@ public interface IndexFieldDataCache {
 
         void onLoad(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData fieldData);
 
-        void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, @Nullable AtomicFieldData fieldData);
+        void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, @Nullable AtomicFieldData fieldData);
     }
 
     /**
@@ -73,7 +73,7 @@ public interface IndexFieldDataCache {
 
         @Override
         public void onRemoval(RemovalNotification<Object, AtomicFieldData> notification) {
-            listener.onUnload(index, fieldNames, fieldDataType, notification.getValue());
+            listener.onUnload(index, fieldNames, fieldDataType, notification.wasEvicted(), notification.getValue());
         }
 
         @Override

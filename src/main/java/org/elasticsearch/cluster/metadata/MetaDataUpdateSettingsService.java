@@ -143,11 +143,23 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final Settings closeSettings = updatedSettingsBuilder.build();
 
         final Set<String> removedSettings = Sets.newHashSet();
-        for (String key : updatedSettingsBuilder.internalMap().keySet()) {
-            if (!dynamicSettings.hasDynamicSetting(key)) {
-                removedSettings.add(key);
+        final Set<String> errors = Sets.newHashSet();
+        for (Map.Entry<String, String> setting : updatedSettingsBuilder.internalMap().entrySet()) {
+            if (!dynamicSettings.hasDynamicSetting(setting.getKey())) {
+                removedSettings.add(setting.getKey());
+            } else {
+                String error = dynamicSettings.validateDynamicSetting(setting.getKey(), setting.getValue());
+                if (error != null) {
+                    errors.add("[" + setting.getKey() + "] - " + error);
+                }
             }
         }
+
+        if (!errors.isEmpty()) {
+            listener.onFailure(new ElasticSearchIllegalArgumentException("can't process the settings: " + errors.toString()));
+            return;
+        }
+
         if (!removedSettings.isEmpty()) {
             for (String removedSetting : removedSettings) {
                 updatedSettingsBuilder.remove(removedSetting);

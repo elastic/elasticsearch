@@ -49,9 +49,13 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.Suggest.Suggestion;
+import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
+import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -376,35 +380,24 @@ public class SearchPhaseController extends AbstractComponent {
         // merge suggest results
         Suggest suggest = null;
         if (!queryResults.isEmpty()) {
-            List<Suggest.Suggestion> mergedSuggestions = null;
+            
+            final Map<String, List<Suggest.Suggestion>> groupedSuggestions = new HashMap<String, List<Suggest.Suggestion>>();
+            boolean hasSuggestions = false;
             for (QuerySearchResultProvider resultProvider : queryResults.values()) {
                 Suggest shardResult = resultProvider.queryResult().suggest();
+                
                 if (shardResult == null) {
                     continue;
                 }
-
-                if (mergedSuggestions == null) {
-                    mergedSuggestions = shardResult.getSuggestions();
-                    continue;
-                }
-
-                for (Suggest.Suggestion shardCommand : shardResult.getSuggestions()) {
-                    for (Suggest.Suggestion mergedSuggestion : mergedSuggestions) {
-                        if (mergedSuggestion.getName().equals(shardCommand.getName())) {
-                            mergedSuggestion.reduce(shardCommand);
-                        }
-                    }
-                }
+                hasSuggestions = true;
+                Suggest.group(groupedSuggestions, shardResult);
             }
-            if (mergedSuggestions != null) {
-                suggest = new Suggest(mergedSuggestions);
-                for (Suggest.Suggestion suggestion : mergedSuggestions) {
-                    suggestion.trim();
-                }
-            }
+
+            suggest = hasSuggestions ? new Suggest(Suggest.Fields.SUGGEST, Suggest.reduce(groupedSuggestions)) : null;
         }
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
         return new InternalSearchResponse(searchHits, facets, suggest, timedOut);
     }
+    
 }

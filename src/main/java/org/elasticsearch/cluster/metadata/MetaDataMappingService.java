@@ -148,7 +148,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     return currentState;
                 } finally {
                     if (createdIndex) {
-                        indicesService.cleanIndex(index, "created for mapping processing");
+                        indicesService.removeIndex(index, "created for mapping processing");
                     }
                 }
             }
@@ -209,7 +209,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     return currentState;
                 } finally {
                     if (createdIndex) {
-                        indicesService.cleanIndex(index, "created for mapping processing");
+                        indicesService.removeIndex(index, "created for mapping processing");
                     }
                 }
             }
@@ -409,7 +409,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     return currentState;
                 } finally {
                     for (String index : indicesToClose) {
-                        indicesService.cleanIndex(index, "created for mapping processing");
+                        indicesService.removeIndex(index, "created for mapping processing");
                     }
                 }
             }

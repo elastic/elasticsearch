@@ -36,6 +36,8 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
@@ -110,6 +112,8 @@ import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.suggest.SuggestAction;
+import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
@@ -171,6 +175,7 @@ public class ActionModule extends AbstractModule {
         registerAction(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
         registerAction(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);
         registerAction(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
+        registerAction(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
 
         registerAction(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         registerAction(IndicesStatusAction.INSTANCE, TransportIndicesStatusAction.class);
@@ -202,6 +207,7 @@ public class ActionModule extends AbstractModule {
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,
                 TransportIndexDeleteAction.class, TransportShardDeleteAction.class);
         registerAction(CountAction.INSTANCE, TransportCountAction.class);
+        registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
                 TransportShardMultiGetAction.class);

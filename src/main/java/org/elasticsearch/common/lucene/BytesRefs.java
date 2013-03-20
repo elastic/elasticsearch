@@ -26,6 +26,20 @@ import org.apache.lucene.util.BytesRef;
 public class BytesRefs {
 
     /**
+     * Converts a value to a string, taking special care if its a {@link BytesRef} to call
+     * {@link org.apache.lucene.util.BytesRef#utf8ToString()}.
+     */
+    public static String toString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BytesRef) {
+            return ((BytesRef) value).utf8ToString();
+        }
+        return value.toString();
+    }
+
+    /**
      * Converts an object value to BytesRef.
      */
     public static BytesRef toBytesRef(Object value) {
@@ -37,7 +51,7 @@ public class BytesRefs {
         }
         return new BytesRef(value.toString());
     }
-    
+
     public static BytesRef toBytesRef(Object value, BytesRef spare) {
         if (value == null) {
             return null;

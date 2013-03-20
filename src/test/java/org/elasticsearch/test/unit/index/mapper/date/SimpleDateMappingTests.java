@@ -19,14 +19,21 @@
 
 package org.elasticsearch.test.unit.index.mapper.date;
 
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.NumericRangeFilter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -48,8 +55,9 @@ public class SimpleDateMappingTests {
                 .startObject()
                 .field("date_field1", "2011/01/22")
                 .field("date_field2", "2011/01/22 00:00:00")
-//                .field("date_field3", "2011/01/22 +02")
-//                .field("date_field4", "2011/01/22 00:00:00 +02:00")
+                .field("wrong_date1", "-4")
+                .field("wrong_date2", "2012/2")
+                .field("wrong_date3", "2012/test")
                 .endObject()
                 .bytes());
 
@@ -57,10 +65,13 @@ public class SimpleDateMappingTests {
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field2");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
-//        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field3");
-//        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
-//        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field4");
-//        assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
+
+        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date1");
+        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date2");
+        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date3");
+        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
     }
 
     @Test
@@ -99,6 +110,29 @@ public class SimpleDateMappingTests {
 
         assertThat(doc.rootDoc().get("date_field"), nullValue());
         assertThat(doc.rootDoc().get("date_field_x"), equalTo("2010-01-01"));
+    }
+
+    @Test
+    public void testHourFormat() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .field("date_detection", false)
+                .startObject("properties").startObject("date_field").field("type", "date").field("format", "HH:mm:ss").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "10:00:00")
+                .endObject()
+                .bytes());
+        assertThat(((LongFieldMapper.CustomLongNumericField) doc.rootDoc().getField("date_field")).numericAsString(), equalTo(Long.toString(new DateTime(TimeValue.timeValueHours(10).millis(), DateTimeZone.UTC).getMillis())));
+
+        Filter filter = defaultMapper.mappers().smartNameFieldMapper("date_field").rangeFilter("10:00:00", "11:00:00", true, true, null);
+        assertThat(filter, instanceOf(NumericRangeFilter.class));
+        NumericRangeFilter<Long> rangeFilter = (NumericRangeFilter<Long>) filter;
+        assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis() + 999).getMillis())); // +999 to include the 00-01 minute
+        assertThat(rangeFilter.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis()).getMillis()));
     }
 
     @Test

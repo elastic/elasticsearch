@@ -91,14 +91,14 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      * will run against all indices.
      */
     public SearchRequest(String... indices) {
-        this.indices = indices;
+        indices(indices);
     }
 
     /**
      * Constructs a new search request against the provided indices with the given search source.
      */
     public SearchRequest(String[] indices, byte[] source) {
-        this.indices = indices;
+        indices(indices);
         this.source = new BytesArray(source);
     }
 
@@ -135,6 +135,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
      * Sets the indices the search will be executed on.
      */
     public SearchRequest indices(String... indices) {
+        if (indices == null) {
+            throw new ElasticSearchIllegalArgumentException("indices must not be null");
+        } else {
+            for (int i = 0; i < indices.length; i++) {
+                if (indices[i] == null) {
+                    throw new ElasticSearchIllegalArgumentException("indices[" + i +"] must not be null");
+                }
+            }
+        }
         this.indices = indices;
         return this;
     }

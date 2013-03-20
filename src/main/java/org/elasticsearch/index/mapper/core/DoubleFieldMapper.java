@@ -160,7 +160,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     public BytesRef indexedValueForSearch(Object value) {
         long longValue = NumericUtils.doubleToSortableLong(parseValue(value));
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.longToPrefixCoded(longValue, precisionStep(), bytesRef);
+        NumericUtils.longToPrefixCoded(longValue, 0, bytesRef);   // 0 because of exact match
         return bytesRef;
     }
 

@@ -95,8 +95,13 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     transientSettings.put(currentState.metaData().transientSettings());
                     for (Map.Entry<String, String> entry : request.transientSettings().getAsMap().entrySet()) {
                         if (dynamicSettings.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
-                            transientSettings.put(entry.getKey(), entry.getValue());
-                            changed = true;
+                            String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
+                            if (error == null) {
+                                transientSettings.put(entry.getKey(), entry.getValue());
+                                changed = true;
+                            } else {
+                                logger.warn("ignoring transient setting [{}], [{}]", entry.getKey(), error);
+                            }
                         } else {
                             logger.warn("ignoring transient setting [{}], not dynamically updateable", entry.getKey());
                         }
@@ -106,8 +111,13 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeOpe
                     persistentSettings.put(currentState.metaData().persistentSettings());
                     for (Map.Entry<String, String> entry : request.persistentSettings().getAsMap().entrySet()) {
                         if (dynamicSettings.hasDynamicSetting(entry.getKey()) || entry.getKey().startsWith("logger.")) {
-                            changed = true;
-                            persistentSettings.put(entry.getKey(), entry.getValue());
+                            String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
+                            if (error == null) {
+                                persistentSettings.put(entry.getKey(), entry.getValue());
+                                changed = true;
+                            } else {
+                                logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
+                            }
                         } else {
                             logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
                         }

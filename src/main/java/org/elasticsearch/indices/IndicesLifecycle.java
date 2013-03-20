@@ -97,19 +97,17 @@ public interface IndicesLifecycle {
          * Called before the index get closed.
          *
          * @param indexService The index service
-         * @param delete       Does the index gets closed because of a delete command, or because the node is shutting down
          */
-        public void beforeIndexClosed(IndexService indexService, boolean delete) {
+        public void beforeIndexClosed(IndexService indexService) {
 
         }
 
         /**
          * Called after the index has been closed.
          *
-         * @param index  The index
-         * @param delete Does the index gets closed because of a delete command, or because the node is shutting down
+         * @param index The index
          */
-        public void afterIndexClosed(Index index, boolean delete) {
+        public void afterIndexClosed(Index index) {
 
         }
 
@@ -117,9 +115,8 @@ public interface IndicesLifecycle {
          * Called before the index shard gets closed.
          *
          * @param indexShard The index shard
-         * @param delete     Does the index shard gets closed because of a delete command, or because the node is shutting down
          */
-        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
 
         }
 
@@ -127,9 +124,8 @@ public interface IndicesLifecycle {
          * Called after the index shard has been closed.
          *
          * @param shardId The shard id
-         * @param delete  Does the index shard gets closed because of a delete command, or because the node is shutting down
          */
-        public void afterIndexShardClosed(ShardId shardId, boolean delete) {
+        public void afterIndexShardClosed(ShardId shardId) {
 
         }
     }

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.support.broadcast;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -32,6 +33,9 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexShardMissingException;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -95,12 +99,39 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
         return true;
     }
 
+    /**
+     * Override this method to ignore specific exception, note, the result should be OR'ed with the call
+     * to super#ignoreException since there is additional logic here....
+     */
     protected boolean ignoreException(Throwable t) {
+        if (ignoreIllegalShardState()) {
+            Throwable actual = ExceptionsHelper.unwrapCause(t);
+            if (actual instanceof IllegalIndexShardStateException) {
+                return true;
+            }
+            if (actual instanceof IndexMissingException) {
+                return true;
+            }
+            if (actual instanceof IndexShardMissingException) {
+                return true;
+            }
+        }
         return false;
     }
 
+    /**
+     * Should non active routing shard state be ignore or node, defaults to false.
+     */
     protected boolean ignoreNonActiveExceptions() {
         return false;
+    }
+
+    /**
+     * Should the API ignore illegal shard state cases, for example, if the shard is actually missing on the
+     * target node (cause it hasn't been allocated there for example). Defaults to true.
+     */
+    protected boolean ignoreIllegalShardState() {
+        return true;
     }
 
     protected abstract ClusterBlockException checkGlobalBlock(ClusterState state, Request request);

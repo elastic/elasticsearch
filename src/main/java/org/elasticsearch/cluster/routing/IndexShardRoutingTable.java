@@ -64,9 +64,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         this.counter = new AtomicInteger(ThreadLocalRandom.current().nextInt(shards.size()));
 
         ShardRouting primary = null;
-        List<ShardRouting> replicas = new ArrayList<ShardRouting>();
-        List<ShardRouting> activeShards = new ArrayList<ShardRouting>();
-        List<ShardRouting> assignedShards = new ArrayList<ShardRouting>();
+        ImmutableList.Builder<ShardRouting> replicas = ImmutableList.builder();
+        ImmutableList.Builder<ShardRouting> activeShards = ImmutableList.builder();
+        ImmutableList.Builder<ShardRouting> assignedShards = ImmutableList.builder();
 
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
@@ -88,9 +88,9 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         } else {
             this.primaryAsList = ImmutableList.of();
         }
-        this.replicas = ImmutableList.copyOf(replicas);
-        this.activeShards = ImmutableList.copyOf(activeShards);
-        this.assignedShards = ImmutableList.copyOf(assignedShards);
+        this.replicas = replicas.build();
+        this.activeShards = activeShards.build();
+        this.assignedShards = assignedShards.build();
     }
 
     /**
@@ -137,6 +137,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns the shards id
+     *
      * @return id of the shard
      */
     public ShardId shardId() {
@@ -145,6 +146,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns the shards id
+     *
      * @return id of the shard
      */
     public ShardId getShardId() {
@@ -162,7 +164,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     public int size() {
         return shards.size();
     }
-    
+
     /**
      * Returns the number of this shards instances.
      */
@@ -172,6 +174,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns a {@link ImmutableList} of shards
+     *
      * @return a {@link ImmutableList} of shards
      */
     public ImmutableList<ShardRouting> shards() {
@@ -180,6 +183,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns a {@link ImmutableList} of shards
+     *
      * @return a {@link ImmutableList} of shards
      */
     public ImmutableList<ShardRouting> getShards() {
@@ -188,6 +192,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns a {@link ImmutableList} of active shards
+     *
      * @return a {@link ImmutableList} of shards
      */
     public ImmutableList<ShardRouting> activeShards() {
@@ -196,6 +201,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns a {@link ImmutableList} of active shards
+     *
      * @return a {@link ImmutableList} of shards
      */
     public ImmutableList<ShardRouting> getActiveShards() {
@@ -204,6 +210,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns a {@link ImmutableList} of assigned shards
+     *
      * @return a {@link ImmutableList} of shards
      */
     public ImmutableList<ShardRouting> assignedShards() {
@@ -212,6 +219,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns a {@link ImmutableList} of assigned shards
+     *
      * @return a {@link ImmutableList} of shards
      */
     public ImmutableList<ShardRouting> getAssignedShards() {
@@ -220,6 +228,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     /**
      * Returns the number of shards in a specific state
+     *
      * @param state state of the shards to count
      * @return number of shards in <code>state</code>
      */

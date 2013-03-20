@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -74,7 +75,7 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
                 .settings(settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).put("routing.hash.type", "simple")))
                 .actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
             index(client("server1"), Integer.toString(i), "test", i);
@@ -357,15 +358,15 @@ public class TransportTwoNodesSearchTests extends AbstractNodesTests {
         assertThat(response.getFailedShards(), equalTo(0));
 
         response = client.search(searchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
-        assertThat(response.getShardFailures().length, equalTo(0));
+        assertThat(Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
         response = client.search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
-        assertThat(response.getShardFailures().length, equalTo(0));
+        assertThat(Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
         response = client.search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
-        assertThat(response.getShardFailures().length, equalTo(0));
+        assertThat(Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
         logger.info("Done Testing failed search");

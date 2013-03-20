@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -56,7 +57,7 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
         client.admin().indices().prepareDelete().execute().actionGet();
 
         client.admin().indices().prepareCreate("test1").execute().actionGet();
-        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         try {
@@ -153,7 +154,7 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
 
         client.admin().indices().prepareCreate("test2").execute().actionGet();
 
-        clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -177,14 +178,14 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test1").execute().actionGet();
         client.admin().indices().prepareCreate("test2").execute().actionGet();
 
-        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         client.prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
 
         client.admin().indices().prepareClose("test2").execute().actionGet();
 
-        clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         try {

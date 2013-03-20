@@ -158,7 +158,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     @Override
     public BytesRef indexedValueForSearch(Object value) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.intToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
+        NumericUtils.intToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
         return bytesRef;
     }
 

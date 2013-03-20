@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.search.compress;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -76,7 +77,7 @@ public class SearchSourceCompressTests extends AbstractNodesTests {
             // ignore
         }
         client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_source").field("compress", compress).endObject()

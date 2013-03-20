@@ -3,6 +3,7 @@ package org.elasticsearch.test.integration.indices.mapping;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -42,7 +43,7 @@ public class UpdateMappingTests extends AbstractNodesTests {
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
                 ).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         long recCount = 20;
         for (int rec = 0; rec < recCount; rec++) {

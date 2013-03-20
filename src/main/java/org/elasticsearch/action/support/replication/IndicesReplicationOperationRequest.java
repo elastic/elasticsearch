@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,6 +36,8 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
     protected String[] indices;
+    private IgnoreIndices ignoreIndices = IgnoreIndices.DEFAULT;
+
     protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
@@ -64,6 +67,18 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return this.indices;
     }
 
+    public IgnoreIndices ignoreIndices() {
+        return ignoreIndices;
+    }
+
+    public T ignoreIndices(IgnoreIndices ignoreIndices) {
+        if (ignoreIndices == null) {
+            throw new IllegalArgumentException("IgnoreIndices must not be null");
+        }
+        this.ignoreIndices = ignoreIndices;
+        return (T) this;
+    }
+
     /**
      * The indices the request will execute against.
      */
@@ -82,6 +97,9 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      */
     @SuppressWarnings("unchecked")
     public final T replicationType(ReplicationType replicationType) {
+        if (replicationType == null) {
+            throw new IllegalArgumentException("ReplicationType must not be null");
+        }
         this.replicationType = replicationType;
         return (T) this;
     }
@@ -102,6 +120,9 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      */
     @SuppressWarnings("unchecked")
     public final T consistencyLevel(WriteConsistencyLevel consistencyLevel) {
+        if (consistencyLevel == null) {
+            throw new IllegalArgumentException("WriteConsistencyLevel must not be null");
+        }
         this.consistencyLevel = consistencyLevel;
         return (T) this;
     }
@@ -118,6 +139,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         indices = in.readStringArray();
+        ignoreIndices = IgnoreIndices.fromId(in.readByte());
     }
 
     @Override
@@ -127,5 +149,6 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeStringArrayNullable(indices);
+        out.writeByte(ignoreIndices.id());
     }
 }

@@ -48,6 +48,10 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
     }
 
     @Override
+    public void close() {
+    }
+
+    @Override
     public int getNumDocs() {
         return numDocs;
     }

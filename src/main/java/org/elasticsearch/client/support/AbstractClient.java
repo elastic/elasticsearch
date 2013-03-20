@@ -53,6 +53,10 @@ import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.suggest.SuggestAction;
+import org.elasticsearch.action.suggest.SuggestRequest;
+import org.elasticsearch.action.suggest.SuggestRequestBuilder;
+import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -258,6 +262,21 @@ public abstract class AbstractClient implements InternalClient {
     @Override
     public CountRequestBuilder prepareCount(String... indices) {
         return new CountRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override
+    public ActionFuture<SuggestResponse> suggest(final SuggestRequest request) {
+        return execute(SuggestAction.INSTANCE, request);
+    }
+
+    @Override
+    public void suggest(final SuggestRequest request, final ActionListener<SuggestResponse> listener) {
+        execute(SuggestAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public SuggestRequestBuilder prepareSuggest(String... indices) {
+        return new SuggestRequestBuilder(this).setIndices(indices);
     }
 
     @Override

@@ -48,6 +48,7 @@ import java.util.Set;
  * all parent documents having the same uid value that is collected in the first phase are emitted as hit including
  * a score based on the aggregated child scores and score type.
  */
+// TODO We use a score of 0 to indicate a doc was not scored in uidToScore, this means score of 0 can be problematic, if we move to HPCC, we can use lset/...
 public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 
     private final SearchContext searchContext;
@@ -250,7 +251,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 
                 HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
                 currentScore = uidToScore.get(uid);
-                if (Float.compare(currentScore, 0) > 0) {
+                if (currentScore != 0) {
                     return currentDocId;
                 }
             }
@@ -265,7 +266,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 
             HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
             currentScore = uidToScore.get(uid);
-            if (Float.compare(currentScore, 0) > 0) {
+            if (currentScore != 0) {
                 return currentDocId;
             } else {
                 return nextDoc();
@@ -293,54 +294,41 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 
                 currentUid = idTypeCache.idByDoc(currentDocId);
                 currentScore = uidToScore.get(currentUid);
-                if (Float.compare(currentScore, 0) > 0) {
+                if (currentScore != 0) {
                     currentScore /= uidToCount.get(currentUid);
                     return currentDocId;
                 }
             }
         }
+
+        @Override
+        public int advance(int target) throws IOException {
+            currentDocId = parentsIterator.advance(target);
+            if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                return currentDocId;
+            }
+
+            HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
+            currentScore = uidToScore.get(uid);
+            if (currentScore != 0) {
+                currentScore /= uidToCount.get(currentUid);
+                return currentDocId;
+            } else {
+                return nextDoc();
+            }
+        }
     }
 
-    static class ChildUidCollector extends NoopCollector {
+    static class ChildUidCollector extends ParentIdCollector {
 
         final TObjectFloatHashMap<HashedBytesArray> uidToScore;
         final ScoreType scoreType;
-        final SearchContext searchContext;
-        final String childType;
-
         Scorer scorer;
-        IdReaderTypeCache typeCache;
 
         ChildUidCollector(ScoreType scoreType, SearchContext searchContext, String childType, TObjectFloatHashMap<HashedBytesArray> uidToScore) {
+            super(childType, searchContext);
             this.uidToScore = uidToScore;
             this.scoreType = scoreType;
-            this.searchContext = searchContext;
-            this.childType = childType;
-        }
-
-        @Override
-        public void collect(int doc) throws IOException {
-            if (typeCache == null) {
-                return;
-            }
-
-            HashedBytesArray parentUid = typeCache.parentIdByDoc(doc);
-            float previousScore = uidToScore.get(parentUid);
-            float currentScore = scorer.score();
-            if (Float.compare(previousScore, 0) == 0) {
-                uidToScore.put(parentUid, currentScore);
-            } else {
-                switch (scoreType) {
-                    case SUM:
-                        uidToScore.adjustValue(parentUid, currentScore);
-                        break;
-                    case MAX:
-                        if (Float.compare(previousScore, currentScore) < 0) {
-                            uidToScore.put(parentUid, currentScore);
-                        }
-                        break;
-                }
-            }
         }
 
         @Override
@@ -349,13 +337,34 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) throws IOException {
-            typeCache = searchContext.idCache().reader(context.reader()).type(childType);
+        protected void collect(int doc, HashedBytesArray parentUid) throws IOException {
+            float previousScore = uidToScore.get(parentUid);
+            float currentScore = scorer.score();
+            if (previousScore == 0) {
+                uidToScore.put(parentUid, currentScore);
+            } else {
+                switch (scoreType) {
+                    case SUM:
+                        uidToScore.adjustValue(parentUid, currentScore);
+                        break;
+                    case MAX:
+                        if (currentScore > previousScore) {
+                            uidToScore.put(parentUid, currentScore);
+                        }
+                        break;
+                    case AVG:
+                        assert false : "AVG has it's own collector";
+                        
+                    default:
+                        assert false : "Are we missing a sore type here? -- " + scoreType;
+                        break;
+                }
+            }
         }
 
     }
 
-    static class AvgChildUidCollector extends ChildUidCollector {
+    final static class AvgChildUidCollector extends ChildUidCollector {
 
         final TObjectIntHashMap<HashedBytesArray> uidToCount;
 
@@ -366,15 +375,10 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         }
 
         @Override
-        public void collect(int doc) throws IOException {
-            if (typeCache == null) {
-                return;
-            }
-
-            HashedBytesArray parentUid = typeCache.parentIdByDoc(doc);
+        protected void collect(int doc, HashedBytesArray parentUid) throws IOException {
             float previousScore = uidToScore.get(parentUid);
             float currentScore = scorer.score();
-            if (Float.compare(previousScore, 0) == 0) {
+            if (previousScore == 0) {
                 uidToScore.put(parentUid, currentScore);
                 uidToCount.put(parentUid, 1);
             } else {

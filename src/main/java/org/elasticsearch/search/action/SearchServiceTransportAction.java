@@ -140,7 +140,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 QuerySearchResult result = searchService.executeQueryPhase(request);
                 listener.onResult(result);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {

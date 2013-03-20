@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -63,7 +64,7 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test1").execute().actionGet();
         client("node1").admin().indices().prepareCreate("test2").execute().actionGet();
 
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> starting 1 node on a different rack");
@@ -75,7 +76,7 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
         do {
             Thread.sleep(100);
             logger.info("--> waiting for no relocation");
-            health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
+            health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
             assertThat(health.isTimedOut(), equalTo(false));
 
             logger.info("--> checking current state");

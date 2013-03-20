@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.ttl;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -80,7 +81,7 @@ public class SimpleTTLTests extends AbstractNodesTests {
                         .endObject()
                         .endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         long providedTTLValue = 3000;
         logger.info("--> checking ttl");
         // Index one doc without routing, one doc with routing, one doc with not TTL and no default and one doc with default TTL

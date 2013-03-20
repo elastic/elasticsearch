@@ -21,10 +21,12 @@ package org.elasticsearch.test.unit.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BoostingQuery;
+import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.sandbox.queries.FuzzyLikeThisQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
+import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.ClusterService;
@@ -67,6 +69,7 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
@@ -130,9 +133,9 @@ public class SimpleIndexQueryParserTests {
         return this.queryParser;
     }
 
-    private BytesRef longToPrefixCoded(long val) {
+    private BytesRef longToPrefixCoded(long val, int shift) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.longToPrefixCoded(val, NumericUtils.PRECISION_STEP_DEFAULT, bytesRef);
+        NumericUtils.longToPrefixCoded(val, shift, bytesRef);
         return bytesRef;
     }
 
@@ -903,6 +906,40 @@ public class SimpleIndexQueryParserTests {
     }
 
     @Test
+    public void testBoolFilteredQueryBuilder() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), boolFilter().must(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")).mustNot(termFilter("name.first", "shay2")).should(termFilter("name.first", "shay3")))).query();
+
+        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
+        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        XBooleanFilter booleanFilter = (XBooleanFilter) filteredQuery.getFilter();
+
+        Iterator<FilterClause> iterator = booleanFilter.iterator();
+        assertThat(iterator.hasNext(), equalTo(true));
+        FilterClause clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay4")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay2")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay3")));
+
+        assertThat(iterator.hasNext(), equalTo(false));
+    }
+
+
+    @Test
     public void testBoolFilteredQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/bool-filter.json");
@@ -911,7 +948,28 @@ public class SimpleIndexQueryParserTests {
         XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
         XBooleanFilter booleanFilter = (XBooleanFilter) filteredQuery.getFilter();
 
-        // TODO get the content and test
+        Iterator<FilterClause> iterator = booleanFilter.iterator();
+        assertThat(iterator.hasNext(), equalTo(true));
+        FilterClause clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay4")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay2")));
+
+        assertThat(iterator.hasNext(), equalTo(true));
+        clause = iterator.next();
+        assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
+        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay3")));
+
+        assertThat(iterator.hasNext(), equalTo(false));
     }
 
     @Test
@@ -1356,7 +1414,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanTermQuery.class));
         SpanTermQuery termQuery = (SpanTermQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(termQuery.getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
+        assertThat(termQuery.getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
     }
 
     @Test
@@ -1367,7 +1425,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanTermQuery.class));
         SpanTermQuery termQuery = (SpanTermQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(termQuery.getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
+        assertThat(termQuery.getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
     }
 
     @Test
@@ -1377,8 +1435,8 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanNotQuery.class));
         SpanNotQuery spanNotQuery = (SpanNotQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(((SpanTermQuery) spanNotQuery.getInclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
-        assertThat(((SpanTermQuery) spanNotQuery.getExclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(35))));
+        assertThat(((SpanTermQuery) spanNotQuery.getInclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
+        assertThat(((SpanTermQuery) spanNotQuery.getExclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
     }
 
     @Test
@@ -1389,8 +1447,8 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanNotQuery.class));
         SpanNotQuery spanNotQuery = (SpanNotQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(((SpanTermQuery) spanNotQuery.getInclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
-        assertThat(((SpanTermQuery) spanNotQuery.getExclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(35))));
+        assertThat(((SpanTermQuery) spanNotQuery.getInclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
+        assertThat(((SpanTermQuery) spanNotQuery.getExclude()).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
     }
 
     @Test
@@ -1400,7 +1458,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanFirstQuery.class));
         SpanFirstQuery spanFirstQuery = (SpanFirstQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(((SpanTermQuery) spanFirstQuery.getMatch()).getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
+        assertThat(((SpanTermQuery) spanFirstQuery.getMatch()).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
         assertThat(spanFirstQuery.getEnd(), equalTo(12));
     }
 
@@ -1412,7 +1470,7 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanFirstQuery.class));
         SpanFirstQuery spanFirstQuery = (SpanFirstQuery) parsedQuery;
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(((SpanTermQuery) spanFirstQuery.getMatch()).getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
+        assertThat(((SpanTermQuery) spanFirstQuery.getMatch()).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
         assertThat(spanFirstQuery.getEnd(), equalTo(12));
     }
 
@@ -1423,9 +1481,9 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanNearQuery.class));
         SpanNearQuery spanNearQuery = (SpanNearQuery) parsedQuery;
         assertThat(spanNearQuery.getClauses().length, equalTo(3));
-        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
-        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35))));
-        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36))));
+        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
+        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
+        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36, 0))));
         assertThat(spanNearQuery.isInOrder(), equalTo(false));
     }
 
@@ -1437,9 +1495,9 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanNearQuery.class));
         SpanNearQuery spanNearQuery = (SpanNearQuery) parsedQuery;
         assertThat(spanNearQuery.getClauses().length, equalTo(3));
-        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
-        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35))));
-        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36))));
+        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
+        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
+        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36, 0))));
         assertThat(spanNearQuery.isInOrder(), equalTo(false));
     }
 
@@ -1450,9 +1508,9 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanOrQuery.class));
         SpanOrQuery spanOrQuery = (SpanOrQuery) parsedQuery;
         assertThat(spanOrQuery.getClauses().length, equalTo(3));
-        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
-        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35))));
-        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36))));
+        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
+        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
+        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36, 0))));
     }
 
     @Test
@@ -1463,9 +1521,9 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanOrQuery.class));
         SpanOrQuery spanOrQuery = (SpanOrQuery) parsedQuery;
         assertThat(spanOrQuery.getClauses().length, equalTo(3));
-        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
-        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35))));
-        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36))));
+        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
+        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
+        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36, 0))));
     }
 
     @Test
@@ -1476,9 +1534,9 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(SpanOrQuery.class));
         SpanOrQuery spanOrQuery = (SpanOrQuery) parsedQuery;
         assertThat(spanOrQuery.getClauses().length, equalTo(3));
-        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34))));
-        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35))));
-        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36))));
+        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
+        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
+        assertThat(((SpanTermQuery) spanOrQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36, 0))));
     }
 
     @Test
@@ -1969,9 +2027,7 @@ public class SimpleIndexQueryParserTests {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
         XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        TermsFilter filter = (TermsFilter) constantScoreQuery.getFilter();
-        //Term exampleTerm = filter.getTerms()[0];
-        //assertThat(exampleTerm.field(), equalTo("country"));
+        assertThat(constantScoreQuery.getFilter(), instanceOf(IntersectsPrefixTreeFilter.class));
     }
 
     @Test
@@ -1980,10 +2036,7 @@ public class SimpleIndexQueryParserTests {
         String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/geoShape-query.json");
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
-        parsedQuery = ((ConstantScoreQuery) parsedQuery).getQuery();
-        assertThat(parsedQuery, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) parsedQuery;
-        TermQuery termQuery = (TermQuery) booleanQuery.getClauses()[0].getQuery();
-        assertThat(termQuery.getTerm().field(), equalTo("country"));
+        ConstantScoreQuery csq = (ConstantScoreQuery) parsedQuery;
+        assertThat(csq.getFilter(), instanceOf(IntersectsPrefixTreeFilter.class));
     }
 }

@@ -82,14 +82,21 @@ public interface Settings {
     String get(String setting);
 
     /**
+     * Returns the setting value associated with the first setting key.
+     */
+    String get(String[] settings);
+
+    /**
      * Returns the setting value associated with the setting key. If it does not exists,
      * returns the default value provided.
-     *
-     * @param setting      The setting key
-     * @param defaultValue The value to return if no value is associated with the setting
-     * @return The setting value, or the default value if no value exists
      */
     String get(String setting, String defaultValue);
+
+    /**
+     * Returns the setting value associated with the first setting key, if none exists,
+     * returns the default value provided.
+     */
+    String get(String[] settings, String defaultValue);
 
     /**
      * Returns group settings for the given setting prefix.
@@ -99,93 +106,98 @@ public interface Settings {
     /**
      * Returns the setting value (as float) associated with the setting key. If it does not exists,
      * returns the default value provided.
-     *
-     * @param setting      The setting key
-     * @param defaultValue The value to return if no value is associated with the setting
-     * @return The (float) value, or the default value if no value exists.
-     * @throws SettingsException Failure to parse the setting
      */
     Float getAsFloat(String setting, Float defaultValue) throws SettingsException;
 
     /**
+     * Returns the setting value (as float) associated with teh first setting key, if none
+     * exists, returns the default value provided.
+     */
+    Float getAsFloat(String[] settings, Float defaultValue) throws SettingsException;
+
+    /**
      * Returns the setting value (as double) associated with the setting key. If it does not exists,
      * returns the default value provided.
-     *
-     * @param setting      The setting key
-     * @param defaultValue The value to return if no value is associated with the setting
-     * @return The (double) value, or the default value if no value exists.
-     * @throws SettingsException Failure to parse the setting
      */
     Double getAsDouble(String setting, Double defaultValue) throws SettingsException;
 
     /**
+     * Returns the setting value (as double) associated with teh first setting key, if none
+     * exists, returns the default value provided.
+     */
+    Double getAsDouble(String[] settings, Double defaultValue) throws SettingsException;
+
+    /**
      * Returns the setting value (as int) associated with the setting key. If it does not exists,
      * returns the default value provided.
-     *
-     * @param setting      The setting key
-     * @param defaultValue The value to return if no value is associated with the setting
-     * @return The (int) value, or the default value if no value exists.
-     * @throws SettingsException Failure to parse the setting
      */
     Integer getAsInt(String setting, Integer defaultValue) throws SettingsException;
 
     /**
+     * Returns the setting value (as int) associated with the first setting key. If it does not exists,
+     * returns the default value provided.
+     */
+    Integer getAsInt(String[] settings, Integer defaultValue) throws SettingsException;
+
+    /**
      * Returns the setting value (as long) associated with the setting key. If it does not exists,
      * returns the default value provided.
-     *
-     * @param setting      The setting key
-     * @param defaultValue The value to return if no value is associated with the setting
-     * @return The (long) value, or the default value if no value exists.
-     * @throws SettingsException Failure to parse the setting
      */
     Long getAsLong(String setting, Long defaultValue) throws SettingsException;
 
     /**
+     * Returns the setting value (as long) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
+    Long getAsLong(String[] settings, Long defaultValue) throws SettingsException;
+
+    /**
      * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
      * returns the default value provided.
-     *
-     * @param setting      The setting key
-     * @param defaultValue The value to return if no value is associated with the setting
-     * @return The (boolean) value, or the default value if no value exists.
-     * @throws SettingsException Failure to parse the setting
      */
     Boolean getAsBoolean(String setting, Boolean defaultValue) throws SettingsException;
 
     /**
+     * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
+    Boolean getAsBoolean(String[] settings, Boolean defaultValue) throws SettingsException;
+
+    /**
      * Returns the setting value (as time) associated with the setting key. If it does not exists,
      * returns the default value provided.
-     *
-     * @param setting      The setting key
-     * @param defaultValue The value to return if no value is associated with the setting
-     * @return The (time) value, or the default value if no value exists.
-     * @throws SettingsException Failure to parse the setting
-     * @see TimeValue#parseTimeValue(String, org.elasticsearch.common.unit.TimeValue)
      */
     TimeValue getAsTime(String setting, TimeValue defaultValue) throws SettingsException;
 
     /**
+     * Returns the setting value (as time) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
+    TimeValue getAsTime(String[] settings, TimeValue defaultValue) throws SettingsException;
+
+    /**
      * Returns the setting value (as size) associated with the setting key. If it does not exists,
      * returns the default value provided.
-     *
-     * @param setting      The setting key
-     * @param defaultValue The value to return if no value is associated with the setting
-     * @return The (size) value, or the default value if no value exists.
-     * @throws SettingsException Failure to parse the setting
-     * @see org.elasticsearch.common.unit.ByteSizeValue#parseBytesSizeValue(String, org.elasticsearch.common.unit.ByteSizeValue)
      */
     ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException;
 
     /**
      * Returns the setting value (as size) associated with the setting key. If it does not exists,
      * returns the default value provided.
-     *
-     * @param setting      The setting key
-     * @param defaultValue The value to return if no value is associated with the setting
-     * @return The (size) value, or the default value if no value exists.
-     * @throws SettingsException Failure to parse the setting
-     * @see org.elasticsearch.common.unit.ByteSizeValue#parseBytesSizeValue(String, org.elasticsearch.common.unit.ByteSizeValue)
+     */
+    ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException;
+
+    /**
+     * Returns the setting value (as size) associated with the setting key. If it does not exists,
+     * returns the default value provided.
      */
     SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException;
+
+    /**
+     * Returns the setting value (as size) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     */
+    SizeValue getAsSize(String[] settings, SizeValue defaultValue) throws SettingsException;
 
     /**
      * Returns the setting value (as a class) associated with the setting key. If it does not exists,

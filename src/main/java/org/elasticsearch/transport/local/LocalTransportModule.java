@@ -21,7 +21,6 @@ package org.elasticsearch.transport.local;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.transport.Transport;
 
 /**
@@ -39,8 +38,5 @@ public class LocalTransportModule extends AbstractModule {
     protected void configure() {
         bind(LocalTransport.class).asEagerSingleton();
         bind(Transport.class).to(LocalTransport.class).asEagerSingleton();
-        if (JmxService.shouldExport(settings)) {
-            bind(LocalTransportManagement.class).asEagerSingleton();
-        }
     }
 }

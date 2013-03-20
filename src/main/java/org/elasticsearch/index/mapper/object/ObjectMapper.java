@@ -532,7 +532,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         context.path().remove();
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                         if (builder == null) {
-                            builder = MapperBuilders.object(currentFieldName).enabled(true).dynamic(dynamic).pathType(pathType);
+                            builder = MapperBuilders.object(currentFieldName).enabled(true).pathType(pathType);
+                            // if this is a non root object, then explicitly set the dynamic behavior if set
+                            if (!(this instanceof RootObjectMapper) && this.dynamic != Defaults.DYNAMIC) {
+                                ((Builder) builder).dynamic(this.dynamic);
+                            }
                         }
                         BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                         objectMapper = builder.build(builderContext);
@@ -636,7 +640,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     if (!resolved && context.root().dateDetection()) {
                         String text = context.parser().text();
                         // a safe check since "1" gets parsed as well
-                        if (text.contains(":") || text.contains("-") || text.contains("/")) {
+                        if (Strings.countOccurrencesOf(text, ":") > 1 || Strings.countOccurrencesOf(text, "-") > 1 || Strings.countOccurrencesOf(text, "/") > 1) {
                             for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                                 try {
                                     dateTimeFormatter.parser().parseMillis(text);

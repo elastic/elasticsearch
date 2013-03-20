@@ -72,11 +72,6 @@ public interface IndexService extends IndexComponent, Iterable<IndexShard> {
     IndexShard createShard(int sShardId) throws ElasticSearchException;
 
     /**
-     * Cleans the shard locally, does not touch the gateway!.
-     */
-    void cleanShard(int shardId, String reason) throws ElasticSearchException;
-
-    /**
      * Removes the shard, does not delete local data or the gateway.
      */
     void removeShard(int shardId, String reason) throws ElasticSearchException;

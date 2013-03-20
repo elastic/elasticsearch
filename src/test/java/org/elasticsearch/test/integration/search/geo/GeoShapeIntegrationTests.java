@@ -22,8 +22,8 @@ package org.elasticsearch.test.integration.search.geo;
 import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -70,7 +70,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject().endObject()
                 .endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
@@ -94,7 +94,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
-                        geoShapeFilter("location", shape).relation(ShapeRelation.INTERSECTS)))
+                        geoShapeFilter("location", shape)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
@@ -102,7 +102,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
 
         searchResponse = client.prepareSearch()
-                .setQuery(geoShapeQuery("location", shape).relation(ShapeRelation.INTERSECTS))
+                .setQuery(geoShapeQuery("location", shape))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
@@ -110,7 +110,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
-    @Test(enabled=false) // LUCENE MONITIR enable this test again once Lucene4.2 is out. This bug is fixed in Lucene 4.2
+    @Test
     public void testEdgeCases() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 
@@ -121,17 +121,17 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject().endObject()
                 .endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "blakely").setSource(jsonBuilder().startObject()
                 .field("name", "Blakely Island")
                 .startObject("location")
                 .field("type", "polygon")
                 .startArray("coordinates").startArray()
-                    .startArray().value(-122.83).value(48.57).endArray()
-                    .startArray().value(-122.77).value(48.56).endArray()
-                    .startArray().value(-122.79).value(48.53).endArray()
-                    .startArray().value(-122.83).value(48.57).endArray() // close the polygon
+                .startArray().value(-122.83).value(48.57).endArray()
+                .startArray().value(-122.77).value(48.56).endArray()
+                .startArray().value(-122.79).value(48.53).endArray()
+                .startArray().value(-122.83).value(48.57).endArray() // close the polygon
                 .endArray().endArray()
                 .endObject()
                 .endObject()).execute().actionGet();
@@ -144,7 +144,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
-                        geoShapeFilter("location", query).relation(ShapeRelation.INTERSECTS)))
+                        geoShapeFilter("location", query)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
@@ -163,7 +163,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject().endObject()
                 .endObject().endObject().string();
         client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
@@ -188,7 +188,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(),
-                        geoShapeFilter("location", "Big_Rectangle", "shape_type").relation(ShapeRelation.INTERSECTS)))
+                        geoShapeFilter("location", "Big_Rectangle", "shape_type")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
@@ -196,7 +196,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
 
         searchResponse = client.prepareSearch()
-                .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type").relation(ShapeRelation.INTERSECTS))
+                .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type"))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));

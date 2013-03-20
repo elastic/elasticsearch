@@ -53,10 +53,13 @@ import java.util.regex.Pattern;
  */
 public class TermsFacetParser extends AbstractComponent implements FacetParser {
 
+    private final int ordinalsCacheAbove;
+
     @Inject
     public TermsFacetParser(Settings settings) {
         super(settings);
         InternalTermsFacet.registerStreams();
+        this.ordinalsCacheAbove = componentSettings.getAsInt("ordinals_cache_above", 10000); // above 40k we want to cache
     }
 
     @Override
@@ -176,7 +179,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             if (script != null || "map".equals(executionHint)) {
                 return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
             } else if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
-                return new TermsStringOrdinalsFacetExecutor((IndexFieldData.WithOrdinals) indexFieldData, size, comparatorType, allTerms, context, excluded, pattern);
+                return new TermsStringOrdinalsFacetExecutor((IndexFieldData.WithOrdinals) indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, ordinalsCacheAbove);
             } else {
                 return new TermsStringFacetExecutor(indexFieldData, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
             }

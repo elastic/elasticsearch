@@ -44,6 +44,10 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
     }
 
     @Override
+    public void close() {
+    }
+
+    @Override
     public int getNumDocs() {
         return numDocs;
     }
@@ -156,7 +160,7 @@ public abstract class IntArrayAtomicFieldData implements AtomicNumericFieldData 
         public DoubleValues getDoubleValues() {
             return new DoubleValues(values, ordinals.ordinals());
         }
-       
+
         static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
 
             private final int[] values;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import gnu.trove.iterator.TLongIterator;
 import gnu.trove.list.array.TLongArrayList;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -42,7 +43,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  */
-public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAtomicFieldData> implements IndexNumericFieldData<LongArrayAtomicFieldData> {
+public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumericFieldData> implements IndexNumericFieldData<AtomicNumericFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -69,7 +70,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
     }
 
     @Override
-    public LongArrayAtomicFieldData load(AtomicReaderContext context) {
+    public AtomicNumericFieldData load(AtomicReaderContext context) {
         try {
             return cache.load(context, this);
         } catch (Throwable e) {
@@ -82,7 +83,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
     }
 
     @Override
-    public LongArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
@@ -96,10 +97,76 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
         try {
             BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric64Bit(terms.iterator(null)), reader.getLiveDocs());
             BytesRef term;
+            long max = Long.MIN_VALUE;
+            long min = Long.MAX_VALUE;
             while ((term = iter.next()) != null) {
-                values.add(NumericUtils.prefixCodedToLong(term));
+                long value = NumericUtils.prefixCodedToLong(term);
+                values.add(value);
+                if (value > max) {
+                    max = value;
+                }
+                if (value < min) {
+                    min = value;
+                }
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
+
+            if (fieldDataType.getSettings().getAsBoolean("optimize_type", true)) {
+                // since the default mapping for numeric is long, its worth optimizing the actual type used to represent the data
+                if (min >= Byte.MIN_VALUE && max <= Byte.MAX_VALUE) {
+                    return ByteArrayIndexFieldData.build(reader, builder, build, new ByteArrayIndexFieldData.BuilderBytes() {
+                        @Override
+                        public byte get(int index) {
+                            return (byte) values.get(index);
+                        }
+
+                        @Override
+                        public byte[] toArray() {
+                            byte[] bValues = new byte[values.size()];
+                            int i = 0;
+                            for (TLongIterator it = values.iterator(); it.hasNext(); ) {
+                                bValues[i++] = (byte) it.next();
+                            }
+                            return bValues;
+                        }
+                    });
+                } else if (min >= Short.MIN_VALUE && max <= Short.MAX_VALUE) {
+                    return ShortArrayIndexFieldData.build(reader, builder, build, new ShortArrayIndexFieldData.BuilderShorts() {
+                        @Override
+                        public short get(int index) {
+                            return (short) values.get(index);
+                        }
+
+                        @Override
+                        public short[] toArray() {
+                            short[] sValues = new short[values.size()];
+                            int i = 0;
+                            for (TLongIterator it = values.iterator(); it.hasNext(); ) {
+                                sValues[i++] = (short) it.next();
+                            }
+                            return sValues;
+                        }
+                    });
+                } else if (min >= Integer.MIN_VALUE && max <= Integer.MAX_VALUE) {
+                    return IntArrayIndexFieldData.build(reader, builder, build, new IntArrayIndexFieldData.BuilderIntegers() {
+                        @Override
+                        public int get(int index) {
+                            return (int) values.get(index);
+                        }
+
+                        @Override
+                        public int[] toArray() {
+                            int[] iValues = new int[values.size()];
+                            int i = 0;
+                            for (TLongIterator it = values.iterator(); it.hasNext(); ) {
+                                iValues[i++] = (int) it.next();
+                            }
+                            return iValues;
+                        }
+                    });
+                }
+            }
+
             if (!build.isMultiValued()) {
                 Docs ordinals = build.ordinals();
                 long[] sValues = new long[reader.maxDoc()];
@@ -114,10 +181,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<LongArrayAto
                     return new LongArrayAtomicFieldData.SingleFixedSet(sValues, reader.maxDoc(), set);
                 }
             } else {
-                return new LongArrayAtomicFieldData.WithOrdinals(
-                        values.toArray(new long[values.size()]),
-                        reader.maxDoc(),
-                        build);
+                return new LongArrayAtomicFieldData.WithOrdinals(values.toArray(), reader.maxDoc(), build);
             }
         } finally {
             builder.close();

@@ -19,10 +19,29 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+
 /**
  *
  */
 public final class Priority implements Comparable<Priority> {
+
+    public static Priority fromByte(byte b) {
+        switch (b) {
+            case 0:
+                return URGENT;
+            case 1:
+                return HIGH;
+            case 2:
+                return NORMAL;
+            case 3:
+                return LOW;
+            case 4:
+                return LANGUID;
+            default:
+                throw new ElasticSearchIllegalArgumentException("can't find priority for [" + b + "]");
+        }
+    }
 
     public static Priority URGENT = new Priority((byte) 0);
     public static Priority HIGH = new Priority((byte) 1);
@@ -34,6 +53,10 @@ public final class Priority implements Comparable<Priority> {
 
     private Priority(byte value) {
         this.value = value;
+    }
+
+    public byte value() {
+        return this.value;
     }
 
     public int compareTo(Priority p) {

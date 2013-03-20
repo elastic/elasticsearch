@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SettingsException;
@@ -61,7 +62,7 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
@@ -94,7 +95,7 @@ public class SimpleIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
         assertThat(health.isTimedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();

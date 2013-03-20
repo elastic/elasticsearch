@@ -111,7 +111,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             IndexInput bloomIn = null;
             boolean success = false;
             try {
-                bloomIn = state.dir.openInput(bloomFileName, state.context);
+                bloomIn = state.directory.openInput(bloomFileName, state.context);
                 CodecUtil.checkHeader(bloomIn, BLOOM_CODEC_NAME, BLOOM_CODEC_VERSION,
                         BLOOM_CODEC_VERSION);
                 // // Load the hash function used in the BloomFilter
@@ -209,7 +209,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             }
 
             @Override
-            public Comparator<BytesRef> getComparator() throws IOException {
+            public Comparator<BytesRef> getComparator() {
                 return delegateTerms.getComparator();
             }
 

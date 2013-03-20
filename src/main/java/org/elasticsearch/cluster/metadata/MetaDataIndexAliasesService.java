@@ -180,7 +180,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                     }
                 } finally {
                     for (String index : indicesToClose) {
-                        indicesService.cleanIndex(index, "created for alias processing");
+                        indicesService.removeIndex(index, "created for alias processing");
                     }
                 }
             }

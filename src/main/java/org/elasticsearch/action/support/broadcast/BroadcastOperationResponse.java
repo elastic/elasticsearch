@@ -19,27 +19,25 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import com.google.common.collect.ImmutableList;
+import static org.elasticsearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
+
+import java.io.IOException;
+import java.util.List;
+
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.elasticsearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
-
 /**
  * Base class for all broadcast operation based responses.
  */
 public abstract class BroadcastOperationResponse extends ActionResponse {
-
+    private static final ShardOperationFailedException[] EMPTY = new ShardOperationFailedException[0];
     private int totalShards;
     private int successfulShards;
     private int failedShards;
-    private List<ShardOperationFailedException> shardFailures = ImmutableList.of();
+    private ShardOperationFailedException[] shardFailures = EMPTY;
 
     protected BroadcastOperationResponse() {
     }
@@ -48,10 +46,7 @@ public abstract class BroadcastOperationResponse extends ActionResponse {
         this.totalShards = totalShards;
         this.successfulShards = successfulShards;
         this.failedShards = failedShards;
-        this.shardFailures = shardFailures;
-        if (shardFailures == null) {
-            this.shardFailures = ImmutableList.of();
-        }
+        this.shardFailures = shardFailures == null ? EMPTY : shardFailures.toArray(new ShardOperationFailedException[shardFailures.size()]);
     }
 
     /**
@@ -78,10 +73,7 @@ public abstract class BroadcastOperationResponse extends ActionResponse {
     /**
      * The list of shard failures exception.
      */
-    public List<? extends ShardOperationFailedException> getShardFailures() {
-        if (shardFailures == null) {
-            return ImmutableList.of();
-        }
+    public ShardOperationFailedException[]  getShardFailures() {
         return shardFailures;
     }
 
@@ -93,9 +85,9 @@ public abstract class BroadcastOperationResponse extends ActionResponse {
         failedShards = in.readVInt();
         int size = in.readVInt();
         if (size > 0) {
-            shardFailures = new ArrayList<ShardOperationFailedException>(size);
+            shardFailures = new ShardOperationFailedException[size];
             for (int i = 0; i < size; i++) {
-                shardFailures.add(readShardOperationFailed(in));
+                shardFailures[i] = readShardOperationFailed(in);
             }
         }
     }
@@ -106,7 +98,7 @@ public abstract class BroadcastOperationResponse extends ActionResponse {
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
         out.writeVInt(failedShards);
-        out.writeVInt(shardFailures.size());
+        out.writeVInt(shardFailures.length);
         for (ShardOperationFailedException exp : shardFailures) {
             exp.writeTo(out);
         }

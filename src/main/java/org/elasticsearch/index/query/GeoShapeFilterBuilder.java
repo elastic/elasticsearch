@@ -21,7 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
-import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,9 +33,9 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
 
     private final String name;
 
-    private ShapeRelation relation = ShapeRelation.INTERSECTS;
-
     private final Shape shape;
+
+    private SpatialStrategy strategy = null;
 
     private Boolean cache;
     private String cacheKey;
@@ -79,18 +79,6 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
-     * Sets the {@link ShapeRelation} that defines how the Shape used in the
-     * Filter must relate to indexed Shapes
-     *
-     * @param relation ShapeRelation used in the filter
-     * @return this
-     */
-    public GeoShapeFilterBuilder relation(ShapeRelation relation) {
-        this.relation = relation;
-        return this;
-    }
-
-    /**
      * Sets whether the filter will be cached.
      *
      * @param cache Whether filter will be cached
@@ -124,6 +112,18 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
     }
 
     /**
+     * Defines which spatial strategy will be used for building the geo shape filter. When not set, the strategy that
+     * will be used will be the one that is associated with the geo shape field in the mappings.
+     *
+     * @param strategy The spatial strategy to use for building the geo shape filter
+     * @return this
+     */
+    public GeoShapeFilterBuilder strategy(SpatialStrategy strategy) {
+        this.strategy = strategy;
+        return this;
+    }
+
+    /**
      * Sets the name of the index where the indexed Shape can be found
      *
      * @param indexedShapeIndex Name of the index where the indexed Shape is
@@ -150,7 +150,10 @@ public class GeoShapeFilterBuilder extends BaseFilterBuilder {
         builder.startObject(GeoShapeFilterParser.NAME);
 
         builder.startObject(name);
-        builder.field("relation", relation.getRelationName());
+
+        if (strategy != null) {
+            builder.field("strategy", strategy.getStrategyName());
+        }
 
         if (shape != null) {
             builder.startObject("shape");

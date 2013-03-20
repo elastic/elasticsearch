@@ -40,6 +40,7 @@ import org.elasticsearch.rest.*;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
@@ -53,6 +54,7 @@ public class RestExplainAction extends BaseRestHandler {
     public RestExplainAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
 
     @Override

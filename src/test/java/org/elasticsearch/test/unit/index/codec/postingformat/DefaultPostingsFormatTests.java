@@ -82,8 +82,8 @@ public class DefaultPostingsFormatTests {
         Terms uidTerms = ar.terms(UidFieldMapper.NAME);
 
         assertThat(terms.size(), equalTo(1l));
-        assertThat(terms, not(instanceOf(BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms.class)));
-        assertThat(uidTerms, instanceOf(BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms.class));
+        assertThat(terms, not(instanceOf(BloomFilterPostingsFormat.BloomFilteredTerms.class)));
+        assertThat(uidTerms, instanceOf(BloomFilterPostingsFormat.BloomFilteredTerms.class));
 
         reader.close();
         writer.close();
@@ -112,8 +112,8 @@ public class DefaultPostingsFormatTests {
         Terms some_other_field = ar.terms("some_other_field");
 
         assertThat(terms.size(), equalTo(2l));
-        assertThat(terms, not(instanceOf(BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms.class)));
-        assertThat(some_other_field, not(instanceOf(BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms.class)));
+        assertThat(terms, not(instanceOf(BloomFilterPostingsFormat.BloomFilteredTerms.class)));
+        assertThat(some_other_field, not(instanceOf(BloomFilterPostingsFormat.BloomFilteredTerms.class)));
         TermsEnum iterator = terms.iterator(null);
         Set<String> expected = new HashSet<String>();
         expected.add("foo");

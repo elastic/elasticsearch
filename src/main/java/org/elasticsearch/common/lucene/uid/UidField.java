@@ -62,13 +62,7 @@ public class UidField extends Field {
             if (terms == null) {
                 return null;
             }
-            // hack to break early if we have a bloom filter...
-            if (terms instanceof BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms) {
-                if (!((BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms) terms).getFilter().mightContain(term.bytes())) {
-                    return null;
-                }
-            }
-            TermsEnum termsEnum = terms.iterator(null);
+            final TermsEnum termsEnum = terms.iterator(null);
             if (termsEnum == null) {
                 return null;
             }
@@ -110,13 +104,7 @@ public class UidField extends Field {
             if (terms == null) {
                 return -1;
             }
-            // hack to break early if we have a bloom filter...
-            if (terms instanceof BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms) {
-                if (!((BloomFilterPostingsFormat.BloomFilteredFieldsProducer.BloomFilteredTerms) terms).getFilter().mightContain(term.bytes())) {
-                    return -1;
-                }
-            }
-            TermsEnum termsEnum = terms.iterator(null);
+            final TermsEnum termsEnum = terms.iterator(null);
             if (termsEnum == null) {
                 return -1;
             }

@@ -22,7 +22,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 A `phonetic` token filter that can be configured with different `encoder` types: 
 `metaphone`, `doublemetaphone`, `soundex`, `refinedsoundex`, 
 `caverphone1`, `caverphone2`, `cologne`, `nysiis`,
-`koelnerphonetik`, `haasephonetik`
+`koelnerphonetik`, `haasephonetik`, `beidermorse`
 
 The `replace` parameter (defaults to `true`) controls if the token processed 
 should be replaced with the encoded one (set it to `true`), or added (set it to `false`).
@@ -46,6 +46,11 @@ should be replaced with the encoded one (set it to `true`), or added (set it to 
             }
         }
     }
+
+Questions
+---------
+
+If you have questions or comments please use the mailing list instead of Github Issues tracker: https://groups.google.com/group/elasticsearch
 
 License
 -------

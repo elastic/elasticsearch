@@ -163,7 +163,8 @@ public final class Uid {
     }
 
     public static boolean hasDelimiter(BytesRef uid) {
-        for (int i = uid.offset; i < uid.length; i++) {
+        final int limit = uid.offset + uid.length;
+        for (int i = uid.offset; i < limit; i++) {
             if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
                 return true;
             }
@@ -174,7 +175,8 @@ public final class Uid {
     // LUCENE 4 UPGRADE: HashedBytesArray or BytesRef as return type?
     public static HashedBytesArray[] splitUidIntoTypeAndId(BytesRef uid) {
         int loc = -1;
-        for (int i = uid.offset; i < uid.length; i++) {
+        final int limit = uid.offset + uid.length;
+        for (int i = uid.offset; i < limit; i++) {
             if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
                 loc = i;
                 break;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.search.facet;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -46,6 +47,7 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -139,7 +141,104 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1));
         }
     }
+    
+    @Test
+    public void testFacetNumeric() throws ElasticSearchException, IOException {
+        // TODO we should test this with more complex queries 
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        
+        client.admin().indices().prepareCreate("test")
+        .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("byte").field("type", "byte").endObject()
+                .startObject("short").field("type", "short").endObject()
+                .startObject("integer").field("type", "integer").endObject()
+                .startObject("long").field("type", "long").endObject()
+                .startObject("float").field("type", "float").endObject()
+                .startObject("double").field("type", "double").endObject()
+                .endObject().endObject().endObject())
+        .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
+        for (int i = 0; i < 100; i++) {
+            client.prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
+                    .field("name", ""+i)
+                    .field("byte", i )
+                    .field("short", i + Byte.MAX_VALUE)
+                    .field("integer", i + Short.MAX_VALUE)
+                    .field("long", i + Integer.MAX_VALUE)
+                    .field("float", (float)i)
+                    .field("double", (double)i)
+                    .endObject()).execute().actionGet();
+        }
+        
+        for (int i = 0; i < 10; i++) {
+            client.prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
+                    .field("foo", ""+i)
+                    .endObject()).execute().actionGet();
+        }
+       
+        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addFacet(termsFacet("double").field("double").size(10))
+                .addFacet(termsFacet("float").field("float").size(10))
+                .addFacet(termsFacet("integer").field("integer").size(10))
+                .addFacet(termsFacet("long").field("long").size(10))
+                .addFacet(termsFacet("short").field("short").size(10))
+                .addFacet(termsFacet("byte").field("byte").size(10))
+
+                .addFacet(termsFacet("termFacet").field("name").size(10))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(110l));
+        TermsFacet facet = searchResponse.getFacets().facet("termFacet");
+        assertThat(facet.getName(), equalTo("termFacet"));
+        assertThat(facet.getEntries().size(), equalTo(10));
+        assertThat(facet.getTotalCount(), equalTo(100l));
+        assertThat(facet.getOtherCount(), equalTo(90l));
+        assertThat(facet.getMissingCount(), equalTo(10l));
+        
+        facet = searchResponse.getFacets().facet("double");
+        assertThat(facet.getName(), equalTo("double"));
+        assertThat(facet.getEntries().size(), equalTo(10));
+        assertThat(facet.getTotalCount(), equalTo(100l));
+        assertThat(facet.getOtherCount(), equalTo(90l));
+        assertThat(facet.getMissingCount(), equalTo(10l));
+        
+        facet = searchResponse.getFacets().facet("float");
+        assertThat(facet.getName(), equalTo("float"));
+        assertThat(facet.getEntries().size(), equalTo(10));
+        assertThat(facet.getTotalCount(), equalTo(100l));
+        assertThat(facet.getOtherCount(), equalTo(90l));
+        assertThat(facet.getMissingCount(), equalTo(10l));
+
+        facet = searchResponse.getFacets().facet("long");
+        assertThat(facet.getName(), equalTo("long"));
+        assertThat(facet.getEntries().size(), equalTo(10));
+        assertThat(facet.getTotalCount(), equalTo(100l));
+        assertThat(facet.getOtherCount(), equalTo(90l));
+        assertThat(facet.getMissingCount(), equalTo(10l));
+        
+        facet = searchResponse.getFacets().facet("integer");
+        assertThat(facet.getName(), equalTo("integer"));
+        assertThat(facet.getEntries().size(), equalTo(10));
+        assertThat(facet.getTotalCount(), equalTo(100l));
+        assertThat(facet.getOtherCount(), equalTo(90l));
+        assertThat(facet.getMissingCount(), equalTo(10l));
+        
+        facet = searchResponse.getFacets().facet("short");
+        assertThat(facet.getName(), equalTo("short"));
+        assertThat(facet.getEntries().size(), equalTo(10));
+        assertThat(facet.getTotalCount(), equalTo(100l));
+        assertThat(facet.getOtherCount(), equalTo(90l));
+        assertThat(facet.getMissingCount(), equalTo(10l));
+    }
+    
+   
     @Test
     public void testSearchFilter() throws Exception {
         try {

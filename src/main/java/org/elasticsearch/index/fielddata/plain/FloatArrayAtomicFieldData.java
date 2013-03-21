@@ -484,6 +484,8 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 if (set.get(docId)) {
                     proc.onValue(docId, (long) values[docId]);
+                } else {
+                    proc.onMissing(docId);
                 }
             }
         }
@@ -548,6 +550,8 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 if (set.get(docId)) {
                     proc.onValue(docId, (double) values[docId]);
+                } else {
+                    proc.onMissing(docId);
                 }
             }
         }

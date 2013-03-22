@@ -35,6 +35,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -811,7 +812,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         try {
             checkIndexTook = 0;
             long time = System.currentTimeMillis();
-            if (!DirectoryReader.indexExists(store.directory())) {
+            if (!Lucene.indexExists(store.directory())) {
                 return;
             }
             CheckIndex checkIndex = new CheckIndex(store.directory());

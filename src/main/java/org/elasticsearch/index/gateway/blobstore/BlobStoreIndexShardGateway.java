@@ -31,6 +31,7 @@ import org.elasticsearch.common.blobstore.*;
 import org.elasticsearch.common.io.FastByteArrayInputStream;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.lucene.store.ThreadSafeInputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -608,7 +609,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         // read the gateway data persisted
         long version = -1;
         try {
-            if (IndexReader.indexExists(store.directory())) {
+            if (Lucene.indexExists(store.directory())) {
                 version = IndexReader.getCurrentVersion(store.directory());
             }
         } catch (IOException e) {

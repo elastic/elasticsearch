@@ -254,7 +254,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             try {
                 // commit on a just opened writer will commit even if there are no changes done to it
                 // we rely on that for the commit data translog id key
-                if (IndexReader.indexExists(store.directory())) {
+                if (Lucene.indexExists(store.directory())) {
                     Map<String, String> commitUserData = IndexReader.getCommitUserData(store.directory());
                     if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
                         translogIdGenerator.set(Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY)));
@@ -1349,7 +1349,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 logger.warn("shard is locked, releasing lock");
                 IndexWriter.unlock(store.directory());
             }
-            boolean create = !IndexReader.indexExists(store.directory());
+            boolean create = !Lucene.indexExists(store.directory());
             IndexWriterConfig config = new IndexWriterConfig(Lucene.VERSION, analysisService.defaultIndexAnalyzer());
             config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
             config.setIndexDeletionPolicy(deletionPolicy);
@@ -1368,7 +1368,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
         return indexWriter;
     }
-
+    
     public static final String INDEX_TERM_INDEX_INTERVAL = "index.term_index_interval";
     public static final String INDEX_TERM_INDEX_DIVISOR = "index.term_index_divisor";
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";

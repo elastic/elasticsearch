@@ -22,7 +22,9 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.analysis.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
+import org.apache.lucene.index.SegmentInfos.FindSegmentsFile;
 import org.apache.lucene.search.*;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +34,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.field.data.FieldDataType;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Field;
 
@@ -354,5 +357,29 @@ public class Lucene {
 
     private Lucene() {
 
+    }
+    
+    // LUCENE UPGRADE this is a workaround for LUCENE-4870
+    public static final boolean indexExists(final Directory directory) {
+        try {
+            new FindSegmentsFile(directory) {
+                @Override
+                protected Object doBody(String segmentFileName) throws IOException {
+                    try {
+                        new SegmentInfos().read(directory, segmentFileName);
+                    } catch (FileNotFoundException ex) {
+                        if (!directory.fileExists(segmentFileName)) {
+                            throw ex;
+                        }
+                        // this is ok - we might have run into a access
+                        // exception here or even worse a too many open files exception.
+                    }
+                    return null;
+                }
+            }.run();
+            return true;
+        } catch (IOException ioe) {
+            return false;
+        }
     }
 }

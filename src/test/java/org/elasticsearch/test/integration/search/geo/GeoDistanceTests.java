@@ -272,27 +272,27 @@ public class GeoDistanceTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         SearchResponse searchResponse1 = client.prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistance("+target_lat+","+target_long+")").execute().actionGet();
-        double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
+        Double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance1, equalTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES)));
         
         SearchResponse searchResponse2 = client.prepareSearch().addField("_source").addScriptField("distance", "doc['location'].distance("+target_lat+","+target_long+")").execute().actionGet();
-        double resultDistance2 = searchResponse2.getHits().getHits()[0].getFields().get("distance").getValue();
+        Double resultDistance2 = searchResponse2.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance2, equalTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES)));
 
         SearchResponse searchResponse3 = client.prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInKm("+target_lat+","+target_long+")").execute().actionGet();
-        double resultArcDistance3 = searchResponse3.getHits().getHits()[0].getFields().get("distance").getValue();
+        Double resultArcDistance3 = searchResponse3.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance3, equalTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS)));
         
         SearchResponse searchResponse4 = client.prepareSearch().addField("_source").addScriptField("distance", "doc['location'].distanceInKm("+target_lat+","+target_long+")").execute().actionGet();
-        double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
+        Double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance4, equalTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS)));
 
         SearchResponse searchResponse5 = client.prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInKm("+(target_lat)+","+(target_long+360)+")").execute().actionGet();
-        double resultArcDistance5 = searchResponse5.getHits().getHits()[0].getFields().get("distance").getValue();
+        Double resultArcDistance5 = searchResponse5.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance5, equalTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS)));
         
         SearchResponse searchResponse6 = client.prepareSearch().addField("_source").addScriptField("distance", "doc['location'].arcDistanceInKm("+(target_lat+360)+","+(target_long)+")").execute().actionGet();
-        double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
+        Double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance6, equalTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS)));
     }
 }

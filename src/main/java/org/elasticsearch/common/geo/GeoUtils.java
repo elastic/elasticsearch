@@ -236,6 +236,10 @@ public class GeoUtils {
     public static void normalizePoint(GeoPoint point, boolean normLat, boolean normLon) {
         double lat = point.lat();
         double lon = point.lon();
+        
+        normLat = normLat && (lat>90 || lat <= -90);
+        normLon = normLon && (lon>180 || lon <= -180);
+        
         if (normLat) {
             lat = centeredModulus(lat, 360);
             boolean shift = true;

@@ -622,12 +622,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    class SearchWarmer implements IndicesWarmer.Listener {
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SEARCH;
-        }
+    class SearchWarmer extends IndicesWarmer.Listener {
 
         @Override
         public void warm(IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext warmerContext) {

@@ -109,8 +109,10 @@ public class Version implements Serializable {
     public static final Version V_0_20_5 = new Version(V_0_20_5_ID, false);
     public static final int V_0_20_6_ID = /*00*/200699;
     public static final Version V_0_20_6 = new Version(V_0_20_6_ID, false);
+    public static final int V_0_20_7_ID = /*00*/200799;
+    public static final Version V_0_20_7 = new Version(V_0_20_7_ID, true);
 
-    public static final Version CURRENT = V_0_20_6;
+    public static final Version CURRENT = V_0_20_7;
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -118,6 +120,8 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_0_20_7_ID:
+                return V_0_20_7;
             case V_0_20_6_ID:
                 return V_0_20_6;
             case V_0_20_5_ID:

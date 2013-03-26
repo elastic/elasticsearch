@@ -21,7 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import com.google.common.base.Objects;
 import org.apache.lucene.store.RateLimiter;
-import org.apache.lucene.store.XSimpleRateLimiter;
+import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +54,7 @@ public class RecoverySettings extends AbstractComponent {
     private final ThreadPoolExecutor concurrentStreamPool;
 
     private volatile ByteSizeValue maxSizePerSec;
-    private volatile XSimpleRateLimiter rateLimiter;
+    private volatile SimpleRateLimiter rateLimiter;
 
     @Inject
     public RecoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
@@ -72,7 +72,7 @@ public class RecoverySettings extends AbstractComponent {
         if (maxSizePerSec.bytes() <= 0) {
             rateLimiter = null;
         } else {
-            rateLimiter = new XSimpleRateLimiter(maxSizePerSec.mbFrac());
+            rateLimiter = new SimpleRateLimiter(maxSizePerSec.mbFrac());
         }
 
         logger.debug("using max_size_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]",
@@ -131,7 +131,7 @@ public class RecoverySettings extends AbstractComponent {
                 } else if (rateLimiter != null) {
                     rateLimiter.setMbPerSec(maxSizePerSec.mbFrac());
                 } else {
-                    rateLimiter = new XSimpleRateLimiter(maxSizePerSec.mbFrac());
+                    rateLimiter = new SimpleRateLimiter(maxSizePerSec.mbFrac());
                 }
             }
 

@@ -18,6 +18,7 @@
  */
 package org.apache.lucene.store;
 
+import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -53,8 +54,8 @@ public class StoreRateLimiting {
         }
     }
 
-    private final XSimpleRateLimiter rateLimiter = new XSimpleRateLimiter(0);
-    private volatile XSimpleRateLimiter actualRateLimiter;
+    private final SimpleRateLimiter rateLimiter = new SimpleRateLimiter(0);
+    private volatile SimpleRateLimiter actualRateLimiter;
 
     private volatile Type type;
 

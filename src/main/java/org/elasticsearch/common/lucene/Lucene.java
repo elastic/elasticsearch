@@ -378,27 +378,7 @@ public class Lucene {
 
     }
     
-    // LUCENE UPGRADE this is a workaround for LUCENE-4870
     public static final boolean indexExists(final Directory directory) {
-        try {
-            new FindSegmentsFile(directory) {
-                @Override
-                protected Object doBody(String segmentFileName) throws IOException {
-                    try {
-                        new SegmentInfos().read(directory, segmentFileName);
-                    } catch (FileNotFoundException ex) {
-                        if (!directory.fileExists(segmentFileName)) {
-                            throw ex;
-                        }
-                        // this is ok - we might have run into a access
-                        // exception here or even worse a too many open files exception.
-                    }
-                    return null;
-                }
-            }.run();
-            return true;
-        } catch (IOException ioe) {
-            return false;
-        }
+        return DirectoryReader.indexExists(directory);
     }
 }

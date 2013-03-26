@@ -405,6 +405,29 @@ public class SuggestSearchTests extends AbstractNodesTests {
 //        assertThat(search.suggest().suggestions().get(3).getSuggestedWords().get("prefix_abcd").get(4).getTerm(), equalTo("prefix_accd"));
     }
     
+    @Test // see #2817
+    public void testStopwordsOnlyPhraseSuggest() throws ElasticSearchException, IOException {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        Builder builder = ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
+        client.admin().indices().prepareCreate("test").setSettings(builder.build()).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client.prepareIndex("test", "type1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("body", "this is a test").endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        Suggest searchSuggest = searchSuggest(
+                client,
+                "a an the",
+                phraseSuggestion("simple_phrase").field("body").gramSize(1)
+                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                        .size(1));
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
+    }
+    
     
     @Test
     public void testMarvelHerosPhraseSuggest() throws ElasticSearchException, IOException {

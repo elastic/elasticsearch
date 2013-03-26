@@ -639,6 +639,8 @@ public abstract class LongArrayAtomicFieldData implements AtomicNumericFieldData
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 if (set.get(docId)) {
                     proc.onValue(docId, values[docId]);
+                } else {
+                    proc.onMissing(docId);
                 }
             }
         }
@@ -703,6 +705,8 @@ public abstract class LongArrayAtomicFieldData implements AtomicNumericFieldData
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 if (set.get(docId)) {
                     proc.onValue(docId, (double) values[docId]);
+                } else {
+                    proc.onMissing(docId);
                 }
             }
         }

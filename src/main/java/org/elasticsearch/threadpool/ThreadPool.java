@@ -71,6 +71,7 @@ public class ThreadPool extends AbstractComponent {
         public static final String MERGE = "merge";
         public static final String CACHE = "cache";
         public static final String REFRESH = "refresh";
+        public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
     }
 
@@ -96,6 +97,7 @@ public class ThreadPool extends AbstractComponent {
 
         Map<String, Settings> groupSettings = settings.getGroups(THREADPOOL_GROUP);
 
+        // TODO figure out the best defaults for *all* thread pools
         defaultExecutorTypeSettings = ImmutableMap.<String, Settings>builder()
                 .put(Names.GENERIC, settingsBuilder().put("type", "cached").put("keep_alive", "30s").build())
                 .put(Names.INDEX, settingsBuilder().put("type", "cached").build())
@@ -107,6 +109,7 @@ public class ThreadPool extends AbstractComponent {
                 .put(Names.FLUSH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 10).build())
                 .put(Names.MERGE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 20).build())
                 .put(Names.REFRESH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 10).build())
+                .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", Math.min(((Runtime.getRuntime().availableProcessors() + 1) / 2), 5)).build())
                 .put(Names.CACHE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 4).build())
                 .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
                 .build();

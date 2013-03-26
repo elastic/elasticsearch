@@ -26,7 +26,11 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.ImmutableSettings.Builder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -102,6 +106,57 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
+    }
+    
+    @Test
+    // see #2814
+    public void percolateCustomAnalyzer() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            client.admin().indices().prepareDelete("_percolator").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        
+        client.admin().indices().prepareDelete().execute().actionGet();
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.analysis.analyzer.lwhitespacecomma.tokenizer", "whitespacecomma");
+        builder.putArray("index.analysis.analyzer.lwhitespacecomma.filter", "lowercase");
+        builder.put("index.analysis.tokenizer.whitespacecomma.type", "pattern");
+        builder.put("index.analysis.tokenizer.whitespacecomma.pattern", "(,|\\s+)");
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("doc")
+        .startObject("properties")
+            .startObject("filingcategory").field("type", "string").field("analyzer", "lwhitespacecomma").endObject()
+        .endObject()
+        .endObject().endObject();
+
+        client.admin().indices().prepareCreate("test")
+            .addMapping("doc", mapping)
+            .setSettings(builder.put("index.number_of_shards", 1))
+            .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        logger.info("--> register a query");
+        client.prepareIndex("_percolator", "test", "1")
+                .setSource(jsonBuilder().startObject()
+                        .field("source", "productizer")
+                        .field("query", QueryBuilders.constantScoreQuery(QueryBuilders.queryString("filingcategory:s")))
+                        .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        PercolateResponse percolate = client.preparePercolate("test", "doc").setSource(jsonBuilder().startObject()
+                .startObject("doc").field("filingcategory", "s").endObject()
+                .field("query", termQuery("source", "productizer"))
+                .endObject())
+                .execute().actionGet();
+        assertThat(percolate.getMatches().size(), equalTo(1));
+      
     }
 
     @Test

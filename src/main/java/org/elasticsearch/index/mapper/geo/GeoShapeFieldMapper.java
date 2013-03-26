@@ -1,3 +1,21 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.document.Field;
@@ -13,7 +31,9 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoJSONShapeParser;
 import org.elasticsearch.common.geo.GeoShapeConstants;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -51,6 +71,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         public static final String TREE_GEOHASH = "geohash";
         public static final String TREE_QUADTREE = "quadtree";
         public static final String TREE_LEVELS = "tree_levels";
+        public static final String TREE_PRESISION = "precision";
         public static final String DISTANCE_ERROR_PCT = "distance_error_pct";
         public static final String STRATEGY = "strategy";
     }
@@ -58,8 +79,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     public static class Defaults {
         public static final String TREE = Names.TREE_GEOHASH;
         public static final String STRATEGY = SpatialStrategy.RECURSIVE.getStrategyName();
-        public static final int GEOHASH_LEVELS = GeohashPrefixTree.getMaxLevelsPossible();
-        public static final int QUADTREE_LEVELS = QuadPrefixTree.DEFAULT_MAX_LEVELS;
+        public static final int GEOHASH_LEVELS = GeoUtils.geoHashLevelsForPrecision("50m");
+        public static final int QUADTREE_LEVELS = GeoUtils.quadTreeLevelsForPrecision("50m");
         public static final double DISTANCE_ERROR_PCT = 0.025d;
 
         public static final FieldType FIELD_TYPE = new FieldType();
@@ -80,7 +101,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
         private String tree = Defaults.TREE;
         private String strategyName = Defaults.STRATEGY;
-        private int treeLevels;
+        private int treeLevels = 0;
+        private double precisionInMeters = -1;
         private double distanceErrorPct = Defaults.DISTANCE_ERROR_PCT;
 
         private SpatialPrefixTree prefixTree;
@@ -99,6 +121,11 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             return this;
         }
 
+        public Builder treeLevelsByDistance(double meters) {
+            this.precisionInMeters = meters;
+            return this;
+        }
+
         public Builder treeLevels(int treeLevels) {
             this.treeLevels = treeLevels;
             return this;
@@ -112,14 +139,11 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         @Override
         public GeoShapeFieldMapper build(BuilderContext context) {
 
-            FieldMapper.Names names = buildNames(context);
-
-            if (tree.equals(Names.TREE_GEOHASH)) {
-                int levels = treeLevels != 0 ? treeLevels : Defaults.GEOHASH_LEVELS;
-                prefixTree = new GeohashPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, levels);
-            } else if (tree.equals(Names.TREE_QUADTREE)) {
-                int levels = treeLevels != 0 ? treeLevels : Defaults.QUADTREE_LEVELS;
-                prefixTree = new QuadPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, levels);
+            final FieldMapper.Names names = buildNames(context);
+            if (Names.TREE_GEOHASH.equals(tree)) {
+                prefixTree = new GeohashPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.GEOHASH_LEVELS, true));
+            } else if (Names.TREE_QUADTREE.equals(tree)) {
+                prefixTree = new QuadPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
             } else {
                 throw new ElasticSearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
@@ -127,7 +151,16 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, fieldType, provider);
         }
     }
+    
+    private static final int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
+        if (treeLevels > 0 || precisionInMeters >= 0) {
+            return Math.max(treeLevels, precisionInMeters >= 0 ? (geoHash ? GeoUtils.geoHashLevelsForPrecision(precisionInMeters)
+                    : GeoUtils.quadTreeLevelsForPrecision(precisionInMeters)) : 0);
+        }
+        return defaultLevels;
+    }
 
+    
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
@@ -141,6 +174,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                     builder.tree(fieldNode.toString());
                 } else if (Names.TREE_LEVELS.equals(fieldName)) {
                     builder.treeLevels(Integer.parseInt(fieldNode.toString()));
+                } else if (Names.TREE_PRESISION.equals(fieldName)) {
+                    builder.treeLevelsByDistance(DistanceUnit.parse(fieldNode.toString(), DistanceUnit.METERS, DistanceUnit.METERS));
                 } else if (Names.DISTANCE_ERROR_PCT.equals(fieldName)) {
                     builder.distanceErrorPct(Double.parseDouble(fieldNode.toString()));
                 } else if (Names.STRATEGY.equals(fieldName)) {

@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.*;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Bits;
@@ -82,7 +83,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public FieldsConsumer fieldsConsumer(SegmentWriteState state)
+    public BloomFilteredFieldsConsumer fieldsConsumer(SegmentWriteState state)
             throws IOException {
         if (delegatePostingsFormat == null) {
             throw new UnsupportedOperationException("Error - " + getClass().getName()
@@ -94,14 +95,19 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public FieldsProducer fieldsProducer(SegmentReadState state)
+    public BloomFilteredFieldsProducer fieldsProducer(SegmentReadState state)
             throws IOException {
         return new BloomFilteredFieldsProducer(state);
     }
 
-    public class BloomFilteredFieldsProducer extends FieldsProducer {
+    public final class BloomFilteredFieldsProducer extends FieldsProducer {
         private FieldsProducer delegateFieldsProducer;
         HashMap<String, BloomFilter> bloomsByFieldName = new HashMap<String, BloomFilter>();
+        
+        // for internal use only
+        FieldsProducer getDelegate() {
+            return delegateFieldsProducer;
+        }
 
         public BloomFilteredFieldsProducer(SegmentReadState state)
                 throws IOException {
@@ -119,15 +125,18 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
                 // Load the delegate postings format
                 PostingsFormat delegatePostingsFormat = PostingsFormat.forName(bloomIn
                         .readString());
-
+                
                 this.delegateFieldsProducer = delegatePostingsFormat
                         .fieldsProducer(state);
                 int numBlooms = bloomIn.readInt();
-                for (int i = 0; i < numBlooms; i++) {
-                    int fieldNum = bloomIn.readInt();
-                    BloomFilter bloom = BloomFilter.deserialize(bloomIn);
-                    FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldNum);
-                    bloomsByFieldName.put(fieldInfo.name, bloom);
+                if (state.context.context != IOContext.Context.MERGE) {
+                    // if we merge we don't need to load the bloom filters
+                    for (int i = 0; i < numBlooms; i++) {
+                        int fieldNum = bloomIn.readInt();
+                        BloomFilter bloom = BloomFilter.deserialize(bloomIn);
+                        FieldInfo fieldInfo = state.fieldInfos.fieldInfo(fieldNum);
+                        bloomsByFieldName.put(fieldInfo.name, bloom);
+                    }
                 }
                 IOUtils.close(bloomIn);
                 success = true;
@@ -171,168 +180,191 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             return delegateFieldsProducer.getUniqueTermCount();
         }
 
-        public class BloomFilteredTerms extends Terms {
-            private Terms delegateTerms;
-            private BloomFilter filter;
+      
+    }
+    
+    public static final class BloomFilteredTerms extends Terms {
+        private Terms delegateTerms;
+        private BloomFilter filter;
 
-            public BloomFilteredTerms(Terms terms, BloomFilter filter) {
-                this.delegateTerms = terms;
-                this.filter = filter;
-            }
-
-            public BloomFilter getFilter() {
-                return filter;
-            }
-
-            @Override
-            public TermsEnum intersect(CompiledAutomaton compiled,
-                                       final BytesRef startTerm) throws IOException {
-                return delegateTerms.intersect(compiled, startTerm);
-            }
-
-            @Override
-            public TermsEnum iterator(TermsEnum reuse) throws IOException {
-                TermsEnum result;
-                if ((reuse != null) && (reuse instanceof BloomFilteredTermsEnum)) {
-                    // recycle the existing BloomFilteredTermsEnum by asking the delegate
-                    // to recycle its contained TermsEnum
-                    BloomFilteredTermsEnum bfte = (BloomFilteredTermsEnum) reuse;
-                    if (bfte.filter == filter) {
-                        bfte.delegateTermsEnum = delegateTerms.iterator(bfte.delegateTermsEnum);
-                        return bfte;
-                    }
-                }
-                // We have been handed something we cannot reuse (either null, wrong
-                // class or wrong filter) so allocate a new object
-                result = new BloomFilteredTermsEnum(delegateTerms.iterator(reuse), filter);
-                return result;
-            }
-
-            @Override
-            public Comparator<BytesRef> getComparator() {
-                return delegateTerms.getComparator();
-            }
-
-            @Override
-            public long size() throws IOException {
-                return delegateTerms.size();
-            }
-
-            @Override
-            public long getSumTotalTermFreq() throws IOException {
-                return delegateTerms.getSumTotalTermFreq();
-            }
-
-            @Override
-            public long getSumDocFreq() throws IOException {
-                return delegateTerms.getSumDocFreq();
-            }
-
-            @Override
-            public int getDocCount() throws IOException {
-                return delegateTerms.getDocCount();
-            }
-
-            @Override
-            public boolean hasOffsets() {
-                return delegateTerms.hasOffsets();
-            }
-
-            @Override
-            public boolean hasPositions() {
-                return delegateTerms.hasPositions();
-            }
-
-            @Override
-            public boolean hasPayloads() {
-                return delegateTerms.hasPayloads();
-            }
+        public BloomFilteredTerms(Terms terms, BloomFilter filter) {
+            this.delegateTerms = terms;
+            this.filter = filter;
         }
 
-        class BloomFilteredTermsEnum extends TermsEnum {
-
-            TermsEnum delegateTermsEnum;
-            private BloomFilter filter;
-
-            public BloomFilteredTermsEnum(TermsEnum iterator, BloomFilter filter) {
-                this.delegateTermsEnum = iterator;
-                this.filter = filter;
-            }
-
-            @Override
-            public final BytesRef next() throws IOException {
-                return delegateTermsEnum.next();
-            }
-
-            @Override
-            public final Comparator<BytesRef> getComparator() {
-                return delegateTermsEnum.getComparator();
-            }
-
-            @Override
-            public final boolean seekExact(BytesRef text, boolean useCache)
-                    throws IOException {
-                // The magical fail-fast speed up that is the entire point of all of
-                // this code - save a disk seek if there is a match on an in-memory
-                // structure
-                // that may occasionally give a false positive but guaranteed no false
-                // negatives
-                if (!filter.mightContain(text)) {
-                    return false;
-                }
-                return delegateTermsEnum.seekExact(text, useCache);
-            }
-
-            @Override
-            public final SeekStatus seekCeil(BytesRef text, boolean useCache)
-                    throws IOException {
-                return delegateTermsEnum.seekCeil(text, useCache);
-            }
-
-            @Override
-            public final void seekExact(long ord) throws IOException {
-                delegateTermsEnum.seekExact(ord);
-            }
-
-            @Override
-            public final BytesRef term() throws IOException {
-                return delegateTermsEnum.term();
-            }
-
-            @Override
-            public final long ord() throws IOException {
-                return delegateTermsEnum.ord();
-            }
-
-            @Override
-            public final int docFreq() throws IOException {
-                return delegateTermsEnum.docFreq();
-            }
-
-            @Override
-            public final long totalTermFreq() throws IOException {
-                return delegateTermsEnum.totalTermFreq();
-            }
-
-
-            @Override
-            public DocsAndPositionsEnum docsAndPositions(Bits liveDocs,
-                                                         DocsAndPositionsEnum reuse, int flags) throws IOException {
-                return delegateTermsEnum.docsAndPositions(liveDocs, reuse, flags);
-            }
-
-            @Override
-            public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags)
-                    throws IOException {
-                return delegateTermsEnum.docs(liveDocs, reuse, flags);
-            }
-
-
+        public BloomFilter getFilter() {
+            return filter;
         }
+
+        @Override
+        public TermsEnum intersect(CompiledAutomaton compiled,
+                                   final BytesRef startTerm) throws IOException {
+            return delegateTerms.intersect(compiled, startTerm);
+        }
+
+        @Override
+        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+            TermsEnum result;
+            if ((reuse != null) && (reuse instanceof BloomFilteredTermsEnum)) {
+                // recycle the existing BloomFilteredTermsEnum by asking the delegate
+                // to recycle its contained TermsEnum
+                BloomFilteredTermsEnum bfte = (BloomFilteredTermsEnum) reuse;
+                if (bfte.filter == filter) {
+                    bfte.reset(delegateTerms);
+                    return bfte;
+                }
+                reuse = bfte.reuse;
+            }
+            // We have been handed something we cannot reuse (either null, wrong
+            // class or wrong filter) so allocate a new object
+            result = new BloomFilteredTermsEnum(delegateTerms, reuse, filter);
+            return result;
+        }
+
+        @Override
+        public Comparator<BytesRef> getComparator() {
+            return delegateTerms.getComparator();
+        }
+
+        @Override
+        public long size() throws IOException {
+            return delegateTerms.size();
+        }
+
+        @Override
+        public long getSumTotalTermFreq() throws IOException {
+            return delegateTerms.getSumTotalTermFreq();
+        }
+
+        @Override
+        public long getSumDocFreq() throws IOException {
+            return delegateTerms.getSumDocFreq();
+        }
+
+        @Override
+        public int getDocCount() throws IOException {
+            return delegateTerms.getDocCount();
+        }
+
+        @Override
+        public boolean hasOffsets() {
+            return delegateTerms.hasOffsets();
+        }
+
+        @Override
+        public boolean hasPositions() {
+            return delegateTerms.hasPositions();
+        }
+
+        @Override
+        public boolean hasPayloads() {
+            return delegateTerms.hasPayloads();
+        }
+    }
+
+    static final class BloomFilteredTermsEnum extends TermsEnum {
+
+        private Terms delegateTerms;
+        private TermsEnum delegateTermsEnum;
+        private TermsEnum reuse;
+        private BloomFilter filter;
+
+        public BloomFilteredTermsEnum(Terms other, TermsEnum reuse, BloomFilter filter) {
+            this.delegateTerms = other;
+            this.reuse = reuse;
+            this.filter = filter;
+        }
+        
+        void reset(Terms others) {
+            reuse = this.delegateTermsEnum;
+            this.delegateTermsEnum = null;
+            this.delegateTerms = others;
+        }
+        
+        private TermsEnum getDelegate() throws IOException {
+            if (delegateTermsEnum == null) {
+                /* pull the iterator only if we really need it -
+                 * this can be a relatively heavy operation depending on the 
+                 * delegate postings format and they underlying directory
+                 * (clone IndexInput) */
+                delegateTermsEnum = delegateTerms.iterator(reuse);
+            }
+            return delegateTermsEnum;
+        }
+
+        @Override
+        public final BytesRef next() throws IOException {
+            return getDelegate().next();
+        }
+
+        @Override
+        public final Comparator<BytesRef> getComparator() {
+            return delegateTerms.getComparator();
+        }
+
+        @Override
+        public final boolean seekExact(BytesRef text, boolean useCache)
+                throws IOException {
+            // The magical fail-fast speed up that is the entire point of all of
+            // this code - save a disk seek if there is a match on an in-memory
+            // structure
+            // that may occasionally give a false positive but guaranteed no false
+            // negatives
+            if (!filter.mightContain(text)) {
+                return false;
+            }
+            return getDelegate().seekExact(text, useCache);
+        }
+
+        @Override
+        public final SeekStatus seekCeil(BytesRef text, boolean useCache)
+                throws IOException {
+            return getDelegate().seekCeil(text, useCache);
+        }
+
+        @Override
+        public final void seekExact(long ord) throws IOException {
+            getDelegate().seekExact(ord);
+        }
+
+        @Override
+        public final BytesRef term() throws IOException {
+            return getDelegate().term();
+        }
+
+        @Override
+        public final long ord() throws IOException {
+            return getDelegate().ord();
+        }
+
+        @Override
+        public final int docFreq() throws IOException {
+            return getDelegate().docFreq();
+        }
+
+        @Override
+        public final long totalTermFreq() throws IOException {
+            return getDelegate().totalTermFreq();
+        }
+
+
+        @Override
+        public DocsAndPositionsEnum docsAndPositions(Bits liveDocs,
+                                                     DocsAndPositionsEnum reuse, int flags) throws IOException {
+            return getDelegate().docsAndPositions(liveDocs, reuse, flags);
+        }
+
+        @Override
+        public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags)
+                throws IOException {
+            return getDelegate().docs(liveDocs, reuse, flags);
+        }
+
 
     }
 
-    class BloomFilteredFieldsConsumer extends FieldsConsumer {
+
+    final class BloomFilteredFieldsConsumer extends FieldsConsumer {
         private FieldsConsumer delegateFieldsConsumer;
         private Map<FieldInfo, BloomFilter> bloomFilters = new HashMap<FieldInfo, BloomFilter>();
         private SegmentWriteState state;
@@ -344,6 +376,11 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             this.delegateFieldsConsumer = fieldsConsumer;
             // this.delegatePostingsFormat=delegatePostingsFormat;
             this.state = state;
+        }
+        
+        // for internal use only
+        FieldsConsumer getDelegate() {
+            return delegateFieldsConsumer;
         }
 
         @Override
@@ -367,10 +404,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             List<Entry<FieldInfo, BloomFilter>> nonSaturatedBlooms = new ArrayList<Map.Entry<FieldInfo, BloomFilter>>();
 
             for (Entry<FieldInfo, BloomFilter> entry : bloomFilters.entrySet()) {
-                BloomFilter bloomFilter = entry.getValue();
-                //if (!bloomFilterFactory.isSaturated(bloomFilter, entry.getKey())) {
                 nonSaturatedBlooms.add(entry);
-                //}
             }
             String bloomFileName = IndexFileNames.segmentFileName(
                     state.segmentInfo.name, state.segmentSuffix, BLOOM_EXTENSION);
@@ -447,6 +481,10 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
             return delegateTermsConsumer.getComparator();
         }
 
+    }
+
+    public PostingsFormat getDelegate() {
+        return this.delegatePostingsFormat;
     }
 
 }

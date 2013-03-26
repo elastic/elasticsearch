@@ -21,11 +21,13 @@ package org.elasticsearch.index.engine.robin;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
+import org.apache.lucene.index.SegmentInfos.FindSegmentsFile;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
@@ -63,6 +65,7 @@ import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -253,7 +256,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             try {
                 // commit on a just opened writer will commit even if there are no changes done to it
                 // we rely on that for the commit data translog id key
-                if (DirectoryReader.indexExists(store.directory())) {
+                if (Lucene.indexExists(store.directory())) {
                     Map<String, String> commitUserData = Lucene.readSegmentInfos(store.directory()).getUserData();
                     if (commitUserData.containsKey(Translog.TRANSLOG_ID_KEY)) {
                         translogIdGenerator.set(Long.parseLong(commitUserData.get(Translog.TRANSLOG_ID_KEY)));
@@ -1318,7 +1321,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 logger.warn("shard is locked, releasing lock");
                 IndexWriter.unlock(store.directory());
             }
-            boolean create = !DirectoryReader.indexExists(store.directory());
+            boolean create = !Lucene.indexExists(store.directory());
             IndexWriterConfig config = new IndexWriterConfig(Lucene.VERSION, analysisService.defaultIndexAnalyzer());
             config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
             config.setIndexDeletionPolicy(deletionPolicy);
@@ -1338,7 +1341,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
         return indexWriter;
     }
-
+    
     public static final String INDEX_TERM_INDEX_INTERVAL = "index.term_index_interval";
     public static final String INDEX_TERM_INDEX_DIVISOR = "index.term_index_divisor";
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";

@@ -447,7 +447,6 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 try {
                     tokenStream = field.tokenStream(request.doc().analyzer());
                     if (tokenStream != null) {
-                        tokenStream.reset();
                         memoryIndex.addField(field.name(), tokenStream, field.boost());
                     }
                 } catch (IOException e) {

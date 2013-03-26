@@ -642,6 +642,8 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
                 if (set.get(docId)) {
                     proc.onValue(docId, values[docId]);
+                } else {
+                    proc.onMissing(docId);
                 }
             }
         }

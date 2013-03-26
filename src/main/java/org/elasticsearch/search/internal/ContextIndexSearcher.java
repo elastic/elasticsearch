@@ -156,6 +156,11 @@ public class ContextIndexSearcher extends IndexSearcher {
     }
 
     @Override
+    public TopFieldDocs search(Query query, Filter filter, int n, Sort sort, boolean doDocScores, boolean doMaxScore) throws IOException {
+        return super.search(query, combinedFilter(filter), n, sort, doDocScores, doMaxScore);
+    }
+
+    @Override
     public void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         if (searchContext.timeoutInMillis() != -1) {
             // TODO: change to use our own counter that uses the scheduler in ThreadPool

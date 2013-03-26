@@ -38,6 +38,7 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -227,6 +228,10 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertHits(searchResponse.getHits(), "1");
 
         searchResponse = client1.prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertHits(searchResponse.getHits(), "1", "2", "3");
+
+        logger.info("--> checking single filtering alias search with sort");
+        searchResponse = client1.prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_uid", SortOrder.ASC).execute().actionGet();
         assertHits(searchResponse.getHits(), "1", "2", "3");
 
         searchResponse = client1.prepareSearch("foos", "bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();

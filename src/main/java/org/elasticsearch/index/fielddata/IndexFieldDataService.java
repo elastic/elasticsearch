@@ -61,6 +61,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
                 .put(Tuple.tuple("string", "concrete_bytes"), new ConcreteBytesRefIndexFieldData.Builder())
                 .put(Tuple.tuple("string", "paged_bytes"), new PagedBytesIndexFieldData.Builder())
+                .put(Tuple.tuple("string", "fst"), new FSTPackedIndexFieldData.Builder())
                 .put(Tuple.tuple("float", "array"), new FloatArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("double", "array"), new DoubleArrayIndexFieldData.Builder())
                 .put(Tuple.tuple("byte", "array"), new ByteArrayIndexFieldData.Builder())

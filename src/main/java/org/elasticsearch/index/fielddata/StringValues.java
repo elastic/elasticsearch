@@ -19,11 +19,16 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.util.*;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
+import org.elasticsearch.index.fielddata.util.DoubleArrayRef;
+import org.elasticsearch.index.fielddata.util.IntArrayRef;
+import org.elasticsearch.index.fielddata.util.LongArrayRef;
+import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
@@ -335,7 +340,7 @@ public interface StringValues {
 
             private final Ordinals ordinals;
 
-            public Empty(EmptyOrdinals ordinals) {
+            public Empty(Ordinals ordinals) {
                 this.ordinals = ordinals;
             }
 
@@ -348,6 +353,154 @@ public interface StringValues {
             public String getValueByOrd(int ord) {
                 return null;
             }
+        }
+    }
+    
+    public static class BytesValuesWrapper implements StringValues.WithOrdinals {
+        private org.elasticsearch.index.fielddata.BytesValues.WithOrdinals delegate;
+        private final CharsRef spare = new CharsRef();
+        protected final Docs ordinals;
+        protected final StringArrayRef arrayScratch;
+        private final OrdinalIter iter = new OrdinalIter(this);
+        
+        BytesValuesWrapper(BytesValues.WithOrdinals delegate) {
+            arrayScratch = new StringArrayRef(new String[delegate.isMultiValued() ? 10 : 1], delegate.isMultiValued() ? 0 : 1);
+            this.delegate = delegate;
+            this.ordinals = delegate.ordinals();
+        }
+
+        public static StringValues.WithOrdinals wrap(BytesValues.WithOrdinals values) {
+            if (values.isMultiValued()) {
+                return new MultiBytesValuesWrapper(values);
+            } else {
+                return new BytesValuesWrapper(values);
+            }
+        }
+        @Override
+        public String getValue(int docId) {
+            final BytesRef value = delegate.getValue(docId);
+            if (value != null) {
+                UnicodeUtil.UTF8toUTF16(value, spare);
+                return spare.toString();
+            }
+            return null;
+        }
+        
+        @Override
+        public Iter getIter(int docId) {
+            return iter.reset(this.ordinals.getIter(docId));
+        }
+
+        @Override
+        public StringArrayRef getValues(int docId) {
+            assert !isMultiValued();
+            int ord = ordinals.getOrd(docId);
+            if (ord == 0) return StringArrayRef.EMPTY;
+            arrayScratch.values[0] =  getValueByOrd(ord);
+            return arrayScratch;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            assert !isMultiValued();
+            int ord = ordinals.getOrd(docId);
+            if (ord == 0) {
+                proc.onMissing(docId);
+            } else {
+                proc.onValue(docId, getValueByOrd(ord));
+            }
+        }
+
+        @Override
+        public Docs ordinals() {
+            return delegate.ordinals;
+        }
+
+        @Override
+        public String getValueByOrd(int ord) {
+            final BytesRef value = delegate.getValueByOrd(ord);
+            if (value != null) {
+                UnicodeUtil.UTF8toUTF16(value, spare);
+                return spare.toString();
+            }
+            return null;
+        }
+
+
+        @Override
+        public boolean isMultiValued() {
+           return delegate.isMultiValued();
+        }
+
+
+        @Override
+        public boolean hasValue(int docId) {
+           return delegate.hasValue(docId);
+        }
+        
+    }
+    
+    static final class MultiBytesValuesWrapper extends BytesValuesWrapper {
+        MultiBytesValuesWrapper(org.elasticsearch.index.fielddata.BytesValues.WithOrdinals delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public StringArrayRef getValues(int docId) {
+            assert isMultiValued();
+
+            IntArrayRef ords = ordinals.getOrds(docId);
+            int size = ords.size();
+            if (size == 0) return StringArrayRef.EMPTY;
+            arrayScratch.reset(size);
+            for (int i = ords.start; i < ords.end; i++) {
+                arrayScratch.values[arrayScratch.end++] = getValueByOrd(ords.get(i));
+            }
+            return arrayScratch;
+        }
+
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            assert isMultiValued();
+
+            Ordinals.Docs.Iter iter = ordinals.getIter(docId);
+            int ord = iter.next();
+            if (ord == 0) {
+                proc.onMissing(docId);
+            } else {
+                do {
+                    proc.onValue(docId, getValueByOrd(ord));
+                } while ((ord = iter.next()) != 0);
+            }
+        }
+    }
+    
+    static final class OrdinalIter implements StringValues.Iter {
+
+        private Ordinals.Docs.Iter ordsIter;
+        private int ord;
+        private final StringValues.WithOrdinals values;
+
+        OrdinalIter(StringValues.WithOrdinals values) {
+            this.values = values;
+        }
+
+        public OrdinalIter reset(Ordinals.Docs.Iter ordsIter) {
+            this.ordsIter = ordsIter;
+            this.ord = ordsIter.next();
+            return this;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return ord != 0;
+        }
+
+        @Override
+        public String next() {
+            final String valueByOrd = values.getValueByOrd(ord);
+            ord = ordsIter.next();
+            return valueByOrd;
         }
     }
 }

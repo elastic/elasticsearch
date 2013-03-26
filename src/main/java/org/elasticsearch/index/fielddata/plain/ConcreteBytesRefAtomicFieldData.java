@@ -24,11 +24,10 @@ import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.StringValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
-import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
@@ -105,7 +104,7 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
 
     @Override
     public StringValues.WithOrdinals getStringValues() {
-        return ordinals.isMultiValued() ? new StringValues.Multi(values, ordinals.ordinals()) : new StringValues.Single(values, ordinals.ordinals());
+        return StringValues.BytesValuesWrapper.wrap(getBytesValues());
     }
 
     @Override
@@ -113,19 +112,13 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
         return new ScriptDocValues.Strings(getStringValues());
     }
 
-    static abstract class BytesValues implements org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
+    static abstract class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
 
         protected final BytesRef[] values;
-        protected final Ordinals.Docs ordinals;
 
         BytesValues(BytesRef[] values, Ordinals.Docs ordinals) {
+            super(ordinals);
             this.values = values;
-            this.ordinals = ordinals;
-        }
-
-        @Override
-        public Ordinals.Docs ordinals() {
-            return this.ordinals;
         }
 
         @Override
@@ -152,19 +145,9 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
         }
 
         @Override
-        public boolean hasValue(int docId) {
-            return ordinals.getOrd(docId) != 0;
-        }
-
-        @Override
         public BytesRef makeSafe(BytesRef bytes) {
             // no need to do anything, its already concrete bytes...
             return bytes;
-        }
-
-        @Override
-        public BytesRef getValue(int docId) {
-            return values[ordinals.getOrd(docId)];
         }
 
         @Override
@@ -180,26 +163,12 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
             return ret;
         }
 
-        static class Single extends BytesValues {
+        static final class Single extends BytesValues {
 
-            private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             Single(BytesRef[] values, Ordinals.Docs ordinals) {
                 super(values, ordinals);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public BytesRefArrayRef getValues(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return BytesRefArrayRef.EMPTY;
-                arrayScratch.values[0] = values[ord];
-                return arrayScratch;
             }
 
             @Override
@@ -208,44 +177,21 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
                 if (ord == 0) return Iter.Empty.INSTANCE;
                 return iter.reset(values[ord]);
             }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                } else {
-                    proc.onValue(docId, values[ord]);
-                }
-            }
         }
 
-        static class Multi extends BytesValues {
+        static final class Multi extends BytesValues {
 
-            private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[10], 0);
-            private final ValuesIter iter;
+            private final Iter.Multi iter;
 
             Multi(BytesRef[] values, Ordinals.Docs ordinals) {
                 super(values, ordinals);
-                this.iter = new ValuesIter(values);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return true;
+                assert ordinals.isMultiValued();
+                this.iter = new Iter.Multi(this);
             }
 
             @Override
             public BytesRefArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return BytesRefArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    arrayScratch.values[arrayScratch.end++] = values[ords.values[i]];
-                }
-                return arrayScratch;
+                return getValuesMulti(docId);
             }
 
             @Override
@@ -255,45 +201,10 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
 
             @Override
             public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, values[ord]);
-                } while ((ord = iter.next()) != 0);
+                forEachValueInDocMulti(docId, proc);
             }
 
-            static class ValuesIter implements Iter {
-
-                private final BytesRef[] values;
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                ValuesIter(BytesRef[] values) {
-                    this.values = values;
-                }
-
-                public ValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public BytesRef next() {
-                    BytesRef value = values[ord];
-                    ord = ordsIter.next();
-                    return value;
-                }
-            }
+           
         }
     }
 
@@ -443,160 +354,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
         }
     }
 
-    static abstract class StringValues implements org.elasticsearch.index.fielddata.StringValues.WithOrdinals {
-
-        protected final BytesRef[] values;
-        protected final Ordinals.Docs ordinals;
-
-        protected StringValues(BytesRef[] values, Ordinals.Docs ordinals) {
-            this.values = values;
-            this.ordinals = ordinals;
-        }
-
-        @Override
-        public Ordinals.Docs ordinals() {
-            return ordinals;
-        }
-
-        @Override
-        public String getValueByOrd(int ord) {
-            BytesRef value = values[ord];
-            if (value == null) return null;
-            return value.utf8ToString();
-        }
-
-        @Override
-        public boolean hasValue(int docId) {
-            return ordinals.getOrd(docId) != 0;
-        }
-
-        @Override
-        public String getValue(int docId) {
-            BytesRef value = values[ordinals.getOrd(docId)];
-            if (value == null) return null;
-            return value.utf8ToString();
-        }
-
-        static class Single extends StringValues {
-
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
-            private final Iter.Single iter = new Iter.Single();
-
-            Single(BytesRef[] values, Ordinals.Docs ordinals) {
-                super(values, ordinals);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return StringArrayRef.EMPTY;
-                BytesRef value = values[ord];
-                arrayScratch.values[0] = value == null ? null : value.utf8ToString();
-                return arrayScratch;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return Iter.Empty.INSTANCE;
-                return iter.reset(values[ord].utf8ToString());
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                proc.onValue(docId, values[ord].utf8ToString());
-            }
-        }
-
-        static class Multi extends StringValues {
-
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[10], 0);
-            private final ValuesIter iter;
-
-            Multi(BytesRef[] values, Ordinals.Docs ordinals) {
-                super(values, ordinals);
-                iter = new ValuesIter(values);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return true;
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return StringArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    BytesRef value = values[ords.values[i]];
-                    arrayScratch.values[arrayScratch.end++] = value == null ? null : value.utf8ToString();
-                }
-                return arrayScratch;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return iter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    BytesRef value = values[ord];
-                    proc.onValue(docId, value == null ? null : value.utf8ToString());
-                } while ((ord = iter.next()) != 0);
-            }
-
-            static class ValuesIter implements StringValues.Iter {
-
-                private final BytesRef[] values;
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                ValuesIter(BytesRef[] values) {
-                    this.values = values;
-                }
-
-                public ValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public String next() {
-                    BytesRef value = values[ord];
-                    ord = ordsIter.next();
-                    return value == null ? null : value.utf8ToString();
-                }
-            }
-        }
-    }
-
     static class Empty extends ConcreteBytesRefAtomicFieldData {
 
         Empty(int numDocs) {
@@ -625,7 +382,7 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
 
         @Override
         public BytesValues.WithOrdinals getBytesValues() {
-            return new BytesValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
+            return new BytesValues.WithOrdinals.Empty(ordinals.ordinals());
         }
 
         @Override

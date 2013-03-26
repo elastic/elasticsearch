@@ -22,7 +22,6 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
@@ -346,7 +345,7 @@ public interface HashedBytesValues {
 
             private final Ordinals ordinals;
 
-            public Empty(EmptyOrdinals ordinals) {
+            public Empty(Ordinals ordinals) {
                 this.ordinals = ordinals;
             }
 

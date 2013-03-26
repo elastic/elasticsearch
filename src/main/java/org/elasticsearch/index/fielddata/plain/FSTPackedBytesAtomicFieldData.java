@@ -19,10 +19,16 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import java.io.IOException;
+
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.packed.GrowableWriter;
-import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.fst.BytesRefFSTEnum;
+import org.apache.lucene.util.fst.BytesRefFSTEnum.InputOutput;
+import org.apache.lucene.util.fst.FST;
+import org.apache.lucene.util.fst.FST.Arc;
+import org.apache.lucene.util.fst.FST.BytesReader;
+import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.HashedBytesValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -33,26 +39,23 @@ import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
 
 /**
  */
-public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
+public class FSTPackedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> {
 
-    public static PagedBytesAtomicFieldData empty(int numDocs) {
+    public static FSTPackedBytesAtomicFieldData empty(int numDocs) {
         return new Empty(numDocs);
     }
 
     // 0 ordinal in values means no value (its null)
-    private final PagedBytes.Reader bytes;
-    private final PackedInts.Reader termOrdToBytesOffset;
     protected final Ordinals ordinals;
 
     private int[] hashes;
     private long size = -1;
-    private final long readerBytesSize;
 
-    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, long readerBytesSize, PackedInts.Reader termOrdToBytesOffset, Ordinals ordinals) {
-        this.bytes = bytes;
-        this.termOrdToBytesOffset = termOrdToBytesOffset;
+    private final FST<Long> fst;
+
+    public FSTPackedBytesAtomicFieldData(FST<Long> fst, Ordinals ordinals) {
         this.ordinals = ordinals;
-        this.readerBytesSize = readerBytesSize;
+        this.fst = fst;
     }
 
     @Override
@@ -78,10 +81,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     public long getMemorySizeInBytes() {
         if (size == -1) {
             long size = ordinals.getMemorySizeInBytes();
-            // PackedBytes
-            size += readerBytesSize;
-            // PackedInts
-            size += termOrdToBytesOffset.ramBytesUsed();
+            // FST
+            size += fst == null ? 0 : fst.sizeInBytes();
             this.size = size;
         }
         return size;
@@ -89,18 +90,24 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
     @Override
     public BytesValues.WithOrdinals getBytesValues() {
-        return ordinals.isMultiValued() ? new BytesValues.Multi(bytes, termOrdToBytesOffset, ordinals.ordinals()) : new BytesValues.Single(bytes, termOrdToBytesOffset, ordinals.ordinals());
+        assert fst != null;
+        return ordinals.isMultiValued() ? new BytesValues.Multi(fst, ordinals.ordinals()) : new BytesValues.Single(fst, ordinals.ordinals());
     }
 
     @Override
     public HashedBytesValues.WithOrdinals getHashedBytesValues() {
+        assert fst != null;
         if (hashes == null) {
-            int numberOfValues = termOrdToBytesOffset.size();
-            int[] hashes = new int[numberOfValues];
-            BytesRef scratch = new BytesRef();
-            for (int i = 0; i < numberOfValues; i++) {
-                bytes.fill(scratch, termOrdToBytesOffset.get(i));
-                hashes[i] = scratch.hashCode();
+            BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<Long>(fst);
+            int[] hashes = new int[ordinals.getMaxOrd()];
+            InputOutput<Long> next;
+            int i = 0;
+            try {
+                while((next = fstEnum.next()) != null) {
+                    hashes[i++] =  next.input.hashCode();
+                }
+            } catch (IOException ex) {
+                //bogus
             }
             this.hashes = hashes;
         }
@@ -109,47 +116,55 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
     @Override
     public StringValues.WithOrdinals getStringValues() {
+        assert fst != null;
         return StringValues.BytesValuesWrapper.wrap(getBytesValues());
     }
 
     @Override
     public ScriptDocValues.Strings getScriptValues() {
+        assert fst != null;
         return new ScriptDocValues.Strings(getStringValues());
     }
 
     static abstract class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
 
-        protected final PagedBytes.Reader bytes;
-        protected final PackedInts.Reader termOrdToBytesOffset;
+        protected final FST<Long> fst;
         protected final Ordinals.Docs ordinals;
 
         protected final BytesRef scratch = new BytesRef();
+        // per-thread resources
+        protected final BytesReader in ;
+        protected final Arc<Long> firstArc = new Arc<Long>();
+        protected final Arc<Long> scratchArc = new Arc<Long>();
+        protected final IntsRef scratchInts = new IntsRef();
 
-        BytesValues(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
+        BytesValues(FST<Long> fst, Ordinals.Docs ordinals) {
             super(ordinals);
-            this.bytes = bytes;
-            this.termOrdToBytesOffset = termOrdToBytesOffset;
+            this.fst = fst;
             this.ordinals = ordinals;
-        }
-
-        @Override
-        public Ordinals.Docs ordinals() {
-            return this.ordinals;
+            in = fst.getBytesReader();
         }
 
         @Override
         public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
-            bytes.fill(ret, termOrdToBytesOffset.get(ord));
+            in.setPosition(0);
+            fst.getFirstArc(firstArc);
+            try {
+                IntsRef output = Util.getByOutput(fst, ord, in, firstArc, scratchArc, scratchInts);
+                ret.grow(output.length);
+                ret.length = ret.offset = 0;
+                Util.toBytesRef(output, ret);
+            } catch (IOException ex) {
+                //bogus
+            }
             return ret;
         }
 
-
         static final class Single extends BytesValues {
-
             private final Iter.Single iter = new Iter.Single();
 
-            Single(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
-                super(bytes, termOrdToBytesOffset, ordinals);
+            Single(FST<Long> fst, Ordinals.Docs ordinals) {
+                super(fst, ordinals);
                 assert !ordinals.isMultiValued();
             }
 
@@ -157,18 +172,16 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             public Iter getIter(int docId) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) return Iter.Empty.INSTANCE;
-                bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                return iter.reset(scratch);
+                return iter.reset(getValueByOrd(ord));
             }
-
         }
 
         static final class Multi extends BytesValues {
 
             private final Iter.Multi iter;
 
-            Multi(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
-                super(bytes, termOrdToBytesOffset, ordinals);
+            Multi(FST<Long> fst, Ordinals.Docs ordinals) {
+                super(fst, ordinals);
                 assert ordinals.isMultiValued();
                 this.iter = new Iter.Multi(this);
             }
@@ -189,17 +202,13 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             }
         }
     }
+    
+    
 
-    static class Empty extends PagedBytesAtomicFieldData {
+    static class Empty extends FSTPackedBytesAtomicFieldData {
 
         Empty(int numDocs) {
-            super(emptyBytes(), 0, new GrowableWriter(1, 2, PackedInts.FASTEST).getMutable(), new EmptyOrdinals(numDocs));
-        }
-
-        static PagedBytes.Reader emptyBytes() {
-            PagedBytes bytes = new PagedBytes(1);
-            bytes.copyUsingLengthPrefix(new BytesRef());
-            return bytes.freeze(true);
+            super(null, new EmptyOrdinals(numDocs));
         }
 
         @Override
@@ -229,7 +238,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
         @Override
         public StringValues.WithOrdinals getStringValues() {
-            return new StringValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
+            return new StringValues.WithOrdinals.Empty(ordinals);
         }
 
         @Override

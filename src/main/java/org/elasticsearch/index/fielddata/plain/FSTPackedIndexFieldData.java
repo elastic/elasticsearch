@@ -19,12 +19,17 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.*;
-import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.packed.GrowableWriter;
-import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.fst.FST;
+import org.apache.lucene.util.fst.FST.INPUT_TYPE;
+import org.apache.lucene.util.fst.PositiveIntOutputs;
+import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
@@ -42,17 +47,17 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  */
-public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesAtomicFieldData> implements IndexFieldData.WithOrdinals<PagedBytesAtomicFieldData> {
+public class FSTPackedIndexFieldData extends AbstractIndexFieldData<FSTPackedBytesAtomicFieldData> implements IndexFieldData.WithOrdinals<FSTPackedBytesAtomicFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
         public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
-            return new PagedBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
+            return new FSTPackedIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
 
-    public PagedBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public FSTPackedIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
     }
 
@@ -62,7 +67,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
     }
 
     @Override
-    public PagedBytesAtomicFieldData load(AtomicReaderContext context) {
+    public FSTPackedBytesAtomicFieldData load(AtomicReaderContext context) {
         try {
             return cache.load(context, this);
         } catch (Throwable e) {
@@ -75,76 +80,38 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
     }
 
     @Override
-    public PagedBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public FSTPackedBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return PagedBytesAtomicFieldData.empty(reader.maxDoc());
+            return FSTPackedBytesAtomicFieldData.empty(reader.maxDoc());
         }
-
-        final PagedBytes bytes = new PagedBytes(15);
-        int startBytesBPV;
-        int startNumUniqueTerms;
-
-        int maxDoc = reader.maxDoc();
-        final int termCountHardLimit;
-        if (maxDoc == Integer.MAX_VALUE) {
-            termCountHardLimit = Integer.MAX_VALUE;
-        } else {
-            termCountHardLimit = maxDoc + 1;
-        }
-
-        // Try for coarse estimate for number of bits; this
-        // should be an underestimate most of the time, which
-        // is fine -- GrowableWriter will reallocate as needed
-        long numUniqueTerms = terms.size();
-        if (numUniqueTerms != -1L) {
-            if (numUniqueTerms > termCountHardLimit) {
-                // app is misusing the API (there is more than
-                // one term per doc); in this case we make best
-                // effort to load what we can (see LUCENE-2142)
-                numUniqueTerms = termCountHardLimit;
-            }
-
-            startBytesBPV = PackedInts.bitsRequired(numUniqueTerms * 4);
-
-            startNumUniqueTerms = (int) numUniqueTerms;
-        } else {
-            startBytesBPV = 1;
-            startNumUniqueTerms = 1;
-        }
-
-        // TODO: expose this as an option..., have a nice parser for it...
-        float acceptableOverheadRatio = PackedInts.FAST;
-
-        GrowableWriter termOrdToBytesOffset = new GrowableWriter(startBytesBPV, 1 + startNumUniqueTerms, acceptableOverheadRatio);
+        PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton(true);
+        org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<Long>(INPUT_TYPE.BYTE1, outputs);
+        final IntsRef scratch = new IntsRef();
+        
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
         try {
+            
             // 0 is reserved for "unset"
-            bytes.copyUsingLengthPrefix(new BytesRef());
+            fstBuilder.add(Util.toIntsRef(new BytesRef(), scratch), 0l);
             TermsEnum termsEnum = terms.iterator(null);
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final int termOrd = builder.nextOrdinal();
-                if (termOrd == termOrdToBytesOffset.size()) {
-                    // NOTE: this code only runs if the incoming
-                    // reader impl doesn't implement
-                    // size (which should be uncommon)
-                    termOrdToBytesOffset = termOrdToBytesOffset.resize(ArrayUtil.oversize(1 + termOrd, 1));
-                }
-                termOrdToBytesOffset.set(termOrd, bytes.copyUsingLengthPrefix(term));
+                fstBuilder.add(Util.toIntsRef(term, scratch), (long)termOrd);
                 docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                 for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                     builder.addDoc(docId);
                 }
             }
-            final long sizePointer = bytes.getPointer();
-            PagedBytes.Reader bytesReader = bytes.freeze(true);
-            PackedInts.Reader termOrdToBytesOffsetReader = termOrdToBytesOffset.getMutable();
+            
+            FST<Long> fst = fstBuilder.finish();
+
             final Ordinals ordinals = builder.build(fieldDataType.getSettings());
 
-            return new PagedBytesAtomicFieldData(bytesReader, sizePointer, termOrdToBytesOffsetReader, ordinals);
+            return new FSTPackedBytesAtomicFieldData(fst, ordinals);
         } finally {
             builder.close();
         }

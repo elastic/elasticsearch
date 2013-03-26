@@ -21,72 +21,89 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
+import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
-public interface BytesValues {
+public abstract class  BytesValues {
 
-    static final BytesValues EMPTY = new Empty();
-
+    public static final BytesValues EMPTY = new Empty();
+    private boolean multiValued;
+    protected final BytesRef scratch = new BytesRef();
+    
+    protected BytesValues(boolean multiValued) {
+        this.multiValued = multiValued;
+    }
+    
     /**
      * Is one of the documents in this field data values is multi valued?
      */
-    boolean isMultiValued();
+    public final boolean isMultiValued() {
+        return multiValued;
+    }
 
     /**
      * Is there a value for this doc?
      */
-    boolean hasValue(int docId);
+    public abstract boolean hasValue(int docId);
 
     /**
      * Converts the provided bytes to "safe" ones from a "non" safe call made (if needed).
      */
-    BytesRef makeSafe(BytesRef bytes);
+    public BytesRef makeSafe(BytesRef bytes) {
+        return BytesRef.deepCopyOf(bytes);
+    }
 
     /**
      * Returns a bytes value for a docId. Note, the content of it might be shared across invocation.
      */
-    BytesRef getValue(int docId);
+    public BytesRef getValue(int docId) {
+        if (hasValue(docId)) {
+            return getValueScratch(docId, scratch);
+        } 
+        return null;
+    }
 
     /**
      * Returns the bytes value for the docId, with the provided "ret" which will be filled with the
      * result which will also be returned. If there is no value for this docId, the length will be 0.
      * Note, the bytes are not "safe".
      */
-    BytesRef getValueScratch(int docId, BytesRef ret);
+    public abstract BytesRef getValueScratch(int docId, BytesRef ret);
 
     /**
      * Returns an array wrapping all the bytes values for a doc. The content is guaranteed not to be shared.
      */
-    BytesRefArrayRef getValues(int docId);
+    public abstract BytesRefArrayRef getValues(int docId);
 
     /**
      * Returns a bytes value iterator for a docId. Note, the content of it might be shared across invocation.
      */
-    Iter getIter(int docId);
+    public abstract Iter getIter(int docId);
+    
+    
 
     /**
      * Go over all the possible values in their BytesRef format for a specific doc.
      */
-    void forEachValueInDoc(int docId, ValueInDocProc proc);
-
+    public abstract void forEachValueInDoc(int docId, ValueInDocProc proc);
     public static interface ValueInDocProc {
         void onValue(int docId, BytesRef value);
 
         void onMissing(int docId);
     }
 
-    static interface Iter {
+    public static interface Iter {
 
         boolean hasNext();
 
         BytesRef next();
 
-        static class Empty implements Iter {
+        public static class Empty implements Iter {
 
             public static final Empty INSTANCE = new Empty();
 
@@ -101,7 +118,7 @@ public interface BytesValues {
             }
         }
 
-        static class Single implements Iter {
+        public final static class Single implements Iter {
 
             public BytesRef value;
             public boolean done;
@@ -124,22 +141,48 @@ public interface BytesValues {
                 return value;
             }
         }
+        
+        static final class Multi implements Iter {
+
+            private int ord;
+            private BytesValues.WithOrdinals withOrds;
+            private Ordinals.Docs.Iter ordsIter;
+            private final BytesRef scratch = new BytesRef();
+            public Multi(WithOrdinals withOrds) {
+                this.withOrds = withOrds;
+                assert withOrds.isMultiValued();
+                
+            }
+
+            public Multi reset(Ordinals.Docs.Iter ordsIter) {
+                this.ordsIter = ordsIter;
+                this.ord = ordsIter.next();
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return ord != 0;
+            }
+
+            @Override
+            public BytesRef next() {
+                withOrds.getValueScratchByOrd(ord, scratch);
+                ord = ordsIter.next();
+                return scratch;
+            }
+        }
     }
 
-    static class Empty implements BytesValues {
-        @Override
-        public boolean isMultiValued() {
-            return false;
+    public static class Empty extends BytesValues {
+        
+        public Empty() {
+            super(false);
         }
 
         @Override
         public boolean hasValue(int docId) {
             return false;
-        }
-
-        @Override
-        public BytesRef getValue(int docId) {
-            return null;
         }
 
         @Override
@@ -158,54 +201,29 @@ public interface BytesValues {
         }
 
         @Override
-        public BytesRef makeSafe(BytesRef bytes) {
-            //todo we can also throw an excepiton here as the only value this method accepts is a scratch value...
-            //todo ...extracted from this ByteValues, in our case, there are not values, so this should never be called!?!?
-            return BytesRef.deepCopyOf(bytes);
-        }
-
-        @Override
         public BytesRef getValueScratch(int docId, BytesRef ret) {
             ret.length = 0;
             return ret;
         }
     }
 
-    public static class StringBased implements BytesValues {
+    public static class StringBased extends BytesValues {
 
+        
         private final StringValues values;
 
-        protected final BytesRef scratch = new BytesRef();
         private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[1], 1);
         private final ValueIter valueIter = new ValueIter();
         private final Proc proc = new Proc();
 
         public StringBased(StringValues values) {
+            super(values.isMultiValued());
             this.values = values;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return values.isMultiValued();
         }
 
         @Override
         public boolean hasValue(int docId) {
             return values.hasValue(docId);
-        }
-
-        @Override
-        public BytesRef makeSafe(BytesRef bytes) {
-            // we need to make a copy, since we use scratch to provide it
-            return BytesRef.deepCopyOf(bytes);
-        }
-
-        @Override
-        public BytesRef getValue(int docId) {
-            String value = values.getValue(docId);
-            if (value == null) return null;
-            scratch.copyChars(value);
-            return scratch;
         }
 
         @Override
@@ -244,7 +262,7 @@ public interface BytesValues {
             values.forEachValueInDoc(docId, this.proc.reset(proc));
         }
 
-        static class ValueIter implements Iter {
+        public  static class ValueIter implements Iter {
 
             private final BytesRef scratch = new BytesRef();
             private StringValues.Iter iter;
@@ -266,7 +284,7 @@ public interface BytesValues {
             }
         }
 
-        static class Proc implements StringValues.ValueInDocProc {
+        public static class Proc implements StringValues.ValueInDocProc {
 
             private final BytesRef scratch = new BytesRef();
             private BytesValues.ValueInDocProc proc;
@@ -292,32 +310,106 @@ public interface BytesValues {
     /**
      * Bytes values that are based on ordinals.
      */
-    static interface WithOrdinals extends BytesValues {
+    public static abstract class WithOrdinals extends BytesValues {
+        
+        protected final Docs ordinals;
+        protected final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[10], 0);
 
-        Ordinals.Docs ordinals();
+        protected WithOrdinals(Ordinals.Docs ordinals) {
+            super(ordinals.isMultiValued());
+            this.ordinals = ordinals;
+        }
 
-        BytesRef getValueByOrd(int ord);
+        public Ordinals.Docs ordinals() {
+            return ordinals;
+        }
+
+        public BytesRef getValueByOrd(int ord) {
+            return getValueScratchByOrd(ord, scratch);
+        }
+
+        @Override
+        public boolean hasValue(int docId) {
+            return ordinals.getOrd(docId) != 0;
+        }
+        
+        @Override
+        public BytesRefArrayRef getValues(int docId) {
+            assert !isMultiValued();
+            int ord = ordinals.getOrd(docId);
+            if (ord == 0) return BytesRefArrayRef.EMPTY;
+            arrayScratch.values[0] = getSafeValueByOrd(ord);
+            arrayScratch.end = 1;
+            arrayScratch.start = 0;
+            return arrayScratch;
+        }
+        
+        @Override
+        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+            assert !isMultiValued();
+            int ord = ordinals.getOrd(docId);
+            if (ord == 0) {
+                proc.onMissing(docId);
+            } else {
+                proc.onValue(docId, getValue(docId));
+            }
+        }
+        
+        protected BytesRefArrayRef getValuesMulti(int docId) {
+            assert isMultiValued();
+            IntArrayRef ords = ordinals.getOrds(docId);
+            int size = ords.size();
+            if (size == 0) {
+                return BytesRefArrayRef.EMPTY;
+            }
+            arrayScratch.reset(size);
+            for (int i = ords.start; i < ords.end; i++) {
+                arrayScratch.values[arrayScratch.end++] = getValueScratchByOrd(ords.values[i], new BytesRef());
+            }
+            return arrayScratch;
+        }
+
+        protected void forEachValueInDocMulti(int docId, ValueInDocProc proc) {
+            assert isMultiValued();
+            Ordinals.Docs.Iter iter = ordinals.getIter(docId);
+            int ord = iter.next();
+            if (ord == 0) {
+                proc.onMissing(docId);
+                return;
+            }
+            do {
+                getValueScratchByOrd(ord, scratch);
+                proc.onValue(docId, scratch);
+            } while ((ord = iter.next()) != 0);
+        }
+
+        @Override
+        public BytesRef getValue(int docId) {
+            int ord = ordinals.getOrd(docId);
+            if (ord == 0) return null;
+            return getValueScratchByOrd(ord, scratch);
+        }
+        
+        @Override
+        public BytesRef getValueScratch(int docId, BytesRef ret) {
+            return getValueScratchByOrd(ordinals.getOrd(docId), ret);
+        }
+        
+        public BytesRef getSafeValueByOrd(int ord) {
+            return getValueScratchByOrd(ord, new BytesRef());
+        }
 
         /**
          * Returns the bytes value for the docId, with the provided "ret" which will be filled with the
          * result which will also be returned. If there is no value for this docId, the length will be 0.
          * Note, the bytes are not "safe".
          */
-        BytesRef getValueScratchByOrd(int ord, BytesRef ret);
+        public abstract BytesRef getValueScratchByOrd(int ord, BytesRef ret);
 
-        BytesRef getSafeValueByOrd(int ord);
+        public static class Empty extends WithOrdinals {
 
-        public static class Empty extends BytesValues.Empty implements WithOrdinals {
-
-            private final Ordinals ordinals;
-
-            public Empty(EmptyOrdinals ordinals) {
-                this.ordinals = ordinals;
-            }
-
-            @Override
-            public Ordinals.Docs ordinals() {
-                return ordinals.ordinals();
+            public Empty(Ordinals.Docs ordinals) {
+                super(ordinals);
             }
 
             @Override
@@ -335,37 +427,31 @@ public interface BytesValues {
             public BytesRef getSafeValueByOrd(int ord) {
                 return null;
             }
-        }
 
-        public static class StringBased extends BytesValues.StringBased implements WithOrdinals {
-
-            private final StringValues.WithOrdinals values;
-
-            public StringBased(StringValues.WithOrdinals values) {
-                super(values);
-                this.values = values;
+            @Override
+            public boolean hasValue(int docId) {
+                return false;
             }
 
             @Override
-            public Ordinals.Docs ordinals() {
-                return values.ordinals();
+            public BytesRefArrayRef getValues(int docId) {
+                return BytesRefArrayRef.EMPTY;
             }
 
             @Override
-            public BytesRef getValueByOrd(int ord) {
-                scratch.copyChars(values.getValueByOrd(ord));
-                return scratch;
+            public Iter getIter(int docId) {
+                return Iter.Empty.INSTANCE;
             }
 
             @Override
-            public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
-                ret.copyChars(values.getValueByOrd(ord));
+            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
+                proc.onMissing(docId);
+            }
+
+            @Override
+            public BytesRef getValueScratch(int docId, BytesRef ret) {
+                ret.length = 0;
                 return ret;
-            }
-
-            @Override
-            public BytesRef getSafeValueByOrd(int ord) {
-                return new BytesRef(values.getValueByOrd(ord));
             }
         }
     }

@@ -139,7 +139,7 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
 
         @Override
         public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
+            return new HashedBytesValues.BytesBased(getBytesValues());
         }
 
         @Override
@@ -406,7 +406,7 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
 
         @Override
         public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
+            return new HashedBytesValues.BytesBased(getBytesValues());
         }
 
         @Override

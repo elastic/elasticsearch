@@ -107,24 +107,17 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
         return docTerms.getValue(doc).compareTo(value);
     }
 
-    public static class FilteredByteValues implements BytesValues {
+    public static class FilteredByteValues extends BytesValues {
 
         protected final BytesValues delegate;
 
         public FilteredByteValues(BytesValues delegate) {
+            super(delegate.isMultiValued());
             this.delegate = delegate;
-        }
-
-        public boolean isMultiValued() {
-            return delegate.isMultiValued();
         }
 
         public boolean hasValue(int docId) {
             return delegate.hasValue(docId);
-        }
-
-        public BytesRef getValue(int docId) {
-            return delegate.getValue(docId);
         }
 
         public BytesRef makeSafe(BytesRef bytes) {
@@ -146,6 +139,7 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
         public void forEachValueInDoc(int docId, ValueInDocProc proc) {
             delegate.forEachValueInDoc(docId, proc);
         }
+
     }
 
     private static final class MultiValuedBytesWrapper extends FilteredByteValues {

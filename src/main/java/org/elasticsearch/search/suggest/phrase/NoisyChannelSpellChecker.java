@@ -104,6 +104,10 @@ public final class NoisyChannelSpellChecker {
             }
         });
         
+        if (candidateSetsList.isEmpty()) {
+            return Correction.EMPTY;
+        }
+        
         for (CandidateSet candidateSet : candidateSetsList) {
             generator.drawCandidates(candidateSet);
         }

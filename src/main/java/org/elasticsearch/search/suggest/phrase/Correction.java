@@ -26,6 +26,7 @@ import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidat
 //TODO public for tests
 public final class Correction {
 
+    public static final Correction[] EMPTY = new Correction[0];
     public double score;
     public final Candidate[] candidates;
 

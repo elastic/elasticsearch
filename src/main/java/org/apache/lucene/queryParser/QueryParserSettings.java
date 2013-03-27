@@ -66,6 +66,11 @@ public class QueryParserSettings {
     float tieBreaker = 0.0f;
     boolean useDisMax = true;
 
+    public boolean isCacheable() {
+        // a hack for now :) to determine if a query string is cacheable
+        return !queryString.contains("now");
+    }
+
     public String queryString() {
         return queryString;
     }

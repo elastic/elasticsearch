@@ -19,12 +19,10 @@
 
 package org.elasticsearch.search.internal;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.MultiCollector;
-import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -124,40 +122,6 @@ public class ContextIndexSearcher extends IndexSearcher {
             return dfSource.createNormalizedWeight(query);
         }
         return super.createNormalizedWeight(query);
-    }
-
-    private Filter combinedFilter(Filter filter) {
-        Filter combinedFilter;
-        if (filter == null) {
-            combinedFilter = searchContext.aliasFilter();
-        } else {
-            if (searchContext.aliasFilter() != null) {
-                combinedFilter = new AndFilter(ImmutableList.of(filter, searchContext.aliasFilter()));
-            } else {
-                combinedFilter = filter;
-            }
-        }
-        return combinedFilter;
-    }
-
-    @Override
-    public void search(Query query, Collector results) throws IOException {
-        Filter filter = combinedFilter(null);
-        if (filter != null) {
-            super.search(wrapFilter(query, filter), results);
-        } else {
-            super.search(query, results);
-        }
-    }
-
-    @Override
-    public TopDocs search(Query query, Filter filter, int n) throws IOException {
-        return super.search(query, combinedFilter(filter), n);
-    }
-
-    @Override
-    public TopFieldDocs search(Query query, Filter filter, int n, Sort sort, boolean doDocScores, boolean doMaxScore) throws IOException {
-        return super.search(query, combinedFilter(filter), n, sort, doDocScores, doMaxScore);
     }
 
     @Override

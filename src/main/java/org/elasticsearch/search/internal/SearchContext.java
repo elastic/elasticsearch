@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -228,17 +229,31 @@ public class SearchContext implements Releasable {
         if (queryBoost() != 1.0f) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));
         }
-        Filter searchFilter = mapperService().searchFilter(types());
+        Filter searchFilter = searchFilter(types());
         if (searchFilter != null) {
             if (Queries.isConstantMatchAllQuery(query())) {
-                Query q = new XConstantScoreQuery(filterCache().cache(searchFilter));
+                Query q = new XConstantScoreQuery(searchFilter);
                 q.setBoost(query().getBoost());
                 parsedQuery(new ParsedQuery(q, parsedQuery()));
             } else {
-                parsedQuery(new ParsedQuery(new XFilteredQuery(query(), filterCache().cache(searchFilter)), parsedQuery()));
+                parsedQuery(new ParsedQuery(new XFilteredQuery(query(), searchFilter), parsedQuery()));
             }
         }
     }
+
+    public Filter searchFilter(String[] types) {
+        Filter filter = mapperService().searchFilter(types);
+        if (filter == null) {
+            return aliasFilter;
+        } else {
+            filter = filterCache().cache(filter);
+            if (aliasFilter != null) {
+                return new AndFilter(ImmutableList.of(filter, aliasFilter));
+            }
+            return filter;
+        }
+    }
+
 
     public long id() {
         return this.id;

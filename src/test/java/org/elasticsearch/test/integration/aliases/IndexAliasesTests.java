@@ -38,6 +38,8 @@ import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.facet.FacetBuilders;
+import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -233,6 +235,24 @@ public class IndexAliasesTests extends AbstractNodesTests {
         logger.info("--> checking single filtering alias search with sort");
         searchResponse = client1.prepareSearch("tests").setQuery(QueryBuilders.matchAllQuery()).addSort("_uid", SortOrder.ASC).execute().actionGet();
         assertHits(searchResponse.getHits(), "1", "2", "3");
+
+        logger.info("--> checking single filtering alias search with global facets");
+        searchResponse = client1.prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
+                .addFacet(FacetBuilders.termsFacet("test").field("name").global(true))
+                .execute().actionGet();
+        assertThat(((TermsFacet) searchResponse.getFacets().facet("test")).getEntries().size(), equalTo(4));
+
+        logger.info("--> checking single filtering alias search with global facets and sort");
+        searchResponse = client1.prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
+                .addFacet(FacetBuilders.termsFacet("test").field("name").global(true))
+                .addSort("_uid", SortOrder.ASC).execute().actionGet();
+        assertThat(((TermsFacet) searchResponse.getFacets().facet("test")).getEntries().size(), equalTo(4));
+
+        logger.info("--> checking single filtering alias search with non-global facets");
+        searchResponse = client1.prepareSearch("tests").setQuery(QueryBuilders.matchQuery("name", "bar"))
+                .addFacet(FacetBuilders.termsFacet("test").field("name").global(false))
+                .addSort("_uid", SortOrder.ASC).execute().actionGet();
+        assertThat(((TermsFacet) searchResponse.getFacets().facet("test")).getEntries().size(), equalTo(2));
 
         searchResponse = client1.prepareSearch("foos", "bars").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertHits(searchResponse.getHits(), "1", "2");

@@ -30,7 +30,7 @@ import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
-public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldData {
+public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData {
 
     public static final DoubleArrayAtomicFieldData EMPTY = new Empty();
 
@@ -90,11 +90,6 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
         }
 
         @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return HashedBytesValues.EMPTY;
-        }
-
-        @Override
         public StringValues getStringValues() {
             return StringValues.EMPTY;
         }
@@ -135,11 +130,6 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
         @Override
         public BytesValues getBytesValues() {
             return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
         }
 
         @Override
@@ -499,11 +489,6 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
         }
 
         @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
-        }
-
-        @Override
         public StringValues getStringValues() {
             return new StringValues.DoubleBased(getDoubleValues());
         }
@@ -685,15 +670,6 @@ public abstract class DoubleArrayAtomicFieldData implements AtomicNumericFieldDa
             return new ScriptDocValues.NumericDouble(getDoubleValues());
         }
 
-        @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
-        }
 
         @Override
         public StringValues getStringValues() {

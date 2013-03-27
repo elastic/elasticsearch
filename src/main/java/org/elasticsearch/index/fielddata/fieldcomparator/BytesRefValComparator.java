@@ -128,16 +128,8 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
             return delegate.getValueScratch(docId, ret);
         }
 
-        public BytesRefArrayRef getValues(int docId) {
-            return delegate.getValues(docId);
-        }
-
         public Iter getIter(int docId) {
             return delegate.getIter(docId);
-        }
-
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            delegate.forEachValueInDoc(docId, proc);
         }
 
     }
@@ -177,16 +169,6 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
                 currentVal = iter.next();
             }
             return relevantVal;
-            /*if (reversed) {
-                BytesRefArrayRef ref = readerValues.getValues(docId);
-                if (ref.isEmpty()) {
-                    return null;
-                } else {
-                    return ref.values[ref.end - 1]; // last element is the highest value.
-                }
-            } else {
-                return readerValues.getValue(docId); // returns the lowest value
-            }*/
         }
 
     }

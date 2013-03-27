@@ -24,8 +24,6 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
-import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
@@ -74,34 +72,29 @@ public abstract class  BytesValues {
      * Note, the bytes are not "safe".
      */
     public abstract BytesRef getValueScratch(int docId, BytesRef ret);
-
+    
+    
     /**
-     * Returns an array wrapping all the bytes values for a doc. The content is guaranteed not to be shared.
+     * Fills the given spare for the given doc ID and returns the hashcode of the reference as defined by
+     * {@link BytesRef#hashCode()}
      */
-    public abstract BytesRefArrayRef getValues(int docId);
+    public int getValueHashed(int docId, BytesRef spare) {
+        return getValueScratch(docId, spare).hashCode();
+    }
 
     /**
      * Returns a bytes value iterator for a docId. Note, the content of it might be shared across invocation.
      */
-    public abstract Iter getIter(int docId);
+    public abstract Iter getIter(int docId); // TODO: maybe this should return null for no values so we can safe one call?
     
     
-
-    /**
-     * Go over all the possible values in their BytesRef format for a specific doc.
-     */
-    public abstract void forEachValueInDoc(int docId, ValueInDocProc proc);
-    public static interface ValueInDocProc {
-        void onValue(int docId, BytesRef value);
-
-        void onMissing(int docId);
-    }
-
     public static interface Iter {
 
         boolean hasNext();
 
         BytesRef next();
+        
+        int hash();
 
         public static class Empty implements Iter {
 
@@ -116,15 +109,22 @@ public abstract class  BytesValues {
             public BytesRef next() {
                 throw new ElasticSearchIllegalStateException();
             }
+
+            @Override
+            public int hash() {
+                return 0;
+            }
         }
 
-        public final static class Single implements Iter {
+        public static class Single implements Iter {
 
-            public BytesRef value;
-            public boolean done;
+            protected BytesRef value;
+            protected int ord;
+            protected boolean done;
 
-            public Single reset(BytesRef value) {
+            public Single reset(BytesRef value, int ord) {
                 this.value = value;
+                this.ord = ord;
                 this.done = false;
                 return this;
             }
@@ -140,11 +140,15 @@ public abstract class  BytesValues {
                 done = true;
                 return value;
             }
+            
+            public int hash() {
+                return value.hashCode();
+            }
         }
         
-        static final class Multi implements Iter {
+        static class Multi implements Iter {
 
-            private int ord;
+            protected int ord;
             private BytesValues.WithOrdinals withOrds;
             private Ordinals.Docs.Iter ordsIter;
             private final BytesRef scratch = new BytesRef();
@@ -171,6 +175,10 @@ public abstract class  BytesValues {
                 ord = ordsIter.next();
                 return scratch;
             }
+            
+            public int hash() {
+                return scratch.hashCode();
+            }
         }
     }
 
@@ -186,18 +194,8 @@ public abstract class  BytesValues {
         }
 
         @Override
-        public BytesRefArrayRef getValues(int docId) {
-            return BytesRefArrayRef.EMPTY;
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return Iter.Empty.INSTANCE;
-        }
-
-        @Override
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            proc.onMissing(docId);
         }
 
         @Override
@@ -214,7 +212,6 @@ public abstract class  BytesValues {
 
         private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[1], 1);
         private final ValueIter valueIter = new ValueIter();
-        private final Proc proc = new Proc();
 
         public StringBased(StringValues values) {
             super(values.isMultiValued());
@@ -238,28 +235,8 @@ public abstract class  BytesValues {
         }
 
         @Override
-        public BytesRefArrayRef getValues(int docId) {
-            StringArrayRef arrayRef = values.getValues(docId);
-            int size = arrayRef.size();
-            if (size == 0) {
-                return BytesRefArrayRef.EMPTY;
-            }
-            arrayScratch.reset(size);
-            for (int i = arrayRef.start; i < arrayRef.end; i++) {
-                String value = arrayRef.values[i];
-                arrayScratch.values[arrayScratch.end++] = value == null ? null : new BytesRef(value);
-            }
-            return arrayScratch;
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return valueIter.reset(values.getIter(docId));
-        }
-
-        @Override
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            values.forEachValueInDoc(docId, this.proc.reset(proc));
         }
 
         public  static class ValueIter implements Iter {
@@ -282,29 +259,13 @@ public abstract class  BytesValues {
                 scratch.copyChars(iter.next());
                 return scratch;
             }
-        }
-
-        public static class Proc implements StringValues.ValueInDocProc {
-
-            private final BytesRef scratch = new BytesRef();
-            private BytesValues.ValueInDocProc proc;
-
-            public Proc reset(BytesValues.ValueInDocProc proc) {
-                this.proc = proc;
-                return this;
-            }
 
             @Override
-            public void onValue(int docId, String value) {
-                scratch.copyChars(value);
-                proc.onValue(docId, scratch);
-            }
-
-            @Override
-            public void onMissing(int docId) {
-                proc.onMissing(docId);
+            public int hash() {
+                return scratch.hashCode();
             }
         }
+
     }
 
     /**
@@ -327,6 +288,17 @@ public abstract class  BytesValues {
         public BytesRef getValueByOrd(int ord) {
             return getValueScratchByOrd(ord, scratch);
         }
+        
+        protected Iter.Multi newMultiIter() {
+            assert this.isMultiValued();
+            return new Iter.Multi(this);
+        }
+        
+        protected Iter.Single newSingleIter() {
+            assert !this.isMultiValued();
+            return new Iter.Single();
+        }
+
 
         @Override
         public boolean hasValue(int docId) {
@@ -334,59 +306,11 @@ public abstract class  BytesValues {
         }
         
         @Override
-        public BytesRefArrayRef getValues(int docId) {
-            assert !isMultiValued();
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) return BytesRefArrayRef.EMPTY;
-            arrayScratch.values[0] = getSafeValueByOrd(ord);
-            arrayScratch.end = 1;
-            arrayScratch.start = 0;
-            return arrayScratch;
-        }
-        
-        @Override
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            assert !isMultiValued();
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) {
-                proc.onMissing(docId);
-            } else {
-                proc.onValue(docId, getValue(docId));
-            }
-        }
-        
-        protected BytesRefArrayRef getValuesMulti(int docId) {
-            assert isMultiValued();
-            IntArrayRef ords = ordinals.getOrds(docId);
-            int size = ords.size();
-            if (size == 0) {
-                return BytesRefArrayRef.EMPTY;
-            }
-            arrayScratch.reset(size);
-            for (int i = ords.start; i < ords.end; i++) {
-                arrayScratch.values[arrayScratch.end++] = getValueScratchByOrd(ords.values[i], new BytesRef());
-            }
-            return arrayScratch;
-        }
-
-        protected void forEachValueInDocMulti(int docId, ValueInDocProc proc) {
-            assert isMultiValued();
-            Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-            int ord = iter.next();
-            if (ord == 0) {
-                proc.onMissing(docId);
-                return;
-            }
-            do {
-                getValueScratchByOrd(ord, scratch);
-                proc.onValue(docId, scratch);
-            } while ((ord = iter.next()) != 0);
-        }
-
-        @Override
         public BytesRef getValue(int docId) {
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) return null;
+            final int ord = ordinals.getOrd(docId);
+            if (ord == 0)  {
+                return null;
+            }
             return getValueScratchByOrd(ord, scratch);
         }
         
@@ -413,29 +337,9 @@ public abstract class  BytesValues {
             }
 
             @Override
-            public BytesRef getValueByOrd(int ord) {
-                return null;
-            }
-
-            @Override
             public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
                 ret.length = 0;
                 return ret;
-            }
-
-            @Override
-            public BytesRef getSafeValueByOrd(int ord) {
-                return null;
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return false;
-            }
-
-            @Override
-            public BytesRefArrayRef getValues(int docId) {
-                return BytesRefArrayRef.EMPTY;
             }
 
             @Override
@@ -443,16 +347,6 @@ public abstract class  BytesValues {
                 return Iter.Empty.INSTANCE;
             }
 
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                proc.onMissing(docId);
-            }
-
-            @Override
-            public BytesRef getValueScratch(int docId, BytesRef ret) {
-                ret.length = 0;
-                return ret;
-            }
         }
     }
 }

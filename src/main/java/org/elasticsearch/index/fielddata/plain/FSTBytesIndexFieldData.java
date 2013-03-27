@@ -47,17 +47,17 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  */
-public class FSTPackedIndexFieldData extends AbstractIndexFieldData<FSTPackedBytesAtomicFieldData> implements IndexFieldData.WithOrdinals<FSTPackedBytesAtomicFieldData> {
+public class FSTBytesIndexFieldData extends AbstractIndexFieldData<FSTBytesAtomicFieldData> implements IndexFieldData.WithOrdinals<FSTBytesAtomicFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
         public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
-            return new FSTPackedIndexFieldData(index, indexSettings, fieldNames, type, cache);
+            return new FSTBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
 
-    public FSTPackedIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public FSTBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
     }
 
@@ -67,7 +67,7 @@ public class FSTPackedIndexFieldData extends AbstractIndexFieldData<FSTPackedByt
     }
 
     @Override
-    public FSTPackedBytesAtomicFieldData load(AtomicReaderContext context) {
+    public FSTBytesAtomicFieldData load(AtomicReaderContext context) {
         try {
             return cache.load(context, this);
         } catch (Throwable e) {
@@ -80,12 +80,12 @@ public class FSTPackedIndexFieldData extends AbstractIndexFieldData<FSTPackedByt
     }
 
     @Override
-    public FSTPackedBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public FSTBytesAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
-            return FSTPackedBytesAtomicFieldData.empty(reader.maxDoc());
+            return FSTBytesAtomicFieldData.empty(reader.maxDoc());
         }
         PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton(true);
         org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<Long>(INPUT_TYPE.BYTE1, outputs);
@@ -111,7 +111,7 @@ public class FSTPackedIndexFieldData extends AbstractIndexFieldData<FSTPackedByt
 
             final Ordinals ordinals = builder.build(fieldDataType.getSettings());
 
-            return new FSTPackedBytesAtomicFieldData(fst, ordinals);
+            return new FSTBytesAtomicFieldData(fst, ordinals);
         } finally {
             builder.close();
         }

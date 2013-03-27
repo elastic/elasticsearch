@@ -112,45 +112,25 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(bytesRef, equalTo(new BytesRef(three())));
 
 
-        BytesRefArrayRef bytesRefArrayRef = bytesValues.getValues(0);
-        assertThat(bytesRefArrayRef.size(), equalTo(1));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(two())));
-
-        bytesRefArrayRef = bytesValues.getValues(1);
-        assertThat(bytesRefArrayRef.size(), equalTo(1));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(one())));
-
-        bytesRefArrayRef = bytesValues.getValues(2);
-        assertThat(bytesRefArrayRef.size(), equalTo(1));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(three())));
-
         BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
         assertThat(bytesValuesIter.hasNext(), equalTo(true));
         assertThat(bytesValuesIter.next(), equalTo(new BytesRef(two())));
         assertThat(bytesValuesIter.hasNext(), equalTo(false));
 
-        bytesValues.forEachValueInDoc(0, new BytesValuesVerifierProc(0).addExpected(two()));
-        bytesValues.forEachValueInDoc(1, new BytesValuesVerifierProc(1).addExpected(one()));
-        bytesValues.forEachValueInDoc(2, new BytesValuesVerifierProc(2).addExpected(three()));
-
-        HashedBytesValues hashedBytesValues = fieldData.getHashedBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(true));
         assertThat(hashedBytesValues.hasValue(1), equalTo(true));
         assertThat(hashedBytesValues.hasValue(2), equalTo(true));
 
-        assertThat(hashedBytesValues.getValue(0), equalTo(new HashedBytesRef(two())));
-        assertThat(hashedBytesValues.getValue(1), equalTo(new HashedBytesRef(one())));
-        assertThat(hashedBytesValues.getValue(2), equalTo(new HashedBytesRef(three())));
+        assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
+        assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(one())));
+        assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
 
-        HashedBytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
+        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(hashedBytesValuesIter.next(), equalTo(new HashedBytesRef(two())));
+        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(two())));
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        hashedBytesValues.forEachValueInDoc(0, new HashedBytesValuesVerifierProc(0).addExpected(two()));
-        hashedBytesValues.forEachValueInDoc(1, new HashedBytesValuesVerifierProc(1).addExpected(one()));
-        hashedBytesValues.forEachValueInDoc(2, new HashedBytesValuesVerifierProc(2).addExpected(three()));
 
         StringValues stringValues = fieldData.getStringValues();
 
@@ -214,6 +194,11 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(topDocs.scoreDocs[1].doc, equalTo(0));
         assertThat(topDocs.scoreDocs[2].doc, equalTo(1));
     }
+    
+    private HashedBytesRef convert(BytesValues values, int doc) {
+        BytesRef ref = new BytesRef();
+        return new HashedBytesRef(ref, values.getValueHashed(doc, ref));
+    }
 
     protected void fillSingleValueWithMissing() throws Exception {
         Document d = new Document();
@@ -262,17 +247,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(bytesRef, equalTo(new BytesRef(three())));
 
 
-        BytesRefArrayRef bytesRefArrayRef = bytesValues.getValues(0);
-        assertThat(bytesRefArrayRef.size(), equalTo(1));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(two())));
-
-        bytesRefArrayRef = bytesValues.getValues(1);
-        assertThat(bytesRefArrayRef.size(), equalTo(0));
-
-        bytesRefArrayRef = bytesValues.getValues(2);
-        assertThat(bytesRefArrayRef.size(), equalTo(1));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(three())));
-
         BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
         assertThat(bytesValuesIter.hasNext(), equalTo(true));
         assertThat(bytesValuesIter.next(), equalTo(new BytesRef(two())));
@@ -281,31 +255,23 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         bytesValuesIter = bytesValues.getIter(1);
         assertThat(bytesValuesIter.hasNext(), equalTo(false));
 
-        bytesValues.forEachValueInDoc(0, new BytesValuesVerifierProc(0).addExpected(two()));
-        bytesValues.forEachValueInDoc(1, new BytesValuesVerifierProc(1).addMissing());
-        bytesValues.forEachValueInDoc(2, new BytesValuesVerifierProc(2).addExpected(three()));
-
-        HashedBytesValues hashedBytesValues = fieldData.getHashedBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(true));
         assertThat(hashedBytesValues.hasValue(1), equalTo(false));
         assertThat(hashedBytesValues.hasValue(2), equalTo(true));
 
-        assertThat(hashedBytesValues.getValue(0), equalTo(new HashedBytesRef(two())));
-        assertThat(hashedBytesValues.getValue(1), nullValue());
-        assertThat(hashedBytesValues.getValue(2), equalTo(new HashedBytesRef(three())));
+        assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
+        assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(new BytesRef())));
+        assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
 
-        HashedBytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
+        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(hashedBytesValuesIter.next(), equalTo(new HashedBytesRef(two())));
+        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(two())));
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
 
         hashedBytesValuesIter = hashedBytesValues.getIter(1);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        hashedBytesValues.forEachValueInDoc(0, new HashedBytesValuesVerifierProc(0).addExpected(two()));
-        hashedBytesValues.forEachValueInDoc(1, new HashedBytesValuesVerifierProc(1).addMissing());
-        hashedBytesValues.forEachValueInDoc(2, new HashedBytesValuesVerifierProc(2).addExpected(three()));
 
         StringValues stringValues = fieldData.getStringValues();
 
@@ -397,19 +363,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(bytesRef, equalTo(new BytesRef(three())));
 
 
-        BytesRefArrayRef bytesRefArrayRef = bytesValues.getValues(0);
-        assertThat(bytesRefArrayRef.size(), equalTo(2));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(two())));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start + 1], equalTo(new BytesRef(four())));
-
-        bytesRefArrayRef = bytesValues.getValues(1);
-        assertThat(bytesRefArrayRef.size(), equalTo(1));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(one())));
-
-        bytesRefArrayRef = bytesValues.getValues(2);
-        assertThat(bytesRefArrayRef.size(), equalTo(1));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(three())));
-
         BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
         assertThat(bytesValuesIter.hasNext(), equalTo(true));
         assertThat(bytesValuesIter.next(), equalTo(new BytesRef(two())));
@@ -417,30 +370,22 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(bytesValuesIter.next(), equalTo(new BytesRef(four())));
         assertThat(bytesValuesIter.hasNext(), equalTo(false));
 
-        bytesValues.forEachValueInDoc(0, new BytesValuesVerifierProc(0).addExpected(two()).addExpected(four()));
-        bytesValues.forEachValueInDoc(1, new BytesValuesVerifierProc(1).addExpected(one()));
-        bytesValues.forEachValueInDoc(2, new BytesValuesVerifierProc(2).addExpected(three()));
-
-        HashedBytesValues hashedBytesValues = fieldData.getHashedBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(true));
         assertThat(hashedBytesValues.hasValue(1), equalTo(true));
         assertThat(hashedBytesValues.hasValue(2), equalTo(true));
 
-        assertThat(hashedBytesValues.getValue(0), equalTo(new HashedBytesRef(two())));
-        assertThat(hashedBytesValues.getValue(1), equalTo(new HashedBytesRef(one())));
-        assertThat(hashedBytesValues.getValue(2), equalTo(new HashedBytesRef(three())));
+        assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
+        assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(one())));
+        assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
 
-        HashedBytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
+        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(hashedBytesValuesIter.next(), equalTo(new HashedBytesRef(two())));
+        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(two())));
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(hashedBytesValuesIter.next(), equalTo(new HashedBytesRef(four())));
+        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(four())));
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        hashedBytesValues.forEachValueInDoc(0, new HashedBytesValuesVerifierProc(0).addExpected(two()).addExpected(four()));
-        hashedBytesValues.forEachValueInDoc(1, new HashedBytesValuesVerifierProc(1).addExpected(one()));
-        hashedBytesValues.forEachValueInDoc(2, new HashedBytesValuesVerifierProc(2).addExpected(three()));
 
         StringValues stringValues = fieldData.getStringValues();
 
@@ -550,18 +495,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(bytesRef, equalTo(new BytesRef(three())));
 
 
-        BytesRefArrayRef bytesRefArrayRef = bytesValues.getValues(0);
-        assertThat(bytesRefArrayRef.size(), equalTo(2));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(two())));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start + 1], equalTo(new BytesRef(four())));
-
-        bytesRefArrayRef = bytesValues.getValues(1);
-        assertThat(bytesRefArrayRef.size(), equalTo(0));
-
-        bytesRefArrayRef = bytesValues.getValues(2);
-        assertThat(bytesRefArrayRef.size(), equalTo(1));
-        assertThat(bytesRefArrayRef.values[bytesRefArrayRef.start], equalTo(new BytesRef(three())));
-
         BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
         assertThat(bytesValuesIter.hasNext(), equalTo(true));
         assertThat(bytesValuesIter.next(), equalTo(new BytesRef(two())));
@@ -572,33 +505,25 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         bytesValuesIter = bytesValues.getIter(1);
         assertThat(bytesValuesIter.hasNext(), equalTo(false));
 
-        bytesValues.forEachValueInDoc(0, new BytesValuesVerifierProc(0).addExpected(two()).addExpected(four()));
-        bytesValues.forEachValueInDoc(1, new BytesValuesVerifierProc(1).addMissing());
-        bytesValues.forEachValueInDoc(2, new BytesValuesVerifierProc(2).addExpected(three()));
-
-        HashedBytesValues hashedBytesValues = fieldData.getHashedBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(true));
         assertThat(hashedBytesValues.hasValue(1), equalTo(false));
         assertThat(hashedBytesValues.hasValue(2), equalTo(true));
 
-        assertThat(hashedBytesValues.getValue(0), equalTo(new HashedBytesRef(two())));
-        assertThat(hashedBytesValues.getValue(1), nullValue());
-        assertThat(hashedBytesValues.getValue(2), equalTo(new HashedBytesRef(three())));
+        assertThat(convert(hashedBytesValues, 0), equalTo(new HashedBytesRef(two())));
+        assertThat(convert(hashedBytesValues, 1), equalTo(new HashedBytesRef(new BytesRef())));
+        assertThat(convert(hashedBytesValues, 2), equalTo(new HashedBytesRef(three())));
 
-        HashedBytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
+        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(hashedBytesValuesIter.next(), equalTo(new HashedBytesRef(two())));
+        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(two())));
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
-        assertThat(hashedBytesValuesIter.next(), equalTo(new HashedBytesRef(four())));
+        assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(four())));
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
 
         hashedBytesValuesIter = hashedBytesValues.getIter(1);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        hashedBytesValues.forEachValueInDoc(0, new HashedBytesValuesVerifierProc(0).addExpected(two()).addExpected(four()));
-        hashedBytesValues.forEachValueInDoc(1, new HashedBytesValuesVerifierProc(1).addMissing());
-        hashedBytesValues.forEachValueInDoc(2, new HashedBytesValuesVerifierProc(2).addExpected(three()));
 
         StringValues stringValues = fieldData.getStringValues();
 
@@ -670,16 +595,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(bytesValues.getValueScratch(2, bytesRef), equalTo(new BytesRef()));
         assertThat(bytesRef, equalTo(new BytesRef()));
 
-
-        BytesRefArrayRef bytesRefArrayRef = bytesValues.getValues(0);
-        assertThat(bytesRefArrayRef.size(), equalTo(0));
-
-        bytesRefArrayRef = bytesValues.getValues(1);
-        assertThat(bytesRefArrayRef.size(), equalTo(0));
-
-        bytesRefArrayRef = bytesValues.getValues(2);
-        assertThat(bytesRefArrayRef.size(), equalTo(0));
-
         BytesValues.Iter bytesValuesIter = bytesValues.getIter(0);
         assertThat(bytesValuesIter.hasNext(), equalTo(false));
 
@@ -689,11 +604,7 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         bytesValuesIter = bytesValues.getIter(2);
         assertThat(bytesValuesIter.hasNext(), equalTo(false));
 
-        bytesValues.forEachValueInDoc(0, new BytesValuesVerifierProc(0).addMissing());
-        bytesValues.forEachValueInDoc(1, new BytesValuesVerifierProc(1).addMissing());
-        bytesValues.forEachValueInDoc(2, new BytesValuesVerifierProc(2).addMissing());
-
-        HashedBytesValues hashedBytesValues = fieldData.getHashedBytesValues();
+        BytesValues hashedBytesValues = fieldData.getBytesValues();
 
         assertThat(hashedBytesValues.hasValue(0), equalTo(false));
         assertThat(hashedBytesValues.hasValue(1), equalTo(false));
@@ -703,7 +614,7 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(hashedBytesValues.getValue(1), nullValue());
         assertThat(hashedBytesValues.getValue(2), nullValue());
 
-        HashedBytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
+        BytesValues.Iter hashedBytesValuesIter = hashedBytesValues.getIter(0);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
 
         hashedBytesValuesIter = hashedBytesValues.getIter(1);
@@ -711,10 +622,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
 
         hashedBytesValuesIter = hashedBytesValues.getIter(2);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        hashedBytesValues.forEachValueInDoc(0, new HashedBytesValuesVerifierProc(0).addMissing());
-        hashedBytesValues.forEachValueInDoc(1, new HashedBytesValuesVerifierProc(1).addMissing());
-        hashedBytesValues.forEachValueInDoc(2, new HashedBytesValuesVerifierProc(2).addMissing());
 
         StringValues stringValues = fieldData.getStringValues();
 

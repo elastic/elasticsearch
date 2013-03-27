@@ -31,7 +31,7 @@ import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
-public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPointFieldData {
+public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointFieldData {
 
     public static final GeoPointDoubleArrayAtomicFieldData EMPTY = new Empty();
 
@@ -88,11 +88,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
         }
 
         @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return HashedBytesValues.EMPTY;
-        }
-
-        @Override
         public GeoPointValues getGeoPointValues() {
             return GeoPointValues.EMPTY;
         }
@@ -138,11 +133,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
         @Override
         public BytesValues getBytesValues() {
             return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
         }
 
         @Override
@@ -467,11 +457,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
         }
 
         @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
-        }
-
-        @Override
         public StringValues getStringValues() {
             return new StringValues(lon, lat, set);
         }
@@ -675,11 +660,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
         @Override
         public BytesValues getBytesValues() {
             return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
         }
 
         @Override

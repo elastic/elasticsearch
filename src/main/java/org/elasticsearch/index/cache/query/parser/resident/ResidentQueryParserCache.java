@@ -21,7 +21,6 @@ package org.elasticsearch.index.cache.query.parser.resident;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
@@ -69,7 +68,9 @@ public class ResidentQueryParserCache extends AbstractIndexComponent implements 
 
     @Override
     public void put(QueryParserSettings queryString, Query query) {
-        cache.put(queryString, query);
+        if (queryString.isCacheable()) {
+            cache.put(queryString, query);
+        }
     }
 
     @Override

@@ -178,9 +178,9 @@ public class FacetPhase implements SearchPhase {
             for (Map.Entry<Filter, List<Collector>> entry : filtersByCollector.entrySet()) {
                 Filter filter = entry.getKey();
                 Query query = new XConstantScoreQuery(filter);
-                Filter searchFilter = context.mapperService().searchFilter(context.types());
+                Filter searchFilter = context.searchFilter(context.types());
                 if (searchFilter != null) {
-                    query = new XFilteredQuery(query, context.filterCache().cache(searchFilter));
+                    query = new XFilteredQuery(query, searchFilter);
                 }
                 try {
                     context.searcher().search(query, MultiCollector.wrap(entry.getValue().toArray(new Collector[entry.getValue().size()])));

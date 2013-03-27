@@ -29,7 +29,7 @@ import org.elasticsearch.index.fielddata.util.LongArrayRef;
 
 /**
  */
-public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldData {
+public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
     public static final FloatArrayAtomicFieldData EMPTY = new Empty();
 
@@ -89,11 +89,6 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
         }
 
         @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return HashedBytesValues.EMPTY;
-        }
-
-        @Override
         public StringValues getStringValues() {
             return StringValues.EMPTY;
         }
@@ -129,16 +124,6 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
                 size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_FLOAT) + ordinals.getMemorySizeInBytes();
             }
             return size;
-        }
-
-        @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
         }
 
         @Override
@@ -404,11 +389,6 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
         }
 
         @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
-        }
-
-        @Override
         public StringValues getStringValues() {
             return new StringValues.DoubleBased(getDoubleValues());
         }
@@ -597,11 +577,6 @@ public abstract class FloatArrayAtomicFieldData implements AtomicNumericFieldDat
         @Override
         public BytesValues getBytesValues() {
             return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
         }
 
         @Override

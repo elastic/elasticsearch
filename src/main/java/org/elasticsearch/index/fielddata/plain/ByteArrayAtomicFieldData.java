@@ -29,7 +29,7 @@ import org.elasticsearch.index.fielddata.util.LongArrayRef;
 
 /**
  */
-public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData {
+public abstract class ByteArrayAtomicFieldData extends AtomicNumericFieldData {
 
     public static final ByteArrayAtomicFieldData EMPTY = new Empty();
 
@@ -90,11 +90,6 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
         }
 
         @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return HashedBytesValues.EMPTY;
-        }
-
-        @Override
         public StringValues getStringValues() {
             return StringValues.EMPTY;
         }
@@ -131,27 +126,10 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
             }
             return size;
         }
-
-        @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.BytesBased(getBytesValues());
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues.LongBased(getLongValues());
-        }
-
         @Override
         public ScriptDocValues getScriptValues() {
             return new ScriptDocValues.NumericLong(getLongValues());
         }
-
         @Override
         public LongValues getLongValues() {
             return new LongValues(values, ordinals.ordinals());
@@ -404,10 +382,6 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
             return new BytesValues.StringBased(getStringValues());
         }
 
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.BytesBased(getBytesValues());
-        }
 
         @Override
         public StringValues getStringValues() {
@@ -598,11 +572,6 @@ public abstract class ByteArrayAtomicFieldData implements AtomicNumericFieldData
         @Override
         public BytesValues getBytesValues() {
             return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
         }
 
         @Override

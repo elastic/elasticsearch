@@ -21,8 +21,20 @@ package org.elasticsearch.index.fielddata;
 
 /**
  */
-public interface AtomicGeoPointFieldData<Script extends ScriptDocValues> extends AtomicFieldData<Script> {
+public abstract class AtomicGeoPointFieldData<Script extends ScriptDocValues> implements AtomicFieldData<Script> {
 
-    GeoPointValues getGeoPointValues();
+    public abstract GeoPointValues getGeoPointValues();
+    
+    @Override
+    public BytesValues getBytesValues() {
+        return new BytesValues.StringBased(getStringValues());
+    }
+
+    @Override
+    public BytesValues getHashedBytesValues() {
+        return getBytesValues();
+    }
+    
+    
 
 }

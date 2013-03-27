@@ -21,10 +21,27 @@ package org.elasticsearch.index.fielddata;
 
 /**
  */
-public interface AtomicNumericFieldData<Script extends ScriptDocValues> extends AtomicFieldData<Script> {
+public abstract class AtomicNumericFieldData<Script extends ScriptDocValues> implements AtomicFieldData<Script> {
 
-    LongValues getLongValues();
+    public abstract LongValues getLongValues();
 
-    DoubleValues getDoubleValues();
+    public abstract DoubleValues getDoubleValues();
+
+
+    @Override
+    public BytesValues getHashedBytesValues() {
+        return getBytesValues();
+    }
+    
+    @Override
+    public BytesValues getBytesValues() {
+        return new BytesValues.StringBased(getStringValues());
+    }
+
+    @Override
+    public StringValues getStringValues() {
+        return new StringValues.LongBased(getLongValues());
+    }
+
 
 }

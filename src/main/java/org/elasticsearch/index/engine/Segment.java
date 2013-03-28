@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -35,6 +36,8 @@ public class Segment implements Streamable {
     public long sizeInBytes = -1;
     public int docCount = -1;
     public int delDocCount = -1;
+    public String version = null;
+    public Boolean compound = null;
 
     Segment() {
     }
@@ -44,68 +47,45 @@ public class Segment implements Streamable {
         this.generation = Long.parseLong(name.substring(1), Character.MAX_RADIX);
     }
 
-    public String name() {
-        return this.name;
-    }
-
     public String getName() {
-        return name();
-    }
-
-    public long generation() {
-        return this.generation;
+        return this.name;
     }
 
     public long getGeneration() {
         return this.generation;
     }
 
-    public boolean committed() {
-        return this.committed;
-    }
-
     public boolean isCommitted() {
         return this.committed;
-    }
-
-    public boolean search() {
-        return this.search;
     }
 
     public boolean isSearch() {
         return this.search;
     }
 
-    public int numDocs() {
-        return this.docCount;
-    }
-
     public int getNumDocs() {
         return this.docCount;
-    }
-
-    public int deletedDocs() {
-        return this.delDocCount;
     }
 
     public int getDeletedDocs() {
         return this.delDocCount;
     }
 
-    public ByteSizeValue size() {
+    public ByteSizeValue getSize() {
         return new ByteSizeValue(sizeInBytes);
     }
 
-    public ByteSizeValue getSize() {
-        return size();
-    }
-
-    public long sizeInBytes() {
-        return sizeInBytes;
-    }
-
     public long getSizeInBytes() {
-        return sizeInBytes();
+        return this.sizeInBytes;
+    }
+
+    public String getVersion() {
+        return version;
+    }
+
+    @Nullable
+    public Boolean isCompound() {
+        return compound;
     }
 
     @Override
@@ -140,6 +120,8 @@ public class Segment implements Streamable {
         docCount = in.readInt();
         delDocCount = in.readInt();
         sizeInBytes = in.readLong();
+        version = in.readOptionalString();
+        compound = in.readOptionalBoolean();
     }
 
     @Override
@@ -150,5 +132,7 @@ public class Segment implements Streamable {
         out.writeInt(docCount);
         out.writeInt(delDocCount);
         out.writeLong(sizeInBytes);
+        out.writeOptionalString(version);
+        out.writeOptionalBoolean(compound);
     }
 }

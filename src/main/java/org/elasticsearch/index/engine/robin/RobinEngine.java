@@ -21,13 +21,11 @@ package org.elasticsearch.index.engine.robin;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.*;
-import org.apache.lucene.index.SegmentInfos.FindSegmentsFile;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
@@ -65,7 +63,6 @@ import org.elasticsearch.indices.warmer.IndicesWarmer;
 import org.elasticsearch.indices.warmer.InternalIndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -1176,6 +1173,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     segment.search = true;
                     segment.docCount = reader.reader().numDocs();
                     segment.delDocCount = reader.reader().numDeletedDocs();
+                    segment.version = info.info.getVersion();
+                    segment.compound = info.info.getUseCompoundFile();
                     try {
                         segment.sizeInBytes = info.sizeInBytes();
                     } catch (IOException e) {
@@ -1198,6 +1197,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                         segment.committed = true;
                         segment.docCount = info.info.getDocCount();
                         segment.delDocCount = info.getDelCount();
+                        segment.version = info.info.getVersion();
+                        segment.compound = info.info.getUseCompoundFile();
                         try {
                             segment.sizeInBytes = info.sizeInBytes();
                         } catch (IOException e) {
@@ -1214,7 +1215,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             Arrays.sort(segmentsArr, new Comparator<Segment>() {
                 @Override
                 public int compare(Segment o1, Segment o2) {
-                    return (int) (o1.generation() - o2.generation());
+                    return (int) (o1.getGeneration() - o2.getGeneration());
                 }
             });
 
@@ -1341,7 +1342,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
         return indexWriter;
     }
-    
+
     public static final String INDEX_TERM_INDEX_INTERVAL = "index.term_index_interval";
     public static final String INDEX_TERM_INDEX_DIVISOR = "index.term_index_divisor";
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";

@@ -122,14 +122,20 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
 
                     builder.startObject(Fields.SEGMENTS);
                     for (Segment segment : shardSegments) {
-                        builder.startObject(segment.name());
-                        builder.field(Fields.GENERATION, segment.generation());
-                        builder.field(Fields.NUM_DOCS, segment.numDocs());
-                        builder.field(Fields.DELETED_DOCS, segment.deletedDocs());
-                        builder.field(Fields.SIZE, segment.size().toString());
-                        builder.field(Fields.SIZE_IN_BYTES, segment.sizeInBytes());
-                        builder.field(Fields.COMMITTED, segment.committed());
-                        builder.field(Fields.SEARCH, segment.search());
+                        builder.startObject(segment.getName());
+                        builder.field(Fields.GENERATION, segment.getGeneration());
+                        builder.field(Fields.NUM_DOCS, segment.getNumDocs());
+                        builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
+                        builder.field(Fields.SIZE, segment.getSize().toString());
+                        builder.field(Fields.SIZE_IN_BYTES, segment.getSizeInBytes());
+                        builder.field(Fields.COMMITTED, segment.isCommitted());
+                        builder.field(Fields.SEARCH, segment.isSearch());
+                        if (segment.getVersion() != null) {
+                            builder.field(Fields.VERSION, segment.getVersion());
+                        }
+                        if (segment.isCompound() != null) {
+                            builder.field(Fields.COMPOUND, segment.isCompound());
+                        }
                         builder.endObject();
                     }
                     builder.endObject();
@@ -166,5 +172,7 @@ public class IndicesSegmentResponse extends BroadcastOperationResponse implement
         static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
         static final XContentBuilderString COMMITTED = new XContentBuilderString("committed");
         static final XContentBuilderString SEARCH = new XContentBuilderString("search");
+        static final XContentBuilderString VERSION = new XContentBuilderString("version");
+        static final XContentBuilderString COMPOUND = new XContentBuilderString("compound");
     }
 }

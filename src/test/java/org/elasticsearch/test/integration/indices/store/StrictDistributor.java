@@ -17,46 +17,33 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.distributor;
+package org.elasticsearch.test.integration.indices.store;
 
-import jsr166y.ThreadLocalRandom;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.distributor.AbstractDistributor;
 
 import java.io.IOException;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.greaterThan;
+
 /**
- * Implements directory distributor that always return the directory is the most available space
+ *
  */
-public class LeastUsedDistributor extends AbstractDistributor {
+public class StrictDistributor extends AbstractDistributor {
 
     @Inject
-    public LeastUsedDistributor(DirectoryService directoryService) throws IOException {
+    public StrictDistributor(DirectoryService directoryService) throws IOException {
         super(directoryService);
     }
 
     @Override
     public Directory doAny() {
-        Directory directory = null;
-        long size = Long.MIN_VALUE;
-        int sameSize = 0;
         for (Directory delegate : delegates) {
-            long currentSize = getUsableSpace(delegate);
-            if (currentSize > size) {
-                size = currentSize;
-                directory = delegate;
-                sameSize = 1;
-            } else if (currentSize == size) {
-                sameSize++;
-                // Ensure uniform distribution between all directories with the same size
-                if (ThreadLocalRandom.current().nextDouble() < 1.0 / sameSize) {
-                    directory = delegate;
-                }
-            }
+            assertThat(getUsableSpace(delegate), greaterThan(0L));
         }
-
-        return directory;
-
+        return primary();
     }
 }

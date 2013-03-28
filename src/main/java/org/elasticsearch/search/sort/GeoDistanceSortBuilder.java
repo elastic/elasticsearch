@@ -39,6 +39,7 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     private GeoDistance geoDistance;
     private DistanceUnit unit;
     private SortOrder order;
+    private String sortMode;
 
     /**
      * Constructs a new distance based sort on a geo point like field.
@@ -102,6 +103,15 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * Defines which distance to use for sorting in the case a document contains multiple geo points.
+     * Possible values: min and max
+     */
+    public SortBuilder sortMode(String sortMode) {
+        this.sortMode = sortMode;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_geo_distance");
@@ -120,6 +130,9 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         }
         if (order == SortOrder.DESC) {
             builder.field("reverse", true);
+        }
+        if (sortMode != null) {
+            builder.field("mode", sortMode);
         }
 
         builder.endObject();

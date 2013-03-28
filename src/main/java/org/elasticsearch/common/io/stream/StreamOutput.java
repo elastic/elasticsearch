@@ -236,12 +236,21 @@ public abstract class StreamOutput extends OutputStream {
 
     private static byte ZERO = 0;
     private static byte ONE = 1;
+    private static byte TWO = 2;
 
     /**
      * Writes a boolean.
      */
     public void writeBoolean(boolean b) throws IOException {
         writeByte(b ? ONE : ZERO);
+    }
+
+    public void writeOptionalBoolean(@Nullable Boolean b) throws IOException {
+        if (b == null) {
+            writeByte(TWO);
+        } else {
+            writeByte(b ? ONE : ZERO);
+        }
     }
 
     /**

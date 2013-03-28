@@ -185,19 +185,19 @@ public abstract class AbstractSimpleEngineTests {
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(1));
-        assertThat(segments.get(0).committed(), equalTo(false));
-        assertThat(segments.get(0).search(), equalTo(true));
-        assertThat(segments.get(0).numDocs(), equalTo(2));
-        assertThat(segments.get(0).deletedDocs(), equalTo(0));
+        assertThat(segments.get(0).isCommitted(), equalTo(false));
+        assertThat(segments.get(0).isSearch(), equalTo(true));
+        assertThat(segments.get(0).getNumDocs(), equalTo(2));
+        assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
 
         engine.flush(new Engine.Flush());
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(1));
-        assertThat(segments.get(0).committed(), equalTo(true));
-        assertThat(segments.get(0).search(), equalTo(true));
-        assertThat(segments.get(0).numDocs(), equalTo(2));
-        assertThat(segments.get(0).deletedDocs(), equalTo(0));
+        assertThat(segments.get(0).isCommitted(), equalTo(true));
+        assertThat(segments.get(0).isSearch(), equalTo(true));
+        assertThat(segments.get(0).getNumDocs(), equalTo(2));
+        assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
 
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
@@ -206,32 +206,32 @@ public abstract class AbstractSimpleEngineTests {
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(2));
-        assertThat(segments.get(0).generation() < segments.get(1).generation(), equalTo(true));
-        assertThat(segments.get(0).committed(), equalTo(true));
-        assertThat(segments.get(0).search(), equalTo(true));
-        assertThat(segments.get(0).numDocs(), equalTo(2));
-        assertThat(segments.get(0).deletedDocs(), equalTo(0));
+        assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+        assertThat(segments.get(0).isCommitted(), equalTo(true));
+        assertThat(segments.get(0).isSearch(), equalTo(true));
+        assertThat(segments.get(0).getNumDocs(), equalTo(2));
+        assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
 
-        assertThat(segments.get(1).committed(), equalTo(false));
-        assertThat(segments.get(1).search(), equalTo(true));
-        assertThat(segments.get(1).numDocs(), equalTo(1));
-        assertThat(segments.get(1).deletedDocs(), equalTo(0));
+        assertThat(segments.get(1).isCommitted(), equalTo(false));
+        assertThat(segments.get(1).isSearch(), equalTo(true));
+        assertThat(segments.get(1).getNumDocs(), equalTo(1));
+        assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
 
         engine.delete(new Engine.Delete("test", "1", newUid("1")));
         engine.refresh(new Engine.Refresh(true));
 
         segments = engine.segments();
         assertThat(segments.size(), equalTo(2));
-        assertThat(segments.get(0).generation() < segments.get(1).generation(), equalTo(true));
-        assertThat(segments.get(0).committed(), equalTo(true));
-        assertThat(segments.get(0).search(), equalTo(true));
-        assertThat(segments.get(0).numDocs(), equalTo(1));
-        assertThat(segments.get(0).deletedDocs(), equalTo(1));
+        assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
+        assertThat(segments.get(0).isCommitted(), equalTo(true));
+        assertThat(segments.get(0).isSearch(), equalTo(true));
+        assertThat(segments.get(0).getNumDocs(), equalTo(1));
+        assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
 
-        assertThat(segments.get(1).committed(), equalTo(false));
-        assertThat(segments.get(1).search(), equalTo(true));
-        assertThat(segments.get(1).numDocs(), equalTo(1));
-        assertThat(segments.get(1).deletedDocs(), equalTo(0));
+        assertThat(segments.get(1).isCommitted(), equalTo(false));
+        assertThat(segments.get(1).isSearch(), equalTo(true));
+        assertThat(segments.get(1).getNumDocs(), equalTo(1));
+        assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
     }
 
     @Test

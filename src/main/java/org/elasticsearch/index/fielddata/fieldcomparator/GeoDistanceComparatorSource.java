@@ -37,13 +37,15 @@ public class GeoDistanceComparatorSource extends IndexFieldData.XFieldComparator
     private final double lon;
     private final DistanceUnit unit;
     private final GeoDistance geoDistance;
+    private final SortMode sortMode;
 
-    public GeoDistanceComparatorSource(IndexGeoPointFieldData<?> indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance) {
+    public GeoDistanceComparatorSource(IndexGeoPointFieldData<?> indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.lat = lat;
         this.lon = lon;
         this.unit = unit;
         this.geoDistance = geoDistance;
+        this.sortMode = sortMode;
     }
 
     @Override
@@ -54,7 +56,6 @@ public class GeoDistanceComparatorSource extends IndexFieldData.XFieldComparator
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
         assert indexFieldData.getFieldNames().indexName().equals(fieldname);
-        // TODO support multi value?
-        return new GeoDistanceComparator(numHits, indexFieldData, lat, lon, unit, geoDistance);
+        return new GeoDistanceComparator(numHits, indexFieldData, lat, lon, unit, geoDistance, sortMode);
     }
 }

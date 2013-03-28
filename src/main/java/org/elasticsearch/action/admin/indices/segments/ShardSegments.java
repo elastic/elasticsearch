@@ -64,7 +64,7 @@ public class ShardSegments extends BroadcastShardOperationResponse implements It
     public int getNumberOfCommitted() {
         int count = 0;
         for (Segment segment : segments) {
-            if (segment.committed()) {
+            if (segment.isCommitted()) {
                 count++;
             }
         }
@@ -74,7 +74,7 @@ public class ShardSegments extends BroadcastShardOperationResponse implements It
     public int getNumberOfSearch() {
         int count = 0;
         for (Segment segment : segments) {
-            if (segment.search()) {
+            if (segment.isSearch()) {
                 count++;
             }
         }

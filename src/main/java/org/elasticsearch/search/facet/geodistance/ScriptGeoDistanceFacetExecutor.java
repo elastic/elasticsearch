@@ -19,17 +19,16 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
+import java.io.IOException;
+import java.util.Map;
+
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
-import java.util.Map;
 
 /**
  *
@@ -47,16 +46,17 @@ public class ScriptGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
 
     @Override
     public Collector collector() {
-        return new Collector();
+        return new Collector(new ScriptAggregator(fixedSourceDistance, entries, script));
     }
 
     class Collector extends GeoDistanceFacetExecutor.Collector {
 
-        private Aggregator scriptAggregator;
 
-        Collector() {
-            this.aggregator = new Aggregator(fixedSourceDistance, entries);
-            this.scriptAggregator = (Aggregator) this.aggregator;
+        private ScriptAggregator scriptAggregator;
+
+        Collector(ScriptAggregator aggregator) {
+            super(aggregator);
+            this.scriptAggregator = aggregator;
         }
 
         @Override
@@ -73,48 +73,32 @@ public class ScriptGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
         @Override
         public void collect(int doc) throws IOException {
             script.setNextDocId(doc);
-            this.scriptAggregator.scriptValue = script.runAsDouble();
+            scriptAggregator.scriptValue = script.runAsDouble();
             super.collect(doc);
         }
     }
 
-    public static class Aggregator implements GeoPointValues.LatLonValueInDocProc {
+    public final static class ScriptAggregator extends GeoDistanceFacetExecutor.Aggregator{
 
-        private final GeoDistance.FixedSourceDistance fixedSourceDistance;
+        private double scriptValue;
 
-        private final GeoDistanceFacet.Entry[] entries;
-
-        double scriptValue;
-
-        public Aggregator(GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistanceFacet.Entry[] entries) {
-            this.fixedSourceDistance = fixedSourceDistance;
-            this.entries = entries;
+        public ScriptAggregator(GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistanceFacet.Entry[] entries, SearchScript script) {
+            super(fixedSourceDistance, entries);
         }
-
+        
         @Override
-        public void onMissing(int docId) {
-        }
-
-        @Override
-        public void onValue(int docId, double lat, double lon) {
-            double distance = fixedSourceDistance.calculate(lat, lon);
-            for (GeoDistanceFacet.Entry entry : entries) {
-                if (entry.foundInDoc) {
-                    continue;
-                }
-                if (distance >= entry.getFrom() && distance < entry.getTo()) {
-                    entry.foundInDoc = true;
-                    entry.count++;
-                    entry.totalCount++;
-                    entry.total += scriptValue;
-                    if (scriptValue < entry.min) {
-                        entry.min = scriptValue;
-                    }
-                    if (scriptValue > entry.max) {
-                        entry.max = scriptValue;
-                    }
-                }
+        protected void collectGeoPoint(GeoDistanceFacet.Entry entry, int docId, double distance) {
+            final double scriptValue = this.scriptValue;
+            entry.count++;
+            entry.totalCount++;
+            entry.total += scriptValue;
+            if (scriptValue < entry.min) {
+                entry.min = scriptValue;
+            }
+            if (scriptValue > entry.max) {
+                entry.max = scriptValue;
             }
         }
+       
     }
 }

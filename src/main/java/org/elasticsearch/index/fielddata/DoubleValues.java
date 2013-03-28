@@ -44,8 +44,6 @@ public interface DoubleValues {
 
     double getValueMissing(int docId, double missingValue);
 
-    DoubleArrayRef getValues(int docId);
-
     Iter getIter(int docId);
 
     void forEachValueInDoc(int docId, ValueInDocProc proc);
@@ -124,11 +122,6 @@ public interface DoubleValues {
         }
 
         @Override
-        public DoubleArrayRef getValues(int docId) {
-            return DoubleArrayRef.EMPTY;
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return Iter.Empty.INSTANCE;
         }
@@ -142,7 +135,6 @@ public interface DoubleValues {
     public static class LongBased implements DoubleValues {
 
         private final LongValues values;
-        private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
         private final ValueIter iter = new ValueIter();
         private final Proc proc = new Proc();
 
@@ -171,20 +163,6 @@ public interface DoubleValues {
                 return missingValue;
             }
             return getValue(docId);
-        }
-
-        @Override
-        public DoubleArrayRef getValues(int docId) {
-            LongArrayRef arrayRef = values.getValues(docId);
-            int size = arrayRef.size();
-            if (size == 0) {
-                return DoubleArrayRef.EMPTY;
-            }
-            arrayScratch.reset(size);
-            for (int i = arrayRef.start; i < arrayRef.end; i++) {
-                arrayScratch.values[arrayScratch.end++] = (double) arrayRef.values[i];
-            }
-            return arrayScratch;
         }
 
         @Override
@@ -261,10 +239,6 @@ public interface DoubleValues {
 
         public double getValueMissing(int docId, double missingValue) {
             return delegate.getValueMissing(docId, missingValue);
-        }
-
-        public DoubleArrayRef getValues(int docId) {
-            return delegate.getValues(docId);
         }
 
         public Iter getIter(int docId) {

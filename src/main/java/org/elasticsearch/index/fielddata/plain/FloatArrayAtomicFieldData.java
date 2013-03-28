@@ -150,8 +150,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
             private final float[] values;
             private final Ordinals.Docs ordinals;
-
-            private final LongArrayRef arrayScratch = new LongArrayRef(new long[1], 1);
             private final ValuesIter iter;
 
             LongValues(float[] values, Ordinals.Docs ordinals) {
@@ -183,19 +181,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
                 } else {
                     return (long) values[ord];
                 }
-            }
-
-            @Override
-            public LongArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return LongArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    arrayScratch.values[arrayScratch.end++] = (long) values[ords.values[i]];
-                }
-                return arrayScratch;
             }
 
             @Override
@@ -250,8 +235,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
             private final float[] values;
             private final Ordinals.Docs ordinals;
-
-            private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
             private final ValuesIter iter;
 
             DoubleValues(float[] values, Ordinals.Docs ordinals) {
@@ -283,19 +266,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
                 } else {
                     return (double) values[ord];
                 }
-            }
-
-            @Override
-            public DoubleArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return DoubleArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    arrayScratch.values[arrayScratch.end++] = (double) values[ords.values[i]];
-                }
-                return arrayScratch;
             }
 
             @Override
@@ -408,8 +378,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
             private final float[] values;
             private final FixedBitSet set;
-
-            private final LongArrayRef arrayScratch = new LongArrayRef(new long[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             LongValues(float[] values, FixedBitSet set) {
@@ -442,16 +410,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             }
 
             @Override
-            public LongArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0] = (long) values[docId];
-                    return arrayScratch;
-                } else {
-                    return LongArrayRef.EMPTY;
-                }
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 if (set.get(docId)) {
                     return iter.reset((long) values[docId]);
@@ -474,8 +432,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
             private final float[] values;
             private final FixedBitSet set;
-
-            private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             DoubleValues(float[] values, FixedBitSet set) {
@@ -504,16 +460,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
                     return (double) values[docId];
                 } else {
                     return missingValue;
-                }
-            }
-
-            @Override
-            public DoubleArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0] = (double) values[docId];
-                    return arrayScratch;
-                } else {
-                    return DoubleArrayRef.EMPTY;
                 }
             }
 
@@ -598,8 +544,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
 
             private final float[] values;
-
-            private final LongArrayRef arrayScratch = new LongArrayRef(new long[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             LongValues(float[] values) {
@@ -627,12 +571,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             }
 
             @Override
-            public LongArrayRef getValues(int docId) {
-                arrayScratch.values[0] = (long) values[docId];
-                return arrayScratch;
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 return iter.reset((long) values[docId]);
             }
@@ -646,8 +584,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         static class DoubleValues implements org.elasticsearch.index.fielddata.DoubleValues {
 
             private final float[] values;
-
-            private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             DoubleValues(float[] values) {
@@ -672,12 +608,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             @Override
             public double getValueMissing(int docId, double missingValue) {
                 return (double) values[docId];
-            }
-
-            @Override
-            public DoubleArrayRef getValues(int docId) {
-                arrayScratch.values[0] = (double) values[docId];
-                return arrayScratch;
             }
 
             @Override

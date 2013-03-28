@@ -73,9 +73,6 @@ public interface ScriptDocValues {
             return values.getValue(docId);
         }
 
-        public StringArrayRef getValues() {
-            return values.getValues(docId);
-        }
     }
 
 
@@ -109,11 +106,7 @@ public interface ScriptDocValues {
             return date;
         }
 
-        public LongArrayRef getValues() {
-            return values.getValues(docId);
-        }
     }
-
     static class NumericDouble implements ScriptDocValues {
 
         private final DoubleValues values;
@@ -135,10 +128,6 @@ public interface ScriptDocValues {
 
         public double getValue() {
             return values.getValue(docId);
-        }
-
-        public DoubleArrayRef getValues() {
-            return values.getValues(docId);
         }
     }
 
@@ -163,10 +152,6 @@ public interface ScriptDocValues {
 
         public GeoPoint getValue() {
             return values.getValue(docId);
-        }
-
-        public GeoPointArrayRef getValues() {
-            return values.getValues(docId);
         }
 
         public double factorDistance(double lat, double lon) {

@@ -142,19 +142,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(stringValues.getValue(1), equalTo(one()));
         assertThat(stringValues.getValue(2), equalTo(three()));
 
-        StringArrayRef stringArrayRef;
-        stringArrayRef = stringValues.getValues(0);
-        assertThat(stringArrayRef.size(), equalTo(1));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(two()));
-
-        stringArrayRef = stringValues.getValues(1);
-        assertThat(stringArrayRef.size(), equalTo(1));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(one()));
-
-        stringArrayRef = stringValues.getValues(2);
-        assertThat(stringArrayRef.size(), equalTo(1));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(three()));
-
         StringValues.Iter stringValuesIter = stringValues.getIter(0);
         assertThat(stringValuesIter.hasNext(), equalTo(true));
         assertThat(stringValuesIter.next(), equalTo(two()));
@@ -283,18 +270,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(stringValues.getValue(1), nullValue());
         assertThat(stringValues.getValue(2), equalTo(three()));
 
-        StringArrayRef stringArrayRef;
-        stringArrayRef = stringValues.getValues(0);
-        assertThat(stringArrayRef.size(), equalTo(1));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(two()));
-
-        stringArrayRef = stringValues.getValues(1);
-        assertThat(stringArrayRef.size(), equalTo(0));
-
-        stringArrayRef = stringValues.getValues(2);
-        assertThat(stringArrayRef.size(), equalTo(1));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(three()));
-
         StringValues.Iter stringValuesIter = stringValues.getIter(0);
         assertThat(stringValuesIter.hasNext(), equalTo(true));
         assertThat(stringValuesIter.next(), equalTo(two()));
@@ -397,19 +372,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(stringValues.getValue(1), equalTo(one()));
         assertThat(stringValues.getValue(2), equalTo(three()));
 
-        StringArrayRef stringArrayRef;
-        stringArrayRef = stringValues.getValues(0);
-        assertThat(stringArrayRef.size(), equalTo(2));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(two()));
-        assertThat(stringArrayRef.values[stringArrayRef.start + 1], equalTo(four()));
-
-        stringArrayRef = stringValues.getValues(1);
-        assertThat(stringArrayRef.size(), equalTo(1));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(one()));
-
-        stringArrayRef = stringValues.getValues(2);
-        assertThat(stringArrayRef.size(), equalTo(1));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(three()));
 
         StringValues.Iter stringValuesIter = stringValues.getIter(0);
         assertThat(stringValuesIter.hasNext(), equalTo(true));
@@ -535,19 +497,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(stringValues.getValue(1), nullValue());
         assertThat(stringValues.getValue(2), equalTo(three()));
 
-        StringArrayRef stringArrayRef;
-        stringArrayRef = stringValues.getValues(0);
-        assertThat(stringArrayRef.size(), equalTo(2));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(two()));
-        assertThat(stringArrayRef.values[stringArrayRef.start + 1], equalTo(four()));
-
-        stringArrayRef = stringValues.getValues(1);
-        assertThat(stringArrayRef.size(), equalTo(0));
-
-        stringArrayRef = stringValues.getValues(2);
-        assertThat(stringArrayRef.size(), equalTo(1));
-        assertThat(stringArrayRef.values[stringArrayRef.start], equalTo(three()));
-
         StringValues.Iter stringValuesIter = stringValues.getIter(0);
         assertThat(stringValuesIter.hasNext(), equalTo(true));
         assertThat(stringValuesIter.next(), equalTo(two()));
@@ -632,16 +581,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(stringValues.getValue(0), nullValue());
         assertThat(stringValues.getValue(1), nullValue());
         assertThat(stringValues.getValue(2), nullValue());
-
-        StringArrayRef stringArrayRef;
-        stringArrayRef = stringValues.getValues(0);
-        assertThat(stringArrayRef.size(), equalTo(0));
-
-        stringArrayRef = stringValues.getValues(1);
-        assertThat(stringArrayRef.size(), equalTo(0));
-
-        stringArrayRef = stringValues.getValues(2);
-        assertThat(stringArrayRef.size(), equalTo(0));
 
         StringValues.Iter stringValuesIter = stringValues.getIter(0);
         assertThat(stringValuesIter.hasNext(), equalTo(false));

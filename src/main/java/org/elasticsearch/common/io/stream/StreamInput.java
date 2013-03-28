@@ -252,6 +252,17 @@ public abstract class StreamInput extends InputStream {
         return readByte() != 0;
     }
 
+    @Nullable
+    public final Boolean readOptionalBoolean() throws IOException {
+        byte val = readByte();
+        if (val == 2) {
+            return null;
+        }
+        if (val == 1) {
+            return true;
+        }
+        return false;
+    }
 
     /**
      * Resets the stream.

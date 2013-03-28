@@ -48,8 +48,6 @@ public interface StringValues {
 
     String getValue(int docId);
 
-    StringArrayRef getValues(int docId);
-
     Iter getIter(int docId);
 
     /**
@@ -127,11 +125,6 @@ public interface StringValues {
         }
 
         @Override
-        public StringArrayRef getValues(int docId) {
-            return StringArrayRef.EMPTY;
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return Iter.Empty.INSTANCE;
         }
@@ -170,19 +163,6 @@ public interface StringValues {
                 return null;
             }
             return Double.toString(values.getValue(docId));
-        }
-
-        @Override
-        public StringArrayRef getValues(int docId) {
-            DoubleArrayRef arrayRef = values.getValues(docId);
-            int size = arrayRef.size();
-            if (size == 0) return StringArrayRef.EMPTY;
-
-            arrayScratch.reset(size);
-            for (int i = arrayRef.start; i < arrayRef.end; i++) {
-                arrayScratch.values[arrayScratch.end++] = Double.toString(arrayRef.values[i]);
-            }
-            return arrayScratch;
         }
 
         @Override
@@ -266,18 +246,6 @@ public interface StringValues {
             return Long.toString(values.getValue(docId));
         }
 
-        @Override
-        public StringArrayRef getValues(int docId) {
-            LongArrayRef arrayRef = values.getValues(docId);
-            int size = arrayRef.size();
-            if (size == 0) return StringArrayRef.EMPTY;
-
-            arrayScratch.reset(size);
-            for (int i = arrayRef.start; i < arrayRef.end; i++) {
-                arrayScratch.values[arrayScratch.end++] = Long.toString(arrayRef.values[i]);
-            }
-            return arrayScratch;
-        }
 
         @Override
         public Iter getIter(int docId) {
@@ -392,15 +360,6 @@ public interface StringValues {
         }
 
         @Override
-        public StringArrayRef getValues(int docId) {
-            assert !isMultiValued();
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) return StringArrayRef.EMPTY;
-            arrayScratch.values[0] =  getValueByOrd(ord);
-            return arrayScratch;
-        }
-
-        @Override
         public void forEachValueInDoc(int docId, ValueInDocProc proc) {
             assert !isMultiValued();
             int ord = ordinals.getOrd(docId);
@@ -443,20 +402,6 @@ public interface StringValues {
     static final class MultiBytesValuesWrapper extends BytesValuesWrapper {
         MultiBytesValuesWrapper(org.elasticsearch.index.fielddata.BytesValues.WithOrdinals delegate) {
             super(delegate);
-        }
-
-        @Override
-        public StringArrayRef getValues(int docId) {
-            assert isMultiValued();
-
-            IntArrayRef ords = ordinals.getOrds(docId);
-            int size = ords.size();
-            if (size == 0) return StringArrayRef.EMPTY;
-            arrayScratch.reset(size);
-            for (int i = ords.start; i < ords.end; i++) {
-                arrayScratch.values[arrayScratch.end++] = getValueByOrd(ords.get(i));
-            }
-            return arrayScratch;
         }
 
         @Override

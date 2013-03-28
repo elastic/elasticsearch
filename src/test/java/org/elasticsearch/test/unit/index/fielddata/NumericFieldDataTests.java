@@ -64,18 +64,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(longValues.getValueMissing(1, -1), equalTo(1l));
         assertThat(longValues.getValueMissing(2, -1), equalTo(3l));
 
-        LongArrayRef longArrayRef = longValues.getValues(0);
-        assertThat(longArrayRef.size(), equalTo(1));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(2l));
-
-        longArrayRef = longValues.getValues(1);
-        assertThat(longArrayRef.size(), equalTo(1));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(1l));
-
-        longArrayRef = longValues.getValues(2);
-        assertThat(longArrayRef.size(), equalTo(1));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(3l));
-
         LongValues.Iter longValuesIter = longValues.getIter(0);
         assertThat(longValuesIter.hasNext(), equalTo(true));
         assertThat(longValuesIter.next(), equalTo(2l));
@@ -110,18 +98,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(doubleValues.getValueMissing(0, -1), equalTo(2d));
         assertThat(doubleValues.getValueMissing(1, -1), equalTo(1d));
         assertThat(doubleValues.getValueMissing(2, -1), equalTo(3d));
-
-        DoubleArrayRef doubleArrayRef = doubleValues.getValues(0);
-        assertThat(doubleArrayRef.size(), equalTo(1));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(2d));
-
-        doubleArrayRef = doubleValues.getValues(1);
-        assertThat(doubleArrayRef.size(), equalTo(1));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(1d));
-
-        doubleArrayRef = doubleValues.getValues(2);
-        assertThat(doubleArrayRef.size(), equalTo(1));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(3d));
 
         DoubleValues.Iter doubleValuesIter = doubleValues.getIter(0);
         assertThat(doubleValuesIter.hasNext(), equalTo(true));
@@ -183,17 +159,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(longValues.getValueMissing(1, -1), equalTo(-1l));
         assertThat(longValues.getValueMissing(2, -1), equalTo(3l));
 
-        LongArrayRef longArrayRef = longValues.getValues(0);
-        assertThat(longArrayRef.size(), equalTo(1));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(2l));
-
-        longArrayRef = longValues.getValues(1);
-        assertThat(longArrayRef.size(), equalTo(0));
-
-        longArrayRef = longValues.getValues(2);
-        assertThat(longArrayRef.size(), equalTo(1));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(3l));
-
         LongValues.Iter longValuesIter = longValues.getIter(0);
         assertThat(longValuesIter.hasNext(), equalTo(true));
         assertThat(longValuesIter.next(), equalTo(2l));
@@ -225,17 +190,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(doubleValues.getValueMissing(0, -1), equalTo(2d));
         assertThat(doubleValues.getValueMissing(1, -1), equalTo(-1d));
         assertThat(doubleValues.getValueMissing(2, -1), equalTo(3d));
-
-        DoubleArrayRef doubleArrayRef = doubleValues.getValues(0);
-        assertThat(doubleArrayRef.size(), equalTo(1));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(2d));
-
-        doubleArrayRef = doubleValues.getValues(1);
-        assertThat(doubleArrayRef.size(), equalTo(0));
-
-        doubleArrayRef = doubleValues.getValues(2);
-        assertThat(doubleArrayRef.size(), equalTo(1));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(3d));
 
         DoubleValues.Iter doubleValuesIter = doubleValues.getIter(0);
         assertThat(doubleValuesIter.hasNext(), equalTo(true));
@@ -324,19 +278,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(longValues.getValueMissing(1, -1), equalTo(1l));
         assertThat(longValues.getValueMissing(2, -1), equalTo(3l));
 
-        LongArrayRef longArrayRef = longValues.getValues(0);
-        assertThat(longArrayRef.size(), equalTo(2));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(2l));
-        assertThat(longArrayRef.values[longArrayRef.start + 1], equalTo(4l));
-
-        longArrayRef = longValues.getValues(1);
-        assertThat(longArrayRef.size(), equalTo(1));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(1l));
-
-        longArrayRef = longValues.getValues(2);
-        assertThat(longArrayRef.size(), equalTo(1));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(3l));
-
         LongValues.Iter longValuesIter = longValues.getIter(0);
         assertThat(longValuesIter.hasNext(), equalTo(true));
         assertThat(longValuesIter.next(), equalTo(2l));
@@ -373,19 +314,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(doubleValues.getValueMissing(0, -1), equalTo(2d));
         assertThat(doubleValues.getValueMissing(1, -1), equalTo(1d));
         assertThat(doubleValues.getValueMissing(2, -1), equalTo(3d));
-
-        DoubleArrayRef doubleArrayRef = doubleValues.getValues(0);
-        assertThat(doubleArrayRef.size(), equalTo(2));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(2d));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start + 1], equalTo(4d));
-
-        doubleArrayRef = doubleValues.getValues(1);
-        assertThat(doubleArrayRef.size(), equalTo(1));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(1d));
-
-        doubleArrayRef = doubleValues.getValues(2);
-        assertThat(doubleArrayRef.size(), equalTo(1));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(3d));
 
         DoubleValues.Iter doubleValuesIter = doubleValues.getIter(0);
         assertThat(doubleValuesIter.hasNext(), equalTo(true));
@@ -432,18 +360,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(longValues.getValueMissing(1, -1), equalTo(-1l));
         assertThat(longValues.getValueMissing(2, -1), equalTo(3l));
 
-        LongArrayRef longArrayRef = longValues.getValues(0);
-        assertThat(longArrayRef.size(), equalTo(2));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(2l));
-        assertThat(longArrayRef.values[longArrayRef.start + 1], equalTo(4l));
-
-        longArrayRef = longValues.getValues(1);
-        assertThat(longArrayRef.size(), equalTo(0));
-
-        longArrayRef = longValues.getValues(2);
-        assertThat(longArrayRef.size(), equalTo(1));
-        assertThat(longArrayRef.values[longArrayRef.start], equalTo(3l));
-
         LongValues.Iter longValuesIter = longValues.getIter(0);
         assertThat(longValuesIter.hasNext(), equalTo(true));
         assertThat(longValuesIter.next(), equalTo(2l));
@@ -477,18 +393,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(doubleValues.getValueMissing(0, -1), equalTo(2d));
         assertThat(doubleValues.getValueMissing(1, -1), equalTo(-1d));
         assertThat(doubleValues.getValueMissing(2, -1), equalTo(3d));
-
-        DoubleArrayRef doubleArrayRef = doubleValues.getValues(0);
-        assertThat(doubleArrayRef.size(), equalTo(2));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(2d));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start + 1], equalTo(4d));
-
-        doubleArrayRef = doubleValues.getValues(1);
-        assertThat(doubleArrayRef.size(), equalTo(0));
-
-        doubleArrayRef = doubleValues.getValues(2);
-        assertThat(doubleArrayRef.size(), equalTo(1));
-        assertThat(doubleArrayRef.values[doubleArrayRef.start], equalTo(3d));
 
         DoubleValues.Iter doubleValuesIter = doubleValues.getIter(0);
         assertThat(doubleValuesIter.hasNext(), equalTo(true));
@@ -532,15 +436,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(longValues.getValueMissing(1, -1), equalTo(-1l));
         assertThat(longValues.getValueMissing(2, -1), equalTo(-1l));
 
-        LongArrayRef longArrayRef = longValues.getValues(0);
-        assertThat(longArrayRef.size(), equalTo(0));
-
-        longArrayRef = longValues.getValues(1);
-        assertThat(longArrayRef.size(), equalTo(0));
-
-        longArrayRef = longValues.getValues(2);
-        assertThat(longArrayRef.size(), equalTo(0));
-
         LongValues.Iter longValuesIter = longValues.getIter(0);
         assertThat(longValuesIter.hasNext(), equalTo(false));
 
@@ -567,15 +462,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(doubleValues.getValueMissing(0, -1), equalTo(-1d));
         assertThat(doubleValues.getValueMissing(1, -1), equalTo(-1d));
         assertThat(doubleValues.getValueMissing(2, -1), equalTo(-1d));
-
-        DoubleArrayRef doubleArrayRef = doubleValues.getValues(0);
-        assertThat(doubleArrayRef.size(), equalTo(0));
-
-        doubleArrayRef = doubleValues.getValues(1);
-        assertThat(doubleArrayRef.size(), equalTo(0));
-
-        doubleArrayRef = doubleValues.getValues(2);
-        assertThat(doubleArrayRef.size(), equalTo(0));
 
         DoubleValues.Iter doubleValuesIter = doubleValues.getIter(0);
         assertThat(doubleValuesIter.hasNext(), equalTo(false));

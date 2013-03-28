@@ -20,7 +20,6 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.elasticsearch.index.fielddata.util.LongArrayRef;
 
 /**
@@ -42,8 +41,6 @@ public interface LongValues {
     long getValue(int docId);
 
     long getValueMissing(int docId, long missingValue);
-
-    LongArrayRef getValues(int docId);
 
     Iter getIter(int docId);
 
@@ -124,11 +121,6 @@ public interface LongValues {
         }
 
         @Override
-        public LongArrayRef getValues(int docId) {
-            return LongArrayRef.EMPTY;
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return Iter.Empty.INSTANCE;
         }
@@ -161,10 +153,6 @@ public interface LongValues {
 
         public long getValueMissing(int docId, long missingValue) {
             return delegate.getValueMissing(docId, missingValue);
-        }
-
-        public LongArrayRef getValues(int docId) {
-            return delegate.getValues(docId);
         }
 
         public Iter getIter(int docId) {

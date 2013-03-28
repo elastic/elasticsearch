@@ -43,38 +43,10 @@ public interface GeoPointValues {
 
     GeoPoint getValueSafe(int docId);
 
-    GeoPointArrayRef getValues(int docId);
-
     Iter getIter(int docId);
 
     Iter getIterSafe(int docId);
 
-    /**
-     * Go over all the possible values in their geo point format for a specific doc.
-     */
-    void forEachValueInDoc(int docId, ValueInDocProc proc);
-
-    /**
-     * Go over all the possible values in their geo point format for a specific doc.
-     */
-    void forEachSafeValueInDoc(int docId, ValueInDocProc proc);
-
-    public static interface ValueInDocProc {
-        void onValue(int docId, GeoPoint value);
-
-        void onMissing(int docId);
-    }
-
-    /**
-     * Go over all the possible values in their geo point format for a specific doc.
-     */
-    void forEachLatLonValueInDoc(int docId, LatLonValueInDocProc proc);
-
-    public static interface LatLonValueInDocProc {
-        void onValue(int docId, double lat, double lon);
-
-        void onMissing(int docId);
-    }
 
     static interface Iter {
 
@@ -143,15 +115,6 @@ public interface GeoPointValues {
             return getIter(docId);
         }
 
-        @Override
-        public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-
-        }
-
-        @Override
-        public void forEachLatLonValueInDoc(int docId, LatLonValueInDocProc proc) {
-            //To change body of implemented methods use File | Settings | File Templates.
-        }
 
         @Override
         public GeoPoint getValue(int docId) {
@@ -159,18 +122,8 @@ public interface GeoPointValues {
         }
 
         @Override
-        public GeoPointArrayRef getValues(int docId) {
-            return GeoPointArrayRef.EMPTY;
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return Iter.Empty.INSTANCE;
-        }
-
-        @Override
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            proc.onMissing(docId);
         }
     }
 }

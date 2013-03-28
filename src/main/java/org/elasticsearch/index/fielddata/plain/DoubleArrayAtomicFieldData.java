@@ -157,7 +157,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             private final double[] values;
             private final Ordinals.Docs ordinals;
 
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
             private final ValuesIter valuesIter;
 
             StringValues(double[] values, Ordinals.Docs ordinals) {
@@ -183,19 +182,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
                     return null;
                 }
                 return Double.toString(values[ord]);
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return StringArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    arrayScratch.values[arrayScratch.end++] = Double.toString(values[ords.values[i]]);
-                }
-                return arrayScratch;
             }
 
             @Override
@@ -250,8 +236,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
             private final double[] values;
             private final Ordinals.Docs ordinals;
-
-            private final LongArrayRef arrayScratch = new LongArrayRef(new long[1], 1);
             private final ValuesIter iter;
 
             LongValues(double[] values, Ordinals.Docs ordinals) {
@@ -283,19 +267,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
                 } else {
                     return (long) values[ord];
                 }
-            }
-
-            @Override
-            public LongArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return LongArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    arrayScratch.values[arrayScratch.end++] = (long) values[ords.values[i]];
-                }
-                return arrayScratch;
             }
 
             @Override
@@ -350,8 +321,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
             private final double[] values;
             private final Ordinals.Docs ordinals;
-
-            private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
             private final ValuesIter iter;
 
             DoubleValues(double[] values, Ordinals.Docs ordinals) {
@@ -383,19 +352,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
                 } else {
                     return values[ord];
                 }
-            }
-
-            @Override
-            public DoubleArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return DoubleArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    arrayScratch.values[arrayScratch.end++] = values[ords.values[i]];
-                }
-                return arrayScratch;
             }
 
             @Override
@@ -508,7 +464,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             private final double[] values;
             private final FixedBitSet set;
 
-            private final LongArrayRef arrayScratch = new LongArrayRef(new long[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             LongValues(double[] values, FixedBitSet set) {
@@ -541,16 +496,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public LongArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0] = (long) values[docId];
-                    return arrayScratch;
-                } else {
-                    return LongArrayRef.EMPTY;
-                }
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 if (set.get(docId)) {
                     return iter.reset((long) values[docId]);
@@ -572,7 +517,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             private final double[] values;
             private final FixedBitSet set;
 
-            private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             DoubleValues(double[] values, FixedBitSet set) {
@@ -601,16 +545,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
                     return values[docId];
                 } else {
                     return missingValue;
-                }
-            }
-
-            @Override
-            public DoubleArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0] = values[docId];
-                    return arrayScratch;
-                } else {
-                    return DoubleArrayRef.EMPTY;
                 }
             }
 
@@ -690,7 +624,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
             private final double[] values;
 
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             StringValues(double[] values) {
@@ -713,12 +646,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public StringArrayRef getValues(int docId) {
-                arrayScratch.values[0] = Double.toString(values[docId]);
-                return arrayScratch;
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 return iter.reset(Double.toString(values[docId]));
             }
@@ -733,7 +660,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
             private final double[] values;
 
-            private final LongArrayRef arrayScratch = new LongArrayRef(new long[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             LongValues(double[] values) {
@@ -761,12 +687,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public LongArrayRef getValues(int docId) {
-                arrayScratch.values[0] = (long) values[docId];
-                return arrayScratch;
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 return iter.reset((long) values[docId]);
             }
@@ -781,7 +701,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
             private final double[] values;
 
-            private final DoubleArrayRef arrayScratch = new DoubleArrayRef(new double[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             DoubleValues(double[] values) {
@@ -806,12 +725,6 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             @Override
             public double getValueMissing(int docId, double missingValue) {
                 return values[docId];
-            }
-
-            @Override
-            public DoubleArrayRef getValues(int docId) {
-                arrayScratch.values[0] = values[docId];
-                return arrayScratch;
             }
 
             @Override

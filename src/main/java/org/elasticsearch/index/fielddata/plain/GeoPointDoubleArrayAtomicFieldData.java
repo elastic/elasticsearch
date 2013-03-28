@@ -150,8 +150,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final double[] lon;
             private final double[] lat;
             private final Ordinals.Docs ordinals;
-
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
             private final ValuesIter valuesIter;
 
             StringValues(double[] lon, double[] lat, Ordinals.Docs ordinals) {
@@ -178,20 +176,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
                     return null;
                 }
                 return GeoHashUtils.encode(lat[ord], lon[ord]);
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return StringArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    int ord = ords.values[i];
-                    arrayScratch.values[arrayScratch.end++] = GeoHashUtils.encode(lat[ord], lon[ord]);
-                }
-                return arrayScratch;
             }
 
             @Override
@@ -251,7 +235,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final Ordinals.Docs ordinals;
 
             private final GeoPoint scratch = new GeoPoint();
-            private final GeoPointArrayRef arrayScratch = new GeoPointArrayRef(new GeoPoint[1], 1);
             private final ValuesIter valuesIter;
             private final SafeValuesIter safeValuesIter;
 
@@ -292,20 +275,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             }
 
             @Override
-            public GeoPointArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return GeoPointArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    int ord = ords.values[i];
-                    arrayScratch.values[arrayScratch.end++].reset(lat[ord], lon[ord]);
-                }
-                return arrayScratch;
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 return valuesIter.reset(ordinals.getIter(docId));
             }
@@ -315,44 +284,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
                 return safeValuesIter.reset(ordinals.getIter(docId));
             }
 
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, scratch.reset(lat[ord], lon[ord]));
-                } while ((ord = iter.next()) != 0);
-            }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, new GeoPoint(lat[ord], lon[ord]));
-                } while ((ord = iter.next()) != 0);
-            }
-
-            @Override
-            public void forEachLatLonValueInDoc(int docId, LatLonValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, lat[ord], lon[ord]);
-                } while ((ord = iter.next()) != 0);
-            }
 
             static class ValuesIter implements Iter {
 
@@ -472,7 +403,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final double[] lat;
             private final FixedBitSet set;
 
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             StringValues(double[] lon, double[] lat, FixedBitSet set) {
@@ -497,16 +427,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
                     return GeoHashUtils.encode(lat[docId], lon[docId]);
                 } else {
                     return null;
-                }
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0] = GeoHashUtils.encode(lat[docId], lon[docId]);
-                    return arrayScratch;
-                } else {
-                    return StringArrayRef.EMPTY;
                 }
             }
 
@@ -536,7 +456,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final FixedBitSet set;
 
             private final GeoPoint scratch = new GeoPoint();
-            private final GeoPointArrayRef arrayScratch = new GeoPointArrayRef(new GeoPoint[1]);
             private final Iter.Single iter = new Iter.Single();
 
             GeoPointValues(double[] lon, double[] lat, FixedBitSet set) {
@@ -574,16 +493,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             }
 
             @Override
-            public GeoPointArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0].reset(lat[docId], lon[docId]);
-                    return arrayScratch;
-                } else {
-                    return GeoPointArrayRef.EMPTY;
-                }
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 if (set.get(docId)) {
                     return iter.reset(scratch.reset(lat[docId], lon[docId]));
@@ -598,33 +507,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
                     return iter.reset(new GeoPoint(lat[docId], lon[docId]));
                 } else {
                     return Iter.Empty.INSTANCE;
-                }
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, scratch.reset(lat[docId], lon[docId]));
-                } else {
-                    proc.onMissing(docId);
-                }
-            }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, new GeoPoint(lat[docId], lon[docId]));
-                } else {
-                    proc.onMissing(docId);
-                }
-            }
-
-            @Override
-            public void forEachLatLonValueInDoc(int docId, LatLonValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, lat[docId], lon[docId]);
-                } else {
-                    proc.onMissing(docId);
                 }
             }
         }
@@ -677,7 +559,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final double[] lon;
             private final double[] lat;
 
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
             private final Iter.Single iter = new Iter.Single();
 
             StringValues(double[] lon, double[] lat) {
@@ -701,12 +582,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             }
 
             @Override
-            public StringArrayRef getValues(int docId) {
-                arrayScratch.values[0] = GeoHashUtils.encode(lat[docId], lon[docId]);
-                return arrayScratch;
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 return iter.reset(GeoHashUtils.encode(lat[docId], lon[docId]));
             }
@@ -723,7 +598,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             private final double[] lat;
 
             private final GeoPoint scratch = new GeoPoint();
-            private final GeoPointArrayRef arrayScratch = new GeoPointArrayRef(new GeoPoint[1]);
             private final Iter.Single iter = new Iter.Single();
 
             GeoPointValues(double[] lon, double[] lat) {
@@ -752,12 +626,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             }
 
             @Override
-            public GeoPointArrayRef getValues(int docId) {
-                arrayScratch.values[0].reset(lat[docId], lon[docId]);
-                return arrayScratch;
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 return iter.reset(scratch.reset(lat[docId], lon[docId]));
             }
@@ -765,21 +633,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointF
             @Override
             public Iter getIterSafe(int docId) {
                 return iter.reset(new GeoPoint(lat[docId], lon[docId]));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                proc.onValue(docId, scratch.reset(lat[docId], lon[docId]));
-            }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                proc.onValue(docId, new GeoPoint(lat[docId], lon[docId]));
-            }
-
-            @Override
-            public void forEachLatLonValueInDoc(int docId, LatLonValueInDocProc proc) {
-                proc.onValue(docId, lat[docId], lon[docId]);
             }
         }
     }

@@ -39,6 +39,7 @@ import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
@@ -67,8 +68,18 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         return aliases.get(alias);
     }
 
+    public IndexAlias create(String alias, @Nullable CompressedString filter) {
+        return new IndexAlias(alias, filter, parse(alias, filter));
+    }
+
     public void add(String alias, @Nullable CompressedString filter) {
         add(new IndexAlias(alias, filter, parse(alias, filter)));
+    }
+
+    public void addAll(Map<String, IndexAlias> aliases) {
+        synchronized (mutex) {
+            this.aliases = newMapBuilder(this.aliases).putAll(aliases).immutableMap();
+        }
     }
 
     /**

@@ -7,6 +7,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldCacheTermsFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.store.Directory;
@@ -36,9 +37,9 @@ public class XBooleanFilterTests {
     @BeforeClass
     public void setup() throws Exception {
         char[][] documentMatrix = new char[][] {
-                {'a', 'b', 'c', 'd'},
-                {'a', 'b', 'c', 'd'},
-                {'a', 'a', 'a', 'a'}
+                {'a', 'b', 'c', 'd', 'v'},
+                {'a', 'b', 'c', 'd', 'z'},
+                {'a', 'a', 'a', 'a', 'x'}
         };
 
         List<Document> documents = new ArrayList<Document>(documentMatrix.length);
@@ -216,6 +217,131 @@ public class XBooleanFilterTests {
             assertThat(result.get(1), equalTo(true));
             assertThat(result.get(2), equalTo(false));
         }
+    }
+
+    @Test
+    public void testOnlyShouldClauses() throws Exception {
+        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        // 2 slow filters
+        // This case caused: https://github.com/elasticsearch/elasticsearch/issues/2826
+        booleanFilters.add(createBooleanFilter(
+                newFilterClause(1, 'a', SHOULD, true),
+                newFilterClause(1, 'b', SHOULD, true)
+        ));
+        // 2 fast filters
+        booleanFilters.add(createBooleanFilter(
+                newFilterClause(1, 'a', SHOULD, false),
+                newFilterClause(1, 'b', SHOULD, false)
+        ));
+        // 1 fast filters, 1 slow filter
+        booleanFilters.add(createBooleanFilter(
+                newFilterClause(1, 'a', SHOULD, true),
+                newFilterClause(1, 'b', SHOULD, false)
+        ));
+
+        for (XBooleanFilter booleanFilter : booleanFilters) {
+            FixedBitSet result = new FixedBitSet(reader.maxDoc());
+            result.or(booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
+            assertThat(result.cardinality(), equalTo(3));
+            assertThat(result.get(0), equalTo(true));
+            assertThat(result.get(1), equalTo(true));
+            assertThat(result.get(2), equalTo(true));
+        }
+    }
+
+    @Test
+    public void testOnlyMustClauses() throws Exception {
+        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        // Slow filters
+        booleanFilters.add(createBooleanFilter(
+                newFilterClause(3, 'd', MUST, true),
+                newFilterClause(3, 'd', MUST, true)
+        ));
+        // 2 fast filters
+        booleanFilters.add(createBooleanFilter(
+                newFilterClause(3, 'd', MUST, false),
+                newFilterClause(3, 'd', MUST, false)
+        ));
+        // 1 fast filters, 1 slow filter
+        booleanFilters.add(createBooleanFilter(
+                newFilterClause(3, 'd', MUST, true),
+                newFilterClause(3, 'd', MUST, false)
+        ));
+        for (XBooleanFilter booleanFilter : booleanFilters) {
+            FixedBitSet result = new FixedBitSet(reader.maxDoc());
+            result.or(booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
+            assertThat(result.cardinality(), equalTo(2));
+            assertThat(result.get(0), equalTo(true));
+            assertThat(result.get(1), equalTo(true));
+            assertThat(result.get(2), equalTo(false));
+        }
+    }
+
+    @Test
+    public void testOnlyMustNotClauses() throws Exception {
+        List<XBooleanFilter> booleanFilters = new ArrayList<XBooleanFilter>();
+        // Slow filters
+        booleanFilters.add(createBooleanFilter(
+                newFilterClause(1, 'a', MUST_NOT, true),
+                newFilterClause(1, 'a', MUST_NOT, true)
+        ));
+        // 2 fast filters
+        booleanFilters.add(createBooleanFilter(
+                newFilterClause(1, 'a', MUST_NOT, false),
+                newFilterClause(1, 'a', MUST_NOT, false)
+        ));
+        // 1 fast filters, 1 slow filter
+        booleanFilters.add(createBooleanFilter(
+                newFilterClause(1, 'a', MUST_NOT, true),
+                newFilterClause(1, 'a', MUST_NOT, false)
+        ));
+        for (XBooleanFilter booleanFilter : booleanFilters) {
+            FixedBitSet result = new FixedBitSet(reader.maxDoc());
+            result.or(booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
+            assertThat(result.cardinality(), equalTo(2));
+            assertThat(result.get(0), equalTo(true));
+            assertThat(result.get(1), equalTo(true));
+            assertThat(result.get(2), equalTo(false));
+        }
+    }
+
+    @Test
+    public void testNonMatchingSlowShouldWithMatchingMust() throws Exception {
+        XBooleanFilter booleanFilter = createBooleanFilter(
+                newFilterClause(0, 'a', MUST, false),
+                newFilterClause(0, 'b', SHOULD, true)
+        );
+
+        DocIdSet docIdSet = booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        assertThat(docIdSet, equalTo(null));
+    }
+
+    @Test
+    public void testSlowShouldClause_atLeastOneShouldMustMatch() throws Exception {
+        XBooleanFilter booleanFilter = createBooleanFilter(
+                newFilterClause(0, 'a', MUST, false),
+                newFilterClause(1, 'a', SHOULD, true)
+        );
+
+        FixedBitSet result = new FixedBitSet(reader.maxDoc());
+        result.or(booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
+        assertThat(result.cardinality(), equalTo(1));
+        assertThat(result.get(0), equalTo(false));
+        assertThat(result.get(1), equalTo(false));
+        assertThat(result.get(2), equalTo(true));
+
+        booleanFilter = createBooleanFilter(
+                newFilterClause(0, 'a', MUST, false),
+                newFilterClause(1, 'a', SHOULD, true),
+                newFilterClause(4, 'z', SHOULD, true)
+        );
+
+        result = new FixedBitSet(reader.maxDoc());
+        result.or(booleanFilter.getDocIdSet(reader.getContext(), reader.getLiveDocs()).iterator());
+        assertThat(result.cardinality(), equalTo(2));
+        assertThat(result.get(0), equalTo(false));
+        assertThat(result.get(1), equalTo(true));
+        assertThat(result.get(2), equalTo(true));
     }
 
     private static FilterClause newFilterClause(int field, char character, BooleanClause.Occur occur, boolean slowerBitsBackedFilter) {

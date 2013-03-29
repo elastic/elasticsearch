@@ -241,17 +241,14 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         // should filter. TODO: Add an option to have disable minimum_should_match=1 behaviour
         if (!orClauses.isEmpty()) {
             DocIdSetIterator it = res.iterator();
-            for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
-                boolean match = false;
+            res: for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
                 for (ResultClause orClause : orClauses) {
                     if (orClause.bits.get(setDoc)) {
-                        match = true;
                         hasNonEmptyShouldClause = true;
+                        continue res;
                     }
                 }
-                if (!match) {
-                    res.clear(setDoc);
-                }
+                res.clear(setDoc);
             }
         }
 

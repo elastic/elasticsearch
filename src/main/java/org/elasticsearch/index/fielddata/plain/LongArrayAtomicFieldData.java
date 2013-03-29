@@ -226,88 +226,18 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
             }
         }
 
-        static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
+        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.OrdBasedLongValues {
 
             private final long[] values;
-            private final Ordinals.Docs ordinals;
-            private final ValuesIter iter;
 
             LongValues(long[] values, Ordinals.Docs ordinals) {
+                super(ordinals);
                 this.values = values;
-                this.ordinals = ordinals;
-                this.iter = new ValuesIter(values);
             }
-
+           
             @Override
-            public boolean isMultiValued() {
-                return ordinals.isMultiValued();
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return ordinals.getOrd(docId) != 0;
-            }
-
-            @Override
-            public long getValue(int docId) {
-                return values[ordinals.getOrd(docId)];
-            }
-
-            @Override
-            public long getValueMissing(int docId, long missingValue) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    return missingValue;
-                } else {
-                    return values[ord];
-                }
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return iter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, values[ord]);
-                } while ((ord = iter.next()) != 0);
-            }
-
-            static class ValuesIter implements Iter {
-
-                private final long[] values;
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                ValuesIter(long[] values) {
-                    this.values = values;
-                }
-
-                public ValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public long next() {
-                    long value = values[ord];
-                    ord = ordsIter.next();
-                    return value;
-                }
+            public long getByOrd(int ord) {
+                return values[ord];
             }
         }
 
@@ -502,20 +432,15 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
             }
         }
 
-        static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
+        static class LongValues extends org.elasticsearch.index.fielddata.LongValues {
 
             private final long[] values;
             private final FixedBitSet set;
-            private final Iter.Single iter = new Iter.Single();
 
             LongValues(long[] values, FixedBitSet set) {
+                super(false);
                 this.values = values;
                 this.set = set;
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
             }
 
             @Override
@@ -526,33 +451,6 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
             @Override
             public long getValue(int docId) {
                 return values[docId];
-            }
-
-            @Override
-            public long getValueMissing(int docId, long missingValue) {
-                if (set.get(docId)) {
-                    return values[docId];
-                } else {
-                    return missingValue;
-                }
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                if (set.get(docId)) {
-                    return iter.reset(values[docId]);
-                } else {
-                    return Iter.Empty.INSTANCE;
-                }
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, values[docId]);
-                } else {
-                    proc.onMissing(docId);
-                }
             }
         }
 
@@ -702,23 +600,14 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
             }
         }
 
-        static class LongValues implements org.elasticsearch.index.fielddata.LongValues {
+        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.DenseLongValues {
 
             private final long[] values;
             private final Iter.Single iter = new Iter.Single();
 
             LongValues(long[] values) {
+                super(false);
                 this.values = values;
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return true;
             }
 
             @Override
@@ -726,20 +615,6 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
                 return values[docId];
             }
 
-            @Override
-            public long getValueMissing(int docId, long missingValue) {
-                return values[docId];
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return iter.reset(values[docId]);
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                proc.onValue(docId, values[docId]);
-            }
         }
 
         static class DoubleValues implements org.elasticsearch.index.fielddata.DoubleValues {

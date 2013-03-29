@@ -79,10 +79,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(longValuesIter.next(), equalTo(3l));
         assertThat(longValuesIter.hasNext(), equalTo(false));
 
-        longValues.forEachValueInDoc(0, new LongValuesVerifierProc(0).addExpected(2l));
-        longValues.forEachValueInDoc(1, new LongValuesVerifierProc(1).addExpected(1l));
-        longValues.forEachValueInDoc(2, new LongValuesVerifierProc(2).addExpected(3l));
-
         DoubleValues doubleValues = fieldData.getDoubleValues();
 
         assertThat(doubleValues.isMultiValued(), equalTo(false));
@@ -171,10 +167,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(longValuesIter.hasNext(), equalTo(true));
         assertThat(longValuesIter.next(), equalTo(3l));
         assertThat(longValuesIter.hasNext(), equalTo(false));
-
-        longValues.forEachValueInDoc(0, new LongValuesVerifierProc(0).addExpected(2l));
-        longValues.forEachValueInDoc(1, new LongValuesVerifierProc(1).addMissing());
-        longValues.forEachValueInDoc(2, new LongValuesVerifierProc(2).addExpected(3l));
 
         DoubleValues doubleValues = fieldData.getDoubleValues();
 
@@ -295,10 +287,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(longValuesIter.next(), equalTo(3l));
         assertThat(longValuesIter.hasNext(), equalTo(false));
 
-        longValues.forEachValueInDoc(0, new LongValuesVerifierProc(0).addExpected(2l).addExpected(4l));
-        longValues.forEachValueInDoc(1, new LongValuesVerifierProc(1).addExpected(1l));
-        longValues.forEachValueInDoc(2, new LongValuesVerifierProc(2).addExpected(3l));
-
         DoubleValues doubleValues = fieldData.getDoubleValues();
 
         assertThat(doubleValues.isMultiValued(), equalTo(true));
@@ -375,10 +363,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(longValuesIter.next(), equalTo(3l));
         assertThat(longValuesIter.hasNext(), equalTo(false));
 
-        longValues.forEachValueInDoc(0, new LongValuesVerifierProc(0).addExpected(2l).addExpected(4l));
-        longValues.forEachValueInDoc(1, new LongValuesVerifierProc(1).addMissing());
-        longValues.forEachValueInDoc(2, new LongValuesVerifierProc(2).addExpected(3l));
-
         DoubleValues doubleValues = fieldData.getDoubleValues();
 
         assertThat(doubleValues.isMultiValued(), equalTo(true));
@@ -444,10 +428,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
 
         longValuesIter = longValues.getIter(2);
         assertThat(longValuesIter.hasNext(), equalTo(false));
-
-        longValues.forEachValueInDoc(0, new LongValuesVerifierProc(0).addMissing());
-        longValues.forEachValueInDoc(1, new LongValuesVerifierProc(1).addMissing());
-        longValues.forEachValueInDoc(2, new LongValuesVerifierProc(2).addMissing());
 
         // double values
 

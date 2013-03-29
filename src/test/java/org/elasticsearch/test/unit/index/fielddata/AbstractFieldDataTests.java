@@ -19,25 +19,32 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.*;
-import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.fielddata.StringValues;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
 
 /**
  */
@@ -104,42 +111,6 @@ public abstract class AbstractFieldDataTests {
 
         @Override
         public void onValue(int docId, String value) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(value, equalTo(expected.get(idx++)));
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(MISSING, sameInstance(expected.get(idx++)));
-        }
-    }
-
-    public static class LongValuesVerifierProc implements LongValues.ValueInDocProc {
-
-        private static final Long MISSING = new Long(0);
-
-        private final int docId;
-        private final List<Long> expected = new ArrayList<Long>();
-
-        private int idx;
-
-        LongValuesVerifierProc(int docId) {
-            this.docId = docId;
-        }
-
-        public LongValuesVerifierProc addExpected(long value) {
-            expected.add(value);
-            return this;
-        }
-
-        public LongValuesVerifierProc addMissing() {
-            expected.add(MISSING);
-            return this;
-        }
-
-        @Override
-        public void onValue(int docId, long value) {
             assertThat(docId, equalTo(this.docId));
             assertThat(value, equalTo(expected.get(idx++)));
         }

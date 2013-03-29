@@ -20,6 +20,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.index.fielddata.LongValues.Iter;
 import org.elasticsearch.index.fielddata.util.DoubleArrayRef;
 import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.elasticsearch.index.fielddata.util.LongArrayRef;
@@ -136,7 +137,6 @@ public interface DoubleValues {
 
         private final LongValues values;
         private final ValueIter iter = new ValueIter();
-        private final Proc proc = new Proc();
 
         public LongBased(LongValues values) {
             this.values = values;
@@ -172,7 +172,14 @@ public interface DoubleValues {
 
         @Override
         public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            values.forEachValueInDoc(docId, this.proc.reset(proc));
+            if (values.hasValue(docId)) {
+                final LongValues.Iter longIter = values.getIter(docId);
+                while(longIter.hasNext()) {
+                    proc.onValue(docId, longIter.next());
+                }
+            } else {
+                proc.onMissing(docId);
+            }
         }
 
         static class ValueIter implements Iter {
@@ -192,26 +199,6 @@ public interface DoubleValues {
             @Override
             public double next() {
                 return (double) iter.next();
-            }
-        }
-
-        static class Proc implements LongValues.ValueInDocProc {
-
-            private ValueInDocProc proc;
-
-            private Proc reset(ValueInDocProc proc) {
-                this.proc = proc;
-                return this;
-            }
-
-            @Override
-            public void onValue(int docId, long value) {
-                this.proc.onValue(docId, (double) value);
-            }
-
-            @Override
-            public void onMissing(int docId) {
-                this.proc.onMissing(docId);
             }
         }
 

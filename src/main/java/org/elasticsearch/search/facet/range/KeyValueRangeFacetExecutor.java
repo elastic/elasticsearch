@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet.range;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -74,7 +75,7 @@ public class KeyValueRangeFacetExecutor extends FacetExecutor {
             for (RangeFacet.Entry entry : entries) {
                 entry.foundInDoc = false;
             }
-            keyValues.forEachValueInDoc(doc, rangeProc);
+            rangeProc.onDoc(doc, keyValues);
         }
 
         @Override
@@ -82,7 +83,7 @@ public class KeyValueRangeFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class RangeProc implements DoubleValues.ValueInDocProc {
+    public static class RangeProc extends DoubleFacetAggregatorBase {
 
         private final RangeFacet.Entry[] entries;
 
@@ -90,10 +91,6 @@ public class KeyValueRangeFacetExecutor extends FacetExecutor {
 
         public RangeProc(RangeFacet.Entry[] entries) {
             this.entries = entries;
-        }
-
-        @Override
-        public void onMissing(int docId) {
         }
 
         @Override

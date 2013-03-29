@@ -26,6 +26,7 @@ import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -91,7 +92,7 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            values.forEachValueInDoc(doc, histoProc);
+            histoProc.onDoc(doc, values);
         }
 
         @Override
@@ -99,7 +100,7 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class HistogramProc implements DoubleValues.ValueInDocProc {
+    public static class HistogramProc extends DoubleFacetAggregatorBase {
 
         private final long interval;
 
@@ -112,11 +113,6 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
             this.valueScript = valueScript;
             this.entries = entries;
         }
-
-        @Override
-        public void onMissing(int docId) {
-        }
-
         @Override
         public void onValue(int docId, double value) {
             valueScript.setNextDocId(docId);

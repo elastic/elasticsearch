@@ -26,6 +26,7 @@ import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.LongFacetAggregatorBase;
@@ -113,16 +114,12 @@ public class ValueDateHistogramFacetExecutor extends FacetExecutor {
             }
             entry.count++;
             valueAggregator.entry = entry;
-            valueValues.forEachValueInDoc(docId, valueAggregator);
+            valueAggregator.onDoc(docId, valueValues);
         }
 
-        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
+        public final static class ValueAggregator extends DoubleFacetAggregatorBase {
 
             InternalFullDateHistogramFacet.FullEntry entry;
-
-            @Override
-            public void onMissing(int docId) {
-            }
 
             @Override
             public void onValue(int docId, double value) {

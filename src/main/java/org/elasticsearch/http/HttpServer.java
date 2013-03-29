@@ -25,9 +25,13 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,6 +53,8 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
 
     private final NodeService nodeService;
 
+    private final PluginsService pluginsService;
+
     private final boolean disableSites;
 
     private final PluginSiteFilter pluginSiteFilter = new PluginSiteFilter();
@@ -56,12 +62,13 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     @Inject
     public HttpServer(Settings settings, Environment environment, HttpServerTransport transport,
                       RestController restController,
-                      NodeService nodeService) {
+                      NodeService nodeService, PluginsService pluginsService) {
         super(settings);
         this.environment = environment;
         this.transport = transport;
         this.restController = restController;
         this.nodeService = nodeService;
+        this.pluginsService = pluginsService;
         nodeService.setHttpServer(this);
 
         this.disableSites = componentSettings.getAsBoolean("disable_sites", false);
@@ -150,6 +157,13 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         int i1 = path.indexOf('/');
         String pluginName;
         String sitePath;
+
+
+        if (path.length() == 0) {
+            handlePluginList(request, channel);
+            return;
+        }
+
         if (i1 == -1) {
             pluginName = path;
             sitePath = null;
@@ -186,6 +200,29 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         try {
             byte[] data = Streams.copyToByteArray(file);
             channel.sendResponse(new BytesRestResponse(data, guessMimeType(sitePath)));
+        } catch (IOException e) {
+            channel.sendResponse(new StringRestResponse(INTERNAL_SERVER_ERROR));
+        }
+    }
+
+    private void handlePluginList(HttpRequest request, HttpChannel channel) {
+        ImmutableMap<String, Plugin> plugins = pluginsService.plugins();
+        try {
+
+            XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+            if (request.paramAsBoolean("pretty", false))
+                builder.prettyPrint();
+
+            builder.startObject();
+            builder.startArray("plugins");
+
+            for (String pluginName : plugins.keySet()) {
+                builder.value(pluginName);
+            }
+            builder.endArray();
+            builder.endObject();
+
+            channel.sendResponse(new XContentRestResponse(request, OK, builder));
         } catch (IOException e) {
             channel.sendResponse(new StringRestResponse(INTERNAL_SERVER_ERROR));
         }

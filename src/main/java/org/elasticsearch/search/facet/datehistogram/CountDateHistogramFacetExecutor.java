@@ -27,6 +27,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
+import org.elasticsearch.search.facet.LongFacetAggregatorBase;
 
 import java.io.IOException;
 
@@ -76,7 +77,7 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            values.forEachValueInDoc(doc, histoProc);
+            histoProc.onDoc(doc, values);
         }
 
         @Override
@@ -84,7 +85,7 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class DateHistogramProc implements LongValues.ValueInDocProc {
+    public static class DateHistogramProc extends LongFacetAggregatorBase {
 
         private final TLongLongHashMap counts;
         private final TimeZoneRounding tzRounding;
@@ -92,10 +93,6 @@ public class CountDateHistogramFacetExecutor extends FacetExecutor {
         public DateHistogramProc(TLongLongHashMap counts, TimeZoneRounding tzRounding) {
             this.counts = counts;
             this.tzRounding = tzRounding;
-        }
-
-        @Override
-        public void onMissing(int docId) {
         }
 
         @Override

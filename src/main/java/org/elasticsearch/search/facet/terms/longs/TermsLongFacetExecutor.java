@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
+import org.elasticsearch.search.facet.LongFacetAggregatorBase;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
@@ -50,7 +51,6 @@ public class TermsLongFacetExecutor extends FacetExecutor {
     private final IndexNumericFieldData indexFieldData;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
-    private final int numberOfShards;
     private final SearchScript script;
     private final ImmutableSet<BytesRef> excluded;
 
@@ -63,7 +63,6 @@ public class TermsLongFacetExecutor extends FacetExecutor {
         this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = context.numberOfShards();
         this.script = script;
         this.excluded = excluded;
 
@@ -147,7 +146,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            values.forEachValueInDoc(doc, aggregator);
+            aggregator.onDoc(doc, values);
         }
 
         @Override
@@ -200,12 +199,9 @@ public class TermsLongFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class StaticAggregatorValueProc implements LongValues.ValueInDocProc {
+    public static class StaticAggregatorValueProc extends LongFacetAggregatorBase {
 
         private final TLongIntHashMap facets;
-
-        private int missing;
-        private int total;
 
         public StaticAggregatorValueProc(TLongIntHashMap facets) {
             this.facets = facets;
@@ -214,24 +210,10 @@ public class TermsLongFacetExecutor extends FacetExecutor {
         @Override
         public void onValue(int docId, long value) {
             facets.adjustOrPutValue(value, 1, 1);
-            total++;
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            missing++;
         }
 
         public final TLongIntHashMap facets() {
             return facets;
-        }
-
-        public final int missing() {
-            return this.missing;
-        }
-
-        public final int total() {
-            return this.total;
         }
     }
 }

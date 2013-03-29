@@ -222,7 +222,6 @@ public interface StringValues {
 
         private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
         private final ValuesIter valuesIter = new ValuesIter();
-        private final Proc proc = new Proc();
 
         public LongBased(LongValues values) {
             this.values = values;
@@ -254,7 +253,14 @@ public interface StringValues {
 
         @Override
         public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            values.forEachValueInDoc(docId, this.proc.reset(proc));
+            if (values.hasValue(docId)) {
+                final LongValues.Iter longIter = values.getIter(docId);
+                while(longIter.hasNext()) {
+                    proc.onValue(docId, Long.toString(longIter.next()));
+                }
+            } else {
+                proc.onMissing(docId);
+            }
         }
 
         static class ValuesIter implements Iter {
@@ -277,25 +283,7 @@ public interface StringValues {
             }
         }
 
-        static class Proc implements LongValues.ValueInDocProc {
-
-            private ValueInDocProc proc;
-
-            private Proc reset(ValueInDocProc proc) {
-                this.proc = proc;
-                return this;
-            }
-
-            @Override
-            public void onValue(int docId, long value) {
-                proc.onValue(docId, Long.toString(value));
-            }
-
-            @Override
-            public void onMissing(int docId) {
-                proc.onMissing(docId);
-            }
-        }
+        
     }
 
     public interface WithOrdinals extends StringValues {

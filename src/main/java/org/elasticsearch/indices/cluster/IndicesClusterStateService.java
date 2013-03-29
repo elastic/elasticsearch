@@ -62,10 +62,13 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
+import static com.google.common.collect.Maps.newHashMap;
 import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 
@@ -433,9 +436,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 String index = indexMetaData.index();
                 IndexService indexService = indicesService.indexService(index);
                 IndexAliasesService indexAliasesService = indexService.aliasesService();
-                for (AliasMetaData aliasesMd : indexMetaData.aliases().values()) {
-                    processAlias(index, aliasesMd.alias(), aliasesMd.filter(), indexAliasesService);
-                }
+                processAliases(index, indexMetaData.aliases().values(), indexAliasesService);
                 // go over and remove aliases
                 for (IndexAlias indexAlias : indexAliasesService) {
                     if (!indexMetaData.aliases().containsKey(indexAlias.alias())) {
@@ -450,26 +451,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private void processAlias(String index, String alias, CompressedString filter, IndexAliasesService indexAliasesService) {
-        try {
-            if (!indexAliasesService.hasAlias(alias)) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("[{}] adding alias [{}], filter [{}]", index, alias, filter);
-                }
-                indexAliasesService.add(alias, filter);
-            } else {
-                if ((filter == null && indexAliasesService.alias(alias).filter() != null) ||
-                        (filter != null && !filter.equals(indexAliasesService.alias(alias).filter()))) {
+    private void processAliases(String index, Collection<AliasMetaData> aliases, IndexAliasesService indexAliasesService) {
+        HashMap<String, IndexAlias> newAliases = newHashMap();
+        for (AliasMetaData aliasMd : aliases) {
+            String alias = aliasMd.alias();
+            CompressedString filter = aliasMd.filter();
+            try {
+                if (!indexAliasesService.hasAlias(alias)) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] updating alias [{}], filter [{}]", index, alias, filter);
+                        logger.debug("[{}] adding alias [{}], filter [{}]", index, alias, filter);
                     }
-                    indexAliasesService.add(alias, filter);
+                    newAliases.put(alias, indexAliasesService.create(alias, filter));
+                } else {
+                    if ((filter == null && indexAliasesService.alias(alias).filter() != null) ||
+                            (filter != null && !filter.equals(indexAliasesService.alias(alias).filter()))) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("[{}] updating alias [{}], filter [{}]", index, alias, filter);
+                        }
+                        newAliases.put(alias, indexAliasesService.create(alias, filter));
+                    }
                 }
+            } catch (Exception e) {
+                logger.warn("[{}] failed to add alias [{}], filter [{}]", e, index, alias, filter);
             }
-        } catch (Exception e) {
-            logger.warn("[{}] failed to add alias [{}], filter [{}]", e, index, alias, filter);
         }
-
+        indexAliasesService.addAll(newAliases);
     }
 
     private void applyNewOrUpdatedShards(final ClusterChangedEvent event) throws ElasticSearchException {

@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.*;
 public class DistributorTests {
 
     @Test
-    public void testEmptyFirstDistributor() throws Exception {
+    public void testLeastUsedDistributor() throws Exception {
         FakeFsDirectory[] directories = new FakeFsDirectory[]{
                 new FakeFsDirectory("dir0", 10L),
                 new FakeFsDirectory("dir1", 20L),
@@ -59,6 +59,34 @@ public class DistributorTests {
             assertThat(distributor.any(), equalTo((Directory) directories[0]));
         }
 
+
+        directories[0].setUsableSpace(10L);
+        directories[1].setUsableSpace(20L);
+        directories[2].setUsableSpace(20L);
+        for (FakeFsDirectory directory : directories) {
+            directory.resetAllocationCount();
+        }
+        for (int i = 0; i < 10000; i++) {
+            ((FakeFsDirectory) distributor.any()).incrementAllocationCount();
+        }
+        assertThat(directories[0].getAllocationCount(), equalTo(0));
+        assertThat((double) directories[1].getAllocationCount() / directories[2].getAllocationCount(), closeTo(1.0, 0.5));
+
+        // Test failover scenario
+        for (FakeFsDirectory directory : directories) {
+            directory.resetAllocationCount();
+        }
+        directories[0].setUsableSpace(0L);
+        directories[1].setUsableSpace(0L);
+        directories[2].setUsableSpace(0L);
+        for (int i = 0; i < 10000; i++) {
+            ((FakeFsDirectory) distributor.any()).incrementAllocationCount();
+        }
+        for (FakeFsDirectory directory : directories) {
+            assertThat(directory.getAllocationCount(), greaterThan(0));
+        }
+        assertThat((double) directories[0].getAllocationCount() / directories[2].getAllocationCount(), closeTo(1.0, 0.5));
+        assertThat((double) directories[1].getAllocationCount() / directories[2].getAllocationCount(), closeTo(1.0, 0.5));
 
     }
 

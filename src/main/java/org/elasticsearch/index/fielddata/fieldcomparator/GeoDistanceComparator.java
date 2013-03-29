@@ -40,13 +40,14 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
     protected final DistanceUnit unit;
     protected final GeoDistance geoDistance;
     protected final GeoDistance.FixedSourceDistance fixedSourceDistance;
+    protected final SortMode sortMode;
 
     private final double[] values;
     private double bottom;
 
-    private GeoPointValues readerValues;
+    private GeoDistanceValues geoDistanceValues;
 
-    public GeoDistanceComparator(int numHits, IndexGeoPointFieldData<?> indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance) {
+    public GeoDistanceComparator(int numHits, IndexGeoPointFieldData<?> indexFieldData, double lat, double lon, DistanceUnit unit, GeoDistance geoDistance, SortMode sortMode) {
         this.values = new double[numHits];
         this.indexFieldData = indexFieldData;
         this.lat = lat;
@@ -54,11 +55,17 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
         this.unit = unit;
         this.geoDistance = geoDistance;
         this.fixedSourceDistance = geoDistance.fixedSourceDistance(lat, lon, unit);
+        this.sortMode = sortMode;
     }
 
     @Override
     public FieldComparator<Double> setNextReader(AtomicReaderContext context) throws IOException {
-        this.readerValues = indexFieldData.load(context).getGeoPointValues();
+        GeoPointValues readerValues = indexFieldData.load(context).getGeoPointValues();
+        if (readerValues.isMultiValued()) {
+            geoDistanceValues = new MV(readerValues, fixedSourceDistance, sortMode);
+        } else {
+            geoDistanceValues = new SV(readerValues, fixedSourceDistance);
+        }
         return this;
     }
 
@@ -77,15 +84,7 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
 
     @Override
     public int compareBottom(int doc) {
-        double distance;
-        GeoPoint geoPoint = readerValues.getValue(doc);
-        if (geoPoint == null) {
-            // is this true? push this to the "end"
-            distance = Double.MAX_VALUE;
-        } else {
-            distance = fixedSourceDistance.calculate(geoPoint.lat(), geoPoint.lon());
-        }
-        final double v2 = distance;
+        final double v2 = geoDistanceValues.computeDistance(doc);
         if (bottom > v2) {
             return 1;
         } else if (bottom < v2) {
@@ -97,14 +96,7 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
 
     @Override
     public int compareDocToValue(int doc, Double distance2) throws IOException {
-        double distance1;
-        GeoPoint geoPoint = readerValues.getValue(doc);
-        if (geoPoint == null) {
-            // is this true? push this to the "end"
-            distance1 = Double.MAX_VALUE;
-        } else {
-            distance1 = fixedSourceDistance.calculate(geoPoint.lat(), geoPoint.lon());
-        }
+        double distance1 = geoDistanceValues.computeDistance(doc);
         if (distance1 < distance2) {
             return -1;
         } else if (distance1 == distance2) {
@@ -116,15 +108,7 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
 
     @Override
     public void copy(int slot, int doc) {
-        double distance;
-        GeoPoint geoPoint = readerValues.getValue(doc);
-        if (geoPoint == null) {
-            // is this true? push this to the "end"
-            distance = Double.MAX_VALUE;
-        } else {
-            distance = fixedSourceDistance.calculate(geoPoint.lat(), geoPoint.lon());
-        }
-        values[slot] = distance;
+        values[slot] = geoDistanceValues.computeDistance(doc);
     }
 
     @Override
@@ -136,4 +120,81 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
     public Double value(int slot) {
         return values[slot];
     }
+
+    // Computes the distance based on geo points.
+    // Due to this abstractions the geo distance comparator doesn't need to deal with whether fields have one
+    // or multiple geo points per document.
+    private static abstract class GeoDistanceValues {
+
+        protected final GeoPointValues readerValues;
+        protected final GeoDistance.FixedSourceDistance fixedSourceDistance;
+
+        protected GeoDistanceValues(GeoPointValues readerValues, GeoDistance.FixedSourceDistance fixedSourceDistance) {
+            this.readerValues = readerValues;
+            this.fixedSourceDistance = fixedSourceDistance;
+        }
+
+        public abstract double computeDistance(int doc);
+
+    }
+
+    // Deals with one geo point per document
+    private static final class SV extends GeoDistanceValues {
+
+        SV(GeoPointValues readerValues, GeoDistance.FixedSourceDistance fixedSourceDistance) {
+            super(readerValues, fixedSourceDistance);
+        }
+
+        @Override
+        public double computeDistance(int doc) {
+            GeoPoint geoPoint = readerValues.getValue(doc);
+            if (geoPoint == null) {
+                // is this true? push this to the "end"
+                return Double.MAX_VALUE;
+            } else {
+                return fixedSourceDistance.calculate(geoPoint.lat(), geoPoint.lon());
+            }
+        }
+    }
+
+    // Deals with more than one geo point per document
+    private static final class MV extends GeoDistanceValues {
+
+        private final SortMode sortMode;
+
+        MV(GeoPointValues readerValues, GeoDistance.FixedSourceDistance fixedSourceDistance, SortMode sortMode) {
+            super(readerValues, fixedSourceDistance);
+            this.sortMode = sortMode;
+        }
+
+        @Override
+        public double computeDistance(int doc) {
+            GeoPointValues.Iter iter = readerValues.getIter(doc);
+            if (!iter.hasNext()) {
+                return Double.MAX_VALUE;
+            }
+
+            GeoPoint point = iter.next();
+            double distance = fixedSourceDistance.calculate(point.lat(), point.lon());
+            while (iter.hasNext()) {
+                point = iter.next();
+                double newDistance = fixedSourceDistance.calculate(point.lat(), point.lon());
+                switch (sortMode) {
+                    case MIN:
+                        if (distance > newDistance) {
+                            distance = newDistance;
+                        }
+                        break;
+                    case MAX:
+                        if (distance < newDistance) {
+                            distance = newDistance;
+                        }
+                        break;
+                }
+            }
+            return distance;
+        }
+
+    }
+
 }

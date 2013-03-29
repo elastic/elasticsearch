@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.GeoDistanceComparatorSource;
+import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
@@ -50,6 +51,7 @@ public class GeoDistanceSortParser implements SortParser {
         DistanceUnit unit = DistanceUnit.KILOMETERS;
         GeoDistance geoDistance = GeoDistance.ARC;
         boolean reverse = false;
+        SortMode sortMode = null;
 
         boolean normalizeLon = true;
         boolean normalizeLat = true;
@@ -96,6 +98,8 @@ public class GeoDistanceSortParser implements SortParser {
                 } else if ("normalize".equals(currentName)) {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
+                } else if ("mode".equals(currentName)) {
+                    sortMode = SortMode.fromString(parser.text());
                 } else {
                     point.resetFromString(parser.text());
                     fieldName = currentName;
@@ -107,12 +111,16 @@ public class GeoDistanceSortParser implements SortParser {
             GeoUtils.normalizePoint(point, normalizeLat, normalizeLon);
         }
 
+        if (sortMode == null) {
+            sortMode = reverse ? SortMode.MAX : SortMode.MIN;
+        }
+
         FieldMapper mapper = context.smartNameFieldMapper(fieldName);
         if (mapper == null) {
             throw new ElasticSearchIllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");
         }
         IndexGeoPointFieldData indexFieldData = context.fieldData().getForField(mapper);
 
-        return new SortField(fieldName, new GeoDistanceComparatorSource(indexFieldData, point.lat(), point.lon(), unit, geoDistance), reverse);
+        return new SortField(fieldName, new GeoDistanceComparatorSource(indexFieldData, point.lat(), point.lon(), unit, geoDistance, sortMode), reverse);
     }
 }

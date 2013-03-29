@@ -20,48 +20,126 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.index.fielddata.LongValues.Iter;
-import org.elasticsearch.index.fielddata.util.DoubleArrayRef;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
-import org.elasticsearch.index.fielddata.util.LongArrayRef;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
 /**
  */
-public interface DoubleValues {
+public abstract class DoubleValues {
 
-    static final DoubleValues EMPTY = new Empty();
+    public static final DoubleValues EMPTY = new Empty();
+    private final boolean multiValued;
+    protected final Iter.Single iter = new Iter.Single();
+
+    
+    protected DoubleValues(boolean multiValued) {
+        this.multiValued = multiValued;
+    }
 
     /**
      * Is one of the documents in this field data values is multi valued?
      */
-    boolean isMultiValued();
+    public final boolean isMultiValued() {
+        return multiValued;
+    }
 
     /**
      * Is there a value for this doc?
      */
-    boolean hasValue(int docId);
+    public abstract boolean hasValue(int docId);
 
-    double getValue(int docId);
+    public abstract double getValue(int docId);
 
-    double getValueMissing(int docId, double missingValue);
-
-    Iter getIter(int docId);
-
-    void forEachValueInDoc(int docId, ValueInDocProc proc);
-
-    static interface ValueInDocProc {
-        void onValue(int docId, double value);
-
-        void onMissing(int docId);
+    public double getValueMissing(int docId, double missingValue) {
+        if (hasValue(docId)) {
+            return getValue(docId);
+        }
+        return missingValue;
+    }
+    
+    public Iter getIter(int docId) {
+        assert !isMultiValued();
+        if (hasValue(docId)) {
+            return iter.reset(getValue(docId));
+        } else {
+            return Iter.Empty.INSTANCE;
+        }
     }
 
-    static interface Iter {
+    
+    public static abstract class DenseDoubleValues extends DoubleValues {
+        
+        
+        protected DenseDoubleValues(boolean multiValued) {
+            super(multiValued);
+        }
+        
+        @Override
+        public final boolean hasValue(int docId) {
+            return true;
+        }
+
+        public final double getValueMissing(int docId, double missingValue) {
+            assert hasValue(docId);
+            assert !isMultiValued();
+            return getValue(docId);
+        }
+        
+        public final Iter getIter(int docId) {
+            assert hasValue(docId);
+            assert !isMultiValued();
+            return iter.reset(getValue(docId));
+        }
+
+    }
+    
+    public static abstract class OrdBasedDoubleValues extends DoubleValues {
+
+        protected final Docs ordinals;
+        private final Iter.Multi iter;
+
+        protected OrdBasedDoubleValues(Ordinals.Docs ordinals) {
+            super(ordinals.isMultiValued());
+            this.ordinals = ordinals;
+            iter = new Iter.Multi(this);
+        }
+        
+        @Override
+        public final  boolean hasValue(int docId) {
+            return ordinals.getOrd(docId) != 0;
+        }
+
+        @Override
+        public final double getValue(int docId) {
+            return getByOrd(ordinals.getOrd(docId));
+        }
+        
+        @Override
+        public final double getValueMissing(int docId, double missingValue) {
+            final int ord = ordinals.getOrd(docId);
+            if (ord == 0) {
+                return missingValue;
+            } else {
+                return getByOrd(ord);
+            }
+        }
+        
+        protected abstract double getByOrd(int ord);
+
+        @Override
+        public final Iter getIter(int docId) {
+           return iter.reset(ordinals.getIter(docId));
+        }
+
+    }
+
+    public static interface Iter {
 
         boolean hasNext();
 
         double next();
 
-        static class Empty implements Iter {
+        public static class Empty implements Iter {
 
             public static final Empty INSTANCE = new Empty();
 
@@ -76,7 +154,7 @@ public interface DoubleValues {
             }
         }
 
-        static class Single implements Iter {
+       static class Single implements Iter {
 
             public double value;
             public boolean done;
@@ -99,12 +177,41 @@ public interface DoubleValues {
                 return value;
             }
         }
+       
+        static class Multi implements Iter {
+
+            private org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter ordsIter;
+            private int ord;
+            private OrdBasedDoubleValues values;
+
+            public Multi(OrdBasedDoubleValues values) {
+                this.values = values;
+            }
+
+            public Multi reset(Ordinals.Docs.Iter ordsIter) {
+                this.ordsIter = ordsIter;
+                this.ord = ordsIter.next();
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return ord != 0;
+            }
+
+            @Override
+            public double next() {
+                double value = values.getByOrd(ord);
+                ord = ordsIter.next();
+                return value;
+            }
+        }
     }
 
-    static class Empty implements DoubleValues {
-        @Override
-        public boolean isMultiValued() {
-            return false;
+    static class Empty extends DoubleValues {
+        
+        public Empty() {
+            super(false);
         }
 
         @Override
@@ -118,102 +225,19 @@ public interface DoubleValues {
         }
 
         @Override
-        public double getValueMissing(int docId, double missingValue) {
-            return missingValue;
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return Iter.Empty.INSTANCE;
         }
 
-        @Override
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            proc.onMissing(docId);
-        }
-    }
-
-    public static class LongBased implements DoubleValues {
-
-        private final LongValues values;
-        private final ValueIter iter = new ValueIter();
-
-        public LongBased(LongValues values) {
-            this.values = values;
-        }
-
-        @Override
-        public boolean isMultiValued() {
-            return values.isMultiValued();
-        }
-
-        @Override
-        public boolean hasValue(int docId) {
-            return values.hasValue(docId);
-        }
-
-        @Override
-        public double getValue(int docId) {
-            return (double) values.getValue(docId);
-        }
-
-        @Override
-        public double getValueMissing(int docId, double missingValue) {
-            if (!values.hasValue(docId)) {
-                return missingValue;
-            }
-            return getValue(docId);
-        }
-
-        @Override
-        public Iter getIter(int docId) {
-            return this.iter.reset(values.getIter(docId));
-        }
-
-        @Override
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            if (values.hasValue(docId)) {
-                final LongValues.Iter longIter = values.getIter(docId);
-                while(longIter.hasNext()) {
-                    proc.onValue(docId, longIter.next());
-                }
-            } else {
-                proc.onMissing(docId);
-            }
-        }
-
-        static class ValueIter implements Iter {
-
-            private LongValues.Iter iter;
-
-            private ValueIter reset(LongValues.Iter iter) {
-                this.iter = iter;
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return iter.hasNext();
-            }
-
-            @Override
-            public double next() {
-                return (double) iter.next();
-            }
-        }
-
     }
     
-    public static class FilteredDoubleValues implements DoubleValues {
+    public static class FilteredDoubleValues extends DoubleValues {
 
         protected final DoubleValues delegate;
 
         public FilteredDoubleValues(DoubleValues delegate) {
+            super(delegate.isMultiValued());
             this.delegate = delegate;
-        }
-
-        public boolean isMultiValued() {
-            return delegate.isMultiValued();
         }
 
         public boolean hasValue(int docId) {
@@ -224,16 +248,9 @@ public interface DoubleValues {
             return delegate.getValue(docId);
         }
 
-        public double getValueMissing(int docId, double missingValue) {
-            return delegate.getValueMissing(docId, missingValue);
-        }
-
         public Iter getIter(int docId) {
             return delegate.getIter(docId);
         }
-
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            delegate.forEachValueInDoc(docId, proc);
-        }
     }
+
 }

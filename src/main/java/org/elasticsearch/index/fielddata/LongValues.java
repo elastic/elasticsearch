@@ -120,6 +120,16 @@ public abstract class LongValues {
         public final Iter getIter(int docId) {
            return iter.reset(ordinals.getIter(docId));
         }
+        
+        @Override
+        public final long getValueMissing(int docId, long missingValue) {
+            final int ord = ordinals.getOrd(docId);
+            if (ord == 0) {
+                return missingValue;
+            } else {
+                return getByOrd(ord);
+            }
+        }
 
     }
 

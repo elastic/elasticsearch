@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet.statistical;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -68,7 +69,7 @@ public class StatisticalFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            values.forEachValueInDoc(doc, statsProc);
+            statsProc.onDoc(doc, values);
         }
 
         @Override
@@ -82,7 +83,7 @@ public class StatisticalFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class StatsProc implements DoubleValues.ValueInDocProc {
+    public static class StatsProc extends DoubleFacetAggregatorBase {
 
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
@@ -104,21 +105,12 @@ public class StatisticalFacetExecutor extends FacetExecutor {
             count++;
         }
 
-        @Override
-        public void onMissing(int docId) {
-            missing++;
-        }
-
         public final double min() {
             return min;
         }
 
         public final double max() {
             return max;
-        }
-
-        public final double total() {
-            return total;
         }
 
         public final long count() {

@@ -35,6 +35,7 @@ import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.strings.HashedAggregator;
@@ -50,9 +51,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     final IndexFieldData keyIndexFieldData;
     final IndexNumericFieldData valueIndexFieldData;
     final SearchScript script;
-
     private final int size;
-    private final int numberOfShards;
 
     final ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries;
     long missing;
@@ -64,8 +63,6 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         this.script = valueScript;
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = context.numberOfShards();
-
         this.entries = CacheRecycler.popHashMap();
     }
 
@@ -166,16 +163,12 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
             }
             stringEntry.count++;
             valueAggregator.stringEntry = stringEntry;
-            valueValues.forEachValueInDoc(docId, valueAggregator);
+            valueAggregator.onDoc(docId, valueValues);
         }
 
-        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
+        public static class ValueAggregator extends DoubleFacetAggregatorBase {
 
             InternalTermsStatsStringFacet.StringEntry stringEntry;
-
-            @Override
-            public void onMissing(int docId) {
-            }
 
             @Override
             public void onValue(int docId, double value) {

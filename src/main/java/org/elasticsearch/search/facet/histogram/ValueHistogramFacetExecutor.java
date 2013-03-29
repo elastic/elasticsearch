@@ -24,6 +24,7 @@ import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -77,7 +78,7 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            keyValues.forEachValueInDoc(doc, histoProc);
+            histoProc.onDoc(doc, keyValues);
         }
 
         @Override
@@ -85,7 +86,7 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class HistogramProc implements DoubleValues.ValueInDocProc {
+    public final static class HistogramProc extends DoubleFacetAggregatorBase {
 
         final long interval;
         final ExtTLongObjectHashMap<InternalFullHistogramFacet.FullEntry> entries;
@@ -100,10 +101,6 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
         }
 
         @Override
-        public void onMissing(int docId) {
-        }
-
-        @Override
         public void onValue(int docId, double value) {
             long bucket = FullHistogramFacetExecutor.bucket(value, interval);
             InternalFullHistogramFacet.FullEntry entry = entries.get(bucket);
@@ -113,16 +110,12 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
             }
             entry.count++;
             valueAggregator.entry = entry;
-            valueValues.forEachValueInDoc(docId, valueAggregator);
+            valueAggregator.onDoc(docId,  valueValues);
         }
 
-        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
+        public final static class ValueAggregator extends DoubleFacetAggregatorBase {
 
             InternalFullHistogramFacet.FullEntry entry;
-
-            @Override
-            public void onMissing(int docId) {
-            }
 
             @Override
             public void onValue(int docId, double value) {

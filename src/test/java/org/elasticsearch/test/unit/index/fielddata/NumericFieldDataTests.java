@@ -110,10 +110,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(doubleValuesIter.next(), equalTo(3d));
         assertThat(doubleValuesIter.hasNext(), equalTo(false));
 
-        doubleValues.forEachValueInDoc(0, new DoubleValuesVerifierProc(0).addExpected(2d));
-        doubleValues.forEachValueInDoc(1, new DoubleValuesVerifierProc(1).addExpected(1d));
-        doubleValues.forEachValueInDoc(2, new DoubleValuesVerifierProc(2).addExpected(3d));
-
         IndexSearcher searcher = new IndexSearcher(readerContext.reader());
         TopFieldDocs topDocs;
 
@@ -195,10 +191,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(doubleValuesIter.hasNext(), equalTo(true));
         assertThat(doubleValuesIter.next(), equalTo(3d));
         assertThat(doubleValuesIter.hasNext(), equalTo(false));
-
-        doubleValues.forEachValueInDoc(0, new DoubleValuesVerifierProc(0).addExpected(2d));
-        doubleValues.forEachValueInDoc(1, new DoubleValuesVerifierProc(1).addMissing());
-        doubleValues.forEachValueInDoc(2, new DoubleValuesVerifierProc(2).addExpected(3d));
 
         IndexSearcher searcher = new IndexSearcher(readerContext.reader());
         TopFieldDocs topDocs;
@@ -319,10 +311,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(doubleValuesIter.hasNext(), equalTo(true));
         assertThat(doubleValuesIter.next(), equalTo(3d));
         assertThat(doubleValuesIter.hasNext(), equalTo(false));
-
-        doubleValues.forEachValueInDoc(0, new DoubleValuesVerifierProc(0).addExpected(2d).addExpected(4d));
-        doubleValues.forEachValueInDoc(1, new DoubleValuesVerifierProc(1).addExpected(1d));
-        doubleValues.forEachValueInDoc(2, new DoubleValuesVerifierProc(2).addExpected(3d));
     }
 
     @Test
@@ -392,10 +380,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
         assertThat(doubleValuesIter.hasNext(), equalTo(true));
         assertThat(doubleValuesIter.next(), equalTo(3d));
         assertThat(doubleValuesIter.hasNext(), equalTo(false));
-
-        doubleValues.forEachValueInDoc(0, new DoubleValuesVerifierProc(0).addExpected(2d).addExpected(4d));
-        doubleValues.forEachValueInDoc(1, new DoubleValuesVerifierProc(1).addMissing());
-        doubleValues.forEachValueInDoc(2, new DoubleValuesVerifierProc(2).addExpected(3d));
     }
 
     @Test
@@ -451,10 +435,6 @@ public abstract class NumericFieldDataTests extends StringFieldDataTests {
 
         doubleValuesIter = doubleValues.getIter(2);
         assertThat(doubleValuesIter.hasNext(), equalTo(false));
-
-        doubleValues.forEachValueInDoc(0, new DoubleValuesVerifierProc(0).addMissing());
-        doubleValues.forEachValueInDoc(1, new DoubleValuesVerifierProc(1).addMissing());
-        doubleValues.forEachValueInDoc(2, new DoubleValuesVerifierProc(2).addMissing());
     }
 
     protected void fillAllMissing() throws Exception {

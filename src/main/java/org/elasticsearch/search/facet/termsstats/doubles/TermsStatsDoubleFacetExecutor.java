@@ -28,6 +28,7 @@ import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
@@ -47,7 +48,6 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
     final SearchScript script;
 
     private final int size;
-    private final int numberOfShards;
 
     final ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
     long missing;
@@ -56,7 +56,6 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
                                          int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = context.numberOfShards();
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.script = script;
@@ -127,7 +126,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            keyValues.forEachValueInDoc(doc, aggregator);
+            aggregator.onDoc(doc, keyValues);
         }
 
         @Override
@@ -136,7 +135,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class Aggregator implements DoubleValues.ValueInDocProc {
+    public static class Aggregator extends DoubleFacetAggregatorBase {
 
         final ExtTDoubleObjectHashMap<InternalTermsStatsDoubleFacet.DoubleEntry> entries;
         int missing;
@@ -156,21 +155,13 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
             }
             doubleEntry.count++;
             valueAggregator.doubleEntry = doubleEntry;
-            valueFieldData.forEachValueInDoc(docId, valueAggregator);
+            valueAggregator.onDoc(docId, valueFieldData);
         }
 
-        @Override
-        public void onMissing(int docId) {
-            missing++;
-        }
-
-        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
+        public static class ValueAggregator extends DoubleFacetAggregatorBase {
 
             InternalTermsStatsDoubleFacet.DoubleEntry doubleEntry;
 
-            @Override
-            public void onMissing(int docId) {
-            }
 
             @Override
             public void onValue(int docId, double value) {

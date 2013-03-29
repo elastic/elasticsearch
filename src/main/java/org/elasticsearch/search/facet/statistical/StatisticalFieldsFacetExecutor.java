@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet.statistical;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
@@ -75,7 +76,7 @@ public class StatisticalFieldsFacetExecutor extends FacetExecutor {
         @Override
         public void collect(int doc) throws IOException {
             for (DoubleValues value : values) {
-                value.forEachValueInDoc(doc, statsProc);
+                statsProc.onDoc(doc, value);
             }
         }
 
@@ -83,18 +84,18 @@ public class StatisticalFieldsFacetExecutor extends FacetExecutor {
         public void postCollection() {
             StatisticalFieldsFacetExecutor.this.min = statsProc.min;
             StatisticalFieldsFacetExecutor.this.max = statsProc.max;
-            StatisticalFieldsFacetExecutor.this.total = statsProc.total;
+            StatisticalFieldsFacetExecutor.this.total = statsProc.sum;
             StatisticalFieldsFacetExecutor.this.sumOfSquares = statsProc.sumOfSquares;
             StatisticalFieldsFacetExecutor.this.count = statsProc.count;
             StatisticalFieldsFacetExecutor.this.missing = statsProc.missing;
         }
     }
 
-    public static class StatsProc implements DoubleValues.ValueInDocProc {
+    public static class StatsProc extends DoubleFacetAggregatorBase {
 
         double min = Double.POSITIVE_INFINITY;
         double max = Double.NEGATIVE_INFINITY;
-        double total = 0;
+        double sum = 0;
         double sumOfSquares = 0.0;
         long count;
         int missing;
@@ -108,33 +109,8 @@ public class StatisticalFieldsFacetExecutor extends FacetExecutor {
                 max = value;
             }
             sumOfSquares += value * value;
-            total += value;
+            sum += value;
             count++;
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            missing++;
-        }
-
-        public final double min() {
-            return min;
-        }
-
-        public final double max() {
-            return max;
-        }
-
-        public final double total() {
-            return total;
-        }
-
-        public final long count() {
-            return count;
-        }
-
-        public final double sumOfSquares() {
-            return sumOfSquares;
         }
     }
 }

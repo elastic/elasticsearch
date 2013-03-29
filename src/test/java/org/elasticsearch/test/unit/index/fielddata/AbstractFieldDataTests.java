@@ -122,39 +122,4 @@ public abstract class AbstractFieldDataTests {
         }
     }
 
-    public static class DoubleValuesVerifierProc implements DoubleValues.ValueInDocProc {
-
-        private static final Double MISSING = new Double(0);
-
-        private final int docId;
-        private final List<Double> expected = new ArrayList<Double>();
-
-        private int idx;
-
-        DoubleValuesVerifierProc(int docId) {
-            this.docId = docId;
-        }
-
-        public DoubleValuesVerifierProc addExpected(double value) {
-            expected.add(value);
-            return this;
-        }
-
-        public DoubleValuesVerifierProc addMissing() {
-            expected.add(MISSING);
-            return this;
-        }
-
-        @Override
-        public void onValue(int docId, double value) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(value, equalTo(expected.get(idx++)));
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(MISSING, sameInstance(expected.get(idx++)));
-        }
-    }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.LongFacetAggregatorBase;
@@ -157,17 +158,13 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
             }
             longEntry.count++;
             valueAggregator.longEntry = longEntry;
-            valueValues.forEachValueInDoc(docId, valueAggregator);
+            valueAggregator.onDoc(docId, valueValues);
         }
 
 
-        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
+        public final static class ValueAggregator extends DoubleFacetAggregatorBase {
 
             InternalTermsStatsLongFacet.LongEntry longEntry;
-
-            @Override
-            public void onMissing(int docId) {
-            }
 
             @Override
             public void onValue(int docId, double value) {

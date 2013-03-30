@@ -81,8 +81,12 @@ public class SortParseElement implements SearchParseElement {
                     addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
                 }
             }
-        } else {
+        } else if (token == XContentParser.Token.VALUE_STRING) {
+            addSortField(context, sortFields, parser.text(), false, false, null, null, null, null);
+        } else if (token == XContentParser.Token.START_OBJECT) {
             addCompoundSortField(parser, context, sortFields);
+        } else {
+            throw new ElasticSearchIllegalArgumentException("malformed sort format, either start with array, object, or an actual string");
         }
         if (!sortFields.isEmpty()) {
             // optimize if we just sort on score non reversed, we don't really need sorting

@@ -22,7 +22,9 @@ package org.elasticsearch.search.facet.terms.strings;
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.PriorityQueue;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -50,7 +52,6 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
-    private final int numberOfShards;
     private final int minCount;
     private final ImmutableSet<BytesRef> excluded;
     private final Matcher matcher;
@@ -65,7 +66,6 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = context.numberOfShards();
         this.ordinalsCacheAbove = ordinalsCacheAbove;
 
         if (excluded == null || excluded.isEmpty()) {
@@ -92,8 +92,8 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
+        final CharsRef spare = new CharsRef();
         AggregatorPriorityQueue queue = new AggregatorPriorityQueue(aggregators.size());
-
         for (ReaderAggregator aggregator : aggregators) {
             if (aggregator.nextPosition()) {
                 queue.add(aggregator);
@@ -124,9 +124,12 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                     if (excluded != null && excluded.contains(value)) {
                         continue;
                     }
-                    // LUCENE 4 UPGRADE: use Lucene's RegexCapabilities
-                    if (matcher != null && !matcher.reset(value.utf8ToString()).matches()) {
-                        continue;
+                    if (matcher != null) {
+                        UnicodeUtil.UTF8toUTF16(value, spare);
+                        assert spare.toString().equals(value.utf8ToString());
+                        if (!matcher.reset(spare).matches()) {
+                            continue;
+                        }
                     }
                     InternalStringTermsFacet.TermEntry entry = new InternalStringTermsFacet.TermEntry(value, count);
                     ordered.insertWithOverflow(entry);
@@ -167,9 +170,12 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
                 if (excluded != null && excluded.contains(value)) {
                     continue;
                 }
-                // LUCENE 4 UPGRADE: use Lucene's RegexCapabilities
-                if (matcher != null && !matcher.reset(value.utf8ToString()).matches()) {
-                    continue;
+                if (matcher != null) {
+                    UnicodeUtil.UTF8toUTF16(value, spare);
+                    assert spare.toString().equals(value.utf8ToString());
+                    if (!matcher.reset(spare).matches()) {
+                        continue;
+                    }
                 }
                 InternalStringTermsFacet.TermEntry entry = new InternalStringTermsFacet.TermEntry(value, count);
                 ordered.add(entry);

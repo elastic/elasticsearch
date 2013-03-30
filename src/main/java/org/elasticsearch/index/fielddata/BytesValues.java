@@ -205,68 +205,6 @@ public abstract class  BytesValues {
         }
     }
 
-    public static class StringBased extends BytesValues {
-
-        
-        private final StringValues values;
-
-        private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[1], 1);
-        private final ValueIter valueIter = new ValueIter();
-
-        public StringBased(StringValues values) {
-            super(values.isMultiValued());
-            this.values = values;
-        }
-
-        @Override
-        public boolean hasValue(int docId) {
-            return values.hasValue(docId);
-        }
-
-        @Override
-        public BytesRef getValueScratch(int docId, BytesRef ret) {
-            String value = values.getValue(docId);
-            if (value == null) {
-                ret.length = 0;
-                return ret;
-            }
-            ret.copyChars(value);
-            return ret;
-        }
-
-        @Override
-        public Iter getIter(int docId) {
-            return valueIter.reset(values.getIter(docId));
-        }
-
-        public  static class ValueIter implements Iter {
-
-            private final BytesRef scratch = new BytesRef();
-            private StringValues.Iter iter;
-
-            public ValueIter reset(StringValues.Iter iter) {
-                this.iter = iter;
-                return this;
-            }
-
-            @Override
-            public boolean hasNext() {
-                return iter.hasNext();
-            }
-
-            @Override
-            public BytesRef next() {
-                scratch.copyChars(iter.next());
-                return scratch;
-            }
-
-            @Override
-            public int hash() {
-                return scratch.hashCode();
-            }
-        }
-
-    }
 
     /**
      * Bytes values that are based on ordinals.

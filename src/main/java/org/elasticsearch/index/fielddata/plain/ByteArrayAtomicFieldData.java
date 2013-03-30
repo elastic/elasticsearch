@@ -39,6 +39,7 @@ public abstract class ByteArrayAtomicFieldData extends AtomicNumericFieldData {
     protected long size = -1;
 
     public ByteArrayAtomicFieldData(byte[] values, int numDocs) {
+        super(false);
         this.values = values;
         this.numDocs = numDocs;
     }
@@ -47,10 +48,11 @@ public abstract class ByteArrayAtomicFieldData extends AtomicNumericFieldData {
     public int getNumDocs() {
         return numDocs;
     }
+    
+    
 
     @Override
     public void close() {
-
     }
 
     static class Empty extends ByteArrayAtomicFieldData {
@@ -87,11 +89,6 @@ public abstract class ByteArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public BytesValues getBytesValues() {
             return BytesValues.EMPTY;
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return StringValues.EMPTY;
         }
 
         @Override
@@ -211,17 +208,6 @@ public abstract class ByteArrayAtomicFieldData extends AtomicNumericFieldData {
         }
 
         @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues.LongBased(getLongValues());
-        }
-
-        @Override
         public LongValues getLongValues() {
             return new LongValues(values, set);
         }
@@ -314,15 +300,6 @@ public abstract class ByteArrayAtomicFieldData extends AtomicNumericFieldData {
             return new ScriptDocValues.NumericLong(getLongValues());
         }
 
-        @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues.LongBased(getLongValues());
-        }
 
         @Override
         public LongValues getLongValues() {

@@ -19,23 +19,28 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
-import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
-import org.elasticsearch.index.fielddata.util.StringArrayRef;
 import org.testng.annotations.Test;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -131,35 +136,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
         assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(two())));
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        StringValues stringValues = fieldData.getStringValues();
-
-        assertThat(stringValues.hasValue(0), equalTo(true));
-        assertThat(stringValues.hasValue(1), equalTo(true));
-        assertThat(stringValues.hasValue(2), equalTo(true));
-
-        assertThat(stringValues.getValue(0), equalTo(two()));
-        assertThat(stringValues.getValue(1), equalTo(one()));
-        assertThat(stringValues.getValue(2), equalTo(three()));
-
-        StringValues.Iter stringValuesIter = stringValues.getIter(0);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(two()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(1);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(one()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(2);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(three()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValues.forEachValueInDoc(0, new StringValuesVerifierProc(0).addExpected(two()));
-        stringValues.forEachValueInDoc(1, new StringValuesVerifierProc(1).addExpected(one()));
-        stringValues.forEachValueInDoc(2, new StringValuesVerifierProc(2).addExpected(three()));
 
         IndexSearcher searcher = new IndexSearcher(readerContext.reader());
         TopFieldDocs topDocs;
@@ -260,33 +236,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         hashedBytesValuesIter = hashedBytesValues.getIter(1);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
 
-        StringValues stringValues = fieldData.getStringValues();
-
-        assertThat(stringValues.hasValue(0), equalTo(true));
-        assertThat(stringValues.hasValue(1), equalTo(false));
-        assertThat(stringValues.hasValue(2), equalTo(true));
-
-        assertThat(stringValues.getValue(0), equalTo(two()));
-        assertThat(stringValues.getValue(1), nullValue());
-        assertThat(stringValues.getValue(2), equalTo(three()));
-
-        StringValues.Iter stringValuesIter = stringValues.getIter(0);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(two()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(1);
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(2);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(three()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValues.forEachValueInDoc(0, new StringValuesVerifierProc(0).addExpected(two()));
-        stringValues.forEachValueInDoc(1, new StringValuesVerifierProc(1).addMissing());
-        stringValues.forEachValueInDoc(2, new StringValuesVerifierProc(2).addExpected(three()));
-
         // TODO properly support missing....
     }
 
@@ -361,38 +310,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(true));
         assertThat(new HashedBytesRef(hashedBytesValuesIter.next(), hashedBytesValuesIter.hash()), equalTo(new HashedBytesRef(four())));
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        StringValues stringValues = fieldData.getStringValues();
-
-        assertThat(stringValues.hasValue(0), equalTo(true));
-        assertThat(stringValues.hasValue(1), equalTo(true));
-        assertThat(stringValues.hasValue(2), equalTo(true));
-
-        assertThat(stringValues.getValue(0), equalTo(two()));
-        assertThat(stringValues.getValue(1), equalTo(one()));
-        assertThat(stringValues.getValue(2), equalTo(three()));
-
-
-        StringValues.Iter stringValuesIter = stringValues.getIter(0);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(two()));
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(four()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(1);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(one()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(2);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(three()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValues.forEachValueInDoc(0, new StringValuesVerifierProc(0).addExpected(two()).addExpected(four()));
-        stringValues.forEachValueInDoc(1, new StringValuesVerifierProc(1).addExpected(one()));
-        stringValues.forEachValueInDoc(2, new StringValuesVerifierProc(2).addExpected(three()));
 
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, SortMode.MIN))));
@@ -486,35 +403,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
 
         hashedBytesValuesIter = hashedBytesValues.getIter(1);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        StringValues stringValues = fieldData.getStringValues();
-
-        assertThat(stringValues.hasValue(0), equalTo(true));
-        assertThat(stringValues.hasValue(1), equalTo(false));
-        assertThat(stringValues.hasValue(2), equalTo(true));
-
-        assertThat(stringValues.getValue(0), equalTo(two()));
-        assertThat(stringValues.getValue(1), nullValue());
-        assertThat(stringValues.getValue(2), equalTo(three()));
-
-        StringValues.Iter stringValuesIter = stringValues.getIter(0);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(two()));
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(four()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(1);
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(2);
-        assertThat(stringValuesIter.hasNext(), equalTo(true));
-        assertThat(stringValuesIter.next(), equalTo(three()));
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValues.forEachValueInDoc(0, new StringValuesVerifierProc(0).addExpected(two()).addExpected(four()));
-        stringValues.forEachValueInDoc(1, new StringValuesVerifierProc(1).addMissing());
-        stringValues.forEachValueInDoc(2, new StringValuesVerifierProc(2).addExpected(three()));
     }
 
     public void testMissingValueForAll() throws Exception {
@@ -571,29 +459,6 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
 
         hashedBytesValuesIter = hashedBytesValues.getIter(2);
         assertThat(hashedBytesValuesIter.hasNext(), equalTo(false));
-
-        StringValues stringValues = fieldData.getStringValues();
-
-        assertThat(stringValues.hasValue(0), equalTo(false));
-        assertThat(stringValues.hasValue(1), equalTo(false));
-        assertThat(stringValues.hasValue(2), equalTo(false));
-
-        assertThat(stringValues.getValue(0), nullValue());
-        assertThat(stringValues.getValue(1), nullValue());
-        assertThat(stringValues.getValue(2), nullValue());
-
-        StringValues.Iter stringValuesIter = stringValues.getIter(0);
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(1);
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValuesIter = stringValues.getIter(2);
-        assertThat(stringValuesIter.hasNext(), equalTo(false));
-
-        stringValues.forEachValueInDoc(0, new StringValuesVerifierProc(0).addMissing());
-        stringValues.forEachValueInDoc(1, new StringValuesVerifierProc(1).addMissing());
-        stringValues.forEachValueInDoc(2, new StringValuesVerifierProc(2).addMissing());
     }
 
     protected void fillAllMissing() throws Exception {

@@ -19,13 +19,6 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
-
-import java.util.ArrayList;
-import java.util.List;
-
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -36,11 +29,9 @@ import org.apache.lucene.index.SlowCompositeReaderWrapper;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.fielddata.StringValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -83,43 +74,6 @@ public abstract class AbstractFieldDataTests {
         }
         writer.close();
         ifdService.clear();
-    }
-
-
-    public static class StringValuesVerifierProc implements StringValues.ValueInDocProc {
-
-        private static final String MISSING = new String();
-
-        private final int docId;
-        private final List<String> expected = new ArrayList<String>();
-
-        private int idx;
-
-        StringValuesVerifierProc(int docId) {
-            this.docId = docId;
-        }
-
-        public StringValuesVerifierProc addExpected(String value) {
-            expected.add(value);
-            return this;
-        }
-
-        public StringValuesVerifierProc addMissing() {
-            expected.add(MISSING);
-            return this;
-        }
-
-        @Override
-        public void onValue(int docId, String value) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(value, equalTo(expected.get(idx++)));
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(MISSING, sameInstance(expected.get(idx++)));
-        }
     }
 
 }

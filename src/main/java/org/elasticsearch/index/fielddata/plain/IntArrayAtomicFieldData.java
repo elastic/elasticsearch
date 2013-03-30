@@ -26,7 +26,6 @@ import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.StringValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
@@ -41,6 +40,7 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
     protected long size = -1;
 
     public IntArrayAtomicFieldData(int[] values, int numDocs) {
+        super(false);
         this.values = values;
         this.numDocs = numDocs;
     }
@@ -91,11 +91,6 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
         }
 
         @Override
-        public StringValues getStringValues() {
-            return StringValues.EMPTY;
-        }
-
-        @Override
         public ScriptDocValues getScriptValues() {
             return ScriptDocValues.EMPTY;
         }
@@ -126,11 +121,6 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
                 size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + +RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_INT) + ordinals.getMemorySizeInBytes();
             }
             return size;
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues.LongBased(getLongValues());
         }
 
         @Override
@@ -215,16 +205,6 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public ScriptDocValues getScriptValues() {
             return new ScriptDocValues.NumericLong(getLongValues());
-        }
-
-        @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues.LongBased(getLongValues());
         }
 
         @Override
@@ -317,16 +297,6 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public ScriptDocValues getScriptValues() {
             return new ScriptDocValues.NumericLong(getLongValues());
-        }
-
-        @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues.LongBased(getLongValues());
         }
 
         @Override

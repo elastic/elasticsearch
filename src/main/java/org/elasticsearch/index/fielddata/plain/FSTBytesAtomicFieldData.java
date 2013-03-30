@@ -31,11 +31,9 @@ import org.apache.lucene.util.fst.FST.BytesReader;
 import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.StringValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
-import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
 
 /**
  */
@@ -94,16 +92,12 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         return ordinals.isMultiValued() ? new BytesValues.Multi(fst, ordinals.ordinals()) : new BytesValues.Single(fst, ordinals.ordinals());
     }
 
-    @Override
-    public StringValues.WithOrdinals getStringValues() {
-        assert fst != null;
-        return StringValues.BytesValuesWrapper.wrap(getBytesValues());
-    }
+  
 
     @Override
     public ScriptDocValues.Strings getScriptValues() {
         assert fst != null;
-        return new ScriptDocValues.Strings(getStringValues());
+        return new ScriptDocValues.Strings(getBytesValues());
     }
     
     @Override
@@ -270,11 +264,6 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         @Override
         public BytesValues.WithOrdinals getBytesValues() {
             return new BytesValues.WithOrdinals.Empty(ordinals.ordinals());
-        }
-
-        @Override
-        public StringValues.WithOrdinals getStringValues() {
-            return new StringValues.WithOrdinals.Empty(ordinals);
         }
 
         @Override

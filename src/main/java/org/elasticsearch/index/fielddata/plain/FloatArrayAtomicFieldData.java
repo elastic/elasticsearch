@@ -39,6 +39,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
     protected long size = -1;
 
     public FloatArrayAtomicFieldData(float[] values, int numDocs) {
+        super(true);
         this.values = values;
         this.numDocs = numDocs;
     }
@@ -89,11 +90,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         }
 
         @Override
-        public StringValues getStringValues() {
-            return StringValues.EMPTY;
-        }
-
-        @Override
         public ScriptDocValues getScriptValues() {
             return ScriptDocValues.EMPTY;
         }
@@ -124,11 +120,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
                 size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_FLOAT) + ordinals.getMemorySizeInBytes();
             }
             return size;
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues.DoubleBased(getDoubleValues());
         }
 
         @Override
@@ -213,15 +204,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             return new ScriptDocValues.NumericDouble(getDoubleValues());
         }
 
-        @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues.DoubleBased(getDoubleValues());
-        }
 
         @Override
         public LongValues getLongValues() {
@@ -315,16 +297,6 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public ScriptDocValues getScriptValues() {
             return new ScriptDocValues.NumericDouble(getDoubleValues());
-        }
-
-        @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues.DoubleBased(getDoubleValues());
         }
 
         @Override

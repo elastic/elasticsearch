@@ -23,7 +23,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.StringValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
@@ -102,14 +101,10 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
         return ordinals.isMultiValued() ? new BytesValues.MultiHashed(values, ordinals.ordinals(), hashes) : new BytesValues.SingleHashed(values, ordinals.ordinals(), hashes);
     }
 
-    @Override
-    public StringValues.WithOrdinals getStringValues() {
-        return StringValues.BytesValuesWrapper.wrap(getBytesValues());
-    }
 
     @Override
     public ScriptDocValues.Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getStringValues());
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     static abstract class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
@@ -278,11 +273,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
         @Override
         public BytesValues.WithOrdinals getBytesValues() {
             return new BytesValues.WithOrdinals.Empty(ordinals.ordinals());
-        }
-
-        @Override
-        public StringValues.WithOrdinals getStringValues() {
-            return new StringValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
         }
 
         @Override

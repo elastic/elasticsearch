@@ -25,14 +25,10 @@ import org.apache.lucene.util.PagedBytes.Reader;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.BytesValues.Iter;
-import org.elasticsearch.index.fielddata.BytesValues.Iter.Multi;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.StringValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
-import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
 
 /**
  */
@@ -117,16 +113,9 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
                 : new BytesValues.SingleHashed(hashes, bytes, termOrdToBytesOffset, ordinals.ordinals());
     }
     
-    
-
-    @Override
-    public StringValues.WithOrdinals getStringValues() {
-        return StringValues.BytesValuesWrapper.wrap(getBytesValues());
-    }
-
     @Override
     public ScriptDocValues.Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getStringValues());
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
     static abstract class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
@@ -277,11 +266,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         @Override
         public BytesValues.WithOrdinals getBytesValues() {
             return new BytesValues.WithOrdinals.Empty(ordinals.ordinals());
-        }
-
-        @Override
-        public StringValues.WithOrdinals getStringValues() {
-            return new StringValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
         }
 
         @Override

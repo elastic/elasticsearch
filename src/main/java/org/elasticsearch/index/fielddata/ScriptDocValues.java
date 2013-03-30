@@ -20,10 +20,11 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.util.*;
 import org.joda.time.MutableDateTime;
 
 /**
@@ -33,7 +34,7 @@ import org.joda.time.MutableDateTime;
 public interface ScriptDocValues {
 
     static final ScriptDocValues EMPTY = new Empty();
-    static final Strings EMPTY_STRINGS = new Strings(StringValues.EMPTY);
+    static final Strings EMPTY_STRINGS = new Strings(BytesValues.EMPTY);
 
     void setNextDocId(int docId);
 
@@ -52,10 +53,11 @@ public interface ScriptDocValues {
 
     static class Strings implements ScriptDocValues {
 
-        private final StringValues values;
+        private final BytesValues values;
+        private final CharsRef spare = new CharsRef();
         private int docId;
 
-        public Strings(StringValues values) {
+        public Strings(BytesValues values) {
             this.values = values;
         }
 
@@ -70,7 +72,12 @@ public interface ScriptDocValues {
         }
 
         public String getValue() {
-            return values.getValue(docId);
+            final BytesRef value = values.getValue(docId);
+            if (value != null) {
+                UnicodeUtil.UTF8toUTF16(value, spare);
+                return spare.toString();
+            }
+            return null;
         }
 
     }

@@ -19,16 +19,22 @@
 
 package org.elasticsearch.test.unit.index.fielddata.ordinals;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.testng.annotations.Test;
-
-import java.util.*;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -110,11 +116,11 @@ public abstract class MultiOrdinalsTests {
             } else {
                 if (!docOrds.isEmpty()) {
                     assertThat(docs.getOrd(docId), equalTo(docOrds.get(0)));
-                    IntArrayRef ref = docs.getOrds(docId);
-                    assertThat(ref.start, equalTo(0));
+                    IntsRef ref = docs.getOrds(docId);
+                    assertThat(ref.offset, equalTo(0));
 
-                    for (int i = ref.start; i < ref.end; i++) {
-                        assertThat(ref.values[i], equalTo(docOrds.get(i)));
+                    for (int i = ref.offset; i < ref.length; i++) {
+                        assertThat(ref.ints[i], equalTo(docOrds.get(i)));
                     }
                     final int[] array = new int[docOrds.size()];
                     for (int i = 0; i < array.length; i++) {
@@ -202,78 +208,78 @@ public abstract class MultiOrdinalsTests {
 
         // Document 1
         assertThat(docs.getOrd(0), equalTo(2));
-        IntArrayRef ref = docs.getOrds(0);
-        assertThat(ref.start, equalTo(0));
-        assertThat(ref.values[0], equalTo(2));
-        assertThat(ref.values[1], equalTo(4));
-        assertThat(ref.end, equalTo(2));
+        IntsRef ref = docs.getOrds(0);
+        assertThat(ref.offset, equalTo(0));
+        assertThat(ref.ints[0], equalTo(2));
+        assertThat(ref.ints[1], equalTo(4));
+        assertThat(ref.length, equalTo(2));
         assertIter(docs.getIter(0), 2, 4);
         docs.forEachOrdinalInDoc(0, assertOrdinalInProcDoc(2, 4));
 
         // Document 2
         assertThat(docs.getOrd(1), equalTo(1));
         ref = docs.getOrds(1);
-        assertThat(ref.start, equalTo(0));
-        assertThat(ref.values[0], equalTo(1));
-        assertThat(ref.end, equalTo(1));
+        assertThat(ref.offset, equalTo(0));
+        assertThat(ref.ints[0], equalTo(1));
+        assertThat(ref.length, equalTo(1));
         assertIter(docs.getIter(1), 1);
         docs.forEachOrdinalInDoc(1, assertOrdinalInProcDoc(1));
 
         // Document 3
         assertThat(docs.getOrd(2), equalTo(3));
         ref = docs.getOrds(2);
-        assertThat(ref.start, equalTo(0));
-        assertThat(ref.values[0], equalTo(3));
-        assertThat(ref.end, equalTo(1));
+        assertThat(ref.offset, equalTo(0));
+        assertThat(ref.ints[0], equalTo(3));
+        assertThat(ref.length, equalTo(1));
         assertIter(docs.getIter(2), 3);
         docs.forEachOrdinalInDoc(2, assertOrdinalInProcDoc(3));
 
         // Document 4
         assertThat(docs.getOrd(3), equalTo(0));
         ref = docs.getOrds(3);
-        assertThat(ref.start, equalTo(0));
-        assertThat(ref.end, equalTo(0));
+        assertThat(ref.offset, equalTo(0));
+        assertThat(ref.length, equalTo(0));
         assertIter(docs.getIter(3));
         docs.forEachOrdinalInDoc(3, assertOrdinalInProcDoc(0));
 
         // Document 5
         assertThat(docs.getOrd(4), equalTo(1));
         ref = docs.getOrds(4);
-        assertThat(ref.start, equalTo(0));
-        assertThat(ref.values[0], equalTo(1));
-        assertThat(ref.values[1], equalTo(3));
-        assertThat(ref.values[2], equalTo(4));
-        assertThat(ref.values[3], equalTo(5));
-        assertThat(ref.values[4], equalTo(6));
-        assertThat(ref.end, equalTo(5));
+        assertThat(ref.offset, equalTo(0));
+        assertThat(ref.ints[0], equalTo(1));
+        assertThat(ref.ints[1], equalTo(3));
+        assertThat(ref.ints[2], equalTo(4));
+        assertThat(ref.ints[3], equalTo(5));
+        assertThat(ref.ints[4], equalTo(6));
+        assertThat(ref.length, equalTo(5));
         assertIter(docs.getIter(4), 1, 3, 4, 5, 6);
         docs.forEachOrdinalInDoc(4, assertOrdinalInProcDoc(1, 3, 4, 5, 6));
 
         // Document 6
         assertThat(docs.getOrd(5), equalTo(1));
         ref = docs.getOrds(5);
-        assertThat(ref.start, equalTo(0));
+        assertThat(ref.offset, equalTo(0));
         int[] expectedOrds = new int[maxOrds];
         for (int i = 0; i < maxOrds; i++) {
             expectedOrds[i] = i + 1;
-            assertThat(ref.values[i], equalTo(i + 1));
+            assertThat(ref.ints[i], equalTo(i + 1));
         }
         assertIter(docs.getIter(5), expectedOrds);
         docs.forEachOrdinalInDoc(5, assertOrdinalInProcDoc(expectedOrds));
-        assertThat(ref.end, equalTo(maxOrds));
+        assertThat(ref.length, equalTo(maxOrds));
 
         // Document 7
         assertThat(docs.getOrd(6), equalTo(1));
         ref = docs.getOrds(6);
-        assertThat(ref.start, equalTo(0));
+        assertThat(ref.offset, equalTo(0));
         expectedOrds = new int[maxOrds];
         for (int i = 0; i < maxOrds; i++) {
             expectedOrds[i] = i + 1;
-            assertThat(ref.values[i], equalTo(i + 1));
+            assertThat(ref.ints[i], equalTo(i + 1));
         }
         assertIter(docs.getIter(6), expectedOrds);
         docs.forEachOrdinalInDoc(6, assertOrdinalInProcDoc(expectedOrds));
-        assertThat(ref.end, equalTo(maxOrds));
+        assertThat(ref.length, equalTo(maxOrds));
     }
 
     protected static void assertIter(Ordinals.Docs.Iter iter, int... expectedOrdinals) {

@@ -23,7 +23,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
-import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
 
 /**
  */
@@ -212,7 +211,6 @@ public abstract class  BytesValues {
     public static abstract class WithOrdinals extends BytesValues {
         
         protected final Docs ordinals;
-        protected final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[10], 0);
 
         protected WithOrdinals(Ordinals.Docs ordinals) {
             super(ordinals.isMultiValued());

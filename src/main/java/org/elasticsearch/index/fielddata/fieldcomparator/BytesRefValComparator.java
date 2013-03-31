@@ -19,14 +19,13 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import java.io.IOException;
+
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
-
-import java.io.IOException;
 
 /**
  * Sorts by field's natural Term sort order.  All

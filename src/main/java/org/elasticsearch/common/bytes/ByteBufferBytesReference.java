@@ -19,15 +19,6 @@
 
 package org.elasticsearch.common.bytes;
 
-import com.google.common.base.Charsets;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Bytes;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.util.CharsetUtil;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -35,6 +26,15 @@ import java.nio.CharBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.CoderResult;
+
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.util.CharsetUtil;
+
+import com.google.common.base.Charsets;
 
 /**
  */
@@ -86,7 +86,7 @@ public class ByteBufferBytesReference implements BytesReference {
     @Override
     public byte[] toBytes() {
         if (!buffer.hasRemaining()) {
-            return Bytes.EMPTY_ARRAY;
+            return BytesRef.EMPTY_BYTES;
         }
         byte[] tmp = new byte[buffer.remaining()];
         buffer.duplicate().get(tmp);

@@ -19,23 +19,23 @@
 
 package org.elasticsearch.common.bytes;
 
-import com.google.common.base.Charsets;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Arrays;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Arrays;
+import com.google.common.base.Charsets;
 
 public class BytesArray implements BytesReference {
 
-    public static final BytesArray EMPTY = new BytesArray(Bytes.EMPTY_ARRAY, 0, 0);
+    public static final BytesArray EMPTY = new BytesArray(BytesRef.EMPTY_BYTES, 0, 0);
 
     private byte[] bytes;
     private int offset;

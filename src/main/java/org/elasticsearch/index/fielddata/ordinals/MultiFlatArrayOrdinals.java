@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
 /**
  * "Flat" multi valued ordinals, the first level array size is as the maximum
@@ -99,13 +99,13 @@ public final class MultiFlatArrayOrdinals implements Ordinals {
         private final int[][] ordinals;
         private final IterImpl iter;
 
-        private final IntArrayRef intsScratch;
+        private final IntsRef intsScratch;
 
         public Docs(MultiFlatArrayOrdinals parent, int[][] ordinals) {
             this.parent = parent;
             this.ordinals = ordinals;
             this.iter = new IterImpl(ordinals);
-            this.intsScratch = new IntArrayRef(new int[16]);
+            this.intsScratch = new IntsRef(new int[16], 0 , 16);
         }
 
         @Override
@@ -139,19 +139,22 @@ public final class MultiFlatArrayOrdinals implements Ordinals {
         }
 
         @Override
-        public IntArrayRef getOrds(int docId) {
-            intsScratch.end = 0;
+        public IntsRef getOrds(int docId) {
+            intsScratch.offset = 0;
             int i;
             for (i = 0; i < ordinals.length; i++) {
                 int ordinal = ordinals[i][docId];
                 if (ordinal == 0) {
-                    if (i == 0) return IntArrayRef.EMPTY;
+                    if (i == 0) {
+                        intsScratch.length = 0;
+                        return intsScratch;
+                    }
                     break;
                 }
-                intsScratch.growIfNeeded(i);
-                intsScratch.values[i] = ordinal;
+                intsScratch.grow(i+1);
+                intsScratch.ints[i] = ordinal;
             }
-            intsScratch.end = i;
+            intsScratch.length = i;
             return intsScratch;
         }
 

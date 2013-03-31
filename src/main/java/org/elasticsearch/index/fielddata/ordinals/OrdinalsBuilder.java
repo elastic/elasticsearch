@@ -32,12 +32,12 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IntBlockPool;
-import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.IntBlockPool.Allocator;
 import org.apache.lucene.util.IntBlockPool.DirectAllocator;
+import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
 /**
  * Simple class to build document ID <-> ordinal mapping. Note: Ordinals are
@@ -50,7 +50,7 @@ public final class OrdinalsBuilder implements Closeable {
     private int[] offsets;
     private final IntBlockPool pool;
     private final IntBlockPool.SliceWriter writer;
-    private final IntArrayRef intsRef = new IntArrayRef(new int[1]);
+    private final IntsRef intsRef = new IntsRef(1);
     private final IntBlockPool.SliceReader reader;
     private int currentOrd = 0;
     private int numDocsWithValue = 0;
@@ -185,12 +185,13 @@ public final class OrdinalsBuilder implements Closeable {
         if ("flat".equals(multiOrdinals)) {
             final ArrayList<int[]> ordinalBuffer = new ArrayList<int[]>();
             for (int i = 0; i < ords.length; i++) {
-                IntArrayRef docOrds = docOrds(i);
-                while (ordinalBuffer.size() < docOrds.size()) {
+                final IntsRef docOrds = docOrds(i);
+                while (ordinalBuffer.size() < docOrds.length) {
                     ordinalBuffer.add(new int[ords.length]);
                 }
-                for (int j = docOrds.start; j < docOrds.end; j++) {
-                    ordinalBuffer.get(j)[i] = docOrds.values[j];
+                
+                for (int j = docOrds.offset; j < docOrds.offset+docOrds.length; j++) {
+                    ordinalBuffer.get(j)[i] = docOrds.ints[j];
                 }
             }
             int[][] nativeOrdinals = new int[ordinalBuffer.size()][];
@@ -207,27 +208,27 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Returns a shared {@link IntArrayRef} instance for the given doc ID holding all ordinals associated with it.
+     * Returns a shared {@link IntsRef} instance for the given doc ID holding all ordinals associated with it.
      */
-    public IntArrayRef docOrds(int doc) {
+    public IntsRef docOrds(int doc) {
         int docsOrd = ords[doc];
-        intsRef.start = 0;
+        intsRef.offset = 0;
         if (docsOrd == 0) {
-            intsRef.end = 0;
+            intsRef.length = 0;
         } else if (docsOrd > 0) {
-            intsRef.values[0] = ords[doc];
-            intsRef.end = 1;
+            intsRef.ints[0] = ords[doc];
+            intsRef.length = 1;
         } else {
             assert offsets != null;
             reader.reset(-1 * (ords[doc] + 1), offsets[doc]);
             int pos = 0;
             while (!reader.endOfSlice()) {
-                if (intsRef.values.length <= pos) {
-                    intsRef.values = ArrayUtil.grow(intsRef.values, pos + 1);
+                if (intsRef.ints.length <= pos) {
+                    intsRef.ints = ArrayUtil.grow(intsRef.ints, pos + 1);
                 }
-                intsRef.values[pos++] = reader.readInt();
+                intsRef.ints[pos++] = reader.readInt();
             }
-            intsRef.end = pos;
+            intsRef.length = pos;
         }
         return intsRef;
     }

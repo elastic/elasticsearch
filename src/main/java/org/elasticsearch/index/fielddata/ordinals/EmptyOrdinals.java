@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
+import org.apache.lucene.util.IntsRef;
 
 /**
  */
@@ -74,6 +74,7 @@ public class EmptyOrdinals implements Ordinals {
     public static class Docs implements Ordinals.Docs {
 
         private final EmptyOrdinals parent;
+        public static final IntsRef EMPTY_INTS_REF = new IntsRef();
 
         public Docs(EmptyOrdinals parent) {
             this.parent = parent;
@@ -110,8 +111,8 @@ public class EmptyOrdinals implements Ordinals {
         }
 
         @Override
-        public IntArrayRef getOrds(int docId) {
-            return IntArrayRef.EMPTY;
+        public IntsRef getOrds(int docId) {
+            return EMPTY_INTS_REF;
         }
 
         @Override

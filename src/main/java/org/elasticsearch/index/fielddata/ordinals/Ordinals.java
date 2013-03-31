@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
+import org.apache.lucene.util.IntsRef;
 
 /**
  * A thread safe ordinals abstraction. Ordinals can only be positive integers.
@@ -111,7 +111,7 @@ public interface Ordinals {
          * Returns an array of ordinals matching the docIds, with 0 length one
          * for a doc with no ordinals.
          */
-        IntArrayRef getOrds(int docId);
+        IntsRef getOrds(int docId);
 
         /**
          * Returns an iterator of the ordinals that match the docId, with an

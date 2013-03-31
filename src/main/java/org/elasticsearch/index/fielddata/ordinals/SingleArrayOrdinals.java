@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
 /**
  */
@@ -87,7 +87,7 @@ public class SingleArrayOrdinals implements Ordinals {
         private final SingleArrayOrdinals parent;
         private final int[] ordinals;
 
-        private final IntArrayRef intsScratch = new IntArrayRef(new int[1]);
+        private final IntsRef intsScratch = new IntsRef(1);
         private final SingleValueIter iter = new SingleValueIter();
 
         public Docs(SingleArrayOrdinals parent, int[] ordinals) {
@@ -126,10 +126,15 @@ public class SingleArrayOrdinals implements Ordinals {
         }
 
         @Override
-        public IntArrayRef getOrds(int docId) {
-            int ordinal = ordinals[docId];
-            if (ordinal == 0) return IntArrayRef.EMPTY;
-            intsScratch.values[0] = ordinal;
+        public IntsRef getOrds(int docId) {
+            final int ordinal = ordinals[docId];
+            if (ordinal == 0) {
+                intsScratch.length = 0;
+            } else {
+                intsScratch.ints[0] = ordinal;
+                intsScratch.offset = 0;
+                intsScratch.length = 1;
+            }
             return intsScratch;
         }
 

@@ -30,6 +30,7 @@ import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -72,7 +73,7 @@ public class TimestampMappingTests {
     public void testDefaultValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().string();
         DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
-        assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED));
+        assertThat(docMapper.timestampFieldMapper().enabled(), equalTo(TimestampFieldMapper.Defaults.ENABLED.enabled));
         assertThat(docMapper.timestampFieldMapper().fieldType().stored(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.stored()));
         assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(TimestampFieldMapper.Defaults.FIELD_TYPE.indexed()));
         assertThat(docMapper.timestampFieldMapper().path(), equalTo(null));
@@ -94,5 +95,22 @@ public class TimestampMappingTests {
         assertThat(docMapper.timestampFieldMapper().fieldType().indexed(), equalTo(false));
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
+    }
+
+    @Test
+    public void testThatDisablingDuringMergeIsWorking() throws Exception {
+        String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                .endObject().endObject().string();
+        DocumentMapper enabledMapper = MapperTests.newParser().parse(enabledMapping);
+
+        String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", false).endObject()
+                .endObject().endObject().string();
+        DocumentMapper disabledMapper = MapperTests.newParser().parse(disabledMapping);
+
+        enabledMapper.merge(disabledMapper, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+
+        assertThat(enabledMapper.timestampFieldMapper().enabled(), is(false));
     }
 }

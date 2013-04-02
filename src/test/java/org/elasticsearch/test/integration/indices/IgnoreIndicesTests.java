@@ -53,6 +53,28 @@ public class IgnoreIndicesTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testAllMissing() throws Exception {
+    	client.admin().indices().prepareDelete().execute().actionGet();
+    	client.admin().indices().prepareCreate("test1").execute().actionGet();
+        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        try {
+            client.prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+            fail("Exception should have been thrown.");
+        } catch (IndexMissingException e) {
+        }
+        
+        try {
+            client.prepareSearch("test2","test3").setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+            fail("Exception should have been thrown.");
+        } catch (IndexMissingException e) {
+        }
+      
+        //you should still be able to run empty searches without things blowing up
+        client.prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+    }
+    
+    @Test
     public void testMissing() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 

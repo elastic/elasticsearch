@@ -24,7 +24,10 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.indices.IndexMissingException;
 import org.testng.annotations.Test;
+
+import com.google.common.collect.Sets;
 
 import static com.google.common.collect.Sets.newHashSet;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -65,5 +68,41 @@ public class MetaDataTests {
 
     private IndexMetaData.Builder indexBuilder(String index) {
         return IndexMetaData.builder(index).settings(ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
+    }
+    
+    @Test(expectedExceptions = IndexMissingException.class)
+    public void concreteIndicesIgnoreIndicesOneMissingIndex() {
+    	 MetaData.Builder mdBuilder = MetaData.builder()
+                 .put(indexBuilder("testXXX"))
+                 .put(indexBuilder("kuku"));
+         MetaData md = mdBuilder.build();
+         md.concreteIndices(new String[]{"testZZZ"}, IgnoreIndices.MISSING, true);
+    }
+    
+    @Test
+    public void concreteIndicesIgnoreIndicesOneMissingIndexOtherFound() {
+    	 MetaData.Builder mdBuilder = MetaData.builder()
+                 .put(indexBuilder("testXXX"))
+                 .put(indexBuilder("kuku"));
+         MetaData md = mdBuilder.build();
+        assertThat(newHashSet(md.concreteIndices(new String[]{"testXXX","testZZZ"}, IgnoreIndices.MISSING, true)), equalTo(newHashSet("testXXX")));
+    }
+
+    @Test(expectedExceptions = IndexMissingException.class)
+    public void concreteIndicesIgnoreIndicesAllMissing() {
+    	 MetaData.Builder mdBuilder = MetaData.builder()
+                 .put(indexBuilder("testXXX"))
+                 .put(indexBuilder("kuku"));
+         MetaData md = mdBuilder.build();
+        assertThat(newHashSet(md.concreteIndices(new String[]{"testMo","testMahdy"}, IgnoreIndices.MISSING, true)), equalTo(newHashSet("testXXX")));
+    }
+    
+    @Test
+    public void concreteIndicesIgnoreIndicesEmptyRequest() {
+    	 MetaData.Builder mdBuilder = MetaData.builder()
+                 .put(indexBuilder("testXXX"))
+                 .put(indexBuilder("kuku"));
+         MetaData md = mdBuilder.build();
+        assertThat(newHashSet(md.concreteIndices(new String[]{}, IgnoreIndices.MISSING, true)), equalTo(Sets.<String>newHashSet("kuku","testXXX")));
     }
 }

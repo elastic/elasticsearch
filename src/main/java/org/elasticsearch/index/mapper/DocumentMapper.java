@@ -402,6 +402,10 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(TTLFieldMapper.class);
     }
 
+    public IndexFieldMapper IndexFieldMapper() {
+        return rootMapper(IndexFieldMapper.class);
+    }
+
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }

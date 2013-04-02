@@ -93,4 +93,21 @@ public class IndexTypeMapperTests {
         assertThat(doc.rootDoc().get("_index"), nullValue());
         assertThat(doc.rootDoc().get("field"), equalTo("value"));
     }
+
+    @Test
+    public void testThatMergingFieldMappingAllowsDisabling() throws Exception {
+        String mappingWithIndexEnabled = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_index").field("enabled", true).field("store", "yes").endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapperEnabled = MapperTests.newParser().parse(mappingWithIndexEnabled);
+
+
+        String mappingWithIndexDisabled = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_index").field("enabled", false).field("store", "yes").endObject()
+                .endObject().endObject().string();
+        DocumentMapper mapperDisabled = MapperTests.newParser().parse(mappingWithIndexDisabled);
+
+        mapperEnabled.merge(mapperDisabled, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        assertThat(mapperEnabled.IndexFieldMapper().enabled(), is(false));
+    }
 }

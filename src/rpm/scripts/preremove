@@ -1,0 +1,16 @@
+if [ $1 -eq 0 ] ; then
+    # Package removal, not upgrade
+    if [ -x /bin/systemctl ] ; then
+        /bin/systemctl --no-reload disable elasticsearch.service > /dev/null 2>&1 || :
+		/bin/systemctl stop elasticsearch.service > /dev/null 2>&1 || :
+    fi
+
+    if [ -x /sbin/chkconfig ] ; then
+        if [ -x /etc/init.d/elasticsearch ] ; then
+            /etc/init.d/elasticsearch stop
+        fi
+        /sbin/chkconfig --del elasticsearch 2> /dev/null
+    fi
+fi
+
+exit 0

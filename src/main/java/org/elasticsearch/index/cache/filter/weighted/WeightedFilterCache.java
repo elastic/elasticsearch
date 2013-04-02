@@ -162,9 +162,12 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             if (cacheValue == null) {
                 if (!cache.seenReaders.containsKey(context.reader().getCoreCacheKey())) {
                     Boolean previous = cache.seenReaders.putIfAbsent(context.reader().getCoreCacheKey(), Boolean.TRUE);
-                    if (previous == null && (context.reader() instanceof SegmentReader)) {
-                        ((SegmentReader) context.reader()).addCoreClosedListener(cache);
+                    if (previous == null) {
                         cache.seenReadersCount.inc();
+                        // we add a core closed listener only, for non core IndexReaders we rely on clear being called (percolator for example)
+                        if (context.reader() instanceof SegmentReader) {
+                            ((SegmentReader) context.reader()).addCoreClosedListener(cache);
+                        }
                     }
                 }
 

@@ -53,7 +53,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
     @Inject
     public IndicesFieldDataCache(Settings settings) {
         super(settings);
-        this.size = componentSettings.get("size", "40%");
+        this.size = componentSettings.get("size", "-1");
         this.expire = componentSettings.getAsTime("expire", null);
         computeSizeInBytes();
         buildCache();
@@ -62,17 +62,22 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
     private void buildCache() {
         CacheBuilder<Key, AtomicFieldData> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this);
-        cacheBuilder.maximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
+        if (sizeInBytes > 0) {
+            cacheBuilder.maximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
+        }
         // defaults to 4, but this is a busy map for all indices, increase it a bit
         cacheBuilder.concurrencyLevel(16);
-        if (expire != null) {
+        if (expire != null && expire.millis() > 0) {
             cacheBuilder.expireAfterAccess(expire.millis(), TimeUnit.MILLISECONDS);
         }
+        logger.debug("using size [{}] [{}], expire [{}]", size, new ByteSizeValue(sizeInBytes), expire);
         cache = cacheBuilder.build();
     }
 
     private void computeSizeInBytes() {
-        if (size.endsWith("%")) {
+        if (size.equals("-1")) {
+            sizeInBytes = -1;
+        } else if (size.endsWith("%")) {
             double percent = Double.parseDouble(size.substring(0, size.length() - 1));
             sizeInBytes = (long) ((percent / 100) * JvmInfo.jvmInfo().getMem().getHeapMax().bytes());
         } else {

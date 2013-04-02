@@ -160,7 +160,9 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
                     }
 
                     IndexFieldDataCache cache;
-                    String cacheType = type.getSettings().get("cache", indexSettings.get("index.fielddata.cache", "resident"));
+                    //  we default to node level cache, which in turn defaults to be unbounded
+                    // this means changing the node level settings is simple, just set the bounds there
+                    String cacheType = type.getSettings().get("cache", indexSettings.get("index.fielddata.cache", "node"));
                     if ("resident".equals(cacheType)) {
                         cache = new IndexFieldDataCache.Resident(index, fieldNames, type, this);
                     } else if ("soft".equals(cacheType)) {

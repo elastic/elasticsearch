@@ -504,9 +504,6 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             String[] actualLst = aliasAndIndexToIndexMap.get(aliasOrIndex);
             if (actualLst == null) {
-                if (ignoreIndices == IgnoreIndices.MISSING) {
-                    return Strings.EMPTY_ARRAY;
-                }
                 throw new IndexMissingException(new Index(aliasOrIndex));
             } else {
                 return actualLst;
@@ -538,6 +535,10 @@ public class MetaData implements Iterable<IndexMetaData> {
                     actualIndices.add(x);
                 }
             }
+        }
+        
+        if (actualIndices.isEmpty()) {
+        	throw new IndexMissingException(new Index(Arrays.toString(aliasesOrIndices)));
         }
         return actualIndices.toArray(new String[actualIndices.size()]);
     }

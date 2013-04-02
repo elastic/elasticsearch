@@ -1,0 +1,17 @@
+hasBeenEnabledOnStart=false
+
+if [ $1 -eq 1 ] ; then 
+    # Initial installation 
+    if [ -x /bin/systemctl ] ; then
+        /bin/systemctl daemon-reload >/dev/null 2>&1 || :
+        /bin/systemctl enable elasticsearch.service
+        /bin/systemctl start elasticsearch.service
+        hasBeenEnabledOnStart=true
+    fi
+
+    if [ -x /sbin/chkconfig -a "$hasBeenEnabledOnStart" == "false" ] ; then
+        /sbin/chkconfig --add elasticsearch
+        /etc/init.d/elasticsearch start
+    fi
+
+fi

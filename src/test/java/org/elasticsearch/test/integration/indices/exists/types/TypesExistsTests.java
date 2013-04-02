@@ -23,12 +23,14 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.testng.Assert.fail;
 
 public class TypesExistsTests extends AbstractNodesTests {
 
@@ -54,10 +56,14 @@ public class TypesExistsTests extends AbstractNodesTests {
         assertThat(response.isExists(), equalTo(true));
         response = client.admin().indices().prepareTypesExists("test1").setTypes("type3").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
-        response = client.admin().indices().prepareTypesExists("notExist").setTypes("type1").setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
-        assertThat(response.isExists(), equalTo(false));
-        response = client.admin().indices().prepareTypesExists("notExist").setTypes("type0").setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
-        assertThat(response.isExists(), equalTo(false));
+        try {
+            client.admin().indices().prepareTypesExists("notExist").setTypes("type1").setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+            fail("Exception should have been thrown");
+        } catch (IndexMissingException e) {}
+        try {
+            client.admin().indices().prepareTypesExists("notExist").setTypes("type0").setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
+            fail("Exception should have been thrown");
+        } catch (IndexMissingException e) {}
         response = client.admin().indices().prepareTypesExists("alias1").setTypes("type1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         response = client.admin().indices().prepareTypesExists("*").setTypes("type1").execute().actionGet();

@@ -222,7 +222,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeOperationAc
         response.numberOfNodes = clusterState.nodes().size();
         response.numberOfDataNodes = clusterState.nodes().dataNodes().size();
 
-        for (String index : clusterState.metaData().concreteIndicesIgnoreMissing(request.indices())) {
+        String[] concreteIndices;
+        try {
+            concreteIndices = clusterState.metaData().concreteIndicesIgnoreMissing(request.indices());
+        } catch (IndexMissingException e) {
+            return response;
+        }
+        for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
             IndexMetaData indexMetaData = clusterState.metaData().index(index);
             if (indexRoutingTable == null) {

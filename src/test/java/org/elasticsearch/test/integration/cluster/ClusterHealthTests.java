@@ -47,7 +47,7 @@ public class ClusterHealthTests extends AbstractNodesTests {
         assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
 
         logger.info("--> running cluster wide health");
-        healthResponse = node1.client().admin().cluster().prepareHealth().setWaitForYellowStatus().setTimeout("1s").execute().actionGet();
+        healthResponse = node1.client().admin().cluster().prepareHealth().setWaitForYellowStatus().setTimeout("10s").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
@@ -58,7 +58,7 @@ public class ClusterHealthTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         logger.info("--> running cluster health on an index that does exists");
-        healthResponse = node1.client().admin().cluster().prepareHealth("test1").setWaitForYellowStatus().setTimeout("1s").execute().actionGet();
+        healthResponse = node1.client().admin().cluster().prepareHealth("test1").setWaitForYellowStatus().setTimeout("10s").execute().actionGet();
         assertThat(healthResponse.isTimedOut(), equalTo(false));
         assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         assertThat(healthResponse.getIndices().get("test1").getStatus(), equalTo(ClusterHealthStatus.GREEN));

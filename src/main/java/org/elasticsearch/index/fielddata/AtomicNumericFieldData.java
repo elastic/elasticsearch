@@ -23,7 +23,7 @@ import org.apache.lucene.util.BytesRef;
 
 /**
  */
-public abstract class AtomicNumericFieldData<Script extends ScriptDocValues> implements AtomicFieldData<Script> {
+public abstract class AtomicNumericFieldData implements AtomicFieldData<ScriptDocValues> {
     
     private boolean isFloat;
 
@@ -35,10 +35,20 @@ public abstract class AtomicNumericFieldData<Script extends ScriptDocValues> imp
 
     public abstract DoubleValues getDoubleValues();
 
+
+    @Override
+    public ScriptDocValues getScriptValues() {
+        if (isFloat) {
+            return new ScriptDocValues.NumericDouble(getDoubleValues());
+        } else {
+            return new ScriptDocValues.NumericLong(getLongValues());
+        }
+    }
+
     @Override
     public BytesValues getBytesValues() {
        if (isFloat) {
-           final DoubleValues values = getDoubleValues();
+          final DoubleValues values = getDoubleValues();
           return new BytesValues(values.isMultiValued()) {
 
                @Override

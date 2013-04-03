@@ -30,7 +30,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
  */
-public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointFieldData {
+public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
 
     public static final GeoPointDoubleArrayAtomicFieldData EMPTY = new Empty();
 

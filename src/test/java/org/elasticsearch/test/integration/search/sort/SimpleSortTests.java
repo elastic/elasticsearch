@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.search.sort;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -429,6 +430,101 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         assertThat(searchResponse.toString(), not(containsString("error")));
     }
+    
+    @Test
+    public void testSortMinValueScript() throws IOException {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
+                .startObject("lvalue").field("type", "long").endObject()
+                .startObject("dvalue").field("type", "double").endObject()
+                .startObject("svalue").field("type", "string").endObject()
+                .startObject("gvalue").field("type", "geo_point").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        for (int i = 0; i < 10; i++) {
+            IndexRequestBuilder req = client.prepareIndex("test", "type1", ""+i).setSource(jsonBuilder().startObject()
+                    .field("ord", i)
+                    .field("svalue", new String[]{""+i, ""+(i+1), ""+(i+2)})
+                    .field("lvalue", new long[] {i, i+1, i+2})
+                    .field("dvalue", new double[] {i, i+1, i+2})
+                    .startObject("gvalue")
+                        .startObject("location")
+                             .field("lat", (double)i+1)
+                             .field("lon", (double)i)
+                        .endObject()
+                    .endObject()
+                    .endObject());
+            req.execute().actionGet();
+        }
+        
+        for (int i = 10; i < 20; i++) { // add some docs that don't have values in those fields
+            client.prepareIndex("test", "type1", ""+i).setSource(jsonBuilder().startObject()
+                    .field("ord", i)
+            .endObject()).execute().actionGet();
+        }
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        
+        // test the long values
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("min", "var retval = Long.MAX_VALUE; for (v : doc['lvalue'].values){  retval = Math.min(v, retval);} return retval;")
+                .addSort("ord", SortOrder.ASC).setSize(10)
+                .execute().actionGet();
+
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
+        for (int i = 0; i < 10; i++) {
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Long)searchResponse.getHits().getAt(i).field("min").value(), equalTo((long)i));
+        }
+        // test the double values
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("min", "var retval = Double.MAX_VALUE; for (v : doc['dvalue'].values){  retval = Math.min(v, retval);} return retval;")
+                .addSort("ord", SortOrder.ASC).setSize(10)
+                .execute().actionGet();
+
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
+        for (int i = 0; i < 10; i++) {
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double)searchResponse.getHits().getAt(i).field("min").value(), equalTo((double)i));
+        }
+        
+        // test the string values
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("min", "var retval = Integer.MAX_VALUE; for (v : doc['svalue'].values){  retval = Math.min(Integer.parseInt(v), retval);} return retval;")
+                .addSort("ord", SortOrder.ASC).setSize(10)
+                .execute().actionGet();
+
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
+        for (int i = 0; i < 10; i++) {
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Integer)searchResponse.getHits().getAt(i).field("min").value(), equalTo(i));
+        }
+        
+        // test the geopoint values
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("min", "var retval = Double.MAX_VALUE; for (v : doc['gvalue'].values){  retval = Math.min(v.lon, retval);} return retval;")
+                .addSort("ord", SortOrder.ASC).setSize(10)
+                .execute().actionGet();
+
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
+        for (int i = 0; i < 10; i++) {
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double)searchResponse.getHits().getAt(i).field("min").value(), equalTo((double)i));
+        }
+    }
 
     @Test
     public void testDocumentsWithNullValue() throws Exception {
@@ -467,6 +563,19 @@ public class SimpleSortTests extends AbstractNodesTests {
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
+                .addSort("svalue", SortOrder.ASC)
+                .execute().actionGet();
+
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3l));
+        assertThat((String) searchResponse.getHits().getAt(0).field("id").value(), equalTo("2"));
+        assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("1"));
+        assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("3"));
+        
+        searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addScriptField("id", "doc['id'].values[0]")
                 .addSort("svalue", SortOrder.ASC)
                 .execute().actionGet();
 

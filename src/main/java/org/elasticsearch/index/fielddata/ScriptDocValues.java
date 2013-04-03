@@ -19,28 +19,44 @@
 
 package org.elasticsearch.index.fielddata;
 
+import java.util.Collections;
+import java.util.List;
+
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.util.SlicedDoubleList;
+import org.elasticsearch.common.util.SlicedLongList;
+import org.elasticsearch.common.util.SlicedObjectList;
+import org.elasticsearch.index.fielddata.BytesValues.Iter;
 import org.joda.time.MutableDateTime;
 
 /**
  * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
  * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
  */
-public interface ScriptDocValues {
+public abstract class ScriptDocValues {
 
-    static final ScriptDocValues EMPTY = new Empty();
-    static final Strings EMPTY_STRINGS = new Strings(BytesValues.EMPTY);
+    public static final ScriptDocValues EMPTY = new Empty();
+    public static final Strings EMPTY_STRINGS = new Strings(BytesValues.EMPTY);
+    protected int docId;
+    protected boolean listLoaded = false;
 
-    void setNextDocId(int docId);
+    public void setNextDocId(int docId) {
+        this.docId = docId;
+        this.listLoaded = false;
+    }
 
-    boolean isEmpty();
+    public abstract boolean isEmpty();
+    
+    public abstract List<?> getValues();
 
-    static class Empty implements ScriptDocValues {
+    public static class Empty extends ScriptDocValues {
         @Override
         public void setNextDocId(int docId) {
         }
@@ -49,21 +65,35 @@ public interface ScriptDocValues {
         public boolean isEmpty() {
             return true;
         }
+
+        @Override
+        public List<?> getValues() {
+           return Collections.emptyList();
+        }
+
     }
 
-    static class Strings implements ScriptDocValues {
+    public final static class Strings extends ScriptDocValues {
 
         private final BytesValues values;
         private final CharsRef spare = new CharsRef();
-        private int docId;
+        private SlicedObjectList<String> list;
 
         public Strings(BytesValues values) {
             this.values = values;
-        }
+            list = new SlicedObjectList<String>(values.isMultiValued() ? new String[10] : new String[1]) {
 
-        @Override
-        public void setNextDocId(int docId) {
-            this.docId = docId;
+                @Override
+                public void grow(int newLength) {
+                    assert offset == 0; // NOTE: senseless if offset != 0
+                    if (values.length >= newLength) {
+                        return;
+                    }
+                    final String[] current = values;
+                    values = new String[ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
+                    System.arraycopy(current, 0, values, 0, current.length);
+                }
+            };
         }
 
         @Override
@@ -79,24 +109,35 @@ public interface ScriptDocValues {
             }
             return null;
         }
+        
+        public List<String> getValues() {
+            if (!listLoaded) {
+                list.offset = 0;
+                list.length = 0;
+                Iter iter = values.getIter(docId);
+                while(iter.hasNext()) {
+                    BytesRef next = iter.next();
+                    UnicodeUtil.UTF8toUTF16(next, spare);
+                    list.values[list.length++] = spare.toString();
+                }
+                listLoaded = true;
+            }
+            return list;
+        }
 
     }
 
 
 
-    static class NumericLong implements ScriptDocValues {
+    public static class NumericLong extends ScriptDocValues {
 
         private final LongValues values;
         private final MutableDateTime date = new MutableDateTime(0);
-        private int docId;
+        private final SlicedLongList list;
 
         public NumericLong(LongValues values) {
             this.values = values;
-        }
-
-        @Override
-        public void setNextDocId(int docId) {
-            this.docId = docId;
+            this.list = new SlicedLongList(values.isMultiValued() ? 10 : 1);
         }
 
         @Override
@@ -107,6 +148,20 @@ public interface ScriptDocValues {
         public long getValue() {
             return values.getValue(docId);
         }
+        
+        public List<Long> getValues() {
+            if (!listLoaded) {
+                final LongValues.Iter iter = values.getIter(docId);
+                list.offset = 0;
+                list.length = 0;
+                while(iter.hasNext()) {
+                    list.grow(list.length+1);
+                    list.values[list.length++] = iter.next();
+                }
+                listLoaded = true;
+            }
+            return list;
+        }
 
         public MutableDateTime getDate() {
             date.setMillis(getValue());
@@ -114,18 +169,15 @@ public interface ScriptDocValues {
         }
 
     }
-    static class NumericDouble implements ScriptDocValues {
+    public static class NumericDouble extends ScriptDocValues {
 
         private final DoubleValues values;
-        private int docId;
-
+        private final SlicedDoubleList list;
+        
         public NumericDouble(DoubleValues values) {
             this.values = values;
-        }
+            this.list = new SlicedDoubleList(values.isMultiValued() ? 10 : 1);
 
-        @Override
-        public void setNextDocId(int docId) {
-            this.docId = docId;
         }
 
         @Override
@@ -136,21 +188,44 @@ public interface ScriptDocValues {
         public double getValue() {
             return values.getValue(docId);
         }
+        
+        public List<Double> getValues() {
+            if (!listLoaded) {
+                final DoubleValues.Iter iter = values.getIter(docId);
+                list.offset = 0;
+                list.length = 0;
+                while(iter.hasNext()) {
+                    list.grow(list.length+1);
+                    list.values[list.length++] = iter.next();
+                }
+                listLoaded = true;
+            }
+            return list;
+        }
     }
 
-    static class GeoPoints implements ScriptDocValues {
+    public static class GeoPoints extends ScriptDocValues {
 
         private final GeoPointValues values;
-        private int docId;
-
+        private final SlicedObjectList<GeoPoint> list;
+           
         public GeoPoints(GeoPointValues values) {
             this.values = values;
+            list = new SlicedObjectList<GeoPoint>(values.isMultiValued() ? new GeoPoint[10] : new GeoPoint[1]) {
+
+                @Override
+                public void grow(int newLength) {
+                    assert offset == 0; // NOTE: senseless if offset != 0
+                    if (values.length >= newLength) {
+                        return;
+                    }
+                    final GeoPoint[] current = values;
+                    values = new GeoPoint[ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
+                    System.arraycopy(current, 0, values, 0, current.length);
+                }
+            };
         }
 
-        @Override
-        public void setNextDocId(int docId) {
-            this.docId = docId;
-        }
 
         @Override
         public boolean isEmpty() {
@@ -159,6 +234,28 @@ public interface ScriptDocValues {
 
         public GeoPoint getValue() {
             return values.getValue(docId);
+        }
+        
+        public List<GeoPoint> getValues() {
+            if (!listLoaded) {
+                GeoPointValues.Iter iter = values.getIter(docId);
+                list.offset = 0;
+                list.length = 0;
+                while(iter.hasNext()) {
+                    int index = list.length;
+                    list.grow(index+1);
+                    GeoPoint next =  iter.next();
+                    GeoPoint point = list.values[index];
+                    if (point == null) {
+                        point = list.values[index] = new GeoPoint(); 
+                    }
+                    point.reset(next.lat(), next.lon());
+                    list.values[list.length++] = point;
+                }
+                listLoaded = true;
+            }
+            return list;
+            
         }
 
         public double factorDistance(double lat, double lon) {

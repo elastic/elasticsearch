@@ -124,11 +124,6 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
         }
 
         @Override
-        public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericLong(getLongValues());
-        }
-
-        @Override
         public LongValues getLongValues() {
             return new LongValues(values, ordinals.ordinals());
         }
@@ -200,11 +195,6 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
                 size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_DOUBLE) + (set.getBits().length * RamUsage.NUM_BYTES_LONG);
             }
             return size;
-        }
-
-        @Override
-        public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericLong(getLongValues());
         }
 
         @Override
@@ -292,11 +282,6 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
                 size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_DOUBLE);
             }
             return size;
-        }
-
-        @Override
-        public ScriptDocValues getScriptValues() {
-            return new ScriptDocValues.NumericLong(getLongValues());
         }
 
         @Override

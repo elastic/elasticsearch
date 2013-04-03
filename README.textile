@@ -198,7 +198,7 @@ h3. Building from Source
 
 ElasticSearch uses "Maven":http://maven.apache.org for its build system.
 
-In order to create a distribution, simply run the @mvn package -DskipTests@ command in the cloned directory.
+In order to create a distribution, simply run the @mvn clean package -DskipTests@ command in the cloned directory.
 
 The distribution will be created under @target/releases@.
 

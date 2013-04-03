@@ -117,7 +117,7 @@ public interface GeoPointValues {
 
         @Override
         public GeoPoint getValue(int docId) {
-            throw new ElasticSearchIllegalStateException("Can't retrieve a value from an empty GeoPointValues");
+            return null;
         }
 
         @Override

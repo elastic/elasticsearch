@@ -156,7 +156,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
                         builder = buildersByType.get(type.getType());
                     }
                     if (builder == null) {
-                        throw new ElasticSearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type);
+                        throw new ElasticSearchIllegalArgumentException("failed to find field data builder for field " + fieldNames.fullName() + ", and type " + type.getType());
                     }
 
                     IndexFieldDataCache cache;

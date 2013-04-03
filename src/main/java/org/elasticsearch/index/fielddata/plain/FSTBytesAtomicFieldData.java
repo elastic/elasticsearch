@@ -102,6 +102,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
     
     @Override
     public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getHashedBytesValues() {
+        assert fst != null;
         if (hashes == null) {
             BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<Long>(fst);
             int[] hashes = new int[ordinals.getMaxOrd()];
@@ -269,6 +270,11 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         @Override
         public ScriptDocValues.Strings getScriptValues() {
             return ScriptDocValues.EMPTY_STRINGS;
+        }
+
+        @Override
+        public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getHashedBytesValues() {
+            return getBytesValues();
         }
     }
 

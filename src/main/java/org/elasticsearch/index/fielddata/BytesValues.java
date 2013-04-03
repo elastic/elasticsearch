@@ -147,6 +147,7 @@ public abstract class  BytesValues {
         
         static class Multi implements Iter {
 
+            private int innerOrd;
             protected int ord;
             private BytesValues.WithOrdinals withOrds;
             private Ordinals.Docs.Iter ordsIter;
@@ -159,19 +160,20 @@ public abstract class  BytesValues {
 
             public Multi reset(Ordinals.Docs.Iter ordsIter) {
                 this.ordsIter = ordsIter;
-                this.ord = ordsIter.next();
+                innerOrd = ord = ordsIter.next();
                 return this;
             }
 
             @Override
             public boolean hasNext() {
-                return ord != 0;
+                return innerOrd != 0;
             }
 
             @Override
             public BytesRef next() {
-                withOrds.getValueScratchByOrd(ord, scratch);
-                ord = ordsIter.next();
+                withOrds.getValueScratchByOrd(innerOrd, scratch);
+                ord = innerOrd;
+                innerOrd = ordsIter.next();
                 return scratch;
             }
             

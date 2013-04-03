@@ -104,6 +104,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         for (int i = 0; i < 100; i++) {
             client("node1").prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
+        // make sure that all shards recovered before trying to flush
+        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForActiveShards(2).execute().actionGet().getActiveShards(), equalTo(2));
         // flush for simpler debugging
         client("node1").admin().indices().prepareFlush().execute().actionGet();
 
@@ -261,6 +263,8 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         for (int i = 0; i < 100; i++) {
             client("node1").prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
+        // make sure that all shards recovered before trying to flush
+        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForActiveShards(10).execute().actionGet().isTimedOut(), equalTo(false));
         // flush for simpler debugging
         client("node1").admin().indices().prepareFlush().execute().actionGet();
 

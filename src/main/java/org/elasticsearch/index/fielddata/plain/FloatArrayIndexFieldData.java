@@ -101,7 +101,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 values.add(NumericUtils.sortableIntToFloat(NumericUtils.prefixCodedToInt(term)));
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued()) {
+            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
                 float[] sValues = new float[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();

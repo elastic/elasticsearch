@@ -100,7 +100,7 @@ public class IntArrayIndexFieldData extends AbstractIndexFieldData<IntArrayAtomi
                 values.add(NumericUtils.prefixCodedToInt(term));
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
-            return build(reader, builder, build, new BuilderIntegers() {
+            return build(reader, fieldDataType, builder, build, new BuilderIntegers() {
                 @Override
                 public int get(int index) {
                     return values.get(index);
@@ -122,8 +122,8 @@ public class IntArrayIndexFieldData extends AbstractIndexFieldData<IntArrayAtomi
         int[] toArray();
     }
 
-    static IntArrayAtomicFieldData build(AtomicReader reader, OrdinalsBuilder builder, Ordinals build, BuilderIntegers values) {
-        if (!build.isMultiValued()) {
+    static IntArrayAtomicFieldData build(AtomicReader reader, FieldDataType fieldDataType, OrdinalsBuilder builder, Ordinals build, BuilderIntegers values) {
+        if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
             Docs ordinals = build.ordinals();
             int[] sValues = new int[reader.maxDoc()];
             int maxDoc = reader.maxDoc();

@@ -100,7 +100,7 @@ public class ByteArrayIndexFieldData extends AbstractIndexFieldData<ByteArrayAto
         }
         try {
             Ordinals build = builder.build(fieldDataType.getSettings());
-            return build(reader, builder, build, new BuilderBytes() {
+            return build(reader, fieldDataType, builder, build, new BuilderBytes() {
                 @Override
                 public byte get(int index) {
                     return values.get(index);
@@ -122,8 +122,8 @@ public class ByteArrayIndexFieldData extends AbstractIndexFieldData<ByteArrayAto
         byte[] toArray();
     }
 
-    static ByteArrayAtomicFieldData build(AtomicReader reader, OrdinalsBuilder builder, Ordinals build, BuilderBytes values) {
-        if (!build.isMultiValued()) {
+    static ByteArrayAtomicFieldData build(AtomicReader reader, FieldDataType fieldDataType, OrdinalsBuilder builder, Ordinals build, BuilderBytes values) {
+        if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
             Docs ordinals = build.ordinals();
             byte[] sValues = new byte[reader.maxDoc()];
             int maxDoc = reader.maxDoc();

@@ -101,7 +101,7 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
             }
 
             Ordinals build = builder.build(fieldDataType.getSettings());
-            return build(reader, builder, build, new BuilderShorts() {
+            return build(reader, fieldDataType, builder, build, new BuilderShorts() {
                 @Override
                 public short get(int index) {
                     return values.get(index);
@@ -123,8 +123,8 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
         short[] toArray();
     }
 
-    static ShortArrayAtomicFieldData build(AtomicReader reader, OrdinalsBuilder builder, Ordinals build, BuilderShorts values) {
-        if (!build.isMultiValued()) {
+    static ShortArrayAtomicFieldData build(AtomicReader reader, FieldDataType fieldDataType, OrdinalsBuilder builder, Ordinals build, BuilderShorts values) {
+        if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
             Docs ordinals = build.ordinals();
             short[] sValues = new short[reader.maxDoc()];
             int maxDoc = reader.maxDoc();

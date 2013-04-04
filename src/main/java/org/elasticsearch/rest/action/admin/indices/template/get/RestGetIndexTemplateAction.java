@@ -64,7 +64,7 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
                 .filterRoutingTable(true)
                 .filterNodes(true)
                 .filteredIndexTemplates(request.param("name"))
-                .filteredIndices("_na");
+                .filterOutIndices();
 
         clusterStateRequest.listenerThreaded(false);
 

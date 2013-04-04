@@ -265,7 +265,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     updatedState = newClusterStateBuilder().state(updatedState).routingResult(routingResult).build();
 
                     return updatedState;
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.onFailure(e);
                     return currentState;
                 }

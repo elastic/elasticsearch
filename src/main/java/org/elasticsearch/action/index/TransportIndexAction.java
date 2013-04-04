@@ -106,7 +106,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                         // we have the index, do it
                         try {
                             innerExecute(request, listener);
-                        } catch (Exception e1) {
+                        } catch (Throwable e1) {
                             listener.onFailure(e1);
                         }
                     } else {

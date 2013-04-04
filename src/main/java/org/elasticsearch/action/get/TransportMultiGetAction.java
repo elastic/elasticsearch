@@ -132,7 +132,7 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
                 public void onResponse(MultiGetResponse response) {
                     try {
                         channel.sendResponse(response);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

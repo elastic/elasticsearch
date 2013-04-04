@@ -157,7 +157,7 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
                 public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

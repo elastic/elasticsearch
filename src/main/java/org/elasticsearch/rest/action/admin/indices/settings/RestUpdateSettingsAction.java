@@ -97,7 +97,7 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
                             .field("ok", true)
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

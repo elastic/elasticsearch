@@ -274,7 +274,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 public void onResponse(BulkResponse result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

@@ -67,7 +67,7 @@ public class RestHeadAction extends BaseRestHandler {
                     } else {
                         channel.sendResponse(new StringRestResponse(OK));
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

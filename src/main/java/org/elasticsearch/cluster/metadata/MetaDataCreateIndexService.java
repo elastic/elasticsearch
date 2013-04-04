@@ -140,7 +140,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 try {
                     try {
                         validate(request, currentState);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         listener.onFailure(e);
                         return currentState;
                     }

@@ -68,7 +68,7 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             public void onResponse(ClusterUpdateSettingsResponse response) {
                 try {
                     channel.sendResponse(new StringRestResponse(RestStatus.OK));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

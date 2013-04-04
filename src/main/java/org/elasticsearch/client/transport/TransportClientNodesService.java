@@ -247,7 +247,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 } else {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
-                    } catch (Exception e1) {
+                    } catch (Throwable e1) {
                         // retry the next one...
                         onFailure(e);
                     }

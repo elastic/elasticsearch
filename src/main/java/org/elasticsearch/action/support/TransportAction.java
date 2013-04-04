@@ -59,7 +59,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
         }
         try {
             doExecute(request, listener);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             logger.trace("Error during transport action execution.", e);
             listener.onFailure(e);
         }
@@ -85,7 +85,7 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
                 public void run() {
                     try {
                         listener.onResponse(response);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         listener.onFailure(e);
                     }
                 }

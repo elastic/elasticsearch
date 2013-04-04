@@ -73,7 +73,7 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
             } else {
                 throw new ElasticSearchIllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             listener.onFailure(e);
         }
     }
@@ -94,7 +94,7 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
                 public void onResponse(SearchResponse result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

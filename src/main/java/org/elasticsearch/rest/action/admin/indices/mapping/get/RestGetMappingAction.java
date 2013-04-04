@@ -129,7 +129,7 @@ public class RestGetMappingAction extends BaseRestHandler {
                     builder.endObject();
 
                     channel.sendResponse(new XContentRestResponse(request, foundAny || indices.length == 0 ? OK : NOT_FOUND, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

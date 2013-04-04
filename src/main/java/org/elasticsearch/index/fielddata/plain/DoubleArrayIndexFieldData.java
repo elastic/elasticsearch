@@ -101,7 +101,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
                 values.add(NumericUtils.sortableLongToDouble(NumericUtils.prefixCodedToLong(term)));
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued()) {
+            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
                 double[] sValues = new double[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();

@@ -114,7 +114,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
             if (fieldDataType.getSettings().getAsBoolean("optimize_type", true)) {
                 // since the default mapping for numeric is long, its worth optimizing the actual type used to represent the data
                 if (min >= Byte.MIN_VALUE && max <= Byte.MAX_VALUE) {
-                    return ByteArrayIndexFieldData.build(reader, builder, build, new ByteArrayIndexFieldData.BuilderBytes() {
+                    return ByteArrayIndexFieldData.build(reader, fieldDataType, builder, build, new ByteArrayIndexFieldData.BuilderBytes() {
                         @Override
                         public byte get(int index) {
                             return (byte) values.get(index);
@@ -131,7 +131,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
                         }
                     });
                 } else if (min >= Short.MIN_VALUE && max <= Short.MAX_VALUE) {
-                    return ShortArrayIndexFieldData.build(reader, builder, build, new ShortArrayIndexFieldData.BuilderShorts() {
+                    return ShortArrayIndexFieldData.build(reader, fieldDataType, builder, build, new ShortArrayIndexFieldData.BuilderShorts() {
                         @Override
                         public short get(int index) {
                             return (short) values.get(index);
@@ -148,7 +148,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
                         }
                     });
                 } else if (min >= Integer.MIN_VALUE && max <= Integer.MAX_VALUE) {
-                    return IntArrayIndexFieldData.build(reader, builder, build, new IntArrayIndexFieldData.BuilderIntegers() {
+                    return IntArrayIndexFieldData.build(reader, fieldDataType, builder, build, new IntArrayIndexFieldData.BuilderIntegers() {
                         @Override
                         public int get(int index) {
                             return (int) values.get(index);
@@ -167,7 +167,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
                 }
             }
 
-            if (!build.isMultiValued()) {
+            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
                 long[] sValues = new long[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();

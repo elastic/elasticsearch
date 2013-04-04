@@ -228,7 +228,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             builder.field("store", fieldType.stored());
         }
         if (enabledState != Defaults.ENABLED) {
-            builder.field("enabled", enabledState);
+            builder.field("enabled", enabledState.enabled);
         }
         if (path != Defaults.PATH) {
             builder.field("path", path);

@@ -39,6 +39,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeTimeValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
@@ -96,8 +97,9 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("enabled") && ("true".equals(fieldNode.toString()) || "yes".equals(fieldNode.toString()))) {
-                    builder.enabled(EnabledAttributeMapper.ENABLED);
+                if (fieldName.equals("enabled")) {
+                    EnabledAttributeMapper enabledState = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
+                    builder.enabled(enabledState);
                 } else if (fieldName.equals("default")) {
                     TimeValue ttlTimeValue = nodeTimeValue(fieldNode, null);
                     if (ttlTimeValue != null) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.unit.index.mapper.timestamp;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -112,5 +113,21 @@ public class TimestampMappingTests {
         enabledMapper.merge(disabledMapper, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
 
         assertThat(enabledMapper.timestampFieldMapper().enabled(), is(false));
+    }
+
+    @Test
+    public void testThatDisablingFieldMapperDoesNotReturnAnyUselessInfo() throws Exception {
+        boolean inversedStoreSetting = !TimestampFieldMapper.Defaults.FIELD_TYPE.stored();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", false).field("store", inversedStoreSetting).endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = MapperTests.newParser().parse(mapping);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        mapper.timestampFieldMapper().toXContent(builder, null);
+        builder.endObject();
+
+        assertThat(builder.string(), is(String.format("{\"%s\":{}}", TimestampFieldMapper.NAME)));
     }
 }

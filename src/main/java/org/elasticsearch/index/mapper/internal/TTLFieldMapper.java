@@ -221,7 +221,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         if (enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (defaultTTL != Defaults.DEFAULT) {
+        if (defaultTTL != Defaults.DEFAULT && enabledState.enabled) {
             builder.field("default", defaultTTL);
         }
         builder.endObject();

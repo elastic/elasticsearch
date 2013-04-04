@@ -192,7 +192,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
+        if (fieldType().stored() != Defaults.FIELD_TYPE.stored() && enabledState.enabled) {
             builder.field("store", fieldType().stored());
         }
         if (enabledState != Defaults.ENABLED_STATE) {

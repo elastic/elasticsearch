@@ -160,7 +160,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         if (enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored() && enabledState.enabled) {
             builder.field("store", fieldType().stored());
         }
         builder.endObject();

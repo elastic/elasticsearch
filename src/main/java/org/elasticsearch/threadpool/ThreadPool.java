@@ -69,7 +69,6 @@ public class ThreadPool extends AbstractComponent {
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String MERGE = "merge";
-        public static final String CACHE = "cache";
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
@@ -97,21 +96,22 @@ public class ThreadPool extends AbstractComponent {
 
         Map<String, Settings> groupSettings = settings.getGroups(THREADPOOL_GROUP);
 
-        // TODO figure out the best defaults for *all* thread pools
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        int halfProcMaxAt5 = Math.min(((availableProcessors + 1) / 2), 5);
+        int halfProcMaxAt10 = Math.min(((availableProcessors + 1) / 2), 10);
         defaultExecutorTypeSettings = ImmutableMap.<String, Settings>builder()
                 .put(Names.GENERIC, settingsBuilder().put("type", "cached").put("keep_alive", "30s").build())
-                .put(Names.INDEX, settingsBuilder().put("type", "cached").build())
-                .put(Names.BULK, settingsBuilder().put("type", "cached").build())
-                .put(Names.GET, settingsBuilder().put("type", "cached").build())
-                .put(Names.SEARCH, settingsBuilder().put("type", "cached").build())
-                .put(Names.PERCOLATE, settingsBuilder().put("type", "cached").build())
+                .put(Names.INDEX, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
+                .put(Names.BULK, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
+                .put(Names.GET, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
+                .put(Names.SEARCH, settingsBuilder().put("type", "fixed").put("size", availableProcessors * 2).put("queue_size", 1000).build())
+                .put(Names.PERCOLATE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).build())
                 .put(Names.MANAGEMENT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
-                .put(Names.FLUSH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 10).build())
-                .put(Names.MERGE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 20).build())
-                .put(Names.REFRESH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 10).build())
-                .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", Math.min(((Runtime.getRuntime().availableProcessors() + 1) / 2), 5)).build())
-                .put(Names.CACHE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 4).build())
-                .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
+                .put(Names.FLUSH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
+                .put(Names.MERGE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
+                .put(Names.REFRESH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt10).build())
+                .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
+                .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
                 .build();
 
         Map<String, ExecutorHolder> executors = Maps.newHashMap();

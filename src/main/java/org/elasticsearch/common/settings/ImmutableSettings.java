@@ -710,6 +710,10 @@ public class ImmutableSettings implements Settings {
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
                 @Override
                 public String resolvePlaceholder(String placeholderName) {
+                    if (placeholderName.startsWith("env.")) {
+                        // explicit env var prefix
+                        return System.getenv(placeholderName.substring("env.".length()));
+                    }
                     String value = System.getProperty(placeholderName);
                     if (value != null) {
                         return value;
@@ -720,9 +724,21 @@ public class ImmutableSettings implements Settings {
                     }
                     return map.get(placeholderName);
                 }
+
+                @Override
+                public boolean shouldIgnoreMissing(String placeholderName) {
+                    // if its an explicit env var, we are ok with not having a value for it and treat it as optional
+                    if (placeholderName.startsWith("env.")) {
+                        return true;
+                    }
+                    return false;
+                }
             };
             for (Map.Entry<String, String> entry : map.entrySet()) {
-                map.put(entry.getKey(), propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver));
+                String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
+                if (Strings.hasLength(value)) {
+                    map.put(entry.getKey(), value);
+                }
             }
             return this;
         }

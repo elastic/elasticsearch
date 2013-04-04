@@ -227,7 +227,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             if (xTotalOps == expectedTotalOps) {
                 try {
                     moveToSecondPhase();
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     if (logger.isDebugEnabled()) {
                         logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "] while moving to second phase", e);
                     }
@@ -261,7 +261,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 } else {
                     try {
                         moveToSecondPhase();
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                     }
                 }

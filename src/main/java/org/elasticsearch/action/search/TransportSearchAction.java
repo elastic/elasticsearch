@@ -137,7 +137,7 @@ public class TransportSearchAction extends TransportAction<SearchRequest, Search
                 public void onResponse(SearchResponse result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

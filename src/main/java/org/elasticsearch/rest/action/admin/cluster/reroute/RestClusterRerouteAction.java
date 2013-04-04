@@ -82,7 +82,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

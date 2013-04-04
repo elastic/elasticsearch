@@ -135,7 +135,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                         try {
                             Response response = masterOperation(request, clusterState);
                             listener.onResponse(response);
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             listener.onFailure(e);
                         }
                     }
@@ -261,7 +261,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 public void onResponse(Response response) {
                     try {
                         channel.sendResponse(response);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

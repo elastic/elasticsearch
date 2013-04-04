@@ -83,7 +83,7 @@ public class RestMultiGetAction extends BaseRestHandler {
                     XContentBuilder builder = restContentBuilder(request);
                     response.toXContent(builder, request);
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

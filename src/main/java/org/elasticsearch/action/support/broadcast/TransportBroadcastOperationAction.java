@@ -395,7 +395,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 public void onResponse(Response response) {
                     try {
                         channel.sendResponse(response);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

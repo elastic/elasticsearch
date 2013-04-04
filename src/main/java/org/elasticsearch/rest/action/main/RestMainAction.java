@@ -79,7 +79,7 @@ public class RestMainAction extends BaseRestHandler {
                     builder.field("tagline", "You Know, for Search");
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, status, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

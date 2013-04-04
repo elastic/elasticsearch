@@ -74,7 +74,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                     response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

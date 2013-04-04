@@ -153,7 +153,7 @@ public class RestUpdateAction extends BaseRestHandler {
                         status = CREATED;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

@@ -26,7 +26,7 @@ import org.apache.lucene.util.LongsRef;
 
 import com.google.common.primitives.Longs;
 
-public class SlicedLongList extends AbstractList<Long> implements RandomAccess {
+public final class SlicedLongList extends AbstractList<Long> implements RandomAccess {
 
     public static final SlicedLongList EMPTY = new SlicedLongList(LongsRef.EMPTY_LONGS, 0, 0);
 

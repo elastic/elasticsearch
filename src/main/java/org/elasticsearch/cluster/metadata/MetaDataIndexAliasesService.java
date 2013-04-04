@@ -129,7 +129,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                     } finally {
                                         parser.close();
                                     }
-                                } catch (Exception e) {
+                                } catch (Throwable e) {
                                     listener.onFailure(new ElasticSearchIllegalArgumentException("failed to parse filter for [" + aliasAction.alias() + "]", e));
                                     return currentState;
                                 }

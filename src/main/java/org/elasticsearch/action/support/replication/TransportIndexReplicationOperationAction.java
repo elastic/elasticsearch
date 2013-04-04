@@ -76,7 +76,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
         GroupShardsIterator groups;
         try {
             groups = shards(request);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             listener.onFailure(e);
             return;
         }
@@ -153,7 +153,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                 public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

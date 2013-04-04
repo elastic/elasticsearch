@@ -48,7 +48,7 @@ public class UpdateThreadPoolSettingsTests {
 
     @Test
     public void testCachedExecutorType() {
-        ThreadPool threadPool = new ThreadPool(ImmutableSettings.Builder.EMPTY_SETTINGS, null);
+        ThreadPool threadPool = new ThreadPool(ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build(), null);
         assertThat(info(threadPool, Names.SEARCH).type(), equalTo("cached"));
         assertThat(info(threadPool, Names.SEARCH).keepAlive().minutes(), equalTo(5L));
         assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
@@ -284,7 +284,7 @@ public class UpdateThreadPoolSettingsTests {
 
     @Test(timeOut = 10000)
     public void testShutdownDownNowDoesntBlock() throws Exception {
-        ThreadPool threadPool = new ThreadPool(ImmutableSettings.Builder.EMPTY_SETTINGS, null);
+        ThreadPool threadPool = new ThreadPool(ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build(), null);
 
         final CountDownLatch latch = new CountDownLatch(1);
         Executor oldExecutor = threadPool.executor(Names.SEARCH);

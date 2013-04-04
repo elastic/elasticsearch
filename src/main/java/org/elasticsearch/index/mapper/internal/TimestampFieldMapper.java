@@ -221,20 +221,22 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", fieldType.indexed());
-        }
-        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
-            builder.field("store", fieldType.stored());
-        }
         if (enabledState != Defaults.ENABLED) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (path != Defaults.PATH) {
-            builder.field("path", path);
-        }
-        if (!dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
-            builder.field("format", dateTimeFormatter.format());
+        if (enabledState.enabled) {
+            if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+                builder.field("index", fieldType.indexed());
+            }
+            if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+                builder.field("store", fieldType.stored());
+            }
+            if (path != Defaults.PATH) {
+                builder.field("path", path);
+            }
+            if (!dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())) {
+                builder.field("format", dateTimeFormatter.format());
+            }
         }
         builder.endObject();
         return builder;

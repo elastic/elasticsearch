@@ -68,6 +68,8 @@ public class S3Gateway extends BlobStoreGateway {
                     region = "us-west-1";
                 } else if ("us-west-1".equals(regionSetting.toLowerCase())) {
                     region = "us-west-1";
+                } else if ("us-west-2".equals(regionSetting.toLowerCase())) {
+                    region = "us-west-2";
                 } else if ("ap-southeast".equals(regionSetting.toLowerCase())) {
                     region = "ap-southeast-1";
                 } else if ("ap-southeast-1".equals(regionSetting.toLowerCase())) {

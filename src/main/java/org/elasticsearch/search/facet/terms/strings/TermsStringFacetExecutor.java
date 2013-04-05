@@ -19,32 +19,21 @@
 
 package org.elasticsearch.search.facet.terms.strings;
 
-import gnu.trove.iterator.TObjectIntIterator;
-import gnu.trove.map.hash.TObjectIntHashMap;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.regex.Pattern;
-
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.collect.BoundedTreeSet;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
-import org.elasticsearch.search.facet.terms.strings.HashedAggregator.BytesRefCountIterator;
-import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
+import java.io.IOException;
+import java.util.regex.Pattern;
 
 /**
  *
@@ -70,11 +59,15 @@ public class TermsStringFacetExecutor extends FacetExecutor {
         this.comparatorType = comparatorType;
         this.script = script;
         this.allTerms = allTerms;
-        
+
         if (excluded.isEmpty() && pattern == null && script == null) {
             aggregator = new HashedAggregator();
         } else {
             aggregator = new HashedScriptAggregator(excluded, pattern, script);
+        }
+
+        if (allTerms) {
+            loadAllTerms(context, indexFieldData, aggregator);
         }
     }
 
@@ -125,5 +118,45 @@ public class TermsStringFacetExecutor extends FacetExecutor {
             TermsStringFacetExecutor.this.total = aggregator.total();
         }
     }
-   
+
+    static void loadAllTerms(SearchContext context, IndexFieldData indexFieldData, HashedAggregator aggregator) {
+        for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+            int maxDoc = readerContext.reader().maxDoc();
+            if (indexFieldData instanceof IndexFieldData.WithOrdinals) {
+                BytesValues.WithOrdinals values = ((IndexFieldData.WithOrdinals) indexFieldData).load(readerContext).getBytesValues();
+                Ordinals.Docs ordinals = values.ordinals();
+                // 0 = docs with no value for field, so start from 1 instead
+                for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
+                    BytesRef value = values.getValueByOrd(ord);
+                    aggregator.addValue(value, value.hashCode());
+                }
+            } else {
+                BytesValues values = indexFieldData.load(readerContext).getBytesValues();
+                // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
+                if (values.isMultiValued()) {
+                    for (int docId = 0; docId < maxDoc; docId++) {
+                        if (!values.hasValue(docId)) {
+                            continue;
+                        }
+
+                        BytesValues.Iter iter = values.getIter(docId);
+                        while (iter.hasNext()) {
+                            aggregator.addValue(iter.next(), iter.hash());
+                        }
+                    }
+                } else {
+                    BytesRef spare = new BytesRef();
+                    for (int docId = 0; docId < maxDoc; docId++) {
+                        if (!values.hasValue(docId)) {
+                            continue;
+                        }
+
+                        int hash = values.getValueHashed(docId, spare);
+                        aggregator.addValue(spare, hash);
+                    }
+                }
+            }
+        }
+    }
+
 }

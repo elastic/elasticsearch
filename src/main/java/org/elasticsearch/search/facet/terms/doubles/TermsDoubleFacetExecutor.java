@@ -31,6 +31,7 @@ import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -68,17 +69,42 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
 
         this.facets = CacheRecycler.popDoubleIntMap();
 
-        // TODO: we need to support this with the new field data....
-//        if (allTerms) {
-//            try {
-//                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
-//                    DoubleFieldData fieldData = (DoubleFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
-//                    fieldData.forEachValue(aggregator);
-//                }
-//            } catch (Exception e) {
-//                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
-//            }
-//        }
+        if (allTerms) {
+            for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+                int maxDoc = readerContext.reader().maxDoc();
+                DoubleValues values = indexFieldData.load(readerContext).getDoubleValues();
+                if (values instanceof DoubleValues.WithOrdinals) {
+                    DoubleValues.WithOrdinals valuesWithOrds = (DoubleValues.WithOrdinals) values;
+                    Ordinals.Docs ordinals = valuesWithOrds.ordinals();
+                    for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
+                        facets.putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
+                    }
+                } else {
+                    // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
+                    if (values.isMultiValued()) {
+                        for (int docId = 0; docId < maxDoc; docId++) {
+                            if (!values.hasValue(docId)) {
+                                continue;
+                            }
+
+                            DoubleValues.Iter iter = values.getIter(docId);
+                            while (iter.hasNext()) {
+                                facets.putIfAbsent(iter.next(), 0);
+                            }
+                        }
+                    } else {
+                        for (int docId = 0; docId < maxDoc; docId++) {
+                            if (!values.hasValue(docId)) {
+                                continue;
+                            }
+
+                            double value = values.getValue(docId);
+                            facets.putIfAbsent(value, 0);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -146,7 +172,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            aggregator.onDoc(doc,  values);
+            aggregator.onDoc(doc, values);
         }
 
         @Override

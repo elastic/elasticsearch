@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.search.facet.terms.strings;
 
-import java.util.Arrays;
-
+import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
@@ -30,7 +29,7 @@ import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 
-import com.google.common.collect.ImmutableList;
+import java.util.Arrays;
 
 public class HashedAggregator {
     private int missing;
@@ -41,15 +40,15 @@ public class HashedAggregator {
     public HashedAggregator() {
         this(new BytesRefHash());
     }
-    
+
     public HashedAggregator(BytesRefHash hash) {
         this.hash = hash;
     }
-    
+
     public void onDoc(int docId, BytesValues values) {
         if (values.hasValue(docId)) {
             final Iter iter = values.getIter(docId);
-            while(iter.hasNext()) {
+            while (iter.hasNext()) {
                 onValue(docId, iter.next(), iter.hash(), values);
                 total++;
             }
@@ -57,15 +56,25 @@ public class HashedAggregator {
             missing++;
         }
     }
-    
+
+    public void addValue(BytesRef value, int hashCode) {
+        int key = hash.add(value, hashCode);
+        if (key < 0) {
+            key = ((-key) - 1);
+        }
+        if (key >= counts.length) {
+            counts = ArrayUtil.grow(counts, key + 1);
+        }
+    }
+
     protected BytesRef makesSafe(BytesRef ref, BytesValues values) {
         return values.makeSafe(ref);
     }
-    
+
     protected void onValue(int docId, BytesRef value, int hashCode, BytesValues values) {
         int key = hash.add(value, hashCode);
         if (key < 0) {
-            key = ((-key)-1);
+            key = ((-key) - 1);
         } else if (key >= counts.length) {
             counts = ArrayUtil.grow(counts, key + 1);
         }
@@ -79,25 +88,26 @@ public class HashedAggregator {
     public final int total() {
         return total;
     }
-    
+
     public final boolean isEmpty() {
         return hash.size() == 0;
     }
-    
+
     public BytesRefCountIterator getIter() {
         return new BytesRefCountIterator();
     }
-    
-    
+
+
     public final class BytesRefCountIterator {
         final BytesRef spare = new BytesRef();
         private final int size;
         private int current = 0;
         private int currentCount = -1;
+
         BytesRefCountIterator() {
             this.size = hash.size();
         }
-        
+
         public BytesRef next() {
             if (current < size) {
                 currentCount = counts[current];
@@ -112,8 +122,8 @@ public class HashedAggregator {
             return currentCount;
         }
     }
-    
-    public static InternalFacet buildFacet(String facetName, int size, long missing, long total, TermsFacet.ComparatorType comparatorType,  HashedAggregator aggregator) {
+
+    public static InternalFacet buildFacet(String facetName, int size, long missing, long total, TermsFacet.ComparatorType comparatorType, HashedAggregator aggregator) {
         if (aggregator.isEmpty()) {
             return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(), missing, total);
         } else {
@@ -121,7 +131,7 @@ public class HashedAggregator {
                 EntryPriorityQueue ordered = new EntryPriorityQueue(size, comparatorType.comparator());
                 BytesRefCountIterator iter = aggregator.getIter();
                 BytesRef next = null;
-                while((next = iter.next()) != null) {
+                while ((next = iter.next()) != null) {
                     ordered.insertWithOverflow(new InternalStringTermsFacet.TermEntry(BytesRef.deepCopyOf(next), iter.count()));
                     // maybe we can survive with a 0-copy here if we keep the bytes ref hash around?
                 }
@@ -134,7 +144,7 @@ public class HashedAggregator {
                 BoundedTreeSet<InternalStringTermsFacet.TermEntry> ordered = new BoundedTreeSet<InternalStringTermsFacet.TermEntry>(comparatorType.comparator(), size);
                 BytesRefCountIterator iter = aggregator.getIter();
                 BytesRef next = null;
-                while((next = iter.next()) != null) {
+                while ((next = iter.next()) != null) {
                     ordered.add(new InternalStringTermsFacet.TermEntry(BytesRef.deepCopyOf(next), iter.count()));
                     // maybe we can survive with a 0-copy here if we keep the bytes ref hash around?
                 }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -65,20 +66,44 @@ public class TermsLongFacetExecutor extends FacetExecutor {
         this.comparatorType = comparatorType;
         this.script = script;
         this.excluded = excluded;
-
         this.facets = CacheRecycler.popLongIntMap();
 
-        // TODO: we need to support this with the new field data....
-//        if (allTerms) {
-//            try {
-//                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
-//                    LongFieldData fieldData = (LongFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
-//                    fieldData.forEachValue(aggregator);
-//                }
-//            } catch (Exception e) {
-//                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
-//            }
-//        }
+        if (allTerms) {
+            for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+                int maxDoc = readerContext.reader().maxDoc();
+                LongValues values = indexFieldData.load(readerContext).getLongValues();
+                if (values instanceof LongValues.WithOrdinals) {
+                    LongValues.WithOrdinals valuesWithOrds = (LongValues.WithOrdinals) values;
+                    Ordinals.Docs ordinals = valuesWithOrds.ordinals();
+                    for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
+                        facets.putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
+                    }
+                } else {
+                    // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
+                    if (values.isMultiValued()) {
+                        for (int docId = 0; docId < maxDoc; docId++) {
+                            if (!values.hasValue(docId)) {
+                                continue;
+                            }
+
+                            LongValues.Iter iter = values.getIter(docId);
+                            while (iter.hasNext()) {
+                                facets.putIfAbsent(iter.next(), 0);
+                            }
+                        }
+                    } else {
+                        for (int docId = 0; docId < maxDoc; docId++) {
+                            if (!values.hasValue(docId)) {
+                                continue;
+                            }
+
+                            long value = values.getValue(docId);
+                            facets.putIfAbsent(value, 0);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Override

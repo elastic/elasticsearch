@@ -19,14 +19,10 @@
 
 package org.elasticsearch.search.facet.terms.strings;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.regex.Pattern;
-
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -34,12 +30,10 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.facet.terms.strings.HashedAggregator.BytesRefCountIterator;
-import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 import org.elasticsearch.search.internal.SearchContext;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
+import java.io.IOException;
+import java.util.regex.Pattern;
 
 /**
  *
@@ -53,7 +47,6 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
     private final HashedAggregator aggregator;
     long missing;
     long total;
-
 
     public FieldsTermsStringFacetExecutor(String facetName, String[] fieldsNames, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                           ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
@@ -74,19 +67,11 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
             aggregator = new HashedScriptAggregator(excluded, pattern, script);
         }
 
-        // TODO: we need to support this flag with the new field data...
-//        if (allTerms) {
-//            try {
-//                for (int i = 0; i < fieldsNames.length; i++) {
-//                    for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
-//                        FieldData fieldData = fieldDataCache.cache(fieldsDataType[i], readerContext.reader(), indexFieldsNames[i]);
-//                        fieldData.forEachValue(aggregator);
-//                    }
-//                }
-//            } catch (Exception e) {
-//                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
-//            }
-//        }
+        if (allTerms) {
+            for (int i = 0; i < fieldsNames.length; i++) {
+                TermsStringFacetExecutor.loadAllTerms(context, indexFieldDatas[i], aggregator);
+            }
+        }
     }
 
     @Override
@@ -107,7 +92,7 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
         public Collector(HashedAggregator aggregator) {
             values = new BytesValues[indexFieldDatas.length];
             this.aggregator = aggregator;
-            
+
         }
 
         @Override

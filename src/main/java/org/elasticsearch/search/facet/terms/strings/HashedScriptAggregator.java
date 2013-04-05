@@ -48,7 +48,7 @@ public final class HashedScriptAggregator extends HashedAggregator {
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;
         this.script = script;
-        this.convert = script == null || matcher == null;
+        this.convert = script != null || matcher != null;
     }
 
     @Override
@@ -59,36 +59,38 @@ public final class HashedScriptAggregator extends HashedAggregator {
         if (convert) {
             // only convert if we need to and only once per doc...
             UnicodeUtil.UTF8toUTF16(value, spare);
-        }
-        
-        if (matcher != null) {
-            assert value.utf8ToString().equals(spare.toString());
-            if (!matcher.reset(spare).matches()) {
-                return;
-            }
-        }
-        if (script != null) {
-            assert value.utf8ToString().equals(spare.toString());
-            script.setNextDocId(docId);
-            // LUCENE 4 UPGRADE: needs optimization -- maybe a CharSequence does the job here?
-            // we only creat that string if we really need
-            script.setNextVar("term", spare.toString());
-            Object scriptValue = script.run();
-            if (scriptValue == null) {
-                return;
-            }
-            if (scriptValue instanceof Boolean) {
-                if (!((Boolean) scriptValue)) {
+            if (matcher != null) {
+                assert convert : "regexp: [convert == false] but should be true";
+                assert value.utf8ToString().equals(spare.toString()) : "not converted";
+                if (!matcher.reset(spare).matches()) {
                     return;
                 }
-            } else {
-                // LUCENE 4 UPGRADE: should be possible to convert directly to BR
-                scriptSpare.copyChars(scriptValue.toString());
-                hashCode = scriptSpare.hashCode();
-                super.onValue(docId, scriptSpare, hashCode, values);
-                return;
             }
-        }
+            if (script != null) {
+                assert convert : "script: [convert == false] but should be true";
+                assert value.utf8ToString().equals(spare.toString()) : "not converted";
+                script.setNextDocId(docId);
+                // LUCENE 4 UPGRADE: needs optimization -- maybe a CharSequence does the job here?
+                // we only creat that string if we really need
+                script.setNextVar("term", spare.toString());
+                Object scriptValue = script.run();
+                if (scriptValue == null) {
+                    return;
+                }
+                if (scriptValue instanceof Boolean) {
+                    if (!((Boolean) scriptValue)) {
+                        return;
+                    }
+                } else {
+                    // LUCENE 4 UPGRADE: should be possible to convert directly to BR
+                    scriptSpare.copyChars(scriptValue.toString());
+                    hashCode = scriptSpare.hashCode();
+                    super.onValue(docId, scriptSpare, hashCode, values);
+                    return;
+                }
+            }
+        } 
+        assert convert || (matcher == null && script == null);
         super.onValue(docId, value, hashCode, values);
     }
 }

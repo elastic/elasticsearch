@@ -21,11 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.LongValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
@@ -135,7 +131,7 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
         }
 
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.OrdBasedLongValues {
+        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.WithOrdinals {
 
             private final double[] values;
 
@@ -146,11 +142,11 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
             @Override
             protected final long getByOrd(int ord) {
-                return (long)values[ord];
+                return (long) values[ord];
             }
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.OrdBasedDoubleValues {
+        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.WithOrdinals {
 
             private final double[] values;
 
@@ -294,7 +290,7 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             return new DoubleValues(values);
         }
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.DenseLongValues {
+        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.Dense {
 
             private final double[] values;
 
@@ -310,7 +306,7 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
 
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.DenseDoubleValues {
+        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.Dense {
 
             private final double[] values;
 

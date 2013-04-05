@@ -21,11 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.LongValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
@@ -133,7 +129,7 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
             return new DoubleValues(values, ordinals.ordinals());
         }
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.OrdBasedLongValues {
+        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.WithOrdinals {
 
             private final long[] values;
 
@@ -141,14 +137,14 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
                 super(ordinals);
                 this.values = values;
             }
-           
+
             @Override
             public long getByOrd(int ord) {
                 return values[ord];
             }
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.OrdBasedDoubleValues {
+        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.WithOrdinals {
 
             private final long[] values;
 
@@ -162,7 +158,7 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
                 return values[ord];
             }
 
-           
+
         }
     }
 
@@ -294,7 +290,7 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
             return new DoubleValues(values);
         }
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.DenseLongValues {
+        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.Dense {
 
             private final long[] values;
 
@@ -310,7 +306,7 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
 
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.DenseDoubleValues {
+        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.Dense {
 
             private final long[] values;
 

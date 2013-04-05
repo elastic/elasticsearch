@@ -31,7 +31,7 @@ public abstract class LongValues {
     private final boolean multiValued;
     protected final Iter.Single iter = new Iter.Single();
 
-    
+
     protected LongValues(boolean multiValued) {
         this.multiValued = multiValued;
     }
@@ -56,7 +56,7 @@ public abstract class LongValues {
         }
         return missingValue;
     }
-    
+
     public Iter getIter(int docId) {
         assert !isMultiValued();
         if (hasValue(docId)) {
@@ -66,14 +66,14 @@ public abstract class LongValues {
         }
     }
 
-    
-    public static abstract class DenseLongValues extends LongValues {
-        
-        
-        protected DenseLongValues(boolean multiValued) {
+
+    public static abstract class Dense extends LongValues {
+
+
+        protected Dense(boolean multiValued) {
             super(multiValued);
         }
-        
+
         @Override
         public final boolean hasValue(int docId) {
             return true;
@@ -84,7 +84,7 @@ public abstract class LongValues {
             assert !isMultiValued();
             return getValue(docId);
         }
-        
+
         public final Iter getIter(int docId) {
             assert hasValue(docId);
             assert !isMultiValued();
@@ -92,20 +92,24 @@ public abstract class LongValues {
         }
 
     }
-    
-    public static abstract class OrdBasedLongValues extends LongValues {
+
+    public static abstract class WithOrdinals extends LongValues {
 
         protected final Docs ordinals;
         private final Iter.Multi iter;
 
-        protected OrdBasedLongValues(Ordinals.Docs ordinals) {
+        protected WithOrdinals(Ordinals.Docs ordinals) {
             super(ordinals.isMultiValued());
             this.ordinals = ordinals;
             iter = new Iter.Multi(this);
         }
-        
+
+        public Docs ordinals() {
+            return this.ordinals;
+        }
+
         @Override
-        public final  boolean hasValue(int docId) {
+        public final boolean hasValue(int docId) {
             return ordinals.getOrd(docId) != 0;
         }
 
@@ -113,14 +117,14 @@ public abstract class LongValues {
         public final long getValue(int docId) {
             return getByOrd(ordinals.getOrd(docId));
         }
-        
+
         protected abstract long getByOrd(int ord);
 
         @Override
         public final Iter getIter(int docId) {
-           return iter.reset(ordinals.getIter(docId));
+            return iter.reset(ordinals.getIter(docId));
         }
-        
+
         @Override
         public final long getValueMissing(int docId, long missingValue) {
             final int ord = ordinals.getOrd(docId);
@@ -154,7 +158,7 @@ public abstract class LongValues {
             }
         }
 
-       static class Single implements Iter {
+        static class Single implements Iter {
 
             public long value;
             public boolean done;
@@ -177,14 +181,14 @@ public abstract class LongValues {
                 return value;
             }
         }
-       
+
         static class Multi implements Iter {
 
             private org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter ordsIter;
             private int ord;
-            private OrdBasedLongValues values;
+            private WithOrdinals values;
 
-            public Multi(OrdBasedLongValues values) {
+            public Multi(WithOrdinals values) {
                 this.values = values;
             }
 
@@ -209,7 +213,7 @@ public abstract class LongValues {
     }
 
     static class Empty extends LongValues {
-        
+
         public Empty() {
             super(false);
         }
@@ -230,12 +234,12 @@ public abstract class LongValues {
         }
 
     }
-    
-    public static class FilteredLongValues extends LongValues {
+
+    public static class Filtered extends LongValues {
 
         protected final LongValues delegate;
 
-        public FilteredLongValues(LongValues delegate) {
+        public Filtered(LongValues delegate) {
             super(delegate.isMultiValued());
             this.delegate = delegate;
         }

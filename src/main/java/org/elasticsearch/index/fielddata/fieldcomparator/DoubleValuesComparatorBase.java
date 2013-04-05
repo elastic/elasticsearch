@@ -71,7 +71,7 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends NumberCompar
         }
     }
 
-    static final class MultiValueWrapper extends DoubleValues.FilteredDoubleValues {
+    static final class MultiValueWrapper extends DoubleValues.Filtered {
 
         private final SortMode sortMode;
 

@@ -49,7 +49,6 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
     final SearchScript script;
 
     private final int size;
-    private final int numberOfShards;
 
     final ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> entries;
     long missing;
@@ -58,7 +57,6 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
                                        int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = context.numberOfShards();
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.script = script;

@@ -78,7 +78,11 @@ public class TermsStringFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return HashedAggregator.buildFacet(facetName, size, missing, total, comparatorType, aggregator);
+        try {
+            return HashedAggregator.buildFacet(facetName, size, missing, total, comparatorType, aggregator);
+        } finally {
+            aggregator.release();
+        }
     }
 
     final class Collector extends FacetExecutor.Collector {
@@ -128,7 +132,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
                 // 0 = docs with no value for field, so start from 1 instead
                 for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
                     BytesRef value = values.getValueByOrd(ord);
-                    aggregator.addValue(value, value.hashCode());
+                    aggregator.addValue(value, value.hashCode(), values);
                 }
             } else {
                 BytesValues values = indexFieldData.load(readerContext).getBytesValues();
@@ -141,7 +145,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
 
                         BytesValues.Iter iter = values.getIter(docId);
                         while (iter.hasNext()) {
-                            aggregator.addValue(iter.next(), iter.hash());
+                            aggregator.addValue(iter.next(), iter.hash(), values);
                         }
                     }
                 } else {
@@ -152,7 +156,7 @@ public class TermsStringFacetExecutor extends FacetExecutor {
                         }
 
                         int hash = values.getValueHashed(docId, spare);
-                        aggregator.addValue(spare, hash);
+                        aggregator.addValue(spare, hash, values);
                     }
                 }
             }

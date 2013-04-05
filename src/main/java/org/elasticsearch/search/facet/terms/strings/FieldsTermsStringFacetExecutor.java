@@ -81,7 +81,11 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return HashedAggregator.buildFacet(facetName, size, missing, total, comparatorType, aggregator);
+        try {
+            return HashedAggregator.buildFacet(facetName, size, missing, total, comparatorType, aggregator);
+        } finally {
+            aggregator.release();
+        }
     }
 
     class Collector extends FacetExecutor.Collector {

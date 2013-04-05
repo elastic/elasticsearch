@@ -140,7 +140,7 @@ public abstract class ByteArrayAtomicFieldData extends AtomicNumericFieldData {
             }
 
             @Override
-            protected long getByOrd(int ord) {
+            public long getValueByOrd(int ord) {
                 return (long) values[ord];
             }
 
@@ -157,7 +157,7 @@ public abstract class ByteArrayAtomicFieldData extends AtomicNumericFieldData {
 
 
             @Override
-            public double getByOrd(int ord) {
+            public double getValueByOrd(int ord) {
                 return (double) values[ord];
             }
 

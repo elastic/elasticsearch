@@ -115,7 +115,7 @@ public abstract class DoubleValues {
 
         @Override
         public final double getValue(int docId) {
-            return getByOrd(ordinals.getOrd(docId));
+            return getValueByOrd(ordinals.getOrd(docId));
         }
 
         @Override
@@ -124,11 +124,11 @@ public abstract class DoubleValues {
             if (ord == 0) {
                 return missingValue;
             } else {
-                return getByOrd(ord);
+                return getValueByOrd(ord);
             }
         }
 
-        protected abstract double getByOrd(int ord);
+        public abstract double getValueByOrd(int ord);
 
         @Override
         public final Iter getIter(int docId) {
@@ -205,7 +205,7 @@ public abstract class DoubleValues {
 
             @Override
             public double next() {
-                double value = values.getByOrd(ord);
+                double value = values.getValueByOrd(ord);
                 ord = ordsIter.next();
                 return value;
             }

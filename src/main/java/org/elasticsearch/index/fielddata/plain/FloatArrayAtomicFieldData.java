@@ -139,7 +139,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             }
 
             @Override
-            public long getByOrd(int ord) {
+            public long getValueByOrd(int ord) {
                 return (long) values[ord];
             }
         }
@@ -154,7 +154,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             }
 
             @Override
-            protected double getByOrd(int ord) {
+            public double getValueByOrd(int ord) {
                 return values[ord];
             }
         }

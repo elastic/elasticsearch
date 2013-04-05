@@ -115,10 +115,10 @@ public abstract class LongValues {
 
         @Override
         public final long getValue(int docId) {
-            return getByOrd(ordinals.getOrd(docId));
+            return getValueByOrd(ordinals.getOrd(docId));
         }
 
-        protected abstract long getByOrd(int ord);
+        public abstract long getValueByOrd(int ord);
 
         @Override
         public final Iter getIter(int docId) {
@@ -131,7 +131,7 @@ public abstract class LongValues {
             if (ord == 0) {
                 return missingValue;
             } else {
-                return getByOrd(ord);
+                return getValueByOrd(ord);
             }
         }
 
@@ -205,7 +205,7 @@ public abstract class LongValues {
 
             @Override
             public long next() {
-                long value = values.getByOrd(ord);
+                long value = values.getValueByOrd(ord);
                 ord = ordsIter.next();
                 return value;
             }

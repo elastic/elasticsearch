@@ -141,7 +141,7 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            protected final long getByOrd(int ord) {
+            public final long getValueByOrd(int ord) {
                 return (long) values[ord];
             }
         }
@@ -156,7 +156,7 @@ public abstract class DoubleArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public double getByOrd(int ord) {
+            public double getValueByOrd(int ord) {
                 return values[ord];
             }
         }

@@ -19,17 +19,12 @@
 
 package org.elasticsearch.index.cache.id;
 
-import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 
 /**
  *
  */
 public interface IdReaderCache {
-
-    IndexReader reader();
-
-    Object readerCacheKey();
 
     IdReaderTypeCache type(String type);
 

@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.shard.service.IndexShard;
 
@@ -201,6 +200,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                 // now, build it back
                 for (Map.Entry<Object, Map<String, TypeBuilder>> entry : builders.entrySet()) {
+                    Object readerKey = entry.getKey();
                     MapBuilder<String, SimpleIdReaderTypeCache> types = MapBuilder.newMapBuilder();
                     for (Map.Entry<String, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
                         types.put(typeBuilderEntry.getKey(), new SimpleIdReaderTypeCache(typeBuilderEntry.getKey(),
@@ -209,8 +209,9 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                 typeBuilderEntry.getValue().parentIdsValues.toArray(new HashedBytesArray[typeBuilderEntry.getValue().parentIdsValues.size()]),
                                 typeBuilderEntry.getValue().parentIdsOrdinals));
                     }
-                    SimpleIdReaderCache readerCache = new SimpleIdReaderCache(cacheToReader.get(entry.getKey()), types.immutableMap());
-                    idReaders.put(readerCache.readerCacheKey(), readerCache);
+                    IndexReader indexReader = cacheToReader.get(readerKey);
+                    SimpleIdReaderCache readerCache = new SimpleIdReaderCache(types.immutableMap(), ShardUtils.extractShardId(indexReader));
+                    idReaders.put(readerKey, readerCache);
                     onCached(readerCache);
                 }
             }
@@ -218,9 +219,8 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     }
 
     void onCached(SimpleIdReaderCache readerCache) {
-        ShardId shardId = ShardUtils.extractShardId(readerCache.reader());
-        if (shardId != null) {
-            IndexShard shard = indexService.shard(shardId.id());
+        if (readerCache.shardId != null) {
+            IndexShard shard = indexService.shard(readerCache.shardId.id());
             if (shard != null) {
                 shard.idCache().onCached(readerCache.sizeInBytes());
             }
@@ -228,9 +228,8 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     }
 
     void onRemoval(SimpleIdReaderCache readerCache) {
-        ShardId shardId = ShardUtils.extractShardId(readerCache.reader());
-        if (shardId != null) {
-            IndexShard shard = indexService.shard(shardId.id());
+        if (readerCache.shardId != null) {
+            IndexShard shard = indexService.shard(readerCache.shardId.id());
             if (shard != null) {
                 shard.idCache().onCached(readerCache.sizeInBytes());
             }

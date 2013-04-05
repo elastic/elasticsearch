@@ -20,32 +20,25 @@
 package org.elasticsearch.index.cache.id.simple;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.lucene.index.IndexReader;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.index.cache.id.IdReaderCache;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.shard.ShardId;
 
 /**
  *
  */
 public class SimpleIdReaderCache implements IdReaderCache {
 
-    private final IndexReader reader;
     private final ImmutableMap<String, SimpleIdReaderTypeCache> types;
 
-    public SimpleIdReaderCache(IndexReader reader, ImmutableMap<String, SimpleIdReaderTypeCache> types) {
-        this.reader = reader;
+    @Nullable
+    public final ShardId shardId;
+
+    public SimpleIdReaderCache(ImmutableMap<String, SimpleIdReaderTypeCache> types, @Nullable ShardId shardId) {
         this.types = types;
-    }
-
-    @Override
-    public IndexReader reader() {
-        return this.reader;
-    }
-
-    @Override
-    public Object readerCacheKey() {
-        return this.reader.getCoreCacheKey();
+        this.shardId = shardId;
     }
 
     @Override

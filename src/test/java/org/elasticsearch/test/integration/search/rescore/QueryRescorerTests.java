@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -37,43 +36,23 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
 /**
  *
  */
-public class QueryRescorerTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        startNode("node1");
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("node1");
-    }
+public class QueryRescorerTests extends AbstractSharedClusterTest {
 
     @Test
     public void testRescorePhrase() throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
 
-        client.admin()
+        client().admin()
                 .indices()
                 .prepareCreate("test")
                 .addMapping(
@@ -82,15 +61,15 @@ public class QueryRescorerTests extends AbstractNodesTests {
                                 .field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
-        client.prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute()
+        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute()
                 .actionGet();
-        client.prepareIndex("test", "type1", "3")
+        client().prepareIndex("test", "type1", "3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").execute()
                 .actionGet();
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)))
                 .setRescoreWindow(5).execute().actionGet();
@@ -100,7 +79,7 @@ public class QueryRescorerTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "the quick brown").slop(3)))
                 .setRescoreWindow(5).execute().actionGet();
@@ -110,7 +89,7 @@ public class QueryRescorerTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer((QueryBuilders.matchPhraseQuery("field1", "the quick brown"))))
                 .setRescoreWindow(5).execute().actionGet();
@@ -124,7 +103,7 @@ public class QueryRescorerTests extends AbstractNodesTests {
     @Test
     public void testMoreDocs() throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
@@ -139,26 +118,26 @@ public class QueryRescorerTests extends AbstractNodesTests {
                 .startObject("field1").field("type", "string").field("index_analyzer", "whitespace").field("search_analyzer", "synonym")
                 .endObject().endObject().endObject().endObject();
 
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1))
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1))
                 .execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource("field1", "massachusetts avenue boston massachusetts").execute().actionGet();
-        client.prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts").execute().actionGet();
-        client.prepareIndex("test", "type1", "3").setSource("field1", "boston avenue lexington massachusetts").execute().actionGet();
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        client.prepareIndex("test", "type1", "4").setSource("field1", "boston road lexington massachusetts").execute().actionGet();
-        client.prepareIndex("test", "type1", "5").setSource("field1", "lexington street lexington massachusetts").execute().actionGet();
-        client.prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").execute().actionGet();
-        client.prepareIndex("test", "type1", "7").setSource("field1", "bosten street san franciso california").execute().actionGet();
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        client.prepareIndex("test", "type1", "8").setSource("field1", "hollywood boulevard los angeles california").execute().actionGet();
-        client.prepareIndex("test", "type1", "9").setSource("field1", "1st street boston massachussetts").execute().actionGet();
-        client.prepareIndex("test", "type1", "10").setSource("field1", "1st street boston massachusetts").execute().actionGet();
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        client.prepareIndex("test", "type1", "11").setSource("field1", "2st street boston massachusetts").execute().actionGet();
-        client.prepareIndex("test", "type1", "12").setSource("field1", "3st street boston massachusetts").execute().actionGet();
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        SearchResponse searchResponse = client
+        client().prepareIndex("test", "type1", "1").setSource("field1", "massachusetts avenue boston massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "lexington avenue boston massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field1", "boston avenue lexington massachusetts").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "4").setSource("field1", "boston road lexington massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "5").setSource("field1", "lexington street lexington massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "6").setSource("field1", "massachusetts avenue lexington massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "7").setSource("field1", "bosten street san franciso california").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "8").setSource("field1", "hollywood boulevard los angeles california").execute().actionGet();
+        client().prepareIndex("test", "type1", "9").setSource("field1", "1st street boston massachussetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "10").setSource("field1", "1st street boston massachusetts").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "type1", "11").setSource("field1", "2st street boston massachusetts").execute().actionGet();
+        client().prepareIndex("test", "type1", "12").setSource("field1", "3st street boston massachusetts").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        SearchResponse searchResponse = client()
                 .prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
                 .setFrom(0)
@@ -174,7 +153,7 @@ public class QueryRescorerTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
         
         
-        searchResponse = client
+        searchResponse = client()
         .prepareSearch()
         .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
         .setFrom(0)
@@ -221,12 +200,12 @@ public class QueryRescorerTests extends AbstractNodesTests {
     @Test
     public void testEquivalence() throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
 
-        client.admin()
+        client().admin()
                 .indices()
                 .prepareCreate("test")
                 .addMapping(
@@ -237,14 +216,14 @@ public class QueryRescorerTests extends AbstractNodesTests {
         int numDocs = 1000;
 
         for (int i = 0; i < numDocs; i++) {
-            client.prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i)).execute().actionGet();
+            client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i)).execute().actionGet();
         }
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
         for (int i = 0; i < numDocs; i++) {
             String intToEnglish = English.intToEnglish(i);
             String query = intToEnglish.split(" ")[0];
-            SearchResponse rescored = client
+            SearchResponse rescored = client()
                     .prepareSearch()
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
                     .setFrom(0)
@@ -259,13 +238,13 @@ public class QueryRescorerTests extends AbstractNodesTests {
                                     .setRescoreWindow(50).execute().actionGet();
             
 
-            SearchResponse plain = client.prepareSearch()
+            SearchResponse plain = client().prepareSearch()
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR)).setFrom(0).setSize(10)
                     .execute().actionGet();
             // check equivalence
             assertEquivalent(plain, rescored); 
             
-            rescored = client
+            rescored = client()
             .prepareSearch()
             .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
             .setFrom(0)
@@ -281,7 +260,7 @@ public class QueryRescorerTests extends AbstractNodesTests {
             // check equivalence
             assertEquivalent(plain, rescored); 
             
-            rescored = client
+            rescored = client()
             .prepareSearch()
             .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
             .setFrom(0)
@@ -299,12 +278,12 @@ public class QueryRescorerTests extends AbstractNodesTests {
     @Test
     public void testExplain() throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
 
-        client.admin()
+        client().admin()
                 .indices()
                 .prepareCreate("test")
                 .addMapping(
@@ -313,15 +292,15 @@ public class QueryRescorerTests extends AbstractNodesTests {
                                 .field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
-        client.prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute()
+        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute()
                 .actionGet();
-        client.prepareIndex("test", "type1", "3")
+        client().prepareIndex("test", "type1", "3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").execute()
                 .actionGet();
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
         
-        SearchResponse searchResponse = client
+        SearchResponse searchResponse = client()
                 .prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
                 .setRescorer(

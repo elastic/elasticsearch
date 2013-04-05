@@ -29,8 +29,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -44,32 +43,25 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class BroadcastActionsTests extends AbstractNodesTests {
-
-    @AfterMethod
-    public void closeServers() {
-        closeAllNodes();
-    }
+public class BroadcastActionsTests extends AbstractSharedClusterTest {
 
     @Test
     public void testBroadcastOperations() throws IOException {
-        startNode("server1");
-
-        client("server1").admin().indices().prepareCreate("test").execute().actionGet(5000);
+        prepareCreate("test", 1).execute().actionGet(5000);
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client("server1").admin().cluster().health(clusterHealthRequest().waitForYellowStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus()).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
-        client("server1").index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
-        FlushResponse flushResponse = client("server1").admin().indices().flush(flushRequest("test")).actionGet();
+        client().index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
+        FlushResponse flushResponse = client().admin().indices().flush(flushRequest("test")).actionGet();
         assertThat(flushResponse.getTotalShards(), equalTo(10));
         assertThat(flushResponse.getSuccessfulShards(), equalTo(5));
         assertThat(flushResponse.getFailedShards(), equalTo(0));
-        client("server1").index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
-        RefreshResponse refreshResponse = client("server1").admin().indices().refresh(refreshRequest("test")).actionGet();
+        client().index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
+        RefreshResponse refreshResponse = client().admin().indices().refresh(refreshRequest("test")).actionGet();
         assertThat(refreshResponse.getTotalShards(), equalTo(10));
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(5));
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
@@ -78,7 +70,7 @@ public class BroadcastActionsTests extends AbstractNodesTests {
         // check count
         for (int i = 0; i < 5; i++) {
             // test successful
-            CountResponse countResponse = client("server1").count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
+            CountResponse countResponse = client().count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.NO_THREADS)).actionGet();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getTotalShards(), equalTo(5));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
@@ -86,7 +78,7 @@ public class BroadcastActionsTests extends AbstractNodesTests {
         }
 
         for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client("server1").count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
+            CountResponse countResponse = client().count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.SINGLE_THREAD)).actionGet();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getTotalShards(), equalTo(5));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
@@ -94,7 +86,7 @@ public class BroadcastActionsTests extends AbstractNodesTests {
         }
 
         for (int i = 0; i < 5; i++) {
-            CountResponse countResponse = client("server1").count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
+            CountResponse countResponse = client().count(countRequest("test").query(termQuery("_type", "type1")).operationThreading(BroadcastOperationThreading.THREAD_PER_SHARD)).actionGet();
             assertThat(countResponse.getCount(), equalTo(2l));
             assertThat(countResponse.getTotalShards(), equalTo(5));
             assertThat(countResponse.getSuccessfulShards(), equalTo(5));
@@ -103,7 +95,7 @@ public class BroadcastActionsTests extends AbstractNodesTests {
 
         for (int i = 0; i < 5; i++) {
             // test failed (simply query that can't be parsed)
-            CountResponse countResponse = client("server1").count(countRequest("test").query(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
+            CountResponse countResponse = client().count(countRequest("test").query(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
 
             assertThat(countResponse.getCount(), equalTo(0l));
             assertThat(countResponse.getTotalShards(), equalTo(5));

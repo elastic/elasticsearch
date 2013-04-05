@@ -60,7 +60,6 @@ public class CacheTests extends AbstractNodesTests {
     protected Client getClient() {
         return client("node1");
     }
-
     @Test
     public void testClearCacheFilterKeys() {
         client.admin().indices().prepareDelete().execute().actionGet();

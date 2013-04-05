@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
@@ -34,13 +33,11 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
@@ -57,42 +54,21 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.testng.Assert.fail;
 
 /**
  *
  */
-public class HighlighterSearchTests extends AbstractNodesTests {
-
-    private Client client;
-
+public class HighlighterSearchTests extends AbstractSharedClusterTest {
+    
     @BeforeClass
     public void createNodes() throws Exception {
-        startNode("server1");
-        startNode("server2");
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("server1");
+        cluster().ensureAtLeastNumNodes(4);
     }
     
     @Test
     public void testNgramHighlightingWithBrokenPositions() throws ElasticSearchException, IOException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        
-        client.admin().indices().prepareCreate("test")
+        prepareCreate("test")
         .addMapping("test", jsonBuilder()
                 .startObject()
                     .startObject("test")
@@ -138,26 +114,20 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .put("analysis.analyzer.search_autocomplete.tokenizer", "whitespace")
                 .putArray("analysis.analyzer.search_autocomplete.filter", "lowercase", "wordDelimiter"))
         .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        client.prepareIndex("test", "test", "1")
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().prepareIndex("test", "test", "1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                         .field( "name", "ARCOTEL Hotels Deutschland")
                     .endObject())
             .setRefresh(true).execute().actionGet();
-        SearchResponse search = client.prepareSearch("test").setTypes("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR)).addHighlightedField("name.autocomplete").execute().actionGet();
+        SearchResponse search = client().prepareSearch("test").setTypes("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR)).addHighlightedField("name.autocomplete").execute().actionGet();
         assertHighlight(search, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));
     }
     
     @Test
     public void testNgramHighlightingPreLucene42() throws ElasticSearchException, IOException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
         .addMapping("test", jsonBuilder()
                 .startObject()
                     .startObject("test")
@@ -192,45 +162,39 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .put("analysis.analyzer.name2_index_analyzer.filter", "my_ngram")
                 .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace"))
         .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        client.prepareIndex("test", "test", "1")
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().prepareIndex("test", "test", "1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("name", "logicacmg ehemals avinci - the know how company")
                         .field("name2", "logicacmg ehemals avinci - the know how company")
                     .endObject())
             .setRefresh(true).execute().actionGet();
-        SearchResponse search = client.prepareSearch().setQuery(matchQuery("name", "logica m")).addHighlightedField("name").execute().actionGet();
+        SearchResponse search = client().prepareSearch().setQuery(matchQuery("name", "logica m")).addHighlightedField("name").execute().actionGet();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
         
-        search = client.prepareSearch().setQuery(matchQuery("name", "logica ma")).addHighlightedField("name").execute()
+        search = client().prepareSearch().setQuery(matchQuery("name", "logica ma")).addHighlightedField("name").execute()
                 .actionGet();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
 
-        search = client.prepareSearch().setQuery(matchQuery("name", "logica")).addHighlightedField("name").execute().actionGet();
+        search = client().prepareSearch().setQuery(matchQuery("name", "logica")).addHighlightedField("name").execute().actionGet();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
         
-        search = client.prepareSearch().setQuery(matchQuery("name2", "logica m")).addHighlightedField("name2").execute().actionGet();
+        search = client().prepareSearch().setQuery(matchQuery("name2", "logica m")).addHighlightedField("name2").execute().actionGet();
         assertHighlight(search, 0, "name2", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
         
-        search = client.prepareSearch().setQuery(matchQuery("name2", "logica ma")).addHighlightedField("name2").execute()
+        search = client().prepareSearch().setQuery(matchQuery("name2", "logica ma")).addHighlightedField("name2").execute()
                 .actionGet();
         assertHighlight(search, 0, "name2", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
 
-        search = client.prepareSearch().setQuery(matchQuery("name2", "logica")).addHighlightedField("name2").execute().actionGet();
+        search = client().prepareSearch().setQuery(matchQuery("name2", "logica")).addHighlightedField("name2").execute().actionGet();
         assertHighlight(search, 0, "name2", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
     }
     
     
     @Test
     public void testNgramHighlighting() throws ElasticSearchException, IOException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
         .addMapping("test", jsonBuilder()
                 .startObject()
                     .startObject("test")
@@ -263,34 +227,34 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .put("analysis.analyzer.name2_index_analyzer.filter", "my_ngram")
                 .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace"))
         .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        client.prepareIndex("test", "test", "1")
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().prepareIndex("test", "test", "1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("name", "logicacmg ehemals avinci - the know how company")
                         .field("name2", "logicacmg ehemals avinci - the know how company")
                     .endObject())
             .setRefresh(true).execute().actionGet();
-        SearchResponse search = client.prepareSearch().setQuery(matchQuery("name", "logica m")).addHighlightedField("name").execute().actionGet();
+        SearchResponse search = client().prepareSearch().setQuery(matchQuery("name", "logica m")).addHighlightedField("name").execute().actionGet();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
         
-        search = client.prepareSearch().setQuery(matchQuery("name", "logica ma")).addHighlightedField("name").execute()
+        search = client().prepareSearch().setQuery(matchQuery("name", "logica ma")).addHighlightedField("name").execute()
                 .actionGet();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
 
-        search = client.prepareSearch().setQuery(matchQuery("name", "logica")).addHighlightedField("name").execute().actionGet();
+        search = client().prepareSearch().setQuery(matchQuery("name", "logica")).addHighlightedField("name").execute().actionGet();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
         
       
         
-        search = client.prepareSearch().setQuery(matchQuery("name2", "logica m")).addHighlightedField("name2").execute().actionGet();
+        search = client().prepareSearch().setQuery(matchQuery("name2", "logica m")).addHighlightedField("name2").execute().actionGet();
         assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> <em>ehemals</em> avinci - the know how <em>company</em>"));
         
-        search = client.prepareSearch().setQuery(matchQuery("name2", "logica ma")).addHighlightedField("name2").execute()
+        search = client().prepareSearch().setQuery(matchQuery("name2", "logica ma")).addHighlightedField("name2").execute()
                 .actionGet();
         assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> <em>ehemals</em> avinci - the know how company"));
 
-        search = client.prepareSearch().setQuery(matchQuery("name2", "logica")).addHighlightedField("name2").execute().actionGet();
+        search = client().prepareSearch().setQuery(matchQuery("name2", "logica")).addHighlightedField("name2").execute().actionGet();
         assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> ehemals avinci - the know how company"));
 
         
@@ -298,22 +262,16 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     
     @Test
     public void testEnsureNoNegativeOffsets() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title, now lets see if it works...
                         .startObject("no_long_term").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
                         .startObject("long_term").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1")
+        client().prepareIndex("test", "type1", "1")
                 .setSource(XContentFactory.jsonBuilder().startObject()
                         .startArray("no_long_term")
                         .value("This is a test where foo is highlighed and should be highlighted")
@@ -325,7 +283,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .setRefresh(true).execute().actionGet();
 
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(matchQuery("long_term", "thisisaverylongwordandmakessurethisfails foo highlighed"))
                 .addHighlightedField("long_term", 18, 1)
                 .execute().actionGet();
@@ -337,7 +295,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(search.getHits().hits()[0].highlightFields().get("long_term").fragments()[0].string(), equalTo("<em>thisisaverylongwordandmakessurethisfails</em>"));
         
         
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(matchQuery("no_long_term", "test foo highlighed").type(Type.PHRASE).slop(3))
                 .addHighlightedField("no_long_term", 18, 1).setHighlighterPostTags("</b>").setHighlighterPreTags("<b>")
                 .execute().actionGet();
@@ -346,7 +304,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(search.getHits().hits()[0].highlightFields().size(), equalTo(0));
        
 
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(matchQuery("no_long_term", "test foo highlighed").type(Type.PHRASE).slop(3))
                 .addHighlightedField("no_long_term", 30, 1).setHighlighterPostTags("</b>").setHighlighterPreTags("<b>")
                 .execute().actionGet();
@@ -360,25 +318,17 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     
     @Test
     public void testSourceLookupHighlightingUsingPlainHighlighter() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        
-        
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title and don't use term vector, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "no").endObject()
                         .startObject("attachments").startObject("properties").startObject("body").field("type", "string").field("store", "no").field("term_vector", "no").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
                             .field("title", "This is a test on the highlighting bug present in elasticsearch")
                             .startArray("attachments").startObject().field("body", "attachment 1").endObject().startObject().field("body", "attachment 2").endObject().endArray()
@@ -386,7 +336,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                     .setRefresh(true).execute().actionGet();
         }
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "bug"))
                 .addHighlightedField("title", -1, 0)
                 .execute().actionGet();
@@ -400,7 +350,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
         }
 
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(fieldQuery("attachments.body", "attachment"))
                 .addHighlightedField("attachments.body", -1, 0)
                 .execute().actionGet();
@@ -418,23 +368,17 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testSourceLookupHighlightingUsingFastVectorHighlighter() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
                         .startObject("attachments").startObject("properties").startObject("body").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource(XContentFactory.jsonBuilder().startObject()
                             .field("title", "This is a test on the highlighting bug present in elasticsearch")
                             .startArray("attachments").startObject().field("body", "attachment 1").endObject().startObject().field("body", "attachment 2").endObject().endArray()
@@ -442,7 +386,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                     .setRefresh(true).execute().actionGet();
         }
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "bug"))
                 .addHighlightedField("title", -1, 0)
                 .execute().actionGet();
@@ -456,7 +400,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
             assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("This is a test on the highlighting <em>bug</em> present in elasticsearch"));
         }
 
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(fieldQuery("attachments.body", "attachment"))
                 .addHighlightedField("attachments.body", -1, 2)
                 .execute().actionGet();
@@ -474,22 +418,16 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testHighlightIssue1994() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         // we don't store title, now lets see if it works...
                         .startObject("title").field("type", "string").field("store", "no").endObject()
                         .startObject("titleTV").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1")
+        client().prepareIndex("test", "type1", "1")
                 .setSource(XContentFactory.jsonBuilder().startObject()
                         .startArray("title")
                         .value("This is a test on the highlighting bug present in elasticsearch")
@@ -503,7 +441,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .setRefresh(true).execute().actionGet();
 
 
-        client.prepareIndex("test", "type1", "2")
+        client().prepareIndex("test", "type1", "2")
                 .setSource(XContentFactory.jsonBuilder().startObject()
                         .startArray("titleTV")
                         .value("some text to highlight")
@@ -512,7 +450,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .endObject())
                 .setRefresh(true).execute().actionGet();
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "bug"))
                 .addHighlightedField("title", -1, 2)
                 .addHighlightedField("titleTV", -1, 2)
@@ -529,7 +467,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 //        assertThat(search.hits().hits()[0].highlightFields().get("titleTV").fragments()[0].string(), equalTo("highlighting <em>bug</em> present in elasticsearch")); // FastVectorHighlighter starts highlighting from startOffset - margin
         assertThat(search.getHits().hits()[0].highlightFields().get("titleTV").fragments()[1].string(), equalTo("The <em>bug</em> is bugging us"));
 
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(fieldQuery("titleTV", "highlight"))
                 .addHighlightedField("titleTV", -1, 2)
                 .execute().actionGet();
@@ -543,11 +481,11 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testHighlightingOnWildcardFields() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource("field1", "this is a test", "field2", "this is another test")
                 .setRefresh(true).execute().actionGet();
 
@@ -557,7 +495,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field*").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -567,15 +505,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testPlainHighlighter() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-            // its ok
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
                 .setRefresh(true).execute().actionGet();
 
@@ -585,7 +518,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -597,7 +530,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -609,7 +542,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -621,7 +554,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -633,7 +566,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -645,7 +578,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).highlightFields().get("field2").fragments()[0].string(), equalTo("The <xxx>quick</xxx> brown fox jumps over the lazy dog"));
@@ -653,15 +586,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testFastVectorHighlighter() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-            // its ok
-        }
-        client.admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
                 .setRefresh(true).execute().actionGet();
 
@@ -671,7 +599,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -683,7 +611,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -696,7 +624,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -709,7 +637,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2", 100, 0).order("score").preTags("<xxx>").postTags("</xxx>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -719,28 +647,23 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testFastVectorHighlighterManyDocs() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (ElasticSearchException e) {
-            assertThat(e.unwrapCause(), instanceOf(IndexMissingException.class));
-        }
-        client.admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         int COUNT = 100;
         logger.info("--> indexing docs");
         for (int i = 0; i < COUNT; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "test " + i).execute().actionGet();
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field1", "test " + i).execute().actionGet();
             if (i % 5 == 0) {
                 // flush so we get updated readers and segmented readers
-                client.admin().indices().prepareFlush().execute().actionGet();
+                client().admin().indices().prepareFlush().execute().actionGet();
             }
         }
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("--> searching explicitly on field1 and highlighting on it");
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setSize(COUNT)
                 .setQuery(termQuery("field1", "test"))
                 .addHighlightedField("field1", 100, 0)
@@ -753,7 +676,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         logger.info("--> searching explicitly on field1 and highlighting on it, with DFS");
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setSize(COUNT)
                 .setQuery(termQuery("field1", "test"))
@@ -766,7 +689,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         logger.info("--> searching explicitly _all and highlighting on _all");
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setSize(COUNT)
                 .setQuery(termQuery("_all", "test"))
                 .addHighlightedField("_all", 100, 0)
@@ -790,25 +713,19 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testSameContent() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource("title", "This is a test on the highlighting bug present in elasticsearch").setRefresh(true).execute().actionGet();
         }
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "bug"))
                 .addHighlightedField("title", -1, 0)
                 .execute().actionGet();
@@ -825,25 +742,19 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testFastVectorHighlighterOffsetParameter() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource("title", "This is a test on the highlighting bug present in elasticsearch").setRefresh(true).execute().actionGet();
         }
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "bug"))
                 .addHighlightedField("title", 30, 1, 10)
                 .execute().actionGet();
@@ -861,26 +772,19 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testEscapeHtml() throws Exception {
-
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes")
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource("title", "This is a html escaping highlighting test for *&? elasticsearch").setRefresh(true).execute().actionGet();
         }
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1, 10)
@@ -900,26 +804,19 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testEscapeHtml_vector() throws Exception {
-
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource("title", "This is a html escaping highlighting test for *&? elasticsearch").setRefresh(true).execute().actionGet();
         }
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 30, 1, 10)
@@ -938,9 +835,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testMultiMapperVectorWithStore() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
@@ -949,13 +844,13 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         // simple search on body with standard analyzer with a simple field query
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
@@ -966,7 +861,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("this is a <em>test</em>"));
 
         // search on title.key and highlight on title
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(fieldQuery("title.key", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
@@ -979,9 +874,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testMultiMapperVectorFromSource() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
@@ -990,13 +883,13 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         // simple search on body with standard analyzer with a simple field query
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
@@ -1007,7 +900,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("this is a <em>test</em>"));
 
         // search on title.key and highlight on title.key
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(fieldQuery("title.key", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
@@ -1020,9 +913,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testMultiMapperNoVectorWithStore() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "no").endObject()
@@ -1031,13 +922,13 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         // simple search on body with standard analyzer with a simple field query
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
@@ -1048,7 +939,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("this is a <em>test</em>"));
 
         // search on title.key and highlight on title
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(fieldQuery("title.key", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
@@ -1061,9 +952,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testMultiMapperNoVectorFromSource() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "multi_field").startObject("fields")
                         .startObject("title").field("type", "string").field("store", "no").field("term_vector", "no").endObject()
@@ -1072,13 +961,13 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         // simple search on body with standard analyzer with a simple field query
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
@@ -1089,7 +978,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("this is a <em>test</em>"));
 
         // search on title.key and highlight on title.key
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(fieldQuery("title.key", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title.key", 50, 1)
@@ -1102,31 +991,25 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testFastVectorHighlighterShouldFailIfNoTermVectors() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "no").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource("title", "This is a test for the enabling fast vector highlighter").setRefresh(true).execute().actionGet();
         }
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "this is a test"))
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
 
         assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
 
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "this is a test"))
                 .addHighlightedField("title", 50, 1, 10)
                 .setHighlighterType("fast-vector-highlighter")
@@ -1138,25 +1021,19 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testDisableFastVectorHighlighter() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i))
+            client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource("title", "This is a test for the workaround for the fast vector highlighting SOLR-3724").setRefresh(true).execute().actionGet();
         }
 
-        SearchResponse search = client.prepareSearch()
+        SearchResponse search = client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "test for the workaround"))
                 .addHighlightedField("title", 50, 1, 10)
                 .execute().actionGet();
@@ -1172,7 +1049,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         // Using plain highlighter instead of FVH
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "test for the workaround"))
                 .addHighlightedField("title", 50, 1, 10)
                 .setHighlighterType("highlighter")
@@ -1189,7 +1066,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
 
         // Using plain highlighter instead of FVH on the field level
-        search = client.prepareSearch()
+        search = client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "test for the workaround"))
                 .addHighlightedField(new HighlightBuilder.Field("title").highlighterType("highlighter"))
                 .setHighlighterType("highlighter")
@@ -1208,27 +1085,21 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testFSHHighlightAllMvFragments() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("tags").field("type", "string").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1")
+        client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("tags",
                         "this is a really long tag i would like to highlight",
                         "here is another one that is very long and has the tag token near the end").endObject())
                 .setRefresh(true).execute().actionGet();
 
-        SearchResponse response = client.prepareSearch("test")
+        SearchResponse response = client().prepareSearch("test")
                 .setQuery(QueryBuilders.matchQuery("tags", "tag"))
                 .addHighlightedField("tags", -1, 0)
                 .execute().actionGet();
@@ -1241,15 +1112,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     
     @Test
     public void testBoostingQuery() {
-        try {   
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-            // its ok
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
                 .setRefresh(true).execute().actionGet();
 
@@ -1259,7 +1125,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -1268,15 +1134,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
     
     @Test
     public void testBoostingQueryTermVector() throws ElasticSearchException, IOException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
+        client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
                 .setRefresh(true).execute().actionGet();
 
         logger.info("--> highlighting and searching on field1");
@@ -1285,7 +1146,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client.search(
+        SearchResponse searchResponse = client().search(
                 searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -1297,15 +1158,10 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testCommonTermsQuery() {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-            // its ok
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
                 .setRefresh(true).execute().actionGet();
 
@@ -1315,7 +1171,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -1324,22 +1180,17 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testCommonTermsTermVector() throws ElasticSearchException, IOException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
+        client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
                 .setRefresh(true).execute().actionGet();
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(commonTerms("field2", "quick brown").cutoffFrequency(100)).from(0).size(60)
                 .explain(true).highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client.search(
+        SearchResponse searchResponse = client().search(
                 searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(timeValueMinutes(10))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -1351,11 +1202,6 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testPhrasePrefix() throws ElasticSearchException, IOException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {
-            // its ok
-        }
         Builder builder = ImmutableSettings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
         builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
@@ -1371,13 +1217,13 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .endObject().endObject();
 
 
-        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()).addMapping("type2", type2Mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()).addMapping("type2", type2Mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "0")
+        client().prepareIndex("test", "type1", "0")
                 .setSource("field0", "The quick brown fox jumps over the lazy dog", "field1", "The quick brown fox jumps over the lazy dog")
                 .setRefresh(true).execute().actionGet();
-        client.prepareIndex("test", "type1", "1")
+        client().prepareIndex("test", "type1", "1")
                 .setSource("field1", "The quick browse button is a fancy thing, right bro?")
                 .setRefresh(true).execute().actionGet();
         logger.info("--> highlighting and searching on field0");
@@ -1386,7 +1232,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
 
-        SearchResponse searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -1398,7 +1244,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .from(0).size(60).explain(true)
                 .highlight(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
@@ -1406,19 +1252,19 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(1).highlightFields().get("field1").fragments()[0].string(), equalTo("The <x>quick brown</x> fox jumps over the lazy dog"));
 
         // with synonyms
-        client.prepareIndex("test", "type2", "0")
+        client().prepareIndex("test", "type2", "0")
                 .setSource("field4", "The quick brown fox jumps over the lazy dog", "field3", "The quick brown fox jumps over the lazy dog")
                 .setRefresh(true).execute().actionGet();
-        client.prepareIndex("test", "type2", "1")
+        client().prepareIndex("test", "type2", "1")
                 .setSource("field4", "The quick browse button is a fancy thing, right bro?").setRefresh(true).execute().actionGet();
-        client.prepareIndex("test", "type2", "2")
+        client().prepareIndex("test", "type2", "2")
                 .setSource("field4", "a quick fast blue car")
                 .setRefresh(true).execute().actionGet();
 
         source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field3", "fast bro")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field3").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -1429,7 +1275,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "the fast bro")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
@@ -1442,7 +1288,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         source = searchSource().filter(FilterBuilders.typeFilter("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca")).from(0).size(60).explain(true)
                 .highlight(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client.search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -1453,27 +1299,21 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testPlainHighlightDifferentFragmenter() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+        prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("tags").field("type", "string").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1")
+        client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("tags",
                         "this is a really long tag i would like to highlight",
                         "here is another one that is very long tag and has the tag token near the end").endObject())
                 .setRefresh(true).execute().actionGet();
 
-        SearchResponse response = client.prepareSearch("test")
+        SearchResponse response = client().prepareSearch("test")
                 .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQueryBuilder.Type.PHRASE))
                 .addHighlightedField(new HighlightBuilder.Field("tags")
                         .fragmentSize(-1).numOfFragments(2).fragmenter("simple"))
@@ -1482,7 +1322,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(response.getHits().hits()[0].highlightFields().get("tags").fragments()[0].string(), equalTo("this is a really <em>long</em> <em>tag</em> i would like to highlight"));
         assertThat(response.getHits().hits()[0].highlightFields().get("tags").fragments()[1].string(), equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the tag token near the end"));
 
-        response = client.prepareSearch("test")
+        response = client().prepareSearch("test")
                 .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQueryBuilder.Type.PHRASE))
                 .addHighlightedField(new HighlightBuilder.Field("tags")
                         .fragmentSize(-1).numOfFragments(2).fragmenter("span"))
@@ -1492,7 +1332,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         assertThat(response.getHits().hits()[0].highlightFields().get("tags").fragments()[1].string(), equalTo("here is another one that is very <em>long</em> <em>tag</em> and has the tag token near the end"));
 
         try {
-            client.prepareSearch("test")
+            client().prepareSearch("test")
                     .setQuery(QueryBuilders.matchQuery("tags", "long tag").type(MatchQueryBuilder.Type.PHRASE))
                     .addHighlightedField(new HighlightBuilder.Field("tags")
                             .fragmentSize(-1).numOfFragments(2).fragmenter("invalid"))
@@ -1505,27 +1345,21 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
     @Test
     public void testMissingStoredField() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+        prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("highlight_field").field("type", "string").field("store", "yes").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1")
+        client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject()
                     .field("field", "highlight")
                 .endObject())
                 .setRefresh(true).execute().actionGet();
 
         // This query used to fail when the field to highlight was absent
-        SearchResponse response = client.prepareSearch("test")
+        SearchResponse response = client().prepareSearch("test")
                 .setQuery(QueryBuilders.matchQuery("field", "highlight").type(MatchQueryBuilder.Type.BOOLEAN))
                 .addHighlightedField(new HighlightBuilder.Field("highlight_field")
                         .fragmentSize(-1).numOfFragments(1).fragmenter("simple"))

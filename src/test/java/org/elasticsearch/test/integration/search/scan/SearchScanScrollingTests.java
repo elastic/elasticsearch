@@ -19,46 +19,26 @@
 
 package org.elasticsearch.test.integration.search.scan;
 
-import com.google.common.collect.Sets;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
-import java.util.Set;
-
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchScanScrollingTests extends AbstractNodesTests {
+import java.util.Set;
 
-    private Client client;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
 
-    @BeforeClass
-    public void createNodes() throws Exception {
-        startNode("node1");
-        startNode("node2");
-        client = getClient();
-    }
+import com.google.common.collect.Sets;
 
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("node1");
-    }
-
+public class SearchScanScrollingTests extends AbstractSharedClusterTest {
+    // TODO RANDOMIZE
     @Test
     public void shard1docs100size3() throws Exception {
         testScroll(1, 100, 3);
@@ -200,12 +180,12 @@ public class SearchScanScrollingTests extends AbstractNodesTests {
 
     private void testScroll(int numberOfShards, long numberOfDocs, int size, boolean unbalanced) throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards)).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         Set<String> ids = Sets.newHashSet();
         Set<String> expectedIds = Sets.newHashSet();
@@ -222,16 +202,16 @@ public class SearchScanScrollingTests extends AbstractNodesTests {
                     routing = "2";
                 }
             }
-            client.prepareIndex("test", "type1", id).setRouting(routing).setSource("field", i).execute().actionGet();
+            client().prepareIndex("test", "type1", id).setRouting(routing).setSource("field", i).execute().actionGet();
             // make some segments
             if (i % 10 == 0) {
-                client.admin().indices().prepareFlush().execute().actionGet();
+                client().admin().indices().prepareFlush().execute().actionGet();
             }
         }
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setSearchType(SearchType.SCAN)
                 .setQuery(matchAllQuery())
                 .setSize(size)
@@ -242,7 +222,7 @@ public class SearchScanScrollingTests extends AbstractNodesTests {
 
         // start scrolling, until we get not results
         while (true) {
-            searchResponse = client.prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).execute().actionGet();
             assertThat(searchResponse.getHits().totalHits(), equalTo(numberOfDocs));
             assertThat(searchResponse.getFailedShards(), equalTo(0));
             for (SearchHit hit : searchResponse.getHits()) {

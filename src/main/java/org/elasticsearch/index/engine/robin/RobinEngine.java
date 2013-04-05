@@ -338,15 +338,17 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     int docStart = searcher.searcher().docStarts()[i];
                     UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(subReader, docStart, get.uid());
                     if (docIdAndVersion != null && docIdAndVersion.docId != Lucene.NO_DOC) {
+                        // note, we don't release the searcher here, since it will be released as part of the external
+                        // API usage, since it still needs it to load data...
                         return new GetResult(searcher, docIdAndVersion);
                     }
                 }
             } catch (Exception e) {
+                searcher.release();
                 //TODO: A better exception goes here
                 throw new EngineException(shardId(), "failed to load document", e);
-            } finally {
-                searcher.release();
             }
+            searcher.release();
             return GetResult.NOT_EXISTS;
         } finally {
             rwl.readLock().unlock();
@@ -1368,7 +1370,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         }
         return indexWriter;
     }
-    
+
     public static final String INDEX_TERM_INDEX_INTERVAL = "index.term_index_interval";
     public static final String INDEX_TERM_INDEX_DIVISOR = "index.term_index_divisor";
     public static final String INDEX_INDEX_CONCURRENCY = "index.index_concurrency";

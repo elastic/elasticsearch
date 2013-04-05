@@ -33,12 +33,12 @@ public class AliasedIndexDocumentActionsTests extends DocumentActionsTests {
     protected void createIndex() {
         logger.info("Creating index [test1] with alias [test]");
         try {
-            client1.admin().indices().prepareDelete("test1").execute().actionGet();
+            client().admin().indices().prepareDelete("test1").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
         logger.info("--> creating index test");
-        client1.admin().indices().create(createIndexRequest("test1").settings(settingsBuilder().putArray("index.aliases", "test"))).actionGet();
+        client().admin().indices().create(createIndexRequest("test1").settings(settingsBuilder().putArray("index.aliases", "test"))).actionGet();
     }
 
     @Override

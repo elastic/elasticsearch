@@ -19,83 +19,66 @@
 
 package org.elasticsearch.test.integration.search.indicesboost;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
-import org.testng.annotations.Test;
-
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.createIndexRequest;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
+import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.Test;
+
 /**
  *
  */
 @Test
-public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
+public class SimpleIndicesBoostSearchTests extends AbstractSharedClusterTest {
 
-    private Client client;
-
-    @BeforeMethod
-    public void createNodes() throws Exception {
-        Settings nodeSettings = ImmutableSettings.settingsBuilder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .build();
-        startNode("server1", nodeSettings);
-        client = getClient();
-    }
-
-    @AfterMethod
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("server1");
-    }
+    private static final Settings DEFAULT_SETTINGS = ImmutableSettings.settingsBuilder()
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
 
     @Test
     public void testIndicesBoost() throws Exception {
         // execute a search before we create an index
         try {
-            client.prepareSearch().setQuery(termQuery("test", "value")).execute().actionGet();
+            client().prepareSearch().setQuery(termQuery("test", "value")).execute().actionGet();
             assert false : "should fail";
         } catch (Exception e) {
             // ignore, no indices
         }
 
         try {
-            client.prepareSearch("test").setQuery(termQuery("test", "value")).execute().actionGet();
+            client().prepareSearch("test").setQuery(termQuery("test", "value")).execute().actionGet();
             assert false : "should fail";
         } catch (Exception e) {
             // ignore, no indices
         }
 
-        client.admin().indices().create(createIndexRequest("test1")).actionGet();
-        client.admin().indices().create(createIndexRequest("test2")).actionGet();
-        client.index(indexRequest("test1").type("type1").id("1")
+        client().admin().indices().create(createIndexRequest("test1").settings(DEFAULT_SETTINGS)).actionGet();
+        client().admin().indices().create(createIndexRequest("test2").settings(DEFAULT_SETTINGS)).actionGet();
+        client().index(indexRequest("test1").type("type1").id("1")
                 .source(jsonBuilder().startObject().field("test", "value check").endObject())).actionGet();
-        client.index(indexRequest("test2").type("type1").id("1")
+        client().index(indexRequest("test2").type("type1").id("1")
                 .source(jsonBuilder().startObject().field("test", "value beck").endObject())).actionGet();
-        client.admin().indices().refresh(refreshRequest()).actionGet();
+        client().admin().indices().refresh(refreshRequest()).actionGet();
 
         float indexBoost = 1.1f;
 
         logger.info("--- QUERY_THEN_FETCH");
 
         logger.info("Query with test1 boosted");
-        SearchResponse response = client.search(searchRequest()
+        SearchResponse response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
@@ -107,7 +90,7 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
         assertThat(response.getHits().getAt(1).index(), equalTo("test2"));
 
         logger.info("Query with test2 boosted");
-        response = client.search(searchRequest()
+        response = client().search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
@@ -121,7 +104,7 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
         logger.info("--- DFS_QUERY_THEN_FETCH");
 
         logger.info("Query with test1 boosted");
-        response = client.search(searchRequest()
+        response = client().search(searchRequest()
                 .searchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).indexBoost("test1", indexBoost).query(termQuery("test", "value")))
         ).actionGet();
@@ -133,7 +116,7 @@ public class SimpleIndicesBoostSearchTests extends AbstractNodesTests {
         assertThat(response.getHits().getAt(1).index(), equalTo("test2"));
 
         logger.info("Query with test2 boosted");
-        response = client.search(searchRequest()
+        response = client().search(searchRequest()
                 .searchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .source(searchSource().explain(true).indexBoost("test2", indexBoost).query(termQuery("test", "value")))
         ).actionGet();

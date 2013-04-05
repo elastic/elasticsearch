@@ -19,6 +19,21 @@
 
 package org.elasticsearch.test.integration.update;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.testng.AssertJUnit.fail;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -26,47 +41,20 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+public class UpdateTests extends AbstractSharedClusterTest {
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
-import static org.testng.AssertJUnit.fail;
-
-public class UpdateTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void startNodes() throws Exception {
-        startNode("node1", nodeSettings());
-        startNode("node2", nodeSettings());
-        client = getClient();
-    }
 
     protected void createIndex() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         logger.info("--> creating index test");
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("type1")
@@ -75,24 +63,6 @@ public class UpdateTests extends AbstractNodesTests {
                         .endObject()
                         .endObject())
                 .execute().actionGet();
-    }
-
-    protected Settings nodeSettings() {
-        return ImmutableSettings.Builder.EMPTY_SETTINGS;
-    }
-
-    protected String getConcreteIndexName() {
-        return "test";
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("node1");
     }
 
     @Test
@@ -171,27 +141,27 @@ public class UpdateTests extends AbstractNodesTests {
     @Test
     public void testUpsert() throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        client.prepareUpdate("test", "type1", "1")
+        client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
         }
 
-        client.prepareUpdate("test", "type1", "1")
+        client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
     }
@@ -199,11 +169,11 @@ public class UpdateTests extends AbstractNodesTests {
     @Test
     public void testUpsertFields() throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        UpdateResponse updateResponse = client.prepareUpdate("test", "type1", "1")
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
@@ -213,7 +183,7 @@ public class UpdateTests extends AbstractNodesTests {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra"), nullValue());
 
-        updateResponse = client.prepareUpdate("test", "type1", "1")
+        updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
@@ -227,12 +197,12 @@ public class UpdateTests extends AbstractNodesTests {
     @Test
     public void testIndexAutoCreation() throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
 
-        UpdateResponse updateResponse = client.prepareUpdate("test", "type1", "1")
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
@@ -246,113 +216,113 @@ public class UpdateTests extends AbstractNodesTests {
     @Test
     public void testUpdate() throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         try {
-            client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field++").execute().actionGet();
+            client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field++").execute().actionGet();
             assert false;
         } catch (DocumentMissingException e) {
             // all is well
         }
 
-        client.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
 
-        UpdateResponse updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").execute().actionGet();
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(2L));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
 
-        updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += count").addScriptParam("count", 3).execute().actionGet();
+        updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field += count").addScriptParam("count", 3).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("5"));
         }
 
         // check noop
-        updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx.op = 'none'").execute().actionGet();
+        updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx.op = 'none'").execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("5"));
         }
 
         // check delete
-        updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx.op = 'delete'").execute().actionGet();
+        updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx.op = 'delete'").execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(4L));
 
         for (int i = 0; i < 5; i++) {
-            GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.isExists(), equalTo(false));
         }
 
         // check percolation
-        client.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
         logger.info("--> register a query");
-        client.prepareIndex("_percolator", "test", "1")
+        client().prepareIndex("_percolator", "test", "1")
                 .setSource(jsonBuilder().startObject()
                         .field("query", termQuery("field", 2))
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        clusterHealth = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setPercolate("*").execute().actionGet();
+        updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setPercolate("*").execute().actionGet();
         assertThat(updateResponse.getMatches().size(), equalTo(1));
 
         // check TTL is kept after an update without TTL
-        client.prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefresh(true).execute().actionGet();
-        GetResponse getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field", 1).setTTL(86400000L).setRefresh(true).execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         long ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
-        client.prepareUpdate("test", "type1", "2").setScript("ctx._source.field += 1").execute().actionGet();
-        getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
+        client().prepareUpdate("test", "type1", "2").setScript("ctx._source.field += 1").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
 
         // check TTL update
-        client.prepareUpdate("test", "type1", "2").setScript("ctx._ttl = 3600000").execute().actionGet();
-        getResponse = client.prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
+        client().prepareUpdate("test", "type1", "2").setScript("ctx._ttl = 3600000").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
         assertThat(ttl, lessThanOrEqualTo(3600000L));
 
         // check timestamp update
-        client.prepareIndex("test", "type1", "3").setSource("field", 1).setRefresh(true).execute().actionGet();
-        client.prepareUpdate("test", "type1", "3").setScript("ctx._timestamp = \"2009-11-15T14:12:12\"").execute().actionGet();
-        getResponse = client.prepareGet("test", "type1", "3").setFields("_timestamp").execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field", 1).setRefresh(true).execute().actionGet();
+        client().prepareUpdate("test", "type1", "3").setScript("ctx._timestamp = \"2009-11-15T14:12:12\"").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "3").setFields("_timestamp").execute().actionGet();
         long timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
         assertThat(timestamp, equalTo(1258294332000L));
 
         // check fields parameter
-        client.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        updateResponse = client.prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setFields("_source", "field").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
+        updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setFields("_source", "field").execute().actionGet();
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().sourceRef(), notNullValue());
         assertThat(updateResponse.getGetResult().field("field").getValue(), notNullValue());
 
         // check updates without script
         // add new field
-        client.prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
-        updateResponse = client.prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
+        updateResponse = client().prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field2", 2).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
             assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
 
         // change existing field
-        updateResponse = client.prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
+        updateResponse = client().prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("field", 3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("3"));
             assertThat(getResponse.getSourceAsMap().get("field2").toString(), equalTo("2"));
         }
@@ -367,10 +337,10 @@ public class UpdateTests extends AbstractNodesTests {
         testMap.put("commonkey", testMap2);
         testMap.put("map1", 8);
 
-        client.prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
-        updateResponse = client.prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("map", testMap).execute().actionGet();
+        updateResponse = client().prepareUpdate("test", "type1", "1").setDoc(XContentFactory.jsonBuilder().startObject().field("map", testMap3).endObject()).execute().actionGet();
         for (int i = 0; i < 5; i++) {
-            getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
+            getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             Map map1 = (Map) getResponse.getSourceAsMap().get("map");
             assertThat(map1.size(), equalTo(3));
             assertThat(map1.containsKey("map1"), equalTo(true));
@@ -387,12 +357,12 @@ public class UpdateTests extends AbstractNodesTests {
     @Test
     public void testUpdateRequestWithBothScriptAndDoc() throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         try {
-            client.prepareUpdate("test", "type1", "1")
+            client().prepareUpdate("test", "type1", "1")
                     .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                     .setScript("ctx._source.field += 1")
                     .execute().actionGet();
@@ -416,7 +386,7 @@ public class UpdateTests extends AbstractNodesTests {
 
     private void concurrentUpdateWithRetryOnConflict(final boolean useBulkApi) throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -431,13 +401,13 @@ public class UpdateTests extends AbstractNodesTests {
                     try {
                         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
                             if (useBulkApi) {
-                                UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate("test", "type1", Integer.toString(i))
+                                UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "type1", Integer.toString(i))
                                         .setScript("ctx._source.field += 1")
                                         .setRetryOnConflict(Integer.MAX_VALUE)
                                         .setUpsertRequest(jsonBuilder().startObject().field("field", 1).endObject());
-                                client.prepareBulk().add(updateRequestBuilder).execute().actionGet();
+                                client().prepareBulk().add(updateRequestBuilder).execute().actionGet();
                             } else {
-                                client.prepareUpdate("test", "type1", Integer.toString(i)).setScript("ctx._source.field += 1")
+                                client().prepareUpdate("test", "type1", Integer.toString(i)).setScript("ctx._source.field += 1")
                                         .setRetryOnConflict(Integer.MAX_VALUE)
                                         .setUpsertRequest(jsonBuilder().startObject().field("field", 1).endObject())
                                         .execute().actionGet();
@@ -456,7 +426,7 @@ public class UpdateTests extends AbstractNodesTests {
         latch.await();
 
         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
-            GetResponse response = client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+            GetResponse response = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
             assertThat(response.getId(), equalTo(Integer.toString(i)));
             assertThat(response.getVersion(), equalTo((long) numberOfThreads));
             assertThat((Integer) response.getSource().get("field"), equalTo(numberOfThreads));

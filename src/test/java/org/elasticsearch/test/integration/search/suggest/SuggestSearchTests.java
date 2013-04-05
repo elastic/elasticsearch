@@ -52,33 +52,13 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 /**
  */
-public class SuggestSearchTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        startNode("server1");
-        startNode("server2");
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("server1");
-    }
+public class SuggestSearchTests extends AbstractSharedClusterTest {
     
     @Test // see #3037
     public void testSuggestModes() throws IOException {
@@ -108,25 +88,25 @@ public class SuggestSearchTests extends AbstractNodesTests {
         .endObject()
         .endObject()
         .endObject().endObject();
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like iced tea").endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
         .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like tea.").endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
         .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like ice cream.").endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         Suggest searchSuggest = searchSuggest(
-                client,
+                client(),
                 "ice tea",
                 phraseSuggestion("did_you_mean").field("name_shingled")
                         .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
                         .gramSize(3));
         ElasticsearchAssertions.assertSuggestion(searchSuggest, 0, 0, "did_you_mean", "iced tea");
         searchSuggest = searchSuggest(
-                client,
+                client(),
                 "ice tea",
                 phraseSuggestion("did_you_mean").field("name_shingled")
                         .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).maxEdits(2))
@@ -136,15 +116,15 @@ public class SuggestSearchTests extends AbstractNodesTests {
     
     @Test // see #2729
     public void testSizeOneShard() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(SETTING_NUMBER_OF_SHARDS, 1)
                         .put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
         for (int i = 0; i < 15; i++) {
-            client.prepareIndex("test", "type1")
+            client().prepareIndex("test", "type1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("text", "abc" + i)
@@ -153,13 +133,13 @@ public class SuggestSearchTests extends AbstractNodesTests {
             .execute().actionGet();
         }
         
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         
-        SearchResponse _search = client.prepareSearch()
+        SearchResponse _search = client().prepareSearch()
         .setQuery(matchQuery("text", "spellchecker")).execute().actionGet();
         assertThat("didn't ask for suggestions but got some", _search.getSuggest(), nullValue());
         
-        Suggest suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        Suggest suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
                                 .field("text").size(10));
         
@@ -171,7 +151,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(10));
 
         
-        suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                         .text("abcd")
                         .field("text").size(10).shardSize(5));
         
@@ -185,49 +165,49 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
     @Test
     public void testSimple() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(SETTING_NUMBER_OF_SHARDS, 5)
                         .put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("text", "abcd")
                         .endObject()
                 )
                 .execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("text", "aacd")
                         .endObject()
                 )
                 .execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("text", "abbd")
                         .endObject()
                 )
                 .execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("text", "abcc")
                         .endObject()
                 )
                 .execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         
-        SearchResponse _search = client.prepareSearch()
+        SearchResponse _search = client().prepareSearch()
         .setQuery(matchQuery("text", "spellcecker")).execute().actionGet();
         assertThat("didn't ask for suggestions but got some", _search.getSuggest(), nullValue());
         
-        Suggest suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        Suggest suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
                                 .field("text"));
 
@@ -241,7 +221,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(1).getText().string(), equalTo("abbd"));
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().get(2).getText().string(), equalTo("abcc"));
 
-        suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
                                 .field("text"));
 
@@ -257,15 +237,15 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
     @Test
     public void testEmpty() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(SETTING_NUMBER_OF_SHARDS, 5)
                         .put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        Suggest suggest = searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        Suggest suggest = searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
                                 .field("text"));
 
@@ -276,7 +256,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getText().string(), equalTo("abcd"));
         assertThat(suggest.getSuggestion("test").getEntries().get(0).getOptions().size(), equalTo(0));
 
-        searchSuggest(client, termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
+        searchSuggest(client(), termSuggestion("test").suggestMode("always") // Always, otherwise the results can vary between requests.
                                 .text("abcd")
                                 .field("text"));
 
@@ -289,15 +269,15 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
     @Test
     public void testWithMultipleCommands() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(SETTING_NUMBER_OF_SHARDS, 5)
                         .put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "prefix_abcd")
@@ -305,7 +285,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
                         .endObject()
                 )
                 .execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "prefix_aacd")
@@ -313,7 +293,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
                         .endObject()
                 )
                 .execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "prefix_abbd")
@@ -321,7 +301,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
                         .endObject()
                 )
                 .execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder()
                         .startObject()
                         .field("field1", "prefix_abcc")
@@ -329,9 +309,9 @@ public class SuggestSearchTests extends AbstractNodesTests {
                         .endObject()
                 )
                 .execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        Suggest suggest = searchSuggest(client, termSuggestion("size1")
+        Suggest suggest = searchSuggest(client(), termSuggestion("size1")
                         .size(1).text("prefix_abcd").maxTermFreq(10).prefixLength(1).minDocFreq(0)
                         .field("field1").suggestMode("always"),
                 termSuggestion("field2")
@@ -366,13 +346,13 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
     @Test
     public void testSizeAndSort() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(SETTING_NUMBER_OF_SHARDS, 5)
                         .put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
         Map<String, Integer> termsAndDocCount = new HashMap<String, Integer>();
         termsAndDocCount.put("prefix_aaad", 20);
@@ -391,7 +371,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
         for (Map.Entry<String, Integer> entry : termsAndDocCount.entrySet()) {
             for (int i = 0; i < entry.getValue(); i++) {
-                client.prepareIndex("test", "type1")
+                client().prepareIndex("test", "type1")
                         .setSource(XContentFactory.jsonBuilder()
                                 .startObject()
                                 .field("field1", entry.getKey())
@@ -400,9 +380,9 @@ public class SuggestSearchTests extends AbstractNodesTests {
                         .execute().actionGet();
             }
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        Suggest suggest = searchSuggest(client,"prefix_abcd",
+        Suggest suggest = searchSuggest(client(),"prefix_abcd",
                 termSuggestion("size3SortScoreFirst")
                         .size(3).minDocFreq(0).field("field1").suggestMode("always"),
                 termSuggestion("size10SortScoreFirst")
@@ -459,16 +439,16 @@ public class SuggestSearchTests extends AbstractNodesTests {
     
     @Test // see #2817
     public void testStopwordsOnlyPhraseSuggest() throws ElasticSearchException, IOException {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         Builder builder = ImmutableSettings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
-        client.admin().indices().prepareCreate("test").setSettings(builder.build()).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("body", "this is a test").endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         Suggest searchSuggest = searchSuggest(
-                client,
+                client(),
                 "a an the",
                 phraseSuggestion("simple_phrase").field("body").gramSize(1)
                         .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -503,18 +483,18 @@ public class SuggestSearchTests extends AbstractNodesTests {
         .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
         .endObject()
         .endObject().endObject();
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().field("body", "hello world").endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
         .setSource(XContentFactory.jsonBuilder().startObject().field("body", "hello world").endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
         .setSource(XContentFactory.jsonBuilder().startObject().field("body", "hello words").endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         Suggest searchSuggest = searchSuggest(
-                client,
+                client(),
                 "hello word",
                 phraseSuggestion("simple_phrase").field("body")
                         .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").prefixLength(4).minWordLength(1).suggestMode("always"))
@@ -528,7 +508,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         
         
         searchSuggest = searchSuggest(
-                client,
+                client(),
                 "hello word",
                 phraseSuggestion("simple_phrase").field("body")
                         .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").prefixLength(2).minWordLength(1).suggestMode("always"))
@@ -545,7 +525,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
     
     @Test
     public void testMarvelHerosPhraseSuggest() throws ElasticSearchException, IOException {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         Builder builder = ImmutableSettings.builder();
         builder.put("index.analysis.analyzer.reverse.tokenizer", "standard");
         builder.putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse");
@@ -568,12 +548,12 @@ public class SuggestSearchTests extends AbstractNodesTests {
         .endObject().endObject();
         
         
-        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
         BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Streams.UTF8));
         String line = null;
         while ((line = reader.readLine()) != null) {
-            client.prepareIndex("test", "type1")
+            client().prepareIndex("test", "type1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("body", line)
@@ -583,15 +563,14 @@ public class SuggestSearchTests extends AbstractNodesTests {
             )
             .execute().actionGet();
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
         
-        Suggest searchSuggest = searchSuggest(client, "american ame", phraseSuggestion("simple_phrase")
+        Suggest searchSuggest = searchSuggest(client(), "american ame", phraseSuggestion("simple_phrase")
                 .field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .size(1));
 
         
-        SearchResponse search;
         assertThat(searchSuggest, notNullValue());
         assertThat(searchSuggest.size(), equalTo(1));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
@@ -601,7 +580,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("american ace"));
         
         
-        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
                         phraseSuggestion("simple_phrase").
                             realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                             .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -618,7 +597,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         
         
         // pass in a correct phrase
-        searchSuggest = searchSuggest(client, "Xorr the God-Jewel",
+        searchSuggest = searchSuggest(client(), "Xorr the God-Jewel",
                 phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -635,7 +614,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         
         
         // pass in a correct phrase - set confidence to 2
-        searchSuggest = searchSuggest(client, "Xorr the God-Jewel",
+        searchSuggest = searchSuggest(client(), "Xorr the God-Jewel",
                 phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -649,7 +628,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         
         
         // pass in a correct phrase - set confidence to 0.99
-        searchSuggest = searchSuggest(client, "Xorr the God-Jewel",
+        searchSuggest = searchSuggest(client(), "Xorr the God-Jewel",
                 phraseSuggestion("simple_phrase").
                     realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                     .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -666,7 +645,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         
         
         //test reverse suggestions with pre & post filter
-        searchSuggest = searchSuggest(client, "xor the yod-Jewel",
+        searchSuggest = searchSuggest(client(), "xor the yod-Jewel",
                 phraseSuggestion("simple_phrase").
                     realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                     .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -683,7 +662,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
         // set all mass to trigrams (not indexed)
-        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -699,7 +678,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         
         
         // set all mass to bigrams
-        searchSuggest =  searchSuggest(client, "Xor the Got-Jewel",
+        searchSuggest =  searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -716,7 +695,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
         // distribute mass
-        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -732,7 +711,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
-        searchSuggest = searchSuggest(client, "american ame",
+        searchSuggest = searchSuggest(client(), "american ame",
                 phraseSuggestion("simple_phrase")
                 .field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -749,7 +728,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
         
         // try all smoothing methods
-        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -765,7 +744,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
-        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -781,7 +760,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
-        searchSuggest = searchSuggest(client, "Xor the Got-Jewel",
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
@@ -800,7 +779,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
     
     @Test
     public void testSizePararm() throws IOException {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         Builder builder = ImmutableSettings.builder();
         builder.put("index.number_of_shards", 1);
         builder.put("index.number_of_replicas", 1);
@@ -821,20 +800,20 @@ public class SuggestSearchTests extends AbstractNodesTests {
                 .field("type", "string").field("analyzer", "reverse").endObject().startObject("bigram").field("type", "string")
                 .field("analyzer", "bigram").endObject().endObject().endObject().endObject();
 
-        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
         String line = "xorr the god jewel";
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(
                         XContentFactory.jsonBuilder().startObject().field("body", line).field("body_reverse", line).field("bigram", line)
                                 .endObject()).execute().actionGet();
         line = "I got it this time";
-        client.prepareIndex("test", "type1")
+        client().prepareIndex("test", "type1")
                 .setSource(
                         XContentFactory.jsonBuilder().startObject().field("body", line).field("body_reverse", line).field("bigram", line)
                                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
-        Suggest searchSuggest = searchSuggest(client, "Xorr the Gut-Jewel", phraseSuggestion("simple_phrase")
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        Suggest searchSuggest = searchSuggest(client(), "Xorr the Gut-Jewel", phraseSuggestion("simple_phrase")
                 .realWordErrorLikelihood(0.95f)
                 .field("bigram")
                 .gramSize(2)
@@ -850,7 +829,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
 
-        searchSuggest = searchSuggest(client, "Xorr the Gut-Jewel",// we allow a size of 2 now on the shard generator level so "god" will be found since it's LD2
+        searchSuggest = searchSuggest(client(), "Xorr the Gut-Jewel",// we allow a size of 2 now on the shard generator level so "god" will be found since it's LD2
                         phraseSuggestion("simple_phrase")
                                 .realWordErrorLikelihood(0.95f)
                                 .field("bigram")
@@ -875,7 +854,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
     
     @Test
     public void testPhraseBoundaryCases() throws ElasticSearchException, IOException {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         Builder builder = ImmutableSettings.builder();
         builder.put("index.analysis.analyzer.body.tokenizer", "standard");
         builder.putArray("index.analysis.analyzer.body.filter", "lowercase");
@@ -903,12 +882,12 @@ public class SuggestSearchTests extends AbstractNodesTests {
         .endObject().endObject();
         
         
-        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
         BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Streams.UTF8));
         String line = null;
         while ((line = reader.readLine()) != null) {
-            client.prepareIndex("test", "type1")
+            client().prepareIndex("test", "type1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("body", line)
@@ -918,10 +897,10 @@ public class SuggestSearchTests extends AbstractNodesTests {
             )
             .execute().actionGet();
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
        
         try {
-            Suggest suggest = searchSuggest(client, "Xor the Got-Jewel", 5, 
+            searchSuggest(client(), "Xor the Got-Jewel", 5, 
                             phraseSuggestion("simple_phrase")
                                     .realWordErrorLikelihood(0.95f)
                                     .field("bigram")
@@ -935,7 +914,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         } catch (SearchPhaseExecutionException e) {}
         
         try {
-            Suggest suggest = searchSuggest(client, "Xor the Got-Jewel", 5,
+            searchSuggest(client(), "Xor the Got-Jewel", 5,
                     phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").maxErrors(0.5f).size(1));
 
             assert false : "analyzer does only produce ngrams";
@@ -943,7 +922,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         }
         
         try {
-            Suggest suggest = searchSuggest(client, "Xor the Got-Jewel", 5,
+            searchSuggest(client(), "Xor the Got-Jewel", 5,
                         phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").analyzer("bigram").maxErrors(0.5f)
                                 .size(1));
             assert false : "analyzer does only produce ngrams";
@@ -951,16 +930,16 @@ public class SuggestSearchTests extends AbstractNodesTests {
         }
         
         // don't force unigrams
-        searchSuggest(client, "Xor the Got-Jewel",
+        searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("bigram").forceUnigrams(false).maxErrors(0.5f)
                         .size(1));
         
         
-        searchSuggest(client, "Xor the Got-Jewel",
+        searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").realWordErrorLikelihood(0.95f).field("bigram").analyzer("ngram").maxErrors(0.5f)
                         .size(1));
      
-        Suggest suggest = searchSuggest(client, "Xor the Got-Jewel",
+        Suggest suggest = searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").maxErrors(0.5f).field("ngram").analyzer("myDefAnalyzer")
                   .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                         .size(1));
@@ -973,7 +952,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
         assertThat(suggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
         
-        suggest = searchSuggest(client, "Xor the Got-Jewel",
+        suggest = searchSuggest(client(), "Xor the Got-Jewel",
                 phraseSuggestion("simple_phrase").maxErrors(0.5f).field("ngram")
                   .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                         .size(1));
@@ -989,15 +968,15 @@ public class SuggestSearchTests extends AbstractNodesTests {
     }
     
     protected Suggest searchSuggest(Client client, SuggestionBuilder<?>... suggestion) {
-        return searchSuggest(client, null, suggestion);
+        return searchSuggest(client(), null, suggestion);
     }
     
     protected Suggest searchSuggest(Client client, String suggestText, SuggestionBuilder<?>... suggestions) {
-        return searchSuggest(client, suggestText, 0, suggestions);
+        return searchSuggest(client(), suggestText, 0, suggestions);
     }
     
     protected Suggest searchSuggest(Client client, String suggestText, int expectShardsFailed, SuggestionBuilder<?>... suggestions) {
-        SearchRequestBuilder builder = client.prepareSearch().setSearchType(SearchType.COUNT);
+        SearchRequestBuilder builder = client().prepareSearch().setSearchType(SearchType.COUNT);
         if (suggestText != null) {
             builder.setSuggestText(suggestText);
         }
@@ -1011,38 +990,38 @@ public class SuggestSearchTests extends AbstractNodesTests {
     @Test
     public void testDifferentShardSize() throws Exception {
         // test suggestion with explicitly added different shard sizes
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
                         .put(SETTING_NUMBER_OF_SHARDS, 5)
                         .put(SETTING_NUMBER_OF_REPLICAS, 0))
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1")
+        client().prepareIndex("test", "type1", "1")
         .setSource(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "foobar1")
                 .endObject()
         ).setRouting("1").execute().actionGet();
 
-        client.prepareIndex("test", "type1", "2")
+        client().prepareIndex("test", "type1", "2")
         .setSource(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "foobar2")
                 .endObject()
         ).setRouting("2").execute().actionGet();
         
-        client.prepareIndex("test", "type1", "3")
+        client().prepareIndex("test", "type1", "3")
         .setSource(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field1", "foobar3")
                 .endObject()
         ).setRouting("1").execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        Suggest suggest = searchSuggest(client, "foobar",
+        Suggest suggest = searchSuggest(client(), "foobar",
                 termSuggestion("simple")
                         .size(10).minDocFreq(0).field("field1").suggestMode("always"));
 

@@ -22,14 +22,11 @@ package org.elasticsearch.test.integration.indices.settings;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.hamcrest.Matchers;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -39,42 +36,14 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
-
-    protected Client client1;
-    protected Client client2;
-
-    @BeforeMethod
-    public void startNodes() {
-        startNode("node1");
-        startNode("node2");
-        client1 = getClient1();
-        client2 = getClient2();
-
-    }
-
-    @AfterMethod
-    public void closeNodes() {
-        client1.close();
-        client2.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient1() {
-        return client("node1");
-    }
-
-    protected Client getClient2() {
-        return client("node2");
-    }
-
+public class UpdateNumberOfReplicasTests extends AbstractSharedClusterTest {
+    
     @Test
     public void simpleUpdateNumberOfReplicasTests() throws Exception {
         logger.info("Creating index test");
-        client1.admin().indices().create(createIndexRequest("test")).actionGet();
-
+        prepareCreate("test", 2).execute().actionGet();
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -83,24 +52,24 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(10));
 
         for (int i = 0; i < 10; i++) {
-            client1.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
                     .field("value", "test" + i)
                     .endObject()).execute().actionGet();
         }
 
-        client1.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(countResponse.getCount(), equalTo(10l));
         }
 
         logger.info("Increasing the number of replicas from 1 to 2");
-        client1.admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 2)).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 2)).execute().actionGet();
         Thread.sleep(200);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForActiveShards(10).execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForActiveShards(10).execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -109,11 +78,11 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(10));
 
         logger.info("starting another node to new replicas will be allocated to it");
-        startNode("node3");
+        allowNodes("test", 3);
         Thread.sleep(100);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes(">=3").execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -122,16 +91,16 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(15));
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(countResponse.getCount(), equalTo(10l));
         }
 
         logger.info("Decreasing number of replicas from 2 to 0");
-        client1.admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 0)).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("index.number_of_replicas", 0)).execute().actionGet();
         Thread.sleep(200);
 
         logger.info("Running Cluster Health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes(">=3").execute().actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -140,7 +109,7 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(5));
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(countResponse.getShardFailures().toString(), countResponse.getFailedShards(), equalTo(0));
             assertThat(countResponse.getCount(), equalTo(10l));
         }
@@ -148,11 +117,12 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
 
     @Test
     public void testAutoExpandNumberOfReplicas0ToData() {
+        cluster().ensureAtMostNumNodes(2);
         logger.info("--> creating index test with auto expand replicas");
-        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2).put("auto_expand_replicas", "0-all")).execute().actionGet();
+        prepareCreate("test", 2, settingsBuilder().put("index.number_of_shards", 2).put("auto_expand_replicas", "0-all")).execute().actionGet();
 
         logger.info("--> running cluster health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -161,10 +131,10 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(4));
 
         logger.info("--> add another node, should increase the number of replicas");
-        startNode("node3");
+        allowNodes("test", 3);
 
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(6).execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(6).setWaitForNodes(">=3").execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -173,10 +143,11 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(6));
 
         logger.info("--> closing one node");
-        closeNode("node3");
+        cluster().ensureAtMostNumNodes(2);
+        allowNodes("test", 2);
 
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").setWaitForActiveShards(4).execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).setWaitForNodes(">=2").execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -185,10 +156,11 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(4));
 
         logger.info("--> closing another node");
-        closeNode("node2");
+        cluster().ensureAtMostNumNodes(1);
+        allowNodes("test", 1);
 
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("1").setWaitForActiveShards(2).execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes(">=1").setWaitForActiveShards(2).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -200,10 +172,11 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
     @Test
     public void testAutoExpandNumberReplicas1ToData() {
         logger.info("--> creating index test with auto expand replicas");
-        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2).put("auto_expand_replicas", "1-all")).execute().actionGet();
+        cluster().ensureAtMostNumNodes(2);
+        prepareCreate("test", 2, settingsBuilder().put("index.number_of_shards", 2).put("auto_expand_replicas", "1-all")).execute().actionGet();
 
         logger.info("--> running cluster health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -212,10 +185,10 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(4));
 
         logger.info("--> add another node, should increase the number of replicas");
-        startNode("node3");
+        allowNodes("test", 3);
 
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(6).execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(6).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -224,10 +197,11 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(6));
 
         logger.info("--> closing one node");
-        closeNode("node3");
-
+        cluster().ensureAtMostNumNodes(2);
+        allowNodes("test", 2);
+        
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").setWaitForActiveShards(4).execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes(">=2").setWaitForActiveShards(4).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -236,10 +210,11 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(4));
 
         logger.info("--> closing another node");
-        closeNode("node2");
-
+        cluster().ensureAtMostNumNodes(1);
+        allowNodes("test", 1);
+        
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForNodes("1").setWaitForActiveShards(2).execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForNodes(">=1").setWaitForActiveShards(2).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
@@ -250,13 +225,11 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
 
     @Test
     public void testAutoExpandNumberReplicas2() {
-        logger.info("--> add another node");
-        startNode("node3");
         logger.info("--> creating index test with auto expand replicas set to 0-2");
-        client1.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 2).put("auto_expand_replicas", "0-2")).execute().actionGet();
+        prepareCreate("test", 3, settingsBuilder().put("index.number_of_shards", 2).put("auto_expand_replicas", "0-2")).execute().actionGet();
 
         logger.info("--> running cluster health");
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(6).execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(6).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -265,14 +238,14 @@ public class UpdateNumberOfReplicasTests extends AbstractNodesTests {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(6));
 
         logger.info("--> add two more nodes");
-        startNode("node4");
-        startNode("node5");
+        allowNodes("test", 4);
+        allowNodes("test", 5);
 
         logger.info("--> update the auto expand replicas to 0-3");
-        client1.admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("auto_expand_replicas", "0-3")).execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("auto_expand_replicas", "0-3")).execute().actionGet();
 
         logger.info("--> running cluster health");
-        clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(8).execute().actionGet();
+        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(8).execute().actionGet();
         logger.info("--> done cluster health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

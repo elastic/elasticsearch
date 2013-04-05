@@ -54,6 +54,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
@@ -63,6 +64,7 @@ import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import com.spatial4j.core.context.SpatialContext;
@@ -75,24 +77,19 @@ import com.spatial4j.core.shape.Shape;
 /**
  *
  */
-public class GeoFilterTests extends AbstractNodesTests {
-
-    private Client client;
+public class GeoFilterTests extends AbstractSharedClusterTest {
 
     private boolean intersectSupport;
     private boolean disjointSupport;
     private boolean withinSupport;
 
-    @BeforeClass
+    @BeforeTest
     public void createNodes() throws Exception {
-        startNode("server1");
-        startNode("server2");
+        cluster().ensureAtLeastNumNodes(2);
 
         intersectSupport = testRelationSupport(SpatialOperation.Intersects);
         disjointSupport = testRelationSupport(SpatialOperation.IsDisjointTo);
         withinSupport = testRelationSupport(SpatialOperation.IsWithin);
-
-        client = getClient();
     }
 
     private static byte[] unZipData(String path) throws IOException {
@@ -109,16 +106,6 @@ public class GeoFilterTests extends AbstractNodesTests {
         out.close();
 
         return out.toByteArray();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("server1");
     }
 
     @Test
@@ -250,9 +237,9 @@ public class GeoFilterTests extends AbstractNodesTests {
                     .endObject()
                 .endObject().string();
 
-        CreateIndexRequestBuilder mappingRequest = client.admin().indices().prepareCreate("shapes").addMapping("polygon", mapping);
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes").addMapping("polygon", mapping);
         mappingRequest.execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         // Create a multipolygon with two polygons. The first is an rectangle of size 10x10
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
@@ -269,11 +256,11 @@ public class GeoFilterTests extends AbstractNodesTests {
         .close();
 
         BytesReference data = polygon.toXContent("area", jsonBuilder().startObject()).endObject().bytes();
-        client.prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         // Point in polygon
-        SearchResponse result = client.prepareSearch()
+        SearchResponse result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(3, 3)))
                 .execute().actionGet();
@@ -281,7 +268,7 @@ public class GeoFilterTests extends AbstractNodesTests {
         assertFirstHit(result, hasId("1"));
 
         // Point in polygon hole
-        result = client.prepareSearch()
+        result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
                 .execute().actionGet();
@@ -292,7 +279,7 @@ public class GeoFilterTests extends AbstractNodesTests {
         // of the polygon NOT the hole
 
         // Point on polygon border
-        result = client.prepareSearch()
+        result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(10.0, 5.0)))
                 .execute().actionGet();
@@ -300,7 +287,7 @@ public class GeoFilterTests extends AbstractNodesTests {
         assertFirstHit(result, hasId("1"));
 
         // Point on hole border
-        result = client.prepareSearch()
+        result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(5.0, 2.0)))
                 .execute().actionGet();
@@ -309,14 +296,14 @@ public class GeoFilterTests extends AbstractNodesTests {
 
         if(disjointSupport) {
             // Point not in polygon
-            result = client.prepareSearch()
+            result = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .setFilter(FilterBuilders.geoDisjointFilter("area", ShapeBuilder.newPoint(3, 3)))
                     .execute().actionGet();
             assertHitCount(result, 0);
 
             // Point in polygon hole
-            result = client.prepareSearch()
+            result = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .setFilter(FilterBuilders.geoDisjointFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
                     .execute().actionGet();
@@ -333,11 +320,11 @@ public class GeoFilterTests extends AbstractNodesTests {
         .close();
 
         data = inverse.toXContent("area", jsonBuilder().startObject()).endObject().bytes();
-        client.prepareIndex("shapes", "polygon", "2").setSource(data).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("shapes", "polygon", "2").setSource(data).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         // re-check point on polygon hole
-        result = client.prepareSearch()
+        result = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(4.5, 4.5)))
                 .execute().actionGet();
@@ -357,7 +344,7 @@ public class GeoFilterTests extends AbstractNodesTests {
             builder = ShapeBuilder.newPolygon()
                     .point(-30, -30).point(-30, 30).point(30, 30).point(30, -30).close();
 
-            result = client.prepareSearch()
+            result = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .setFilter(FilterBuilders.geoWithinFilter("area", builder.build()))
                     .execute().actionGet();
@@ -379,8 +366,8 @@ public class GeoFilterTests extends AbstractNodesTests {
 //            .close();
 //
 //        data = builder.toXContent("area", jsonBuilder().startObject()).endObject().bytes();
-//        client.prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
-//        client.admin().indices().prepareRefresh().execute().actionGet();
+//        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+//        client().admin().indices().prepareRefresh().execute().actionGet();
     }
 
     @Test
@@ -406,17 +393,17 @@ public class GeoFilterTests extends AbstractNodesTests {
             .endObject()
         .string();
 
-        client.admin().indices().prepareCreate("countries").addMapping("country", mapping).execute().actionGet();
-        BulkResponse bulk = client.prepareBulk().add(bulkAction, 0, bulkAction.length, false, null, null).execute().actionGet();
+        client().admin().indices().prepareCreate("countries").addMapping("country", mapping).execute().actionGet();
+        BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, false, null, null).execute().actionGet();
 
         for(BulkItemResponse item : bulk.getItems()) {
             assert !item.isFailed(): "unable to index data";
         }
 
-        client.admin().indices().prepareRefresh().execute().actionGet();        
+        client().admin().indices().prepareRefresh().execute().actionGet();        
         String key = "DE";
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(fieldQuery("_id", key))
                 .execute().actionGet();
 
@@ -426,7 +413,7 @@ public class GeoFilterTests extends AbstractNodesTests {
             assertThat(hit.getId(), equalTo(key));
         }
 
-        SearchResponse world = client.prepareSearch().addField("pin").setQuery(
+        SearchResponse world = client().prepareSearch().addField("pin").setQuery(
                 filteredQuery(
                         matchAllQuery(),
                         geoBoundingBoxFilter("pin")
@@ -436,7 +423,7 @@ public class GeoFilterTests extends AbstractNodesTests {
 
         assertHitCount(world, 246);
 
-        SearchResponse distance = client.prepareSearch().addField("pin").setQuery(
+        SearchResponse distance = client().prepareSearch().addField("pin").setQuery(
                 filteredQuery(
                         matchAllQuery(),
                         geoDistanceFilter("pin").distance("425km").point(51.11, 9.851)

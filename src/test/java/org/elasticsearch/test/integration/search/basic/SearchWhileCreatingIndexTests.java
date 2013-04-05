@@ -21,8 +21,7 @@ package org.elasticsearch.test.integration.search.basic;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
@@ -30,12 +29,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchWhileCreatingIndexTests extends AbstractNodesTests {
+public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
 
-    @AfterMethod
-    public void closeAll() {
-        closeAllNodes();
-    }
 
     /**
      * This test basically verifies that search with a single shard active (cause we indexed to it) and other
@@ -43,28 +38,26 @@ public class SearchWhileCreatingIndexTests extends AbstractNodesTests {
      */
     @Test
     public void searchWhileCreatingIndex() {
-        Node node = startNode("node1");
-
         try {
-            node.client().admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
 
         for (int i = 0; i < 20; i++) {
-            node.client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 10)).execute().actionGet();
+            client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 10)).execute().actionGet();
 
-            node.client().prepareIndex("test", "type1").setSource("field", "test").execute().actionGet();
-            node.client().admin().indices().prepareRefresh().execute().actionGet();
+            client().prepareIndex("test", "type1").setSource("field", "test").execute().actionGet();
+            client().admin().indices().prepareRefresh().execute().actionGet();
 
-            SearchResponse searchResponse = node.client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
             assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-            node.client().admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         }
 
         try {
-            node.client().admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }

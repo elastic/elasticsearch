@@ -20,14 +20,11 @@
 package org.elasticsearch.test.integration.explain;
 
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
 import java.util.Map;
@@ -39,46 +36,33 @@ import static org.testng.Assert.*;
 
 /**
  */
-public class ExplainActionTests extends AbstractNodesTests {
+public class ExplainActionTests extends AbstractSharedClusterTest {
 
-    protected Client client;
-
-    @BeforeClass
-    public void startNodes() {
-        startNode("node1");
-        startNode("node2");
-        client = client("node1");
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
 
     @Test
     public void testSimple() throws Exception {
+        cluster().ensureAtLeastNumNodes(2);
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {}
-        client.admin().indices().prepareCreate("test").setSettings(
+        client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)
         ).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "test", "1")
+        client().prepareIndex("test", "test", "1")
                 .setSource("field", "value1")
                 .execute().actionGet();
 
-        ExplainResponse response = client.prepareExplain("test", "test", "1")
+        ExplainResponse response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
         assertFalse(response.isExists()); // not a match b/c not realtime
         assertFalse(response.isMatch()); // not a match b/c not realtime
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        response = client.prepareExplain("test", "test", "1")
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
@@ -87,8 +71,8 @@ public class ExplainActionTests extends AbstractNodesTests {
         assertTrue(response.getExplanation().isMatch());
         assertThat(response.getExplanation().getValue(), equalTo(1.0f));
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        response = client.prepareExplain("test", "test", "1")
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.termQuery("field", "value2"))
                 .execute().actionGet();
         assertNotNull(response);
@@ -97,8 +81,8 @@ public class ExplainActionTests extends AbstractNodesTests {
         assertNotNull(response.getExplanation());
         assertFalse(response.getExplanation().isMatch());
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        response = client.prepareExplain("test", "test", "1")
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.boolQuery()
                         .must(QueryBuilders.termQuery("field", "value1"))
                         .must(QueryBuilders.termQuery("field", "value2"))
@@ -111,7 +95,7 @@ public class ExplainActionTests extends AbstractNodesTests {
         assertFalse(response.getExplanation().isMatch());
         assertThat(response.getExplanation().getDetails().length, equalTo(2));
 
-        response = client.prepareExplain("test", "test", "2")
+        response = client().prepareExplain("test", "test", "2")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
@@ -121,13 +105,14 @@ public class ExplainActionTests extends AbstractNodesTests {
 
     @Test
     public void testExplainWithFields() throws Exception {
+        cluster().ensureAtLeastNumNodes(2);
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {}
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "test", "1")
+        client().prepareIndex("test", "test", "1")
                 .setSource(
                         jsonBuilder().startObject()
                                 .startObject("obj1")
@@ -137,8 +122,8 @@ public class ExplainActionTests extends AbstractNodesTests {
                         .endObject()
                 ).execute().actionGet();
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        ExplainResponse response = client.prepareExplain("test", "test", "1")
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        ExplainResponse response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setFields("obj1.field1")
                 .execute().actionGet();
@@ -152,7 +137,7 @@ public class ExplainActionTests extends AbstractNodesTests {
         assertThat(response.getGetResult().getFields().size(), equalTo(1));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
 
-        response = client.prepareExplain("test", "test", "1")
+        response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setFields("_source.obj1")
                 .execute().actionGet();
@@ -167,19 +152,20 @@ public class ExplainActionTests extends AbstractNodesTests {
 
     @Test
     public void testExplainWithAlias() throws Exception {
+        cluster().ensureAtLeastNumNodes(2);
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {}
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().indices().prepareAliases().addAlias("test", "alias1", FilterBuilders.termFilter("field2", "value2"))
+        client().admin().indices().prepareAliases().addAlias("test", "alias1", FilterBuilders.termFilter("field2", "value2"))
                 .execute().actionGet();
-        client.prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").execute().actionGet();
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
 
-        ExplainResponse response = client.prepareExplain("alias1", "test", "1")
+        ExplainResponse response = client().prepareExplain("alias1", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);

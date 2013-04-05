@@ -16,22 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.test.integration;
 
-package org.elasticsearch.test.integration.client.transport;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 
-import org.elasticsearch.test.integration.TestCluster;
-import org.elasticsearch.test.integration.document.DocumentActionsTests;
-import org.testng.annotations.BeforeClass;
-
-/**
- *
- */
-public class TransportClientSniffDocumentActionsTests extends DocumentActionsTests {
+public class ElasticsearchTestCase {
     
-    @BeforeClass
-    public static void beforeClass() throws Exception {
-        cluster().setClientFactory(TestCluster.TransportClientFactory.SNIFF_CLIENT_FACTORY);
-        DocumentActionsTests.beforeClass();
-       
-    }
+    protected final ESLogger logger = Loggers.getLogger(getClass());
+
+    public static final boolean NIGHLY = Boolean.parseBoolean(System.getProperty("es.tests.nighly", "false")); // disabled by default
+    
 }

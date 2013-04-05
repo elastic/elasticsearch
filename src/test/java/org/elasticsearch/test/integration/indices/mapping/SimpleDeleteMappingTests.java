@@ -21,15 +21,11 @@ package org.elasticsearch.test.integration.indices.mapping;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -38,70 +34,37 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleDeleteMappingTests extends AbstractNodesTests {
-
-    protected Client client1;
-    protected Client client2;
-
-    @BeforeMethod
-    public void startNodes() {
-        startNode("node1");
-        startNode("node2");
-        client1 = getClient1();
-        client2 = getClient2();
-
-        createIndex();
-    }
-
-    protected void createIndex() {
-        logger.info("Creating index test");
-        client1.admin().indices().create(createIndexRequest("test")).actionGet();
-    }
-
-    @AfterMethod
-    public void closeNodes() {
-        client1.close();
-        client2.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient1() {
-        return client("node1");
-    }
-
-    protected Client getClient2() {
-        return client("node2");
-    }
+public class SimpleDeleteMappingTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleDeleteMapping() throws Exception {
         for (int i = 0; i < 10; i++) {
-            client1.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
                     .field("value", "test" + i)
                     .endObject()).execute().actionGet();
         }
 
-        ClusterHealthResponse clusterHealth = client1.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        client1.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(countResponse.getCount(), equalTo(10l));
         }
 
-        ClusterState clusterState = client1.admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(true));
 
-        client1.admin().indices().prepareDeleteMapping().setType("type1").execute().actionGet();
+        client().admin().indices().prepareDeleteMapping().setType("type1").execute().actionGet();
         Thread.sleep(500); // for now, we don't have ack logic, so just wait
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client1.prepareCount().setQuery(matchAllQuery()).execute().actionGet();
+            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet();
             assertThat(countResponse.getCount(), equalTo(0l));
         }
 
-        clusterState = client1.admin().cluster().prepareState().execute().actionGet().getState();
+        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(false));
     }
 }

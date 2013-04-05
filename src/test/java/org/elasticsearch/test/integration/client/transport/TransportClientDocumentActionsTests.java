@@ -19,47 +19,19 @@
 
 package org.elasticsearch.test.integration.client.transport;
 
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
-import org.elasticsearch.common.network.NetworkUtils;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.test.integration.TestCluster;
 import org.elasticsearch.test.integration.document.DocumentActionsTests;
-import org.elasticsearch.transport.TransportService;
-
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import org.testng.annotations.BeforeClass;
 
 /**
  *
  */
 public class TransportClientDocumentActionsTests extends DocumentActionsTests {
 
-    @Override
-    protected Client getClient1() {
-        TransportAddress server1Address = ((InternalNode) node("server1")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
-        TransportClient client = new TransportClient(settingsBuilder()
-                .put(nodeSettings())
-                .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
-                .put("client.transport.sniff", false).build());
-        client.addTransportAddress(server1Address);
-        return client;
-    }
-
-    @Override
-    protected Client getClient2() {
-        TransportAddress server2Address = ((InternalNode) node("server2")).injector().getInstance(TransportService.class).boundAddress().publishAddress();
-        TransportClient client = new TransportClient(settingsBuilder()
-                .put(nodeSettings())
-                .put("cluster.name", "test-cluster-" + NetworkUtils.getLocalAddress().getHostName())
-                .put("client.transport.sniff", false).build());
-        client.addTransportAddress(server2Address);
-        return client;
-    }
-
-    @Override
-    protected Settings nodeSettings() {
-        return ImmutableSettings.settingsBuilder().put("client.transport.nodes_sampler_interval", "30s").build();
+    
+    @BeforeClass
+    public static void beforeClass() throws Exception {
+        cluster().setClientFactory(TestCluster.TransportClientFactory.NO_SNIFF_CLIENT_FACTORY);
+        DocumentActionsTests.beforeClass();
     }
 }

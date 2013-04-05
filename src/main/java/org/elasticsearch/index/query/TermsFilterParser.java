@@ -155,7 +155,7 @@ public class TermsFilterParser implements FilterParser {
                 previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
             }
         }
-
+        
         if (lookupId != null) {
             // external lookup, use it
             TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupPath, parseContext);

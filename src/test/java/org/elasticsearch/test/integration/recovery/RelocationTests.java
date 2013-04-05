@@ -29,8 +29,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,6 +38,7 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,10 +51,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
+
 public class RelocationTests extends AbstractNodesTests {
-
-    private final ESLogger logger = Loggers.getLogger(RelocationTests.class);
-
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
     @AfterMethod
@@ -112,33 +109,22 @@ public class RelocationTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testPrimaryRelocationWhileIndexingWith1RelocationAnd1Writer() throws Exception {
-        testPrimaryRelocationWhileIndexing(1, 1, false);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileIndexingWith5RelocationAnd1Writer() throws Exception {
-        testPrimaryRelocationWhileIndexing(5, 1, false);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileIndexingWith10RelocationAnd5Writers() throws Exception {
-        testPrimaryRelocationWhileIndexing(10, 5, false);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileBulkIndexingWith1RelocationAnd1Writer() throws Exception {
-        testPrimaryRelocationWhileIndexing(1, 1, true);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileBulkIndexingWith10RelocationAnd1Writer() throws Exception {
-        testPrimaryRelocationWhileIndexing(10, 1, true);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileBulkIndexingWith10RelocationAnd5Writers() throws Exception {
-        testPrimaryRelocationWhileIndexing(10, 5, true);
+    public void testPrimaryRelocationWhileIndexingRandom() throws Exception {
+        long seed = System.currentTimeMillis();
+        Random random = new Random();
+        final int iter = NIGHLY ? 5 : 1;
+        for (int i = 0; i < iter; i++) {
+            try {
+                int numRelocations = 1 + random.nextInt(10);
+                int numWriters = 1 + random.nextInt(5);
+                boolean batch = random.nextBoolean();
+                logger.info("testPrimaryRelocationWhileIndexingRandom(numRelocations={}, numWriters={}, batch={} -- seed={}",
+                        numRelocations, numWriters, batch, seed);
+                testPrimaryRelocationWhileIndexing(numRelocations, numWriters, batch);
+            } finally {
+                closeAllNodes();
+            }
+        }
     }
 
     private void testPrimaryRelocationWhileIndexing(final int numberOfRelocations, final int numberOfWriters, final boolean batch) throws Exception {
@@ -279,33 +265,21 @@ public class RelocationTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testReplicaRelocationWhileIndexingWith1RelocationAnd1Writer() throws Exception {
-        testReplicaRelocationWhileIndexing(1, 1, false);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileIndexingWith5RelocationAnd1Writer() throws Exception {
-        testReplicaRelocationWhileIndexing(5, 1, false);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileIndexingWith10RelocationAnd5Writers() throws Exception {
-        testReplicaRelocationWhileIndexing(10, 5, false);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileBulkIndexingWith1RelocationAnd1Writer() throws Exception {
-        testReplicaRelocationWhileIndexing(1, 1, true);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileBulkIndexingWith10RelocationAnd1Writer() throws Exception {
-        testReplicaRelocationWhileIndexing(10, 1, true);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileBulkIndexingWith10RelocationAnd5Writers() throws Exception {
-        testReplicaRelocationWhileIndexing(10, 5, true);
+    public void testReplicaRelocationWhileIndexingRandom() throws Exception {
+        long seed = System.currentTimeMillis();
+        Random random = new Random();
+        final int iter = NIGHLY ? 5 : 1;
+        for (int i = 0; i < iter; i++) {
+            try {
+                int numRelocations = 1 + random.nextInt(10);
+                int numWriters = 1 + random.nextInt(5);
+                boolean batch = random.nextBoolean();
+                logger.info("testReplicaRelocationWhileIndexing(numRelocations={}, numWriters={}, batch={} -- seed={}", numRelocations, numWriters, batch, seed);
+                testReplicaRelocationWhileIndexing(numRelocations, numWriters, batch);
+            } finally {
+                closeAllNodes();
+            }
+        }
     }
 
     private void testReplicaRelocationWhileIndexing(final int numberOfRelocations, final int numberOfWriters, final boolean batch) throws Exception {

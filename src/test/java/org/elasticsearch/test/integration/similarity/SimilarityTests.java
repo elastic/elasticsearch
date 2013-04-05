@@ -20,11 +20,8 @@
 package org.elasticsearch.test.integration.similarity;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -33,35 +30,18 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class SimilarityTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        startNode("node1");
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("node1");
-    }
+public class SimilarityTests  extends AbstractSharedClusterTest {
+    
 
     @Test
     public void testCustomBM25Similarity() throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject()
                         .startObject("type1")
                             .startObject("properties")
@@ -83,15 +63,15 @@ public class SimilarityTests extends AbstractNodesTests {
                         .put("similarity.custom.b", 1.5f)
                 ).execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumped over the lazy dog",
+        client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumped over the lazy dog",
                                                             "field2", "the quick brown fox jumped over the lazy dog")
                 .setRefresh(true).execute().actionGet();
 
-        SearchResponse bm25SearchResponse = client.prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).execute().actionGet();
+        SearchResponse bm25SearchResponse = client().prepareSearch().setQuery(matchQuery("field1", "quick brown fox")).execute().actionGet();
         assertThat(bm25SearchResponse.getHits().totalHits(), equalTo(1l));
         float bm25Score = bm25SearchResponse.getHits().hits()[0].score();
 
-        SearchResponse defaultSearchResponse = client.prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).execute().actionGet();
+        SearchResponse defaultSearchResponse = client().prepareSearch().setQuery(matchQuery("field2", "quick brown fox")).execute().actionGet();
         assertThat(defaultSearchResponse.getHits().totalHits(), equalTo(1l));
         float defaultScore = defaultSearchResponse.getHits().hits()[0].score();
 

@@ -23,8 +23,6 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -38,9 +36,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
-public abstract class AbstractNodesTests {
-
-    protected final ESLogger logger = Loggers.getLogger(getClass());
+public abstract class AbstractNodesTests extends ElasticsearchTestCase {
 
     private Map<String, Node> nodes = newHashMap();
 

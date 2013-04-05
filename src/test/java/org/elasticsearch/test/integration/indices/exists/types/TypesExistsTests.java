@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -32,12 +32,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.testng.Assert.fail;
 
-public class TypesExistsTests extends AbstractNodesTests {
+public class TypesExistsTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimple() throws Exception {
-        startNode("node1");
-        Client client = client("node1");
+        Client client = client();
         client.admin().indices().prepareCreate("test1")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").endObject().endObject())
                 .addMapping("type2", jsonBuilder().startObject().startObject("type2").endObject().endObject())
@@ -72,9 +71,6 @@ public class TypesExistsTests extends AbstractNodesTests {
         assertThat(response.isExists(), equalTo(true));
         response = client.admin().indices().prepareTypesExists("test1", "test2").setTypes("type2").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
-
-        client.close();
-        closeAllNodes();
     }
 
 }

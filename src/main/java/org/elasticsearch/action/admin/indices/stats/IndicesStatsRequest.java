@@ -45,6 +45,8 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
     private boolean refresh = false;
     private boolean flush = false;
     private boolean warmer = false;
+    private boolean filterCache = false;
+    private boolean idCache = false;
     private String[] types = null;
     private String[] groups = null;
 
@@ -61,6 +63,8 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         refresh = true;
         flush = true;
         warmer = true;
+        filterCache = true;
+        idCache = true;
         types = null;
         groups = null;
         return this;
@@ -79,6 +83,8 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         refresh = false;
         flush = false;
         warmer = false;
+        filterCache = false;
+        idCache = false;
         types = null;
         groups = null;
         return this;
@@ -195,6 +201,24 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return this.warmer;
     }
 
+    public IndicesStatsRequest filterCache(boolean filterCache) {
+        this.filterCache = filterCache;
+        return this;
+    }
+
+    public boolean filterCache() {
+        return this.filterCache;
+    }
+
+    public IndicesStatsRequest idCache(boolean idCache) {
+        this.idCache = idCache;
+        return this;
+    }
+
+    public boolean idCache() {
+        return this.idCache;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -207,6 +231,8 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         out.writeBoolean(flush);
         out.writeBoolean(refresh);
         out.writeBoolean(warmer);
+        out.writeBoolean(filterCache);
+        out.writeBoolean(idCache);
         if (types == null) {
             out.writeVInt(0);
         } else {
@@ -237,6 +263,8 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         flush = in.readBoolean();
         refresh = in.readBoolean();
         warmer = in.readBoolean();
+        filterCache = in.readBoolean();
+        idCache = in.readBoolean();
         int size = in.readVInt();
         if (size > 0) {
             types = new String[size];

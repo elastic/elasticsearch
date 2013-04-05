@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.cache.docset.DocSetCache;
@@ -47,11 +46,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     private final IdCache idCache;
     private final DocSetCache docSetCache;
 
-    private final TimeValue refreshInterval;
     private ClusterService clusterService;
-
-    private long latestCacheStatsTimestamp = -1;
-    private CacheStats latestCacheStats;
 
     @Inject
     public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, IdCache idCache,
@@ -61,10 +56,6 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         this.queryParserCache = queryParserCache;
         this.idCache = idCache;
         this.docSetCache = docSetCache;
-
-        this.refreshInterval = componentSettings.getAsTime("stats.refresh_interval", TimeValue.timeValueSeconds(1));
-
-        logger.debug("Using stats.refresh_interval [{}]", refreshInterval);
     }
 
     @Inject(optional = true)
@@ -73,22 +64,6 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         if (clusterService != null) {
             clusterService.add(this);
         }
-    }
-
-    public synchronized void invalidateStatsCache() {
-        FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
-        latestCacheStats = new CacheStats(filterCache.evictions(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, idCache.sizeInBytes());
-        latestCacheStatsTimestamp = System.currentTimeMillis();
-    }
-
-    public synchronized CacheStats stats() {
-        long timestamp = System.currentTimeMillis();
-        if ((timestamp - latestCacheStatsTimestamp) > refreshInterval.millis()) {
-            FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
-            latestCacheStats = new CacheStats(filterCache.evictions(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, idCache.sizeInBytes());
-            latestCacheStatsTimestamp = timestamp;
-        }
-        return latestCacheStats;
     }
 
     public FilterCache filter() {

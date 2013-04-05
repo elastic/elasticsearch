@@ -36,7 +36,11 @@ import org.elasticsearch.index.cache.id.IdReaderCache;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.index.shard.service.IndexShard;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -49,11 +53,18 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
     private final boolean reuse;
 
+    IndexService indexService;
+
     @Inject
     public SimpleIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         idReaders = ConcurrentCollections.newConcurrentMap();
         this.reuse = componentSettings.getAsBoolean("reuse", false);
+    }
+
+    @Override
+    public void setIndexService(IndexService indexService) {
+        this.indexService = indexService;
     }
 
     @Override
@@ -63,7 +74,11 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     @Override
     public void clear() {
-        idReaders.clear();
+        for (Iterator<SimpleIdReaderCache> it = idReaders.values().iterator(); it.hasNext(); ) {
+            SimpleIdReaderCache idReaderCache = it.next();
+            it.remove();
+            onRemoval(idReaderCache);
+        }
     }
 
     @Override
@@ -73,7 +88,8 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     @Override
     public void clear(IndexReader reader) {
-        idReaders.remove(reader.getCoreCacheKey());
+        SimpleIdReaderCache removed = idReaders.remove(reader.getCoreCacheKey());
+        if (removed != null) onRemoval(removed);
     }
 
     @Override
@@ -99,6 +115,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                 // do the refresh
                 Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
+                Map<Object, IndexReader> cacheToReader = new HashMap<Object, IndexReader>();
 
                 // first, go over and load all the id->doc map for all types
                 for (AtomicReaderContext context : atomicReaderContexts) {
@@ -113,6 +130,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     }
                     Map<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
                     builders.put(reader.getCoreCacheKey(), readerBuilder);
+                    cacheToReader.put(reader.getCoreCacheKey(), context.reader());
 
 
                     Terms terms = reader.terms(UidFieldMapper.NAME);
@@ -191,19 +209,32 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                 typeBuilderEntry.getValue().parentIdsValues.toArray(new HashedBytesArray[typeBuilderEntry.getValue().parentIdsValues.size()]),
                                 typeBuilderEntry.getValue().parentIdsOrdinals));
                     }
-                    SimpleIdReaderCache readerCache = new SimpleIdReaderCache(entry.getKey(), types.immutableMap());
+                    SimpleIdReaderCache readerCache = new SimpleIdReaderCache(cacheToReader.get(entry.getKey()), types.immutableMap());
                     idReaders.put(readerCache.readerCacheKey(), readerCache);
+                    onCached(readerCache);
                 }
             }
         }
     }
 
-    public long sizeInBytes() {
-        long sizeInBytes = 0;
-        for (SimpleIdReaderCache idReaderCache : idReaders.values()) {
-            sizeInBytes += idReaderCache.sizeInBytes();
+    void onCached(SimpleIdReaderCache readerCache) {
+        ShardId shardId = ShardUtils.extractShardId(readerCache.reader());
+        if (shardId != null) {
+            IndexShard shard = indexService.shard(shardId.id());
+            if (shard != null) {
+                shard.idCache().onCached(readerCache.sizeInBytes());
+            }
         }
-        return sizeInBytes;
+    }
+
+    void onRemoval(SimpleIdReaderCache readerCache) {
+        ShardId shardId = ShardUtils.extractShardId(readerCache.reader());
+        if (shardId != null) {
+            IndexShard shard = indexService.shard(shardId.id());
+            if (shard != null) {
+                shard.idCache().onCached(readerCache.sizeInBytes());
+            }
+        }
     }
 
     private HashedBytesArray checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, HashedBytesArray idAsBytes) {

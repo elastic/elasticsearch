@@ -23,6 +23,10 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
+import org.elasticsearch.index.cache.filter.ShardFilterCache;
+import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.cache.id.ShardIdCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.flush.FlushStats;
@@ -56,6 +60,10 @@ public interface IndexShard extends IndexShardComponent {
 
     ShardIndexWarmerService warmerService();
 
+    ShardFilterCache filterCache();
+
+    ShardIdCache idCache();
+
     ShardRouting routingEntry();
 
     DocsStats docStats();
@@ -75,6 +83,10 @@ public interface IndexShard extends IndexShardComponent {
     FlushStats flushStats();
 
     WarmerStats warmerStats();
+
+    FilterCacheStats filterCacheStats();
+
+    IdCacheStats idCacheStats();
 
     IndexShardState state();
 

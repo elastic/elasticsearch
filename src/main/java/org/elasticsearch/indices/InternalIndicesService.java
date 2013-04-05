@@ -35,9 +35,10 @@ import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.CacheStats;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
+import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
@@ -185,8 +186,9 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
         IndexingStats indexingStats = new IndexingStats();
         GetStats getStats = new GetStats();
         SearchStats searchStats = new SearchStats();
-        CacheStats cacheStats = new CacheStats();
         FieldDataStats fieldDataStats = new FieldDataStats();
+        FilterCacheStats filterCacheStats = new FilterCacheStats();
+        IdCacheStats idCacheStats = new IdCacheStats();
         MergeStats mergeStats = new MergeStats();
         RefreshStats refreshStats = new RefreshStats();
         FlushStats flushStats = new FlushStats();
@@ -210,11 +212,12 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 mergeStats.add(indexShard.mergeStats());
                 refreshStats.add(indexShard.refreshStats());
                 flushStats.add(indexShard.flushStats());
+                filterCacheStats.add(indexShard.filterCacheStats());
+                idCacheStats.add(indexShard.idCacheStats());
             }
-            cacheStats.add(indexService.cache().stats());
             fieldDataStats.add(indexService.fieldData().stats());
         }
-        return new NodeIndicesStats(storeStats, docsStats, indexingStats, getStats, searchStats, cacheStats, fieldDataStats, mergeStats, refreshStats, flushStats);
+        return new NodeIndicesStats(storeStats, docsStats, indexingStats, getStats, searchStats, fieldDataStats, mergeStats, refreshStats, flushStats, filterCacheStats, idCacheStats);
     }
 
     /**

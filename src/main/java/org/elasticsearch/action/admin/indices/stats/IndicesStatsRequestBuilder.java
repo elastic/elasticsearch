@@ -114,6 +114,16 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setFilterCache(boolean filterCache) {
+        request.filterCache(filterCache);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setIdCache(boolean idCache) {
+        request.idCache(idCache);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<IndicesStatsResponse> listener) {
         ((IndicesAdminClient) client).stats(request, listener);

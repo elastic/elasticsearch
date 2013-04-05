@@ -149,6 +149,8 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
         getTotal().toXContent(builder, params);
         builder.endObject();
 
+        builder.endObject();
+
         builder.startObject(Fields.INDICES);
         for (IndexStats indexStats : getIndices().values()) {
             builder.startObject(indexStats.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
@@ -188,7 +190,6 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
         }
         builder.endObject();
 
-        builder.endObject();
         return builder;
     }
 

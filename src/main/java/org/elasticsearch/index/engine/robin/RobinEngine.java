@@ -333,15 +333,17 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     AtomicReaderContext readerContext = readers.get(i);
                     UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(readerContext, get.uid());
                     if (docIdAndVersion != null && docIdAndVersion.docId != Lucene.NO_DOC) {
+                        // note, we don't release the searcher here, since it will be released as part of the external
+                        // API usage, since it still needs it to load data...
                         return new GetResult(searcher, docIdAndVersion);
                     }
                 }
             } catch (Exception e) {
+                searcher.release();
                 //TODO: A better exception goes here
                 throw new EngineException(shardId(), "failed to load document", e);
-            } finally {
-                searcher.release();
             }
+            searcher.release();
             return GetResult.NOT_EXISTS;
         } finally {
             rwl.readLock().unlock();

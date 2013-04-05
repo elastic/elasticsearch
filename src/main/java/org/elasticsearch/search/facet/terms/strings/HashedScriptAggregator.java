@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.search.facet.terms.strings;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
+import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CharsRef;
@@ -28,7 +26,8 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.script.SearchScript;
 
-import com.google.common.collect.ImmutableSet;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class HashedScriptAggregator extends HashedAggregator {
 
@@ -49,6 +48,22 @@ public final class HashedScriptAggregator extends HashedAggregator {
         this.matcher = pattern != null ? pattern.matcher("") : null;
         this.script = script;
         this.convert = script != null || matcher != null;
+    }
+
+    @Override
+    public void addValue(BytesRef value, int hashCode) {
+        if (excluded != null && excluded.contains(value)) {
+            return;
+        }
+        UnicodeUtil.UTF8toUTF16(value, spare);
+        if (matcher != null) {
+            assert convert : "regexp: [convert == false] but should be true";
+            assert value.utf8ToString().equals(spare.toString()) : "not converted";
+            if (!matcher.reset(spare).matches()) {
+                return;
+            }
+        }
+        super.addValue(value, hashCode);
     }
 
     @Override

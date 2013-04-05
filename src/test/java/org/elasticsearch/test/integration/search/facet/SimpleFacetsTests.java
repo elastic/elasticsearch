@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -44,11 +43,10 @@ import org.elasticsearch.search.facet.terms.TermsFacet.Entry;
 import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
 import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
-import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -67,23 +65,22 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleFacetsTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards()).put("index.number_of_replicas", 0).build();
-        for (int i = 0; i < numberOfNodes(); i++) {
-            startNode("node" + i, settings);
-        }
-        client = getClient();
+public class SimpleFacetsTests extends AbstractSharedClusterTest {
+    
+    
+    @Override
+    public Settings getSettings() {
+        return randomSettingsBuilder()
+                .put("index.number_of_shards", numberOfShards())
+                .put("index.number_of_replicas", 0)
+                .build();
     }
 
     protected int numberOfShards() {
         return 1;
     }
 
+    @Override
     protected int numberOfNodes() {
         return 1;
     }
@@ -92,41 +89,26 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         return 5;
     }
 
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("node0");
-    }
-
     @Test
     public void testBinaryFacet() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "green")
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "blue")
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setSearchType(SearchType.COUNT)
                     .setFacets(XContentFactory.jsonBuilder().startObject()
                             .startObject("facet1")
@@ -151,15 +133,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testFacetNumeric() throws ElasticSearchException, IOException {
-        // TODO we should test this with more complex queries 
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test")
-        .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+        prepareCreate("test").addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("byte").field("type", "byte").endObject()
                 .startObject("short").field("type", "short").endObject()
                 .startObject("integer").field("type", "integer").endObject()
@@ -168,10 +142,10 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("double").field("type", "double").endObject()
                 .endObject().endObject().endObject())
         .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
-            client.prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
                     .field("name", ""+i)
                     .field("multiValued", ""+i, "" + (90 + i%10))
                     .field("byte", i )
@@ -184,7 +158,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
 
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
                     .field("foo", ""+i)
                     .endObject()).execute().actionGet();
         }
@@ -192,8 +166,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         String[] execHint = new String[] {"map", null};
         for (String hint : execHint) {
 
-            client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-            SearchResponse searchResponse = client.prepareSearch()
+            client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("double").executionHint(hint).field("double").size(10))
                     .addFacet(termsFacet("float").executionHint(hint).field("float").size(10))
@@ -296,13 +270,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testConcurrentFacets() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client.admin().indices().prepareCreate("test")
+        prepareCreate("test")
         .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("byte").field("type", "byte").endObject()
                 .startObject("short").field("type", "short").endObject()
@@ -312,10 +280,10 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("double").field("type", "double").endObject()
                 .endObject().endObject().endObject())
         .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
-            client.prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
                     .field("name", ""+i)
                     .field("byte", i )
                     .field("short", i + Byte.MAX_VALUE)
@@ -327,15 +295,15 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
 
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
                     .field("foo", ""+i)
                     .endObject()).execute().actionGet();
         }
 
-       client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+       client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
        ConcurrentDuel<Facets> duel = new ConcurrentDuel<Facets>(5);
         {
-            final Client cl = client;
+            final Client cl = client();
 
             duel.duel(new ConcurrentDuel.DuelJudge<Facets>() {
 
@@ -424,32 +392,32 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                      final SearchRequestBuilder facetRequest;
                      switch(count.incrementAndGet() % 6) {
                      case 4:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                           .setQuery(matchAllQuery())
                           .addFacet(termsFacet("termFacet").executionHint("map").field("name").script("\"\" + (Integer.parseInt(term) % 100)").size(10));
                          break;
                      case 3:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                           .setQuery(matchAllQuery())
                           .addFacet(termsFacet("termFacet").field("name").regex("\\d+").size(10));
                          break;
                      case 2:
-                        facetRequest = client.prepareSearch()
+                        facetRequest = client().prepareSearch()
                          .setQuery(matchAllQuery())
                          .addFacet(termsFacet("termFacet").executionHint("map").field("name").regex("\\d+").script("term").size(10));
                         break;
                      case 1:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                          .setQuery(matchAllQuery())
                          .addFacet(termsFacet("termFacet").field("name").regex("\\d+").script("term").size(10));
                          break;
                      case 0:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                          .setQuery(matchAllQuery())
                          .addFacet(termsFacet("termFacet").field("name").size(10));
                          break;
                      default:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                          .setQuery(matchAllQuery())
                          .addFacet(termsFacet("termFacet").executionHint("map").field("name").size(10));
                          break;
@@ -465,13 +433,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testDuelByteFieldDataImpl() throws ElasticSearchException, IOException, InterruptedException, ExecutionException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        
-        client.admin().indices().prepareCreate("test")
+        prepareCreate("test")
         .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("name_concrete")
                     .field("type", "string")
@@ -511,10 +473,10 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                     .endObject()
                 .endObject().endObject().endObject())
         .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 100; i++) {
-            client.prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type", ""+i).setSource(jsonBuilder().startObject()
                     .field("name_concrete", ""+i)
                     .field("name_paged", ""+i)
                     .field("name_fst", ""+i)
@@ -527,12 +489,12 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
         
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type", ""+(i + 100)).setSource(jsonBuilder().startObject()
                     .field("foo", ""+i)
                     .endObject()).execute().actionGet();
         }
        
-       client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+       client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
        ConcurrentDuel<Facets> duel = new ConcurrentDuel<Facets>(5);
        String[] fieldPostFix = new String[] {"", "_mv"};
        for (final String postfix : fieldPostFix) {
@@ -588,32 +550,32 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                     }
                      switch(incrementAndGet % 5) {
                      case 4:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                           .setQuery(matchAllQuery())
                           .addFacet(termsFacet("termFacet").executionHint("map").field(field).script("\"\" + (Integer.parseInt(term) % 100)").size(10));
                          break;
                      case 3:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                           .setQuery(matchAllQuery())
                           .addFacet(termsFacet("termFacet").field(field).regex("\\d+").size(10));
                          break;
                      case 2:
-                        facetRequest = client.prepareSearch()
+                        facetRequest = client().prepareSearch()
                          .setQuery(matchAllQuery())
                          .addFacet(termsFacet("termFacet").executionHint("map").field(field).regex("\\d+").script("term").size(10));
                         break;
                      case 1:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                          .setQuery(matchAllQuery())
                          .addFacet(termsFacet("termFacet").field(field).regex("\\d+").script("term").size(10));
                          break;
                      case 0:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                          .setQuery(matchAllQuery())
                          .addFacet(termsFacet("termFacet").field(field).size(10));
                          break;
                      default:
-                         facetRequest = client.prepareSearch()
+                         facetRequest = client().prepareSearch()
                          .setQuery(matchAllQuery())
                          .addFacet(termsFacet("termFacet").executionHint("map").field(field).size(10));
                          break;
@@ -629,29 +591,24 @@ public class SimpleFacetsTests extends AbstractNodesTests {
     
     @Test
     public void testSearchFilter() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "green")
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("tag", "blue")
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("tag").size(10))
                     .execute().actionGet();
@@ -665,7 +622,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(1).getTerm().string(), anyOf(equalTo("green"), equalTo("blue")));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .setFilter(termFilter("tag", "blue"))
                     .addFacet(termsFacet("facet1").field("tag").size(10))
@@ -684,35 +641,30 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testFacetsWithSize0() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .field("lstag", 111)
                 .startArray("tag").value("xxx").value("yyy").endArray()
                 .startArray("ltag").value(1000l).value(2000l).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .field("lstag", 111)
                 .startArray("tag").value("zzz").value("yyy").endArray()
                 .startArray("ltag").value(3000l).value(2000l).endArray()
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setSize(0)
                     .setQuery(termQuery("stag", "111"))
                     .addFacet(termsFacet("facet1").field("stag").size(10))
@@ -726,7 +678,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(0).getTerm().string(), equalTo("111"));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setSearchType(SearchType.QUERY_AND_FETCH)
                     .setSize(0)
                     .setQuery(termQuery("stag", "111"))
@@ -746,33 +698,26 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testTermsIndexFacet() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-            client.admin().indices().prepareDelete("test1").execute().actionGet();
-            client.admin().indices().prepareDelete("test2").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test1").execute().actionGet();
-        client.admin().indices().prepareCreate("test2").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test1");
+        createIndex("test2");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test1", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test1", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .endObject()).execute().actionGet();
 
-        client.prepareIndex("test1", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test1", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .endObject()).execute().actionGet();
 
-        client.prepareIndex("test2", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test2", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setSize(0)
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("_index").size(10))
@@ -789,8 +734,8 @@ public class SimpleFacetsTests extends AbstractNodesTests {
         }
 
         try {
-            client.admin().indices().prepareDelete("test1").execute().actionGet();
-            client.admin().indices().prepareDelete("test2").execute().actionGet();
+            client().admin().indices().prepareDelete("test1").execute().actionGet();
+            client().admin().indices().prepareDelete("test2").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
@@ -798,29 +743,24 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testFilterFacets() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test1");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .startArray("tag").value("xxx").value("yyy").endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .startArray("tag").value("zzz").value("yyy").endArray()
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(filterFacet("facet1").filter(termFilter("stag", "111")))
                     .addFacet(filterFacet("facet2").filter(termFilter("tag", "xxx")))
@@ -848,12 +788,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testTermsFacetsMissing() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test")
+        prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("bstag").field("type", "byte").endObject()
                         .startObject("shstag").field("type", "short").endObject()
@@ -863,9 +798,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                         .startObject("dstag").field("type", "double").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .field("bstag", 111)
                 .field("shstag", 111)
@@ -874,13 +809,13 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .field("fstag", 111.1f)
                 .field("dstag", 111.1)
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("kuku", "kuku")
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("stag").size(10))
                     .execute().actionGet();
@@ -901,12 +836,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
     }
 
     private void testTermsFacets(String executionHint) throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test")
+        prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("bstag").field("type", "byte").endObject()
                         .startObject("shstag").field("type", "short").endObject()
@@ -916,9 +846,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                         .startObject("dstag").field("type", "double").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .field("bstag", 111)
                 .field("shstag", 111)
@@ -930,9 +860,9 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startArray("ltag").value(1000l).value(2000l).endArray()
                 .startArray("dtag").value(1000.1).value(2000.1).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("stag", "111")
                 .field("bstag", 111)
                 .field("shstag", 111)
@@ -945,10 +875,10 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startArray("dtag").value(3000.1).value(2000.1).endArray()
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(termQuery("stag", "111"))
                     .addFacet(termsFacet("facet1").field("stag").size(10).executionHint(executionHint))
                     .addFacet(termsFacet("facet2").field("tag").size(10).executionHint(executionHint))
@@ -970,7 +900,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             // Numeric
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(termQuery("stag", "111"))
                     .addFacet(termsFacet("facet1").field("lstag").size(10).executionHint(executionHint))
                     .addFacet(termsFacet("facet2").field("ltag").size(10).executionHint(executionHint))
@@ -1004,7 +934,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(1).getTerm().string(), equalTo("1000"));
             assertThat(facet.getEntries().get(1).getCount(), equalTo(1));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(termQuery("stag", "111"))
                     .addFacet(termsFacet("facet1").field("dstag").size(10).executionHint(executionHint))
                     .addFacet(termsFacet("facet2").field("dtag").size(10).executionHint(executionHint))
@@ -1028,7 +958,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(2).getTerm().string(), anyOf(equalTo("1000.1"), equalTo("3000.1")));
             assertThat(facet.getEntries().get(2).getCount(), equalTo(1));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(termQuery("stag", "111"))
                     .addFacet(termsFacet("facet1").field("bstag").size(10).executionHint(executionHint))
                     .execute().actionGet();
@@ -1039,7 +969,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(0).getTerm().string(), equalTo("111"));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(termQuery("stag", "111"))
                     .addFacet(termsFacet("facet1").field("istag").size(10).executionHint(executionHint))
                     .execute().actionGet();
@@ -1050,7 +980,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(0).getTerm().string(), equalTo("111"));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(termQuery("stag", "111"))
                     .addFacet(termsFacet("facet1").field("shstag").size(10).executionHint(executionHint))
                     .execute().actionGet();
@@ -1063,7 +993,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             // Test Facet Filter
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")).executionHint(executionHint))
                     .execute().actionGet();
@@ -1075,7 +1005,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(0).getCount(), equalTo(1));
 
             // now with global
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("stag").size(10).facetFilter(termFilter("tag", "xxx")).global(true).executionHint(executionHint))
                     .execute().actionGet();
@@ -1088,7 +1018,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             // Test Facet Filter (with a type)
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("type1.stag").size(10).facetFilter(termFilter("tag", "xxx")).executionHint(executionHint))
                     .execute().actionGet();
@@ -1099,7 +1029,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(0).getTerm().string(), equalTo("111"));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(1));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("tag").size(10).executionHint(executionHint))
                     .execute().actionGet();
@@ -1116,7 +1046,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             // Bounded Size
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("tag").size(2).executionHint(executionHint))
                     .execute().actionGet();
@@ -1131,7 +1061,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             // Test Exclude
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("tag").size(10).exclude("yyy").executionHint(executionHint))
                     .execute().actionGet();
@@ -1146,7 +1076,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             // Test Order
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
                     .execute().actionGet();
@@ -1161,7 +1091,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(2).getTerm().string(), equalTo("zzz"));
             assertThat(facet.getEntries().get(2).getCount(), equalTo(1));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("tag").size(10).order(TermsFacet.ComparatorType.REVERSE_TERM).executionHint(executionHint))
                     .execute().actionGet();
@@ -1178,7 +1108,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             // Script
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("tag").size(10).script("term + param1").param("param1", "a").order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
                     .execute().actionGet();
@@ -1193,7 +1123,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(2).getTerm().string(), equalTo("zzza"));
             assertThat(facet.getEntries().get(2).getCount(), equalTo(1));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("tag").size(10).script("term == 'xxx' ? false : true").order(TermsFacet.ComparatorType.TERM).executionHint(executionHint))
                     .execute().actionGet();
@@ -1208,7 +1138,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             // Fields Facets
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").fields("stag", "tag").size(10).executionHint(executionHint))
                     .execute().actionGet();
@@ -1225,7 +1155,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(3).getTerm().string(), anyOf(equalTo("zzz"), equalTo("xxx")));
             assertThat(facet.getEntries().get(3).getCount(), equalTo(1));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(termQuery("xxx", "yyy")) // don't match anything
                     .addFacet(termsFacet("facet1").field("tag").size(10).allTerms(true).executionHint(executionHint))
                     .execute().actionGet();
@@ -1240,7 +1170,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(2).getTerm().string(), anyOf(equalTo("xxx"), equalTo("yyy"), equalTo("zzz")));
             assertThat(facet.getEntries().get(2).getCount(), equalTo(0));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(termQuery("xxx", "yyy")) // don't match anything
                     .addFacet(termsFacet("facet1").fields("tag", "stag").size(10).allTerms(true).executionHint(executionHint))
                     .execute().actionGet();
@@ -1257,7 +1187,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(3).getTerm().string(), anyOf(equalTo("xxx"), equalTo("yyy"), equalTo("zzz"), equalTo("111")));
             assertThat(facet.getEntries().get(3).getCount(), equalTo(0));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(termQuery("xxx", "yyy")) // don't match anything
                     .addFacet(termsFacet("facet1").field("ltag").size(10).allTerms(true).executionHint(executionHint))
                     .execute().actionGet();
@@ -1272,7 +1202,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getEntries().get(2).getTermAsNumber().intValue(), anyOf(equalTo(1000), equalTo(2000), equalTo(3000)));
             assertThat(facet.getEntries().get(2).getCount(), equalTo(0));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(termQuery("xxx", "yyy")) // don't match anything
                     .addFacet(termsFacet("facet1").field("dtag").size(10).allTerms(true).executionHint(executionHint))
                     .execute().actionGet();
@@ -1289,7 +1219,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             // Script Field
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").scriptField("_source.stag").size(10).executionHint(executionHint))
                     .addFacet(termsFacet("facet2").scriptField("_source.tag").size(10).executionHint(executionHint))
@@ -1315,37 +1245,32 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testTermFacetWithEqualTermDistribution() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         // at the end of the index, we should have 10 of each `bar`, `foo`, and `baz`
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                     .field("text", "foo bar")
                     .endObject()).execute().actionGet();
         }
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                     .field("text", "bar baz")
                     .endObject()).execute().actionGet();
         }
 
         for (int i = 0; i < 5; i++) {
-            client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                     .field("text", "baz foo")
                     .endObject()).execute().actionGet();
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsFacet("facet1").field("text").size(10))
                     .execute().actionGet();
@@ -1362,11 +1287,6 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testStatsFacets() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and some facets fail when the facet field is not defined
@@ -1374,23 +1294,23 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("num").field("type", "integer").endObject()
                 .startObject("multi_num").field("type", "float").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1)
                 .startArray("multi_num").value(1.0).value(2.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 2)
                 .startArray("multi_num").value(3.0).value(4.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(statisticalFacet("stats1").field("num"))
                     .addFacet(statisticalFacet("stats2").field("multi_num"))
@@ -1432,7 +1352,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getSumOfSquares(), equalTo(20d));
 
             // test multi field facet
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(statisticalFacet("stats").fields("num", "multi_num"))
                     .execute().actionGet();
@@ -1448,7 +1368,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             assertThat(facet.getSumOfSquares(), equalTo(35d));
 
             // test cross field facet using the same facet name...
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(statisticalFacet("stats").field("num"))
                     .addFacet(statisticalFacet("stats").field("multi_num"))
@@ -1468,30 +1388,25 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testHistoFacetEdge() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         // TODO: Make sure facet doesn't fail in case of dynamic mapping
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num").field("type", "integer").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 100)
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 200)
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 300)
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(histogramFacet("facet1").field("num").valueField("num").interval(100))
                     .execute().actionGet();
@@ -1518,43 +1433,38 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testHistoFacets() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num").field("type", "integer").endObject()
                 .startObject("multi_num").field("type", "float").endObject()
                 .startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1055)
                 .field("date", "1970-01-01T00:00:00")
                 .startArray("multi_num").value(13.0f).value(23.f).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1065)
                 .field("date", "1970-01-01T00:00:25")
                 .startArray("multi_num").value(15.0f).value(31.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1175)
                 .field("date", "1970-01-01T00:02:00")
                 .startArray("multi_num").value(17.0f).value(25.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(histogramFacet("stats1").field("num").valueField("num").interval(100))
                     .addFacet(histogramFacet("stats2").field("multi_num").valueField("multi_num").interval(10))
@@ -1690,11 +1600,6 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testRangeFacets() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num").field("type", "integer").endObject()
@@ -1703,38 +1608,38 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("multi_value").field("type", "float").endObject()
                 .startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1055)
                 .field("value", 1)
                 .field("date", "1970-01-01T00:00:00")
                 .startArray("multi_num").value(13.0f).value(23.f).endArray()
                 .startArray("multi_value").value(10).value(11).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1065)
                 .field("value", 2)
                 .field("date", "1970-01-01T00:00:25")
                 .startArray("multi_num").value(15.0f).value(31.0f).endArray()
                 .startArray("multi_value").value(20).value(21).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("num", 1175)
                 .field("value", 3)
                 .field("date", "1970-01-01T00:00:52")
                 .startArray("multi_num").value(17.0f).value(25.0f).endArray()
                 .startArray("multi_value").value(30).value(31).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(rangeFacet("range1").field("num").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
                     .addFacet(rangeFacet("range2").keyField("num").valueField("value").addUnboundedFrom(1056).addRange(1000, 1170).addUnboundedTo(1170))
@@ -1867,36 +1772,35 @@ public class SimpleFacetsTests extends AbstractNodesTests {
     }
 
     private void testDateHistoFacets(FacetBuilder.Mode mode) throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num").field("type", "integer").endObject()
                 .startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T01:01:01")
                 .field("num", 1)
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T04:01:01")
                 .field("num", 2)
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-06T01:01:01")
                 .field("num", 3)
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(dateHistogramFacet("stats1").field("date").interval("day").mode(mode))
                     .addFacet(dateHistogramFacet("stats2").field("date").interval("day").preZone("-02:00").mode(mode))
@@ -1982,40 +1886,35 @@ public class SimpleFacetsTests extends AbstractNodesTests {
     @Test
     // https://github.com/elasticsearch/elasticsearch/issues/2141
     public void testDateHistoFacets_preZoneBug() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num").field("type", "integer").endObject()
                 .startObject("date").field("type", "date").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T23:31:01")
                 .field("num", 1)
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T18:01:01")
                 .field("num", 2)
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("date", "2009-03-05T22:01:01")
                 .field("num", 3)
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(dateHistogramFacet("stats1").field("date").interval("day").preZone("+02:00"))
                     .addFacet(dateHistogramFacet("stats2").field("date").valueField("num").interval("day").preZone("+01:30"))
@@ -2053,39 +1952,34 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testTermsStatsFacets() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field").field("type", "string").endObject()
                 .startObject("num").field("type", "integer").endObject()
                 .startObject("multi_num").field("type", "float").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("field", "xxx")
                 .field("num", 100.0)
                 .startArray("multi_num").value(1.0).value(2.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("field", "xxx")
                 .field("num", 200.0)
                 .startArray("multi_num").value(2.0).value(3.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("field", "yyy")
                 .field("num", 500.0)
                 .startArray("multi_num").value(5.0).value(6.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsStatsFacet("stats1").keyField("field").valueField("num"))
                     .addFacet(termsStatsFacet("stats2").keyField("field").valueField("multi_num"))
@@ -2243,11 +2137,6 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testNumericTermsStatsFacets() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("lField").field("type", "long").endObject()
@@ -2255,31 +2144,31 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                 .startObject("num").field("type", "float").endObject()
                 .startObject("multi_num").field("type", "integer").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("lField", 100l)
                 .field("dField", 100.1d)
                 .field("num", 100.0)
                 .startArray("multi_num").value(1.0).value(2.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("lField", 100l)
                 .field("dField", 100.1d)
                 .field("num", 200.0)
                 .startArray("multi_num").value(2.0).value(3.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("lField", 200l)
                 .field("dField", 200.2d)
                 .field("num", 500.0)
                 .startArray("multi_num").value(5.0).value(6.0f).endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsStatsFacet("stats1").keyField("lField").valueField("num"))
                     .addFacet(termsStatsFacet("stats2").keyField("dField").valueField("num"))
@@ -2323,25 +2212,20 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testTermsStatsFacets2() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         // TODO: facet shouldn't fail when faceted field is mapped dynamically
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("num").field("type", "float").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 20; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i)).setSource("num", i % 10).execute().actionGet();
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("num", i % 10).execute().actionGet();
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(termsStatsFacet("stats1").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.COUNT))
                     .addFacet(termsStatsFacet("stats2").keyField("num").valueScript("doc.score").order(TermsStatsFacet.ComparatorType.TOTAL))
@@ -2364,21 +2248,16 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testQueryFacet() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 20; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i)).setSource("num", i % 10).execute().actionGet();
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("num", i % 10).execute().actionGet();
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < numberOfRuns(); i++) {
-            SearchResponse searchResponse = client.prepareSearch()
+            SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(queryFacet("query").query(termQuery("num", 1)))
                     .execute().actionGet();
@@ -2386,7 +2265,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             QueryFacet facet = searchResponse.getFacets().facet("query");
             assertThat(facet.getCount(), equalTo(2l));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(queryFacet("query").query(termQuery("num", 1)).global(true))
                     .execute().actionGet();
@@ -2394,7 +2273,7 @@ public class SimpleFacetsTests extends AbstractNodesTests {
             facet = searchResponse.getFacets().facet("query");
             assertThat(facet.getCount(), equalTo(2l));
 
-            searchResponse = client.prepareSearch()
+            searchResponse = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(queryFacet("query").query(termsQuery("num", new long[]{1, 2})).facetFilter(termFilter("num", 1)).global(true))
                     .execute().actionGet();

@@ -19,21 +19,6 @@
 
 package org.elasticsearch.test.integration.search.facet.terms;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.search.facet.terms.TermsFacet;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
-import java.io.IOException;
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.facet.FacetBuilders.termsFacet;
@@ -41,46 +26,37 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
+import java.io.IOException;
+
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.facet.terms.TermsFacet;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+
 /**
  *
  */
-public class UnmappedFieldsTermsFacetsTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
+public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
+    
+    @Override
+    public Settings getSettings() {
+        return randomSettingsBuilder()
                 .put("index.number_of_shards", numberOfShards())
                 .put("index.number_of_replicas", 0)
                 .build();
-        for (int i = 0; i < numberOfNodes(); i++) {
-            startNode("node" + i, settings);
-        }
-        client = getClient();
     }
 
     protected int numberOfShards() {
         return 5;
     }
-
+    
+    @Override
     protected int numberOfNodes() {
         return 1;
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    @AfterMethod
-    public void cleanupTest() {
-        client.admin().indices().prepareDelete("_all").execute().actionGet();
-    }
-
-    protected Client getClient() {
-        return client("node0");
     }
 
     /**
@@ -88,18 +64,17 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractNodesTests {
      */
     @Test
     public void testUnmappedField() throws Exception {
-
-        client.admin().indices().prepareCreate("idx").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("idx");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("idx", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder().startObject()
                     .field("mapped", ""+i)
                     .endObject()).execute().actionGet();
         }
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        SearchResponse searchResponse = client.prepareSearch()
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addFacet(termsFacet("mapped").field("mapped").size(10))
                 .addFacet(termsFacet("unmapped_bool").field("unmapped_bool").size(10))
@@ -188,8 +163,8 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractNodesTests {
      */
     @Test
     public void testPartiallyUnmappedField() throws ElasticSearchException, IOException {
-
-        client.admin().indices().prepareCreate("mapped_idx")
+        client().admin().indices().prepareCreate("mapped_idx")
+                .setSettings(getSettings())
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("partially_mapped_byte").field("type", "byte").endObject()
                         .startObject("partially_mapped_short").field("type", "short").endObject()
@@ -199,13 +174,13 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractNodesTests {
                         .startObject("partially_mapped_double").field("type", "double").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        client.admin().indices().prepareCreate("unmapped_idx").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        
+        createIndex("unmapped_idx");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("mapped_idx", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("mapped_idx", "type", ""+i).setSource(jsonBuilder().startObject()
                     .field("mapped", "" + i)
                     .field("partially_mapped_str", ""+i)
                     .field("partially_mapped_bool", i%2 == 0)
@@ -219,15 +194,15 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractNodesTests {
         }
 
         for (int i = 10; i < 20; i++) {
-            client.prepareIndex("unmapped_idx", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("unmapped_idx", "type", ""+i).setSource(jsonBuilder().startObject()
                     .field("mapped", ""+i)
                     .endObject()).execute().actionGet();
         }
 
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addFacet(termsFacet("mapped").field("mapped").size(10))
                 .addFacet(termsFacet("partially_mapped_str").field("partially_mapped_str").size(10))
@@ -312,8 +287,8 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractNodesTests {
 
     @Test
     public void testMappedYetMissingField() throws IOException {
-
-        client.admin().indices().prepareCreate("idx")
+        client().admin().indices().prepareCreate("idx")
+                .setSettings(getSettings())
                 .addMapping("type", jsonBuilder().startObject()
                         .field("type").startObject()
                         .field("properties").startObject()
@@ -323,16 +298,16 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractNodesTests {
                         .endObject()
                         .endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("idx", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder().startObject()
                     .field("foo", "bar")
                     .endObject()).execute().actionGet();
         }
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addFacet(termsFacet("string").field("string").size(10))
                 .addFacet(termsFacet("long").field("long").size(10))
@@ -365,20 +340,19 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractNodesTests {
      */
     @Test
     public void testMultiFields() throws Exception {
-
-        client.admin().indices().prepareCreate("idx").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("idx");
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("idx", "type", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("idx", "type", ""+i).setSource(jsonBuilder().startObject()
                     .field("mapped_str", ""+i)
                     .field("mapped_long", i)
                     .field("mapped_double", i)
                     .endObject()).execute().actionGet();
         }
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        SearchResponse searchResponse = client.prepareSearch()
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addFacet(termsFacet("string").fields("mapped_str", "unmapped").size(10))
                 .addFacet(termsFacet("long").fields("mapped_long", "unmapped").size(10))

@@ -610,7 +610,6 @@ public class RecoveryTarget extends AbstractComponent {
                 }
 
                 indexOutput = store.createOutputRaw(name);
-
                 onGoingRecovery.openIndexOutputs.put(request.name(), indexOutput);
             } else {
                 indexOutput = onGoingRecovery.openIndexOutputs.get(request.name());

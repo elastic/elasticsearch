@@ -1,11 +1,9 @@
 package org.elasticsearch.test.integration.search.facet;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.RandomStringGenerator;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
@@ -13,9 +11,8 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.util.*;
@@ -27,23 +24,21 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-public class ExtendedFacetsTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards()).put("index.number_of_replicas", 0).build();
-        for (int i = 0; i < numberOfNodes(); i++) {
-            startNode("node" + i, settings);
-        }
-        client = getClient();
+public class ExtendedFacetsTests extends AbstractSharedClusterTest {
+    
+    @Override
+    public Settings getSettings() {
+        return randomSettingsBuilder()
+                .put("index.number_of_shards", numberOfShards())
+                .put("index.number_of_replicas", 0)
+                .build();
     }
 
     protected int numberOfShards() {
         return 1;
     }
 
+    @Override
     protected int numberOfNodes() {
         return 1;
     }
@@ -52,20 +47,10 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
         return 2500;
     }
 
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("node0");
-    }
 
     @Test
     public void testTermFacet_stringFields() throws Throwable {
-        client.admin().indices().prepareDelete().execute().actionGet();
-        client.admin().indices().prepareCreate("test")
+        prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject()
                         .startObject("type1")
                         .startObject("properties")
@@ -134,7 +119,7 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                 String field2Val = allUniqueFieldValues[random.nextInt(numOfVals)];
                 allField1AndField2Values.add(field2Val);
                 String queryVal = queryValues[random.nextInt(numOfQueryValues)];
-                client.prepareIndex("test", "type1", Integer.toString(i))
+                client().prepareIndex("test", "type1", Integer.toString(i))
                         .setSource(jsonBuilder().startObject()
                                 .field("field1_paged", field1Values)
                                 .field("field1_fst", field1Values)
@@ -144,14 +129,14 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                         .execute().actionGet();
 
                 if (random.nextInt(2000) == 854) {
-                    client.admin().indices().prepareFlush("test").execute().actionGet();
+                    client().admin().indices().prepareFlush("test").execute().actionGet();
                 }
                 addControlValues(queryValToField1FacetEntries, field1Values, queryVal);
                 addControlValues(queryValToField1and2FacetEntries, field1Values, queryVal);
                 addControlValues(queryValToField1and2FacetEntries, field2Val, queryVal);
             }
 
-            client.admin().indices().prepareRefresh().execute().actionGet();
+            client().admin().indices().prepareRefresh().execute().actionGet();
             String[] facetFields = new String[]{"field1_paged", "field1_fst"};
             TermsFacet.ComparatorType[] compTypes = TermsFacet.ComparatorType.values();
             for (String facetField : facetFields) {
@@ -204,7 +189,7 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                     boolean allTerms = random.nextInt(10) == 3;
                     termsFacetBuilder.allTerms(allTerms);
 
-                    SearchResponse response = client.prepareSearch("test")
+                    SearchResponse response = client().prepareSearch("test")
                             .setQuery(QueryBuilders.termQuery("q_field", queryVal))
                             .addFacet(termsFacetBuilder)
                             .execute().actionGet();

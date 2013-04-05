@@ -19,29 +19,20 @@
 
 package org.elasticsearch.test.integration.search.sort;
 
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.FilterBuilder;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.hamcrest.Matchers;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.customScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,66 +41,56 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.hamcrest.Matchers;
+import org.testng.annotations.Test;
 
 
 /**
  *
  */
-public class SimpleSortTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        Settings settings = settingsBuilder().put("index.number_of_shards", 3).put("index.number_of_replicas", 0).build();
-        startNode("server1", settings);
-        startNode("server2", settings);
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("server1");
+public class SimpleSortTests extends AbstractSharedClusterTest {
+    
+    @Override
+    public Settings getSettings() {
+        return randomSettingsBuilder()
+                .put("index.number_of_shards", 3)
+                .put("index.number_of_replicas", 0)
+                .build();
     }
     
     @Test
     public void testTrackScores() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        createIndex("test");
+        ensureGreen();
+        index("test", "type1", jsonBuilder().startObject()
                 .field("id", "1")
                 .field("svalue", "aaa")
                 .field("ivalue", 100)
                 .field("dvalue", 0.1)
-                .endObject()).execute().actionGet();
-
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+                .endObject());
+        index("test", "type1", jsonBuilder().startObject()
                 .field("id", "2")
                 .field("svalue", "bbb")
                 .field("ivalue", 200)
                 .field("dvalue", 0.2)
-                .endObject()).execute().actionGet();
+                .endObject());
+        refresh();
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("svalue", SortOrder.ASC)
                 .execute().actionGet();
@@ -120,7 +101,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         }
 
         // now check with score tracking
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort("svalue", SortOrder.ASC)
                 .setTrackScores(true)
@@ -132,54 +113,50 @@ public class SimpleSortTests extends AbstractNodesTests {
         }
     }
     
+
     @Test
     public void test3078() {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         for (int i = 1; i < 101; i++) {
-            client.prepareIndex("test", "type", Integer.toString(i)).setSource("field", Integer.toString(i)).execute().actionGet();
+            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", Integer.toString(i)).execute().actionGet();
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
-        SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
         
         // reindex and refresh
-        client.prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
+        refresh();
 
-        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
         
         // reindex - no refresh
-        client.prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
+        client().prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
 
-        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
         
         // optimize
-        client.admin().indices().prepareOptimize().execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        optimize();
+        refresh();
 
-        client.prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
-        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        client().prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
         
-        client.admin().indices().prepareRefresh().execute().actionGet();
-        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        refresh();
+        searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
@@ -187,69 +164,64 @@ public class SimpleSortTests extends AbstractNodesTests {
 
     @Test
     public void testScoreSortDirection() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").setSettings(randomSettingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        ensureGreen();
 
-        client.prepareIndex("test", "type", "1").setSource("field", 2).execute().actionGet();
-        client.prepareIndex("test", "type", "2").setSource("field", 1).execute().actionGet();
-        client.prepareIndex("test", "type", "3").setSource("field", 0).execute().actionGet();
+        client().prepareIndex("test", "type", "1").setSource("field", 2).execute().actionGet();
+        client().prepareIndex("test", "type", "2").setSource("field", 1).execute().actionGet();
+        client().prepareIndex("test", "type", "3").setSource("field", 0).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
-        SearchResponse searchResponse = client.prepareSearch("test").setQuery(customScoreQuery(matchAllQuery()).script("_source.field")).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(customScoreQuery(matchAllQuery()).script("_source.field")).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).score(), Matchers.lessThan(searchResponse.getHits().getAt(0).score()));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).score(), Matchers.lessThan(searchResponse.getHits().getAt(1).score()));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
-        searchResponse = client.prepareSearch("test").setQuery(customScoreQuery(matchAllQuery()).script("_source.field")).addSort("_score", SortOrder.DESC).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(customScoreQuery(matchAllQuery()).script("_source.field")).addSort("_score", SortOrder.DESC).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(1).score(), Matchers.lessThan(searchResponse.getHits().getAt(0).score()));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(2).score(), Matchers.lessThan(searchResponse.getHits().getAt(1).score()));
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
 
-        searchResponse = client.prepareSearch("test").setQuery(customScoreQuery(matchAllQuery()).script("_source.field")).addSort("_score", SortOrder.DESC).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(customScoreQuery(matchAllQuery()).script("_source.field")).addSort("_score", SortOrder.DESC).execute().actionGet();
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
-    
+
     @Test
     public void testIssue2991() {
         for (int i = 1; i < 4; i++) {
             try {
-                client.admin().indices().prepareDelete("test").execute().actionGet();
+                client().admin().indices().prepareDelete("test").execute().actionGet();
             } catch (Exception e) {
                 // ignore
             }
-            client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", i).put("index.number_of_replicas", 0)).execute().actionGet();
-            client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-            client.prepareIndex("test", "type", "1").setSource("tag", "alpha").execute().actionGet();
-            client.admin().indices().prepareRefresh().execute().actionGet();
+            prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", i).put("index.number_of_replicas", 0)).execute().actionGet();
+            ensureGreen();
+            client().prepareIndex("test", "type", "1").setSource("tag", "alpha").execute().actionGet();
+            refresh();
 
-            client.prepareIndex("test", "type", "3").setSource("tag", "gamma").execute().actionGet();
-            client.admin().indices().prepareRefresh().execute().actionGet();
+            client().prepareIndex("test", "type", "3").setSource("tag", "gamma").execute().actionGet();
+            refresh();
 
-            client.prepareIndex("test", "type", "4").setSource("tag", "delta").execute().actionGet();
+            client().prepareIndex("test", "type", "4").setSource("tag", "delta").execute().actionGet();
             
-            client.admin().indices().prepareRefresh().execute().actionGet();
-            client.prepareIndex("test", "type", "2").setSource("tag", "beta").execute().actionGet();
+            refresh();
+            client().prepareIndex("test", "type", "2").setSource("tag", "beta").execute().actionGet();
             
-            client.admin().indices().prepareRefresh().execute().actionGet();
-            SearchResponse resp = client.prepareSearch("test").setSize(2).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("tag").order(SortOrder.ASC)).execute().actionGet();
+            refresh();
+            SearchResponse resp = client().prepareSearch("test").setSize(2).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("tag").order(SortOrder.ASC)).execute().actionGet();
             assertHitCount(resp, 4);
             assertThat(resp.getHits().hits().length, equalTo(2));
             assertFirstHit(resp, hasId("1"));
             assertSecondHit(resp, hasId("2"));
             
-            resp = client.prepareSearch("test").setSize(2).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("tag").order(SortOrder.DESC)).execute().actionGet();
+            resp = client().prepareSearch("test").setSize(2).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("tag").order(SortOrder.DESC)).execute().actionGet();
             assertHitCount(resp, 4);
             assertThat(resp.getHits().hits().length, equalTo(2));
             assertFirstHit(resp, hasId("3"));
@@ -276,13 +248,8 @@ public class SimpleSortTests extends AbstractNodesTests {
         final long seed = System.currentTimeMillis();
         logger.info("testSimpleSorts SEED:[{}]", seed);
         Random random = new Random(seed);
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
+        prepareCreate("test")
+                .setSettings(randomSettingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("str_value").field("type", "string").endObject()
                         .startObject("boolean_value").field("type", "boolean").endObject()
@@ -294,10 +261,10 @@ public class SimpleSortTests extends AbstractNodesTests {
                         .startObject("double_value").field("type", "double").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
         List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
         for (int i = 0; i < 10; i++) {
-            IndexRequestBuilder builder = client.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+            IndexRequestBuilder builder = client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
                     .field("str_value", new String(new char[]{(char) (97 + i), (char) (97 + i)}))
                     .field("boolean_value", true)
                     .field("byte_value", i)
@@ -314,19 +281,19 @@ public class SimpleSortTests extends AbstractNodesTests {
             builder.execute().actionGet();
             if (random.nextBoolean()) {
                 if (random.nextInt(5) != 0) {
-                    client.admin().indices().prepareRefresh().execute().actionGet();
+                    refresh();
                 } else {
-                  client.admin().indices().prepareFlush().execute().actionGet();
+                  client().admin().indices().prepareFlush().execute().actionGet();
                 }
             }
             
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         // STRING
         int size = 1 + random.nextInt(10);
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("str_value", SortOrder.ASC)
@@ -338,7 +305,7 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(searchResponse.getHits().getAt(i).sortValues()[0].toString(), equalTo(new String(new char[]{(char) (97 + i), (char) (97 + i)})));
         }
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("str_value", SortOrder.DESC)
@@ -355,7 +322,7 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         // BYTE
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("byte_value", SortOrder.ASC)
@@ -368,7 +335,7 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).byteValue(), equalTo((byte) i));
         }
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("byte_value", SortOrder.DESC)
@@ -385,7 +352,7 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         // SHORT
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("short_value", SortOrder.ASC)
@@ -398,7 +365,7 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).shortValue(), equalTo((short) i));
         }
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("short_value", SortOrder.DESC)
@@ -415,7 +382,7 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         // INTEGER
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("integer_value", SortOrder.ASC)
@@ -430,7 +397,7 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         assertThat(searchResponse.toString(), not(containsString("error")));
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("integer_value", SortOrder.DESC)
@@ -447,7 +414,7 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         // LONG
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("long_value", SortOrder.ASC)
@@ -462,12 +429,12 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         assertThat(searchResponse.toString(), not(containsString("error")));
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("long_value", SortOrder.DESC)
                 .execute().actionGet();
-
+        assertHitCount(searchResponse, 10l);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
@@ -479,13 +446,13 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         // FLOAT
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("float_value", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10l);
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
@@ -494,7 +461,7 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         assertThat(searchResponse.toString(), not(containsString("error")));
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("float_value", SortOrder.DESC)
@@ -511,13 +478,13 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         // DOUBLE
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("double_value", SortOrder.ASC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10l);
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
@@ -526,48 +493,43 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         assertThat(searchResponse.toString(), not(containsString("error")));
         size = 1 + random.nextInt(10);
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(size)
                 .addSort("double_value", SortOrder.DESC)
                 .execute().actionGet();
 
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
+        assertHitCount(searchResponse, 10l);
         assertThat(searchResponse.getHits().hits().length, equalTo(size));
         for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * (9 - i), 0.000001d));
         }
 
-        assertThat(searchResponse.toString(), not(containsString("error")));
+        assertNoFailures(searchResponse);
     }
     
     @Test 
     public void testSortScript() throws IOException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        
         String mapping = jsonBuilder().startObject().startObject("profile").field("dynamic", "strict")
                 .startObject("properties")
                 .startObject("id").field("type", "integer").field("index", "not_analyzed").field("store", true).endObject()
                 .startObject("groups_code").startObject("properties").field("type", "integer").field("index", "not_analyzed").endObject().endObject()
                 .startObject("date").field("type", "date").field("index", "not_analyzed").field("format", "date_time_no_millis").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0)).addMapping("test", mapping);
-        
-        client.prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+        prepareCreate("test")
+                .setSettings(randomSettingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0)).addMapping("test", mapping);
+        ensureGreen();
+
+        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
                 .startArray("groups_code").startObject().field("id", 47642).field("date", "2010-08-12T07:54:55Z").endObject().endArray()
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
                 .startArray("groups_code").startObject().field("id", 47642).field("date", "2010-05-04T12:10:54Z").endObject().endArray()
                 .endObject()).execute().actionGet();
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.scriptSort("\u0027\u0027", "string")).setSize(10)
                 .execute().actionGet();
@@ -578,22 +540,17 @@ public class SimpleSortTests extends AbstractNodesTests {
     
     @Test
     public void testSortMinValueScript() throws IOException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("lvalue").field("type", "long").endObject()
                 .startObject("dvalue").field("type", "double").endObject()
                 .startObject("svalue").field("type", "string").endObject()
                 .startObject("gvalue").field("type", "geo_point").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").setSettings(getSettings()).addMapping("type1", mapping).execute().actionGet();
+        ensureGreen();
 
         for (int i = 0; i < 10; i++) {
-            IndexRequestBuilder req = client.prepareIndex("test", "type1", ""+i).setSource(jsonBuilder().startObject()
+            IndexRequestBuilder req = client().prepareIndex("test", "type1", ""+i).setSource(jsonBuilder().startObject()
                     .field("ord", i)
                     .field("svalue", new String[]{""+i, ""+(i+1), ""+(i+2)})
                     .field("lvalue", new long[] {i, i+1, i+2})
@@ -609,14 +566,14 @@ public class SimpleSortTests extends AbstractNodesTests {
         }
         
         for (int i = 10; i < 20; i++) { // add some docs that don't have values in those fields
-            client.prepareIndex("test", "type1", ""+i).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", ""+i).setSource(jsonBuilder().startObject()
                     .field("ord", i)
             .endObject()).execute().actionGet();
         }
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
         
         // test the long values
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "var retval = Long.MAX_VALUE; for (v : doc['lvalue'].values){  retval = Math.min(v, retval);} return retval;")
                 .addSort("ord", SortOrder.ASC).setSize(10)
@@ -629,7 +586,7 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Long)searchResponse.getHits().getAt(i).field("min").value(), equalTo((long)i));
         }
         // test the double values
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "var retval = Double.MAX_VALUE; for (v : doc['dvalue'].values){  retval = Math.min(v, retval);} return retval;")
                 .addSort("ord", SortOrder.ASC).setSize(10)
@@ -643,7 +600,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         }
         
         // test the string values
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "var retval = Integer.MAX_VALUE; for (v : doc['svalue'].values){  retval = Math.min(Integer.parseInt(v), retval);} return retval;")
                 .addSort("ord", SortOrder.ASC).setSize(10)
@@ -657,7 +614,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         }
         
         // test the geopoint values
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "var retval = Double.MAX_VALUE; for (v : doc['gvalue'].values){  retval = Math.min(v.lon, retval);} return retval;")
                 .addSort("ord", SortOrder.ASC).setSize(10)
@@ -673,39 +630,34 @@ public class SimpleSortTests extends AbstractNodesTests {
 
     @Test
     public void testDocumentsWithNullValue() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
         // TODO: sort shouldn't fail when sort field is mapped dynamically
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("svalue").field("type", "string").endObject()
                 .endObject().endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").setSettings(getSettings()).addMapping("type1", mapping).execute().actionGet();
+        ensureGreen();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("id", "1")
                 .field("svalue", "aaa")
                 .endObject()).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("id", "2")
                 .nullField("svalue")
                 .endObject()).execute().actionGet();
 
-        client.prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1").setSource(jsonBuilder().startObject()
                 .field("id", "3")
                 .field("svalue", "bbb")
                 .endObject()).execute().actionGet();
 
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
                 .addSort("svalue", SortOrder.ASC)
@@ -718,7 +670,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("1"));
         assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("3"));
         
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].values[0]")
                 .addSort("svalue", SortOrder.ASC)
@@ -731,7 +683,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat((String) searchResponse.getHits().getAt(1).field("id").value(), equalTo("1"));
         assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("3"));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("id", "doc['id'].value")
                 .addSort("svalue", SortOrder.DESC)
@@ -751,7 +703,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat((String) searchResponse.getHits().getAt(2).field("id").value(), equalTo("2"));
 
         // a query with docs just with null values
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(termQuery("id", "2"))
                 .addScriptField("id", "doc['id'].value")
                 .addSort("svalue", SortOrder.DESC)
@@ -771,34 +723,41 @@ public class SimpleSortTests extends AbstractNodesTests {
 
     @Test
     public void testSortMissing() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        prepareCreate("test").addMapping("type1",
+                XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("type1")
+                        .startObject("properties")
+                            .startObject("i_value")
+                                .field("type", "integer")
+                            .endObject()
+                            .startObject("d_value")
+                                .field("type", "float")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()).execute().actionGet();
+        ensureGreen();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("id", "1")
                 .field("i_value", -1)
                 .field("d_value", -1.1)
                 .endObject()).execute().actionGet();
 
-        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("id", "2")
                 .endObject()).execute().actionGet();
 
-        client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
                 .field("id", "1")
                 .field("i_value", 2)
                 .field("d_value", 2.2)
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
         logger.info("--> sort with no missing (same as missing _last)");
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC))
                 .execute().actionGet();
@@ -810,7 +769,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
 
         logger.info("--> sort with missing _last");
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC).missing("_last"))
                 .execute().actionGet();
@@ -822,7 +781,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
 
         logger.info("--> sort with missing _first");
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("i_value").order(SortOrder.ASC).missing("_first"))
                 .execute().actionGet();
@@ -836,19 +795,19 @@ public class SimpleSortTests extends AbstractNodesTests {
 
     @Test
     public void testIgnoreUnmapped() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        createIndex("test");
 
-        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("id", "1")
                 .field("i_value", -1)
                 .field("d_value", -1.1)
                 .endObject()).execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         logger.info("--> sort with an unmapped field, verify it fails");
         try {
-            SearchResponse searchResponse = client.prepareSearch()
+                client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addSort(SortBuilders.fieldSort("kkk"))
                     .execute().actionGet();
@@ -857,7 +816,7 @@ public class SimpleSortTests extends AbstractNodesTests {
 
         }
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("kkk").ignoreUnmapped(true))
                 .execute().actionGet();
@@ -867,13 +826,8 @@ public class SimpleSortTests extends AbstractNodesTests {
 
     @Test
     public void testSortMVField() throws Exception {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        prepareCreate("test")
+                .setSettings(randomSettingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("long_values").field("type", "long").endObject()
                         .startObject("int_values").field("type", "integer").endObject()
@@ -884,9 +838,10 @@ public class SimpleSortTests extends AbstractNodesTests {
                         .startObject("string_values").field("type", "string").field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
+        ensureGreen();
 
-        client.prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
                 .array("long_values", 1l, 5l, 10l, 8l)
                 .array("int_values", 1, 5, 10, 8)
                 .array("short_values", 1, 5, 10, 8)
@@ -895,7 +850,7 @@ public class SimpleSortTests extends AbstractNodesTests {
                 .array("double_values", 1d, 5d, 10d, 8d)
                 .array("string_values", "01", "05", "10", "08")
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
                 .array("long_values", 11l, 15l, 20l, 7l)
                 .array("int_values", 11, 15, 20, 7)
                 .array("short_values", 11, 15, 20, 7)
@@ -904,7 +859,7 @@ public class SimpleSortTests extends AbstractNodesTests {
                 .array("double_values", 11d, 15d, 20d, 7d)
                 .array("string_values", "11", "15", "20", "07")
                 .endObject()).execute().actionGet();
-        client.prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
                 .array("long_values", 2l, 1l, 3l, -4l)
                 .array("int_values", 2, 1, 3, -4)
                 .array("short_values", 2, 1, 3, -4)
@@ -914,9 +869,9 @@ public class SimpleSortTests extends AbstractNodesTests {
                 .array("string_values", "02", "01", "03", "!4")
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("long_values", SortOrder.ASC)
@@ -934,7 +889,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(2)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(7l));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("long_values", SortOrder.DESC)
@@ -952,7 +907,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(3l));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort(SortBuilders.fieldSort("long_values").order(SortOrder.DESC).sortMode("sum"))
@@ -970,7 +925,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).longValue(), equalTo(2l));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("int_values", SortOrder.ASC)
@@ -988,7 +943,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(2)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).intValue(), equalTo(7));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("int_values", SortOrder.DESC)
@@ -1006,7 +961,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).intValue(), equalTo(3));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("short_values", SortOrder.ASC)
@@ -1024,7 +979,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(2)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).intValue(), equalTo(7));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("short_values", SortOrder.DESC)
@@ -1042,7 +997,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).intValue(), equalTo(3));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("byte_values", SortOrder.ASC)
@@ -1060,7 +1015,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(2)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).intValue(), equalTo(7));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("byte_values", SortOrder.DESC)
@@ -1078,7 +1033,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).intValue(), equalTo(3));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("float_values", SortOrder.ASC)
@@ -1096,7 +1051,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(2)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).floatValue(), equalTo(7f));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("float_values", SortOrder.DESC)
@@ -1114,7 +1069,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).floatValue(), equalTo(3f));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("double_values", SortOrder.ASC)
@@ -1132,7 +1087,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(2)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), equalTo(7d));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("double_values", SortOrder.DESC)
@@ -1150,7 +1105,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), equalTo(3d));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("string_values", SortOrder.ASC)
@@ -1168,7 +1123,7 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(2)));
         assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("07"));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(10)
                 .addSort("string_values", SortOrder.DESC)
@@ -1189,27 +1144,22 @@ public class SimpleSortTests extends AbstractNodesTests {
     
     @Test
     public void testSortOnRareField() throws ElasticSearchException, IOException {
-        try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client.admin().indices().prepareCreate("test")
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+        prepareCreate("test")
+                .setSettings(randomSettingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("string_values").field("type", "string").field("index", "not_analyzed").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client.prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
+        ensureGreen();
+        client().prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
                 .array("string_values", "01", "05", "10", "08")
                 .endObject()).execute().actionGet();
 
         
        
        
-        client.admin().indices().prepareRefresh().execute().actionGet();
-        SearchResponse searchResponse = client.prepareSearch()
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(3)
                 .addSort("string_values", SortOrder.DESC)
@@ -1221,17 +1171,17 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo(Integer.toString(1)));
         assertThat(((Text) searchResponse.getHits().getAt(0).sortValues()[0]).string(), equalTo("10"));
         
-        client.prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
                 .array("string_values", "11", "15", "20", "07")
                 .endObject()).execute().actionGet();
         for (int i = 0; i < 15; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(300+i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(300+i)).setSource(jsonBuilder().startObject()
                     .array("some_other_field", "foobar")
                     .endObject()).execute().actionGet();
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(2)
                 .addSort("string_values", SortOrder.DESC)
@@ -1246,17 +1196,17 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(((Text) searchResponse.getHits().getAt(1).sortValues()[0]).string(), equalTo("10"));
 
         
-        client.prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
                 .array("string_values", "02", "01", "03", "!4")
                 .endObject()).execute().actionGet();
         for (int i = 0; i < 15; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(300+i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(300+i)).setSource(jsonBuilder().startObject()
                     .array("some_other_field", "foobar")
                     .endObject()).execute().actionGet();
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(3)
                 .addSort("string_values", SortOrder.DESC)
@@ -1274,13 +1224,13 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("03"));
         
         for (int i = 0; i < 15; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(300+i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(300+i)).setSource(jsonBuilder().startObject()
                     .array("some_other_field", "foobar")
                     .endObject()).execute().actionGet();
-            client.admin().indices().prepareRefresh().execute().actionGet();
+            refresh();
         }
         
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(3)
                 .addSort("string_values", SortOrder.DESC)

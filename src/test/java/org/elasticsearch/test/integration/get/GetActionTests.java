@@ -25,16 +25,13 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -44,135 +41,119 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
-public class GetActionTests extends AbstractNodesTests {
-
-    protected Client client;
-
-    @BeforeClass
-    public void startNodes() {
-        startNode("node1");
-        startNode("node2");
-        client = client("node1");
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
+public class GetActionTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleGetTests() {
-        client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        GetResponse response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client.prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
 
         logger.info("--> realtime get 1");
-        response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> realtime get 1 (no source)");
-        response = client.prepareGet("test", "type1", "1").setFields(Strings.EMPTY_ARRAY).execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").setFields(Strings.EMPTY_ARRAY).execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsBytes(), nullValue());
 
         logger.info("--> realtime get 1 (no type)");
-        response = client.prepareGet("test", null, "1").execute().actionGet();
+        response = client().prepareGet("test", null, "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> non realtime get 1");
-        response = client.prepareGet("test", "type1", "1").setRealtime(false).execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").setRealtime(false).execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> realtime fetch of field (requires fetching parsing source)");
-        response = client.prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsBytes(), nullValue());
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> flush the index, so we load it from it");
-        client.admin().indices().prepareFlush().execute().actionGet();
+        client().admin().indices().prepareFlush().execute().actionGet();
 
         logger.info("--> realtime get 1 (loaded from index)");
-        response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> non realtime get 1 (loaded from index)");
-        response = client.prepareGet("test", "type1", "1").setRealtime(false).execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").setRealtime(false).execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
         logger.info("--> realtime fetch of field (loaded from index)");
-        response = client.prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsBytes(), nullValue());
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
         logger.info("--> update doc 1");
-        client.prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").execute().actionGet();
 
         logger.info("--> realtime get 1");
-        response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1_1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_1"));
 
         logger.info("--> update doc 1 again");
-        client.prepareIndex("test", "type1", "1").setSource("field1", "value1_2", "field2", "value2_2").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_2", "field2", "value2_2").execute().actionGet();
 
-        response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1_2"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2_2"));
 
-        DeleteResponse deleteResponse = client.prepareDelete("test", "type1", "1").execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
         assertThat(deleteResponse.isNotFound(), equalTo(false));
 
-        response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
     }
 
     @Test
     public void simpleMultiGetTests() throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // fine
         }
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        MultiGetResponse response = client.prepareMultiGet().add("test", "type1", "1").execute().actionGet();
+        MultiGetResponse response = client().prepareMultiGet().add("test", "type1", "1").execute().actionGet();
         assertThat(response.getResponses().length, equalTo(1));
         assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(false));
 
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
 
-        response = client.prepareMultiGet()
+        response = client().prepareMultiGet()
                 .add("test", "type1", "1")
                 .add("test", "type1", "15")
                 .add("test", "type1", "3")
@@ -193,7 +174,7 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getResponses()[4].getResponse().isExists(), equalTo(false));
 
         // multi get with specific field
-        response = client.prepareMultiGet()
+        response = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item("test", "type1", "1").fields("field"))
                 .add(new MultiGetRequest.Item("test", "type1", "3").fields("field"))
                 .execute().actionGet();
@@ -205,13 +186,13 @@ public class GetActionTests extends AbstractNodesTests {
 
     @Test
     public void realtimeGetWithCompress() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("_source").field("compress", true).endObject().endObject().endObject())
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -220,19 +201,19 @@ public class GetActionTests extends AbstractNodesTests {
             sb.append((char) i);
         }
         String fieldValue = sb.toString();
-        client.prepareIndex("test", "type", "1").setSource("field", fieldValue).execute().actionGet();
+        client().prepareIndex("test", "type", "1").setSource("field", fieldValue).execute().actionGet();
 
         // realtime get
-        GetResponse getResponse = client.prepareGet("test", "type", "1").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo(fieldValue));
     }
 
     @Test
     public void getFieldsWithDifferentTypes() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type").startObject("_source").field("enabled", true).endObject().endObject().endObject())
                 .addMapping("type2", jsonBuilder().startObject().startObject("type")
                         .startObject("_source").field("enabled", false).endObject()
@@ -247,11 +228,11 @@ public class GetActionTests extends AbstractNodesTests {
                         .endObject().endObject())
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        client.prepareIndex("test", "type1", "1").setSource(
+        client().prepareIndex("test", "type1", "1").setSource(
                 jsonBuilder().startObject()
                         .field("str", "test")
                         .field("strs", new String[]{"A", "B", "C"})
@@ -261,7 +242,7 @@ public class GetActionTests extends AbstractNodesTests {
                         .field("binary", Base64.encodeBytes(new byte[]{1, 2, 3}))
                         .endObject()).execute().actionGet();
 
-        client.prepareIndex("test", "type2", "1").setSource(
+        client().prepareIndex("test", "type2", "1").setSource(
                 jsonBuilder().startObject()
                         .field("str", "test")
                         .field("strs", new String[]{"A", "B", "C"})
@@ -273,7 +254,7 @@ public class GetActionTests extends AbstractNodesTests {
 
         // realtime get with stored source
         logger.info("--> realtime get (from source)");
-        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
         assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
@@ -283,7 +264,7 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
         logger.info("--> realtime get (from stored fields)");
-        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
+        getResponse = client().prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
         assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
@@ -293,10 +274,10 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat((BytesReference) getResponse.getField("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
 
         logger.info("--> flush the index, so we load it from it");
-        client.admin().indices().prepareFlush().execute().actionGet();
+        client().admin().indices().prepareFlush().execute().actionGet();
 
         logger.info("--> non realtime get (from source)");
-        getResponse = client.prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
+        getResponse = client().prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
         assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
@@ -306,7 +287,7 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
         logger.info("--> non realtime get (from stored fields)");
-        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
+        getResponse = client().prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
         assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
@@ -319,7 +300,7 @@ public class GetActionTests extends AbstractNodesTests {
     @Test
     public void testGetDocWithMultivaluedFields() throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // fine
         }
@@ -334,30 +315,30 @@ public class GetActionTests extends AbstractNodesTests {
                 .endObject()
                 .startObject("_source").field("enabled", false).endObject()
                 .endObject().endObject().string();
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .addMapping("type1", mapping1)
                 .addMapping("type2", mapping2)
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        GetResponse response = client.prepareGet("test", "type1", "1").execute().actionGet();
+        GetResponse response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
-        response = client.prepareGet("test", "type2", "1").execute().actionGet();
+        response = client().prepareGet("test", "type2", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
 
-        client.prepareIndex("test", "type1", "1")
+        client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject())
                 .execute().actionGet();
 
-        client.prepareIndex("test", "type2", "1")
+        client().prepareIndex("test", "type2", "1")
                 .setSource(jsonBuilder().startObject().field("field", "1", "2").endObject())
                 .execute().actionGet();
 
-        response = client.prepareGet("test", "type1", "1")
+        response = client().prepareGet("test", "type1", "1")
                 .setFields("field")
                 .execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
@@ -369,7 +350,7 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
 
 
-        response = client.prepareGet("test", "type2", "1")
+        response = client().prepareGet("test", "type2", "1")
                 .setFields("field")
                 .execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
@@ -381,8 +362,8 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
 
         // Now test values being fetched from stored fields.
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        response = client.prepareGet("test", "type1", "1")
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareGet("test", "type1", "1")
                 .setFields("field")
                 .execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
@@ -393,7 +374,7 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
 
 
-        response = client.prepareGet("test", "type2", "1")
+        response = client().prepareGet("test", "type2", "1")
                 .setFields("field")
                 .execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
@@ -406,7 +387,7 @@ public class GetActionTests extends AbstractNodesTests {
 
     @Test
     public void testThatGetFromTranslogShouldWorkWithExclude() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         String index = "test";
         String type = "type1";
 
@@ -420,18 +401,18 @@ public class GetActionTests extends AbstractNodesTests {
                 .endObject()
             .string();
 
-        client.admin().indices().prepareCreate(index)
+        client().admin().indices().prepareCreate(index)
                 .addMapping(type, mapping)
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .execute().actionGet();
 
-        client.prepareIndex(index, type, "1")
+        client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject().field("field", "1", "2").field("excluded", "should not be seen").endObject())
                 .execute().actionGet();
 
-        GetResponse responseBeforeFlush = client.prepareGet(index, type, "1").execute().actionGet();
-        client.admin().indices().prepareFlush(index).execute().actionGet();
-        GetResponse responseAfterFlush = client.prepareGet(index, type, "1").execute().actionGet();
+        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").execute().actionGet();
+        client().admin().indices().prepareFlush(index).execute().actionGet();
+        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").execute().actionGet();
 
         assertThat(responseBeforeFlush.isExists(), is(true));
         assertThat(responseAfterFlush.isExists(), is(true));
@@ -442,7 +423,7 @@ public class GetActionTests extends AbstractNodesTests {
 
     @Test
     public void testThatGetFromTranslogShouldWorkWithInclude() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         String index = "test";
         String type = "type1";
 
@@ -456,18 +437,18 @@ public class GetActionTests extends AbstractNodesTests {
             .endObject()
             .string();
 
-        client.admin().indices().prepareCreate(index)
+        client().admin().indices().prepareCreate(index)
                 .addMapping(type, mapping)
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .execute().actionGet();
 
-        client.prepareIndex(index, type, "1")
+        client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject().field("field", "1", "2").field("included", "should be seen").endObject())
                 .execute().actionGet();
 
-        GetResponse responseBeforeFlush = client.prepareGet(index, type, "1").execute().actionGet();
-        client.admin().indices().prepareFlush(index).execute().actionGet();
-        GetResponse responseAfterFlush = client.prepareGet(index, type, "1").execute().actionGet();
+        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").execute().actionGet();
+        client().admin().indices().prepareFlush(index).execute().actionGet();
+        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").execute().actionGet();
 
         assertThat(responseBeforeFlush.isExists(), is(true));
         assertThat(responseAfterFlush.isExists(), is(true));
@@ -478,7 +459,7 @@ public class GetActionTests extends AbstractNodesTests {
 
     @Test
     public void testThatGetFromTranslogShouldWorkWithIncludeExcludeAndFields() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
         String index = "test";
         String type = "type1";
 
@@ -493,12 +474,12 @@ public class GetActionTests extends AbstractNodesTests {
             .endObject()
             .string();
 
-        client.admin().indices().prepareCreate(index)
+        client().admin().indices().prepareCreate(index)
                 .addMapping(type, mapping)
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .execute().actionGet();
 
-        client.prepareIndex(index, type, "1")
+        client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject()
                         .field("field", "1", "2")
                         .field("included", "should be seen")
@@ -506,9 +487,9 @@ public class GetActionTests extends AbstractNodesTests {
                     .endObject())
                 .execute().actionGet();
 
-        GetResponse responseBeforeFlush = client.prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
-        client.admin().indices().prepareFlush(index).execute().actionGet();
-        GetResponse responseAfterFlush = client.prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
+        GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
+        client().admin().indices().prepareFlush(index).execute().actionGet();
+        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
 
         assertThat(responseBeforeFlush.isExists(), is(true));
         assertThat(responseAfterFlush.isExists(), is(true));

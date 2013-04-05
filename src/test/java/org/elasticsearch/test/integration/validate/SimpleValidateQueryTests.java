@@ -30,10 +30,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.hamcrest.Matcher;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -44,61 +43,42 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class SimpleValidateQueryTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        startNode("node1");
-        startNode("node2");
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("node1");
-    }
+public class SimpleValidateQueryTests  extends AbstractSharedClusterTest {
 
     @Test
     public void simpleValidateQuery() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client.admin().indices().preparePutMapping("test").setType("type1")
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("foo").field("type", "string").endObject()
                         .startObject("bar").field("type", "integer").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes(Streams.UTF8)).execute().actionGet().isValid(), equalTo(false));
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().isValid(), equalTo(true));
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes(Streams.UTF8)).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1")).execute().actionGet().isValid(), equalTo(true));
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("bar:hey")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("bar:hey")).execute().actionGet().isValid(), equalTo(false));
 
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("nonexistent:hello")).execute().actionGet().isValid(), equalTo(true));
 
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("foo:1 AND")).execute().actionGet().isValid(), equalTo(false));
     }
 
     @Test
     public void explainValidateQuery() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client.admin().indices().preparePutMapping("test").setType("type1")
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("foo").field("type", "string").endObject()
                         .startObject("bar").field("type", "integer").endObject()
@@ -106,7 +86,7 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
                         .startObject("pin").startObject("properties").startObject("location").field("type", "geo_point").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client.admin().indices().preparePutMapping("test").setType("child-type")
+        client().admin().indices().preparePutMapping("test").setType("child-type")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("child-type")
                         .startObject("_parent").field("type", "type1").endObject()
                         .startObject("properties")
@@ -115,11 +95,11 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
                         .endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
 
         ValidateQueryResponse response;
-        response = client.admin().indices().prepareValidateQuery("test")
+        response = client().admin().indices().prepareValidateQuery("test")
                 .setQuery("foo".getBytes(Streams.UTF8))
                 .setExplain(true)
                 .execute().actionGet();
@@ -206,13 +186,13 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
 
     @Test
     public void explainValidateQueryTwoNodes() throws IOException {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client.admin().indices().preparePutMapping("test").setType("type1")
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("type1")
                 .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("foo").field("type", "string").endObject()
                         .startObject("bar").field("type", "integer").endObject()
@@ -221,50 +201,37 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
 
-        ValidateQueryResponse response;
-        response = client("node1").admin().indices().prepareValidateQuery("test")
-                .setQuery("foo".getBytes(Streams.UTF8))
-                .setExplain(true)
-                .execute().actionGet();
-        assertThat(response.isValid(), equalTo(false));
-        assertThat(response.getQueryExplanation().size(), equalTo(1));
-        assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to parse"));
-        assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
+        
+        for (Client client :  cluster().clients()) {
+            ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
+                    .setQuery("foo".getBytes(Streams.UTF8))
+                    .setExplain(true)
+                    .execute().actionGet();
+            assertThat(response.isValid(), equalTo(false));
+            assertThat(response.getQueryExplanation().size(), equalTo(1));
+            assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to parse"));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
-        response = client("node2").admin().indices().prepareValidateQuery("test")
-                .setQuery("foo".getBytes(Streams.UTF8))
-                .setExplain(true)
-                .execute().actionGet();
-        assertThat(response.isValid(), equalTo(false));
-        assertThat(response.getQueryExplanation().size(), equalTo(1));
-        assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to parse"));
-        assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
-
-        response = client("node1").admin().indices().prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryString("foo"))
-                .setExplain(true)
-                .execute().actionGet();
-        assertThat(response.isValid(), equalTo(true));
-        assertThat(response.getQueryExplanation().size(), equalTo(1));
-        assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("_all:foo"));
-        assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
-
-        response = client("node2").admin().indices().prepareValidateQuery("test")
-                .setQuery(QueryBuilders.queryString("foo"))
-                .setExplain(true)
-                .execute().actionGet();
-        assertThat(response.isValid(), equalTo(true));
-        assertThat(response.getQueryExplanation().size(), equalTo(1));
-        assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("_all:foo"));
-        assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
+        }
+        
+        for (Client client :  cluster().clients()) {
+                ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
+                    .setQuery(QueryBuilders.queryString("foo"))
+                    .setExplain(true)
+                    .execute().actionGet();
+            assertThat(response.isValid(), equalTo(true));
+            assertThat(response.getQueryExplanation().size(), equalTo(1));
+            assertThat(response.getQueryExplanation().get(0).getExplanation(), equalTo("_all:foo"));
+            assertThat(response.getQueryExplanation().get(0).getError(), nullValue());
+        }
     }
 
 
     private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {
-        ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
+        ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
                 .setTypes("type1")
                 .setQuery(queryBuilder)
                 .setExplain(true)

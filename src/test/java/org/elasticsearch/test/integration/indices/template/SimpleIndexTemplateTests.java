@@ -20,13 +20,10 @@
 package org.elasticsearch.test.integration.indices.template;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
@@ -38,32 +35,14 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleIndexTemplateTests extends AbstractNodesTests {
+public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
 
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        startNode("node1");
-        startNode("node2");
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("node2");
-    }
 
     @Test
     public void simpleIndexTemplateTests() throws Exception {
         clean();
 
-        client.admin().indices().preparePutTemplate("template_1")
+        client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -72,7 +51,7 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().indices().preparePutTemplate("template_2")
+        client().admin().indices().preparePutTemplate("template_2")
                 .setTemplate("test*")
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -82,7 +61,7 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
 
         // test create param
         try {
-            client.admin().indices().preparePutTemplate("template_2")
+            client().admin().indices().preparePutTemplate("template_2")
                     .setTemplate("test*")
                     .setCreate(true)
                     .setOrder(1)
@@ -99,11 +78,11 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
 
 
         // index something into test_index, will match on both templates
-        client.prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch("test_index")
+        SearchResponse searchResponse = client().prepareSearch("test_index")
                 .setQuery(termQuery("field1", "value1"))
                 .addField("field1").addField("field2")
                 .execute().actionGet();
@@ -116,12 +95,12 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(0).field("field1").value().toString(), equalTo("value1"));
         assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2")); // this will still be loaded because of the source feature
 
-        client.prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
+        client().prepareIndex("text_index", "type1", "1").setSource("field1", "value1", "field2", "value 2").setRefresh(true).execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         // now only match on one template (template_1)
-        searchResponse = client.prepareSearch("text_index")
+        searchResponse = client().prepareSearch("text_index")
                 .setQuery(termQuery("field1", "value1"))
                 .addField("field1").addField("field2")
                 .execute().actionGet();
@@ -137,22 +116,22 @@ public class SimpleIndexTemplateTests extends AbstractNodesTests {
 
     private void clean() {
         try {
-            client.admin().indices().prepareDelete("test_index").execute().actionGet();
+            client().admin().indices().prepareDelete("test_index").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
         try {
-            client.admin().indices().prepareDelete("text_index").execute().actionGet();
+            client().admin().indices().prepareDelete("text_index").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
         try {
-            client.admin().indices().prepareDeleteTemplate("template_1").execute().actionGet();
+            client().admin().indices().prepareDeleteTemplate("template_1").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
         try {
-            client.admin().indices().prepareDeleteTemplate("template_2").execute().actionGet();
+            client().admin().indices().prepareDeleteTemplate("template_2").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }

@@ -19,49 +19,36 @@
 
 package org.elasticsearch.test.integration.search.geo;
 
-import com.spatial4j.core.shape.Shape;
+import static org.elasticsearch.common.geo.ShapeBuilder.newRectangle;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.geoIntersectionFilter;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoShapeQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.geo.ShapeBuilder.newRectangle;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import com.spatial4j.core.shape.Shape;
 
-public class GeoShapeIntegrationTests extends AbstractNodesTests {
+public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
 
-    private Client client;
-
-    @BeforeClass
+    @BeforeTest
     public void createNodes() throws Exception {
-        startNode("server1");
-        startNode("server2");
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("server1");
+        cluster().ensureAtLeastNumNodes(2);
     }
 
     @Test
     public void testIndexPointsFilterRectangle() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -69,10 +56,10 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
                 .startObject("location")
                 .field("type", "point")
@@ -80,7 +67,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject()
                 .endObject()).execute().actionGet();
 
-        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("name", "Document 2")
                 .startObject("location")
                 .field("type", "point")
@@ -88,11 +75,11 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject()
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         Shape shape = newRectangle().topLeft(-45, 45).bottomRight(45, -45).build();
 
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
                         geoIntersectionFilter("location", shape)))
                 .execute().actionGet();
@@ -101,7 +88,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(geoShapeQuery("location", shape))
                 .execute().actionGet();
 
@@ -112,7 +99,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
     @Test
     public void testEdgeCases() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -120,10 +107,10 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "blakely").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "blakely").setSource(jsonBuilder().startObject()
                 .field("name", "Blakely Island")
                 .startObject("location")
                 .field("type", "polygon")
@@ -136,13 +123,13 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject()
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         Shape query = newRectangle().topLeft(-122.88, 48.62).bottomRight(-122.82, 48.54).build();
 
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
-        SearchResponse searchResponse = client.prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
                         geoIntersectionFilter("location", query)))
                 .execute().actionGet();
@@ -154,7 +141,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
     @Test
     public void testIndexedShapeReference() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -162,10 +149,10 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
                 .startObject("location")
                 .field("type", "point")
@@ -173,7 +160,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
                 .endObject()
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
 
         Shape shape = newRectangle().topLeft(-45, 45).bottomRight(45, -45).build();
         XContentBuilder shapeContent = jsonBuilder().startObject()
@@ -181,12 +168,12 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         GeoJSONShapeSerializer.serialize(shape, shapeContent);
         shapeContent.endObject();
 
-        client.prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(shapeContent).execute().actionGet();
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(shapeContent).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        client.admin().indices().prepareRefresh("shapes").execute().actionGet();
+        client().admin().indices().prepareRefresh("shapes").execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch("test")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(),
                         geoIntersectionFilter("location", "Big_Rectangle", "shape_type")))
                 .execute().actionGet();
@@ -195,7 +182,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
 
-        searchResponse = client.prepareSearch()
+        searchResponse = client().prepareSearch()
                 .setQuery(geoShapeQuery("location", "Big_Rectangle", "shape_type"))
                 .execute().actionGet();
 

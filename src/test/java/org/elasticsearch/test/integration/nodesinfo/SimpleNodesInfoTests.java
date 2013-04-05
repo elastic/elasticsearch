@@ -199,6 +199,10 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         }
 
         startNode(name, settings);
+
+        // We wait for a Green status
+        client(name).admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+
         String serverNodeId = ((InternalNode) node(name)).injector()
                 .getInstance(ClusterService.class).state().nodes().localNodeId();
         logger.debug("--> server {} started" + serverNodeId);

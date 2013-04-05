@@ -21,11 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
-import org.elasticsearch.index.fielddata.BytesValues;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.LongValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
@@ -133,7 +129,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             return new DoubleValues(values, ordinals.ordinals());
         }
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.OrdBasedLongValues {
+        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.WithOrdinals {
 
             private final float[] values;
 
@@ -148,7 +144,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
             }
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.OrdBasedDoubleValues {
+        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.WithOrdinals {
 
             private final float[] values;
 
@@ -295,7 +291,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
         }
 
 
-        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.DenseLongValues {
+        static class LongValues extends org.elasticsearch.index.fielddata.LongValues.Dense {
 
             private final float[] values;
 
@@ -311,7 +307,7 @@ public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
 
         }
 
-        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.DenseDoubleValues {
+        static class DoubleValues extends org.elasticsearch.index.fielddata.DoubleValues.Dense {
 
             private final float[] values;
 

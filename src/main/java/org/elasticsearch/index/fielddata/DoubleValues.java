@@ -31,7 +31,7 @@ public abstract class DoubleValues {
     private final boolean multiValued;
     protected final Iter.Single iter = new Iter.Single();
 
-    
+
     protected DoubleValues(boolean multiValued) {
         this.multiValued = multiValued;
     }
@@ -56,7 +56,7 @@ public abstract class DoubleValues {
         }
         return missingValue;
     }
-    
+
     public Iter getIter(int docId) {
         assert !isMultiValued();
         if (hasValue(docId)) {
@@ -66,14 +66,14 @@ public abstract class DoubleValues {
         }
     }
 
-    
-    public static abstract class DenseDoubleValues extends DoubleValues {
-        
-        
-        protected DenseDoubleValues(boolean multiValued) {
+
+    public static abstract class Dense extends DoubleValues {
+
+
+        protected Dense(boolean multiValued) {
             super(multiValued);
         }
-        
+
         @Override
         public final boolean hasValue(int docId) {
             return true;
@@ -84,7 +84,7 @@ public abstract class DoubleValues {
             assert !isMultiValued();
             return getValue(docId);
         }
-        
+
         public final Iter getIter(int docId) {
             assert hasValue(docId);
             assert !isMultiValued();
@@ -92,20 +92,24 @@ public abstract class DoubleValues {
         }
 
     }
-    
-    public static abstract class OrdBasedDoubleValues extends DoubleValues {
+
+    public static abstract class WithOrdinals extends DoubleValues {
 
         protected final Docs ordinals;
         private final Iter.Multi iter;
 
-        protected OrdBasedDoubleValues(Ordinals.Docs ordinals) {
+        protected WithOrdinals(Ordinals.Docs ordinals) {
             super(ordinals.isMultiValued());
             this.ordinals = ordinals;
             iter = new Iter.Multi(this);
         }
-        
+
+        public Docs ordinals() {
+            return ordinals;
+        }
+
         @Override
-        public final  boolean hasValue(int docId) {
+        public final boolean hasValue(int docId) {
             return ordinals.getOrd(docId) != 0;
         }
 
@@ -113,7 +117,7 @@ public abstract class DoubleValues {
         public final double getValue(int docId) {
             return getByOrd(ordinals.getOrd(docId));
         }
-        
+
         @Override
         public final double getValueMissing(int docId, double missingValue) {
             final int ord = ordinals.getOrd(docId);
@@ -123,12 +127,12 @@ public abstract class DoubleValues {
                 return getByOrd(ord);
             }
         }
-        
+
         protected abstract double getByOrd(int ord);
 
         @Override
         public final Iter getIter(int docId) {
-           return iter.reset(ordinals.getIter(docId));
+            return iter.reset(ordinals.getIter(docId));
         }
 
     }
@@ -154,7 +158,7 @@ public abstract class DoubleValues {
             }
         }
 
-       static class Single implements Iter {
+        static class Single implements Iter {
 
             public double value;
             public boolean done;
@@ -177,14 +181,14 @@ public abstract class DoubleValues {
                 return value;
             }
         }
-       
+
         static class Multi implements Iter {
 
             private org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter ordsIter;
             private int ord;
-            private OrdBasedDoubleValues values;
+            private WithOrdinals values;
 
-            public Multi(OrdBasedDoubleValues values) {
+            public Multi(WithOrdinals values) {
                 this.values = values;
             }
 
@@ -209,7 +213,7 @@ public abstract class DoubleValues {
     }
 
     static class Empty extends DoubleValues {
-        
+
         public Empty() {
             super(false);
         }
@@ -230,12 +234,12 @@ public abstract class DoubleValues {
         }
 
     }
-    
-    public static class FilteredDoubleValues extends DoubleValues {
+
+    public static class Filtered extends DoubleValues {
 
         protected final DoubleValues delegate;
 
-        public FilteredDoubleValues(DoubleValues delegate) {
+        public Filtered(DoubleValues delegate) {
             super(delegate.isMultiValued());
             this.delegate = delegate;
         }

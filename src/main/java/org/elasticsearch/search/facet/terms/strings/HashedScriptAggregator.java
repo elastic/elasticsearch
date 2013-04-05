@@ -20,7 +20,6 @@ package org.elasticsearch.search.facet.terms.strings;
 
 import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -39,11 +38,6 @@ public final class HashedScriptAggregator extends HashedAggregator {
     private final boolean convert;
     
     public HashedScriptAggregator(ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
-        this(new BytesRefHash(), excluded, pattern, script);
-    }
-
-    public HashedScriptAggregator(BytesRefHash hash, ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
-        super(hash);
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;
         this.script = script;
@@ -51,41 +45,37 @@ public final class HashedScriptAggregator extends HashedAggregator {
     }
 
     @Override
-    public void addValue(BytesRef value, int hashCode) {
-        if (excluded != null && excluded.contains(value)) {
-            return;
+    public void addValue(BytesRef value, int hashCode, BytesValues values) {
+        if (accept(value)) {
+            super.addValue(value, hashCode, values);
         }
-        UnicodeUtil.UTF8toUTF16(value, spare);
-        if (matcher != null) {
-            assert convert : "regexp: [convert == false] but should be true";
-            assert value.utf8ToString().equals(spare.toString()) : "not converted";
-            if (!matcher.reset(spare).matches()) {
-                return;
-            }
-        }
-        super.addValue(value, hashCode);
     }
-
-    @Override
-    protected void onValue(int docId, BytesRef value, int hashCode, BytesValues values) {
+    
+    private boolean accept(BytesRef value) {
         if (excluded != null && excluded.contains(value)) {
-            return;
+            return false;
         }
-        if (convert) {
+        if(convert) {
             // only convert if we need to and only once per doc...
             UnicodeUtil.UTF8toUTF16(value, spare);
             if (matcher != null) {
                 assert convert : "regexp: [convert == false] but should be true";
                 assert value.utf8ToString().equals(spare.toString()) : "not converted";
-                if (!matcher.reset(spare).matches()) {
-                    return;
-                }
+                return matcher.reset(spare).matches();
             }
+        }
+        return true;
+    }
+    
+    @Override
+    protected void onValue(int docId, BytesRef value, int hashCode, BytesValues values) {
+        if (accept(value)) {
             if (script != null) {
                 assert convert : "script: [convert == false] but should be true";
                 assert value.utf8ToString().equals(spare.toString()) : "not converted";
                 script.setNextDocId(docId);
-                // LUCENE 4 UPGRADE: needs optimization -- maybe a CharSequence does the job here?
+                // LUCENE 4 UPGRADE: needs optimization -- maybe a CharSequence
+                // does the job here?
                 // we only creat that string if we really need
                 script.setNextVar("term", spare.toString());
                 Object scriptValue = script.run();
@@ -97,15 +87,16 @@ public final class HashedScriptAggregator extends HashedAggregator {
                         return;
                     }
                 } else {
-                    // LUCENE 4 UPGRADE: should be possible to convert directly to BR
+                    // LUCENE 4 UPGRADE: should be possible to convert directly
+                    // to BR
                     scriptSpare.copyChars(scriptValue.toString());
                     hashCode = scriptSpare.hashCode();
                     super.onValue(docId, scriptSpare, hashCode, values);
                     return;
                 }
             }
-        } 
-        assert convert || (matcher == null && script == null);
-        super.onValue(docId, value, hashCode, values);
+            assert convert || (matcher == null && script == null);
+            super.onValue(docId, value, hashCode, values);
+        }
     }
 }

@@ -147,11 +147,11 @@ public abstract class  BytesValues {
         
         static class Multi implements Iter {
 
-            private int innerOrd;
+            protected int innerOrd;
             protected int ord;
-            private BytesValues.WithOrdinals withOrds;
-            private Ordinals.Docs.Iter ordsIter;
-            private final BytesRef scratch = new BytesRef();
+            protected BytesValues.WithOrdinals withOrds;
+            protected Ordinals.Docs.Iter ordsIter;
+            protected final BytesRef scratch = new BytesRef();
             public Multi(WithOrdinals withOrds) {
                 this.withOrds = withOrds;
                 assert withOrds.isMultiValued();
@@ -236,7 +236,6 @@ public abstract class  BytesValues {
             assert !this.isMultiValued();
             return new Iter.Single();
         }
-
 
         @Override
         public boolean hasValue(int docId) {

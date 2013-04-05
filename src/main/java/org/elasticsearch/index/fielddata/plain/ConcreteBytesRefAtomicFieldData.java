@@ -144,19 +144,6 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
             return bytes;
         }
 
-        @Override
-        public BytesRef getValueScratch(int docId, BytesRef ret) {
-            BytesRef value = values[ordinals.getOrd(docId)];
-            if (value == null) {
-                ret.length = 0;
-            } else {
-                ret.bytes = value.bytes;
-                ret.offset = value.offset;
-                ret.length = value.length;
-            }
-            return ret;
-        }
-
         static class Single extends BytesValues {
 
             private final Iter.Single iter;
@@ -207,6 +194,24 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
                 assert ordinals.isMultiValued();
                 this.iter = newMultiIter();
             }
+            
+            @Override
+            protected Iter.Multi newMultiIter() {
+                return new Iter.Multi(this) {
+                    private BytesRef current = null;
+                    @Override
+                    public BytesRef next() {
+                        current = withOrds.getValueByOrd(innerOrd);
+                        ord = innerOrd;
+                        innerOrd = ordsIter.next();
+                        return current;
+                    } 
+                    public int hash() {
+                        assert current != null;
+                        return current.hashCode();
+                    }
+                };
+            }
 
             @Override
             public Iter getIter(int docId) {
@@ -226,6 +231,15 @@ public class ConcreteBytesRefAtomicFieldData implements AtomicFieldData.WithOrdi
             @Override
             protected Iter.Multi newMultiIter() {
                 return new Iter.Multi(this) {
+                    private BytesRef current = null;
+                    @Override
+                    public BytesRef next() {
+                        current = withOrds.getValueByOrd(innerOrd);
+                        ord = innerOrd;
+                        innerOrd = ordsIter.next();
+                        return current;
+                    } 
+
                     public int hash() {
                         return hashes[ord];
                     }

@@ -135,6 +135,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         @Override
         public void postCollection() {
             TermsStatsStringFacetExecutor.this.missing = aggregator.missing;
+            aggregator.release();
         }
     }
 

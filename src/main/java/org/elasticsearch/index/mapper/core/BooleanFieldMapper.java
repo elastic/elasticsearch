@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Booleans;
@@ -58,6 +59,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
         static {
             FIELD_TYPE.setOmitNorms(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
 
@@ -81,51 +83,6 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         public Builder nullValue(boolean nullValue) {
             this.nullValue = nullValue;
             return this;
-        }
-
-        @Override
-        public Builder index(boolean index) {
-            return super.index(index);
-        }
-
-        @Override
-        public Builder store(boolean store) {
-            return super.store(store);
-        }
-
-        @Override
-        protected Builder storeTermVectors(boolean termVectors) {
-            return super.storeTermVectors(termVectors);
-        }
-
-        @Override
-        protected Builder storeTermVectorOffsets(boolean termVectorOffsets) {
-            return super.storeTermVectorOffsets(termVectorOffsets);
-        }
-
-        @Override
-        protected Builder storeTermVectorPositions(boolean termVectorPositions) {
-            return super.storeTermVectorPositions(termVectorPositions);
-        }
-
-        @Override
-        protected Builder storeTermVectorPayloads(boolean termVectorPayloads) {
-            return super.storeTermVectorPayloads(termVectorPayloads);
-        }
-
-        @Override
-        public Builder boost(float boost) {
-            return super.boost(boost);
-        }
-
-        @Override
-        public Builder indexName(String indexName) {
-            return super.indexName(indexName);
-        }
-
-        @Override
-        public Builder similarity(SimilarityProvider similarity) {
-            return super.similarity(similarity);
         }
 
         @Override

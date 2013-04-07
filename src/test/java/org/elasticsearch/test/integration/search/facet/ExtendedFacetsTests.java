@@ -93,6 +93,13 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                         .startObject("field2")
                         .field("type", "string")
                         .field("index", "not_analyzed")
+                        .startObject("fielddata")
+                        .field("format", "fst")
+                        .endObject()
+                        .endObject()
+                        .startObject("q_field")
+                        .field("type", "string")
+                        .field("index", "not_analyzed")
                         .endObject()
                         .endObject()
                         .endObject().endObject()
@@ -100,14 +107,9 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                 .execute().actionGet();
 
 
-        long seed = System.currentTimeMillis(); // LuceneTestCase...
+        long seed = System.currentTimeMillis(); // LuceneTestCase... 1365254308314l;
         try {
             Random random = new Random(seed);
-            int numOfValuesField1 = 200;
-            String[] field1Values = new String[numOfValuesField1];
-            for (int i = 0; i < numOfValuesField1; i++) {
-                field1Values[i] = RandomStringGenerator.random(10, 0, 0, true, true, null, random);
-            }
 
             int numOfQueryValues = 50;
             String[] queryValues = new String[numOfQueryValues];
@@ -115,64 +117,86 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                 queryValues[i] = RandomStringGenerator.random(5, 0, 0, true, true, null, random);
             }
 
-            Map<String, Map<String, Integer>> controlDataSet = new HashMap<String, Map<String, Integer>>();
+            Set<String> uniqueValuesSet = new HashSet<String>();
+            int numOfValuesField1 = 200;
+            int numOfValuesField2 = 200;
+            for (int i = 0; i < numOfValuesField1 + numOfValuesField2; i++) {
+                uniqueValuesSet.add(RandomStringGenerator.random(10, 0, 0, true, true, null, random));
+            }
+            String[] allUniqueValues = uniqueValuesSet.toArray(new String[uniqueValuesSet.size()]);
+
+            String[] field1Values = new String[numOfValuesField1];
+            System.arraycopy(allUniqueValues, 0, field1Values, 0, numOfValuesField1);
+
+            Map<String, Map<String, Integer>> queryValToField1FacetEntries = new HashMap<String, Map<String, Integer>>();
+            Map<String, Map<String, Integer>> queryValToField1and2FacetEntries = new HashMap<String, Map<String, Integer>>();
             for (int i = 1; i <= numDocs(); i++) {
                 String field1Val = field1Values[random.nextInt(numOfValuesField1)];
+                String field2Val = allUniqueValues[random.nextInt(allUniqueValues.length)];
                 String queryVal = queryValues[random.nextInt(numOfQueryValues)];
                 client.prepareIndex("test", "type1", Integer.toString(i))
                         .setSource(jsonBuilder().startObject()
                                 .field("field1_concrete", field1Val)
                                 .field("field1_paged", field1Val)
                                 .field("field1_fst", field1Val)
-                                .field("field2", queryVal)
+                                .field("field2", field2Val)
+                                .field("q_field", queryVal)
                                 .endObject())
                         .execute().actionGet();
-                Map<String, Integer> controlField1Facets = controlDataSet.get(queryVal);
-                if (controlField1Facets == null) {
-                    controlField1Facets = new HashMap<String, Integer>();
-                    controlDataSet.put(queryVal, controlField1Facets);
+
+                if (random.nextInt(2000) == 854) {
+                    client.admin().indices().prepareFlush("test").execute().actionGet();
                 }
-                Integer controlCount = controlField1Facets.get(field1Val);
-                if (controlCount == null) {
-                    controlCount = 0;
-                }
-                controlField1Facets.put(field1Val, ++controlCount);
+                addControlValues(queryValToField1FacetEntries, field1Val, queryVal);
+                addControlValues(queryValToField1and2FacetEntries, field1Val, queryVal);
+                addControlValues(queryValToField1and2FacetEntries, field2Val, queryVal);
             }
 
             client.admin().indices().prepareRefresh().execute().actionGet();
             String[] facetFields = new String[]{"field1_concrete", "field1_paged", "field1_fst"};
             TermsFacet.ComparatorType[] compTypes = TermsFacet.ComparatorType.values();
             for (String facetField : facetFields) {
-                for (String queryVal : controlDataSet.keySet()) {
-                    TermsFacet.ComparatorType  compType = compTypes[random.nextInt(compTypes.length)];
-                    int size;
-                    if (compType == TermsFacet.ComparatorType.COUNT || compType == TermsFacet.ComparatorType.REVERSE_COUNT) {
-                        // Should always equal to number of unique values b/c of the top n terms problem in case sorting by facet count.
-                        size = numOfValuesField1;
+                for (String queryVal : queryValToField1FacetEntries.keySet()) {
+                    String[] allValues;
+                    Map<String, Integer> queryControlFacets;
+                    TermsFacet.ComparatorType compType = compTypes[random.nextInt(compTypes.length)];
+                    TermsFacetBuilder termsFacetBuilder = FacetBuilders.termsFacet("facet1").order(compType);
+
+                    boolean useFields;
+                    if (random.nextInt(4) == 3) {
+                        useFields = true;
+                        queryControlFacets = queryValToField1and2FacetEntries.get(queryVal);
+                        allValues = allUniqueValues;
+                        termsFacetBuilder.fields(facetField, "field2");
                     } else {
-                        size = random.nextInt(numOfValuesField1);
+                        queryControlFacets = queryValToField1FacetEntries.get(queryVal);
+                        allValues = field1Values;
+                        useFields = false;
+                        termsFacetBuilder.field(facetField);
                     }
+                    int size;
+                    if (compType == TermsFacet.ComparatorType.TERM || compType == TermsFacet.ComparatorType.REVERSE_TERM) {
+                        size = random.nextInt(queryControlFacets.size());
+                    } else {
+                        size = allValues.length;
+                    }
+                    termsFacetBuilder.size(size);
 
-                    Map<String, Integer> controlFacets = controlDataSet.get(queryVal);
-
-
-                    TermsFacetBuilder termsFacetBuilder = FacetBuilders.termsFacet("facet1").field(facetField)
-                            .order(compType).size(size);
                     if (random.nextBoolean()) {
                         termsFacetBuilder.executionHint("map");
                     }
                     List<String> excludes = new ArrayList<String>();
                     if (random.nextBoolean()) {
-                        int numExludes = random.nextInt(5) + 1;
-                        List<String> facetValues = new ArrayList<String>(controlFacets.keySet());
-                        for (int i = 0; i < numExludes; i++) {
+                        int numExcludes = random.nextInt(5) + 1;
+                        List<String> facetValues = new ArrayList<String>(queryControlFacets.keySet());
+                        for (int i = 0; i < numExcludes; i++) {
                             excludes.add(facetValues.get(random.nextInt(facetValues.size())));
                         }
                         termsFacetBuilder.exclude(excludes.toArray());
                     }
                     String regex = null;
                     if (random.nextBoolean()) {
-                        List<String> facetValues = new ArrayList<String>(controlFacets.keySet());
+                        List<String> facetValues = new ArrayList<String>(queryControlFacets.keySet());
                         regex = facetValues.get(random.nextInt(facetValues.size()));
                         regex = "^" + regex.substring(0, regex.length() / 2) + ".*";
                         termsFacetBuilder.regex(regex);
@@ -182,16 +206,17 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                     termsFacetBuilder.allTerms(allTerms);
 
                     SearchResponse response = client.prepareSearch("test")
-                            .setQuery(QueryBuilders.termQuery("field2", queryVal))
+                            .setQuery(QueryBuilders.termQuery("q_field", queryVal))
                             .addFacet(termsFacetBuilder)
                             .execute().actionGet();
-                    TermsFacet termsFacet = response.getFacets().facet("facet1");
-                    List<Tuple<Text, Integer>> controlFacetEntries = getControlFacetEntries(field1Values, controlFacets, size, compType, excludes, regex, allTerms);
-                    String reason = String.format("query: %s field: %s size: %d order: %s all_terms: %s regex: %s excludes: %s", queryVal, facetField, size, compType, allTerms, regex, excludes);
-                    assertThat(reason, termsFacet.getEntries().size(), equalTo(controlFacetEntries.size()));
-                    for (int i = 0; i < controlFacetEntries.size(); i++) {
-                        assertThat(reason, termsFacet.getEntries().get(i).getTerm(), equalTo(controlFacetEntries.get(i).v1()));
-                        assertThat(reason, termsFacet.getEntries().get(i).getCount(), equalTo(controlFacetEntries.get(i).v2()));
+                    TermsFacet actualFacetEntries = response.getFacets().facet("facet1");
+
+                    List<Tuple<Text, Integer>> expectedFacetEntries = getExpectedFacetEntries(allValues, queryControlFacets, size, compType, excludes, regex, allTerms);
+                    String reason = String.format("query: [%s] field: [%s] size: [%d] order: [%s] all_terms: [%s] fields: [%s] regex: [%s] excludes: [%s]", queryVal, facetField, size, compType, allTerms, useFields, regex, excludes);
+                    assertThat(reason, actualFacetEntries.getEntries().size(), equalTo(expectedFacetEntries.size()));
+                    for (int i = 0; i < expectedFacetEntries.size(); i++) {
+                        assertThat(reason, actualFacetEntries.getEntries().get(i).getTerm(), equalTo(expectedFacetEntries.get(i).v1()));
+                        assertThat(reason, actualFacetEntries.getEntries().get(i).getCount(), equalTo(expectedFacetEntries.get(i).v2()));
                     }
                 }
             }
@@ -201,14 +226,33 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
         }
     }
 
-    private List<Tuple<Text, Integer>> getControlFacetEntries(String[] field1Values, Map<String, Integer> controlFacets, int size, TermsFacet.ComparatorType sort, List<String> excludes, String regex, boolean allTerms) {
+    private void addControlValues(Map<String, Map<String, Integer>> queryValToFacetFieldEntries, String fieldVal, String queryVal) {
+        Map<String, Integer> controlFieldFacets = queryValToFacetFieldEntries.get(queryVal);
+        if (controlFieldFacets == null) {
+            controlFieldFacets = new HashMap<String, Integer>();
+            queryValToFacetFieldEntries.put(queryVal, controlFieldFacets);
+        }
+        Integer controlCount = controlFieldFacets.get(fieldVal);
+        if (controlCount == null) {
+            controlCount = 0;
+        }
+        controlFieldFacets.put(fieldVal, ++controlCount);
+    }
+
+    private List<Tuple<Text, Integer>> getExpectedFacetEntries(String[] fieldValues,
+                                                               Map<String, Integer> controlFacetsField,
+                                                               int size,
+                                                               TermsFacet.ComparatorType sort,
+                                                               List<String> excludes,
+                                                               String regex,
+                                                               boolean allTerms) {
         Pattern pattern = null;
         if (regex != null) {
             pattern = Regex.compile(regex, null);
         }
 
         List<Tuple<Text, Integer>> entries = new ArrayList<Tuple<Text, Integer>>();
-        for (Map.Entry<String, Integer> e : controlFacets.entrySet()) {
+        for (Map.Entry<String, Integer> e : controlFacetsField.entrySet()) {
             if (excludes.contains(e.getKey())) {
                 continue;
             }
@@ -220,16 +264,16 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
         }
 
         if (allTerms) {
-            for (String field1Value : field1Values) {
-                if (!controlFacets.containsKey(field1Value)) {
-                    if (excludes.contains(field1Value)) {
+            for (String fieldValue : fieldValues) {
+                if (!controlFacetsField.containsKey(fieldValue)) {
+                    if (excludes.contains(fieldValue)) {
                         continue;
                     }
-                    if (pattern != null && !pattern.matcher(field1Value).matches()) {
+                    if (pattern != null && !pattern.matcher(fieldValue).matches()) {
                         continue;
                     }
 
-                    entries.add(new Tuple<Text, Integer>(new StringText(field1Value), 0));
+                    entries.add(new Tuple<Text, Integer>(new StringText(fieldValue), 0));
                 }
             }
         }
@@ -251,12 +295,12 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
         return size >= entries.size() ? entries : entries.subList(0, size);
     }
 
-    private final static COUNT count = new COUNT();
-    private final static COUNT_REVERSE count_reverse = new COUNT_REVERSE();
-    private final static TERM term = new TERM();
-    private final static TERM_REVERSE term_reverse = new TERM_REVERSE();
+    private final static Count count = new Count();
+    private final static CountReverse count_reverse = new CountReverse();
+    private final static Term term = new Term();
+    private final static TermReverse term_reverse = new TermReverse();
 
-    private static class COUNT implements Comparator<Tuple<Text, Integer>> {
+    private static class Count implements Comparator<Tuple<Text, Integer>> {
 
         @Override
         public int compare(Tuple<Text, Integer> o1, Tuple<Text, Integer> o2) {
@@ -264,7 +308,7 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
             if (cmp != 0) {
                 return cmp;
             }
-            cmp =  o2.v1().compareTo(o1.v1());
+            cmp = o2.v1().compareTo(o1.v1());
             if (cmp != 0) {
                 return cmp;
             }
@@ -273,7 +317,7 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
 
     }
 
-    private static class COUNT_REVERSE implements Comparator<Tuple<Text, Integer>> {
+    private static class CountReverse implements Comparator<Tuple<Text, Integer>> {
 
         @Override
         public int compare(Tuple<Text, Integer> o1, Tuple<Text, Integer> o2) {
@@ -282,7 +326,7 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
 
     }
 
-    private static class TERM implements Comparator<Tuple<Text, Integer>> {
+    private static class Term implements Comparator<Tuple<Text, Integer>> {
 
         @Override
         public int compare(Tuple<Text, Integer> o1, Tuple<Text, Integer> o2) {
@@ -291,7 +335,7 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
 
     }
 
-    private static class TERM_REVERSE implements Comparator<Tuple<Text, Integer>> {
+    private static class TermReverse implements Comparator<Tuple<Text, Integer>> {
 
         @Override
         public int compare(Tuple<Text, Integer> o1, Tuple<Text, Integer> o2) {

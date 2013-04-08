@@ -169,6 +169,8 @@ public class CommonStatsFlags implements Streamable {
     }
     
     public static enum Flag {
+        // Do not change the order of these flags we use
+        // the ordinal for encoding! Only append to the end!
         Store("store"),
         Indexing("indexing"),
         Get("get"),

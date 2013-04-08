@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices.template.get;
 
+import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -26,13 +27,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -71,39 +70,17 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
             public void onResponse(ClusterStateResponse response) {
+                Map<String, String> paramsMap = Maps.newHashMap();
+                paramsMap.put("reduce_mappings", "true");
+                ToXContent.Params params = new ToXContent.DelegatingMapParams(paramsMap, request);
+
                 try {
                     MetaData metaData = response.getState().metaData();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
                     for (IndexTemplateMetaData indexMetaData : metaData.templates().values()) {
-                        builder.startObject(indexMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
-
-                        builder.field("template", indexMetaData.template());
-                        builder.field("order", indexMetaData.order());
-
-                        builder.startObject("settings");
-                        Settings settings = settingsFilter.filterSettings(indexMetaData.settings());
-                        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-                            builder.field(entry.getKey(), entry.getValue());
-                        }
-                        builder.endObject();
-
-                        builder.startObject("mappings");
-                        for (Map.Entry<String, CompressedString> entry : indexMetaData.mappings().entrySet()) {
-                            byte[] mappingSource = entry.getValue().uncompressed();
-                            XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                            Map<String, Object> mapping = parser.map();
-                            if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
-                                // the type name is the root value, reduce it
-                                mapping = (Map<String, Object>) mapping.get(entry.getKey());
-                            }
-                            builder.field(entry.getKey());
-                            builder.map(mapping);
-                        }
-                        builder.endObject();
-
-                        builder.endObject();
+                        IndexTemplateMetaData.Builder.toXContent(indexMetaData, builder, params);
                     }
 
                     builder.endObject();

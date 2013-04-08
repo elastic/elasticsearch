@@ -266,6 +266,7 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "fst")), Type.Bytes);
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")), Type.Bytes);
         typeMap.put(new FieldDataType("string", ImmutableSettings.builder().put("format", "concrete_bytes")), Type.Bytes);
+        // TODO add filters
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<Entry<FieldDataType, Type>>(typeMap.entrySet());
         Preprocessor pre = new Preprocessor();
         while (!list.isEmpty()) {

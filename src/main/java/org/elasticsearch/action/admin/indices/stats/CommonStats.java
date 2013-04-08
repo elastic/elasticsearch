@@ -45,40 +45,40 @@ import java.io.IOException;
 public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
-    DocsStats docs;
+    public DocsStats docs;
 
     @Nullable
-    StoreStats store;
+    public StoreStats store;
 
     @Nullable
-    IndexingStats indexing;
+    public IndexingStats indexing;
 
     @Nullable
-    GetStats get;
+    public GetStats get;
 
     @Nullable
-    SearchStats search;
+    public SearchStats search;
 
     @Nullable
-    MergeStats merge;
+    public MergeStats merge;
 
     @Nullable
-    RefreshStats refresh;
+    public RefreshStats refresh;
 
     @Nullable
-    FlushStats flush;
+    public FlushStats flush;
 
     @Nullable
-    WarmerStats warmer;
+    public WarmerStats warmer;
 
     @Nullable
-    FilterCacheStats filterCache;
+    public FilterCacheStats filterCache;
 
     @Nullable
-    IdCacheStats idCache;
+    public IdCacheStats idCache;
 
     @Nullable
-    FieldDataStats fieldData;
+    public FieldDataStats fieldData;
 
     public void add(CommonStats stats) {
         if (docs == null) {

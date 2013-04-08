@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.NodesOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,7 +31,7 @@ import java.io.IOException;
  */
 public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> {
 
-    private boolean indices = true;
+    private CommonStatsFlags indices = new CommonStatsFlags();
     private boolean os;
     private boolean process;
     private boolean jvm;
@@ -55,7 +56,7 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
      * Sets all the request flags.
      */
     public NodesStatsRequest all() {
-        this.indices = true;
+        this.indices.all();
         this.os = true;
         this.process = true;
         this.jvm = true;
@@ -71,7 +72,7 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
      * Clears all the request flags.
      */
     public NodesStatsRequest clear() {
-        this.indices = false;
+        this.indices.clear();
         this.os = false;
         this.process = false;
         this.jvm = false;
@@ -83,18 +84,24 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
         return this;
     }
 
-    /**
-     * Should indices stats be returned.
-     */
-    public boolean indices() {
-        return this.indices;
+    public CommonStatsFlags indices() {
+        return indices;
+    }
+
+    public NodesStatsRequest indices(CommonStatsFlags indices) {
+        this.indices = indices;
+        return this;
     }
 
     /**
      * Should indices stats be returned.
      */
     public NodesStatsRequest indices(boolean indices) {
-        this.indices = indices;
+        if (indices) {
+            this.indices.all();
+        } else {
+            this.indices.clear();
+        }
         return this;
     }
 
@@ -221,7 +228,7 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        indices = in.readBoolean();
+        indices = CommonStatsFlags.readCommonStatsFlags(in);
         os = in.readBoolean();
         process = in.readBoolean();
         jvm = in.readBoolean();
@@ -235,7 +242,7 @@ public class NodesStatsRequest extends NodesOperationRequest<NodesStatsRequest> 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(indices);
+        indices.writeTo(out);
         out.writeBoolean(os);
         out.writeBoolean(process);
         out.writeBoolean(jvm);

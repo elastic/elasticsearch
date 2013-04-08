@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
@@ -42,6 +43,8 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
      * refresh and indexing, not for docs/store).
      */
     NodeIndicesStats stats(boolean includePrevious);
+
+    NodeIndicesStats stats(boolean includePrevious, CommonStatsFlags flags);
 
     boolean hasIndex(String index);
 

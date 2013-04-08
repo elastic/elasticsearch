@@ -22,11 +22,9 @@ package org.elasticsearch.index.fielddata;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -34,6 +32,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.plain.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 
@@ -41,7 +40,7 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  */
-public class IndexFieldDataService extends AbstractIndexComponent implements IndexFieldDataCache.Listener {
+public class IndexFieldDataService extends AbstractIndexComponent {
 
     private final static ImmutableMap<String, IndexFieldData.Builder> buildersByType;
     private final static ImmutableMap<Tuple<String, String>, IndexFieldData.Builder> buildersByTypeAndFormat;
@@ -75,8 +74,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
     private final IndicesFieldDataCache indicesFieldDataCache;
     private final ConcurrentMap<String, IndexFieldData> loadedFieldData = ConcurrentCollections.newConcurrentMap();
 
-    private final CounterMetric memoryUsedInBytes = new CounterMetric();
-    private final CounterMetric evictions = new CounterMetric();
+    IndexService indexService;
 
     public IndexFieldDataService(Index index) {
         this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS));
@@ -86,6 +84,11 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
     public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache) {
         super(index, indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
+    }
+
+    // we need to "inject" the index service to not create cyclic dep
+    public void setIndexService(IndexService indexService) {
+        this.indexService = indexService;
     }
 
     public void clear() {
@@ -110,28 +113,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
         for (IndexFieldData indexFieldData : loadedFieldData.values()) {
             indexFieldData.clear(reader);
         }
-    }
-
-    @Override
-    public void onLoad(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, AtomicFieldData fieldData) {
-        assert index.equals(this.index);
-        memoryUsedInBytes.inc(fieldData.getMemorySizeInBytes());
-    }
-
-    @Override
-    public void onUnload(Index index, FieldMapper.Names fieldNames, FieldDataType fieldDataType, boolean wasEvicted, @Nullable AtomicFieldData fieldData) {
-        assert index.equals(this.index);
-        if (fieldData != null) {
-            fieldData.close();
-            memoryUsedInBytes.dec(fieldData.getMemorySizeInBytes());
-        }
-        if (wasEvicted) {
-            evictions.inc();
-        }
-    }
-
-    public FieldDataStats stats() {
-        return new FieldDataStats(memoryUsedInBytes.count(), evictions.count());
     }
 
     public <IFD extends IndexFieldData> IFD getForField(FieldMapper mapper) {
@@ -164,11 +145,11 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Ind
                     // this means changing the node level settings is simple, just set the bounds there
                     String cacheType = type.getSettings().get("cache", indexSettings.get("index.fielddata.cache", "node"));
                     if ("resident".equals(cacheType)) {
-                        cache = new IndexFieldDataCache.Resident(index, fieldNames, type, this);
+                        cache = new IndexFieldDataCache.Resident(indexService, fieldNames, type);
                     } else if ("soft".equals(cacheType)) {
-                        cache = new IndexFieldDataCache.Soft(index, fieldNames, type, this);
+                        cache = new IndexFieldDataCache.Soft(indexService, fieldNames, type);
                     } else if ("node".equals(cacheType)) {
-                        cache = indicesFieldDataCache.buildIndexFieldDataCache(index, fieldNames, type, this);
+                        cache = indicesFieldDataCache.buildIndexFieldDataCache(indexService, index, fieldNames, type);
                     } else {
                         throw new ElasticSearchIllegalArgumentException("cache type not supported [" + cacheType + "] for field [" + fieldNames.fullName() + "]");
                     }

@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch</artifactId>
-    <version>0.90.0.RC2-SNAPSHOT</version>
+    <version>0.90.0.RC2</version>
     <packaging>jar</packaging>
     <description>ElasticSearch - Open Source, Distributed, RESTful Search Engine</description>
     <inceptionYear>2009</inceptionYear>
@@ -624,18 +624,18 @@
                     <prefix>/usr</prefix>
                     <changelogFile>src/changelog</changelogFile>
                     <defineStatements>
-                       <defineStatement>_unpackaged_files_terminate_build 0</defineStatement>
-                       <defineStatement>_binaries_in_noarch_packages_terminate_build 0</defineStatement>
+                        <defineStatement>_unpackaged_files_terminate_build 0</defineStatement>
+                        <defineStatement>_binaries_in_noarch_packages_terminate_build 0</defineStatement>
                     </defineStatements>
                     <defaultFilemode>644</defaultFilemode>
                     <defaultDirmode>755</defaultDirmode>
                     <defaultUsername>root</defaultUsername>
                     <defaultGroupname>root</defaultGroupname>
                     <mappings>
-                         <mapping>
+                        <mapping>
                             <directory>/etc/elasticsearch/</directory>
                             <configuration>true</configuration>
-                         </mapping>
+                        </mapping>
                         <mapping>
                             <directory>/etc/elasticsearch/</directory>
                             <configuration>true</configuration>
@@ -647,8 +647,8 @@
                                     </includes>
                                 </source>
                             </sources>
-                         </mapping>
-                         <mapping>
+                        </mapping>
+                        <mapping>
                             <directory>/etc/sysconfig/</directory>
                             <configuration>true</configuration>
                             <sources>
@@ -659,8 +659,8 @@
                                     </includes>
                                 </source>
                             </sources>
-                         </mapping>
-                         <mapping>
+                        </mapping>
+                        <mapping>
                             <directory>/etc/rc.d/init.d/</directory>
                             <filemode>755</filemode>
                             <configuration>true</configuration>
@@ -669,8 +669,8 @@
                                     <location>src/rpm/init.d/elasticsearch</location>
                                 </source>
                             </sources>
-                         </mapping>
-                         <mapping>
+                        </mapping>
+                        <mapping>
                             <directory>/etc/systemd/system/</directory>
                             <filemode>755</filemode>
                             <configuration>true</configuration>
@@ -682,8 +682,8 @@
                                     </includes>
                                 </source>
                             </sources>
-                         </mapping>
-                         <mapping>
+                        </mapping>
+                        <mapping>
                             <directory>/etc/tmpfiles.d/</directory>
                             <configuration>true</configuration>
                             <sources>
@@ -694,37 +694,37 @@
                                     </includes>
                                 </source>
                             </sources>
-                         </mapping>
-                         <mapping>
+                        </mapping>
+                        <mapping>
                             <directory>/var/run/elasticsearch/</directory>
                             <filemode>755</filemode>
                             <username>elasticsearch</username>
                             <groupname>elasticsearch</groupname>
-                         </mapping>
-                         <mapping>
+                        </mapping>
+                        <mapping>
                             <directory>/var/lib/elasticsearch/</directory>
                             <filemode>755</filemode>
                             <username>elasticsearch</username>
                             <groupname>elasticsearch</groupname>
-                         </mapping>
-                         <mapping>
+                        </mapping>
+                        <mapping>
                             <directory>/var/log/elasticsearch/</directory>
                             <filemode>755</filemode>
                             <username>elasticsearch</username>
                             <groupname>elasticsearch</groupname>
-                         </mapping>
-                         <mapping>
+                        </mapping>
+                        <mapping>
                             <directory>/usr/share/elasticsearch/bin/</directory>
                             <filemode>755</filemode>
                             <sources>
-                              <source>
-                                <location>target/bin</location>
-                                <includes>
-                                    <include>elasticsearch</include>
-                                    <include>elasticsearch.in.sh</include>
-                                    <include>plugin</include>
-                                </includes>
-                              </source>
+                                <source>
+                                    <location>target/bin</location>
+                                    <includes>
+                                        <include>elasticsearch</include>
+                                        <include>elasticsearch.in.sh</include>
+                                        <include>plugin</include>
+                                    </includes>
+                                </source>
                             </sources>
                         </mapping>
                         <mapping>
@@ -747,15 +747,15 @@
                                     </includes>
                                 </source>
                             </sources>
-                         </mapping>
-                         <mapping>
+                        </mapping>
+                        <mapping>
                             <directory>/usr/share/elasticsearch/lib/sigar</directory>
                             <sources>
                                 <source>
                                     <location>lib/sigar</location>
                                     <includes>
-                                      <include>sigar*.jar</include>
-                                      <include>libsigar-*-linux.*</include>
+                                        <include>sigar*.jar</include>
+                                        <include>libsigar-*-linux.*</include>
                                     </includes>
                                 </source>
                             </sources>

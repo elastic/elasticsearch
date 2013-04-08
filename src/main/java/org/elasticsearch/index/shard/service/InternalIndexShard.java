@@ -46,6 +46,8 @@ import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.cache.id.ShardIdCache;
 import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
@@ -102,6 +104,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardFilterCache shardFilterCache;
     private final ShardIdCache shardIdCache;
+    private final ShardFieldData shardFieldData;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -125,7 +128,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Inject
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
-                              ShardFilterCache shardFilterCache, ShardIdCache shardIdCache) {
+                              ShardFilterCache shardFilterCache, ShardIdCache shardIdCache, ShardFieldData shardFieldData) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -144,6 +147,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.shardWarmerService = shardWarmerService;
         this.shardFilterCache = shardFilterCache;
         this.shardIdCache = shardIdCache;
+        this.shardFieldData = shardFieldData;
         state = IndexShardState.CREATED;
 
         this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval()));
@@ -199,6 +203,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public ShardIdCache idCache() {
         return this.shardIdCache;
+    }
+
+    @Override
+    public ShardFieldData fieldData() {
+        return this.shardFieldData;
     }
 
     @Override
@@ -465,6 +474,11 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public FilterCacheStats filterCacheStats() {
         return shardFilterCache.stats();
+    }
+
+    @Override
+    public FieldDataStats fieldDataStats() {
+        return shardFieldData.stats();
     }
 
     @Override

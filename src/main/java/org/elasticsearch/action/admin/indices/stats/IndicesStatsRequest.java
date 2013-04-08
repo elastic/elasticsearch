@@ -47,6 +47,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
     private boolean warmer = false;
     private boolean filterCache = false;
     private boolean idCache = false;
+    private boolean fieldData = false;
     private String[] types = null;
     private String[] groups = null;
 
@@ -65,6 +66,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         warmer = true;
         filterCache = true;
         idCache = true;
+        fieldData = true;
         types = null;
         groups = null;
         return this;
@@ -85,6 +87,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         warmer = false;
         filterCache = false;
         idCache = false;
+        fieldData = false;
         types = null;
         groups = null;
         return this;
@@ -219,6 +222,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return this.idCache;
     }
 
+    public IndicesStatsRequest fieldData(boolean fieldData) {
+        this.fieldData = fieldData;
+        return this;
+    }
+
+    public boolean fieldData() {
+        return this.fieldData;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -233,6 +245,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         out.writeBoolean(warmer);
         out.writeBoolean(filterCache);
         out.writeBoolean(idCache);
+        out.writeBoolean(fieldData);
         if (types == null) {
             out.writeVInt(0);
         } else {
@@ -265,6 +278,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         warmer = in.readBoolean();
         filterCache = in.readBoolean();
         idCache = in.readBoolean();
+        fieldData = in.readBoolean();
         int size = in.readVInt();
         if (size > 0) {
             types = new String[size];

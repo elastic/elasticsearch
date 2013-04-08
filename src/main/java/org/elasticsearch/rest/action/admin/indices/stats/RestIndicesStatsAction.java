@@ -83,6 +83,9 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         controller.registerHandler(GET, "/_stats/id_cache", new RestIdCacheStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/id_cache", new RestIdCacheStatsHandler());
+
+        controller.registerHandler(GET, "/_stats/fielddata", new RestFieldDataStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/fielddata", new RestFieldDataStatsHandler());
     }
 
     @Override
@@ -116,6 +119,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         indicesStatsRequest.warmer(request.paramAsBoolean("warmer", indicesStatsRequest.warmer()));
         indicesStatsRequest.filterCache(request.paramAsBoolean("filter_cache", indicesStatsRequest.filterCache()));
         indicesStatsRequest.idCache(request.paramAsBoolean("id_cache", indicesStatsRequest.idCache()));
+        indicesStatsRequest.idCache(request.paramAsBoolean("fielddata", indicesStatsRequest.fieldData()));
 
         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
             @Override
@@ -504,6 +508,44 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
             indicesStatsRequest.listenerThreaded(false);
             indicesStatsRequest.clear().idCache(true);
+            indicesStatsRequest.indices(splitIndices(request.param("index")));
+            indicesStatsRequest.types(splitTypes(request.param("types")));
+
+            client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+                @Override
+                public void onResponse(IndicesStatsResponse response) {
+                    try {
+                        XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                        builder.startObject();
+                        builder.field("ok", true);
+                        buildBroadcastShardsHeader(builder, response);
+                        response.toXContent(builder, request);
+                        builder.endObject();
+                        channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    } catch (Throwable e) {
+                        onFailure(e);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    try {
+                        channel.sendResponse(new XContentThrowableRestResponse(request, e));
+                    } catch (IOException e1) {
+                        logger.error("Failed to send failure response", e1);
+                    }
+                }
+            });
+        }
+    }
+
+    class RestFieldDataStatsHandler implements RestHandler {
+
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+            indicesStatsRequest.listenerThreaded(false);
+            indicesStatsRequest.clear().fieldData(true);
             indicesStatsRequest.indices(splitIndices(request.param("index")));
             indicesStatsRequest.types(splitTypes(request.param("types")));
 

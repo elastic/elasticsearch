@@ -214,8 +214,8 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
                 flushStats.add(indexShard.flushStats());
                 filterCacheStats.add(indexShard.filterCacheStats());
                 idCacheStats.add(indexShard.idCacheStats());
+                fieldDataStats.add(indexShard.fieldDataStats());
             }
-            fieldDataStats.add(indexService.fieldData().stats());
         }
         return new NodeIndicesStats(storeStats, docsStats, indexingStats, getStats, searchStats, fieldDataStats, mergeStats, refreshStats, flushStats, filterCacheStats, idCacheStats);
     }

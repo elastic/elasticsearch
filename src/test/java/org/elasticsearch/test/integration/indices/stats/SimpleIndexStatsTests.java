@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.indices.stats;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Random;
 
@@ -282,6 +283,17 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
             for (Flag flag : values) {
                 assertThat(flags.isSet(flag), equalTo(readStats.isSet(flag)));
             }
+        }
+    }
+    
+    @Test
+    public void testFlagOrdinalOrder() {
+        Flag[] flags = new Flag[] { Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
+                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer };
+        
+        assertThat(flags.length, equalTo(Flag.values().length));
+        for (int i = 0; i < flags.length; i++) {
+            assertThat("ordinal has changed - this breaks the wire protocol. Only append to new values", i, equalTo(flags[i].ordinal()));
         }
     }
     

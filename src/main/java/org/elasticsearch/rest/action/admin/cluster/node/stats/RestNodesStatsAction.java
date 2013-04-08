@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.cluster.node.stats;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -46,11 +47,83 @@ public class RestNodesStatsAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats", this);
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats", this);
 
-        RestIndicesHandler indicesHandler = new RestIndicesHandler();
+        RestIndicesHandler indicesHandler = new RestIndicesHandler(new CommonStatsFlags().all());
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices", indicesHandler);
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices", indicesHandler);
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/stats", indicesHandler);
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().docs(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/docs", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/docs", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/docs/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/docs/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().store(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/store", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/store", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/store/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/store/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().merge(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/merge", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/merge", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/merge/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/merge/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().refresh(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/refresh", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/refresh", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/refresh/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/refresh/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().flush(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/flush", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/flush", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/flush/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/flush/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().warmer(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/warmer", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/warmer", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/warmer/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/warmer/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().filterCache(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/filter_cache", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/filter_cache", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/filter_cache/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/filter_cache/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().fieldData(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/fielddata", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/fielddata", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/fielddata/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/fielddata/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().idCache(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/id_cache", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/id_cache", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/id_cache/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/id_cache/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().indexing(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/indexing", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/indexing", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/indexing/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/indexing/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().search(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/search", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/search", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/search/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/search/stats", indicesHandler);
+
+        indicesHandler = new RestIndicesHandler(new CommonStatsFlags().clear().get(true));
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/get", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/get", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/get/stats", indicesHandler);
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/get/stats", indicesHandler);
 
         RestOsHandler osHandler = new RestOsHandler();
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/os", osHandler);
@@ -113,7 +186,9 @@ public class RestNodesStatsAction extends BaseRestHandler {
         if (all) {
             nodesStatsRequest.all();
         }
-        nodesStatsRequest.indices(request.paramAsBoolean("indices", nodesStatsRequest.indices()));
+        if (request.hasParam("indices")) {
+            nodesStatsRequest.indices(request.paramAsBoolean("indices", false));
+        }
         nodesStatsRequest.os(request.paramAsBoolean("os", nodesStatsRequest.os()));
         nodesStatsRequest.process(request.paramAsBoolean("process", nodesStatsRequest.process()));
         nodesStatsRequest.jvm(request.paramAsBoolean("jvm", nodesStatsRequest.jvm()));
@@ -153,10 +228,17 @@ public class RestNodesStatsAction extends BaseRestHandler {
     }
 
     class RestIndicesHandler implements RestHandler {
+
+        private CommonStatsFlags flags;
+
+        RestIndicesHandler(CommonStatsFlags flags) {
+            this.flags = flags;
+        }
+
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
-            nodesStatsRequest.clear().indices(true);
+            nodesStatsRequest.clear().indices(flags);
             executeNodeStats(request, channel, nodesStatsRequest);
         }
     }

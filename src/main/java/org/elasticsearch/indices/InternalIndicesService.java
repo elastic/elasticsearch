@@ -24,6 +24,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.*;
@@ -181,43 +183,48 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override
     public NodeIndicesStats stats(boolean includePrevious) {
-        DocsStats docsStats = new DocsStats();
-        StoreStats storeStats = new StoreStats();
-        IndexingStats indexingStats = new IndexingStats();
-        GetStats getStats = new GetStats();
-        SearchStats searchStats = new SearchStats();
-        FieldDataStats fieldDataStats = new FieldDataStats();
-        FilterCacheStats filterCacheStats = new FilterCacheStats();
-        IdCacheStats idCacheStats = new IdCacheStats();
-        MergeStats mergeStats = new MergeStats();
-        RefreshStats refreshStats = new RefreshStats();
-        FlushStats flushStats = new FlushStats();
+        return stats(true, new CommonStatsFlags().all());
+    }
 
+    @Override
+    public NodeIndicesStats stats(boolean includePrevious, CommonStatsFlags flags) {
+        CommonStats stats = new CommonStats();
+        if (flags.docs()) stats.docs = new DocsStats();
+        if (flags.store()) stats.store = new StoreStats();
+        if (flags.get()) stats.get = new GetStats();
+        if (flags.indexing()) stats.indexing = new IndexingStats();
+        if (flags.search()) stats.search = new SearchStats();
+        if (flags.merge()) stats.merge = new MergeStats();
+        if (flags.refresh()) stats.refresh = new RefreshStats();
+        if (flags.flush()) stats.flush = new FlushStats();
+        if (flags.fieldData()) stats.fieldData = new FieldDataStats();
+        if (flags.idCache()) stats.idCache = new IdCacheStats();
+        if (flags.filterCache()) stats.filterCache = new FilterCacheStats();
         if (includePrevious) {
-            getStats.add(oldShardsStats.getStats);
-            indexingStats.add(oldShardsStats.indexingStats);
-            searchStats.add(oldShardsStats.searchStats);
-            mergeStats.add(oldShardsStats.mergeStats);
-            refreshStats.add(oldShardsStats.refreshStats);
-            flushStats.add(oldShardsStats.flushStats);
+            if (flags.get()) stats.get.add(oldShardsStats.getStats);
+            if (flags.indexing()) stats.indexing.add(oldShardsStats.indexingStats);
+            if (flags.search()) stats.search.add(oldShardsStats.searchStats);
+            if (flags.merge()) stats.merge.add(oldShardsStats.mergeStats);
+            if (flags.refresh()) stats.refresh.add(oldShardsStats.refreshStats);
+            if (flags.flush()) stats.flush.add(oldShardsStats.flushStats);
         }
 
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
-                storeStats.add(indexShard.storeStats());
-                docsStats.add(indexShard.docStats());
-                getStats.add(indexShard.getStats());
-                indexingStats.add(indexShard.indexingStats());
-                searchStats.add(indexShard.searchStats());
-                mergeStats.add(indexShard.mergeStats());
-                refreshStats.add(indexShard.refreshStats());
-                flushStats.add(indexShard.flushStats());
-                filterCacheStats.add(indexShard.filterCacheStats());
-                idCacheStats.add(indexShard.idCacheStats());
-                fieldDataStats.add(indexShard.fieldDataStats());
+                if (flags.store()) stats.store.add(indexShard.storeStats());
+                if (flags.docs()) stats.docs.add(indexShard.docStats());
+                if (flags.get()) stats.get.add(indexShard.getStats());
+                if (flags.indexing()) stats.indexing.add(indexShard.indexingStats());
+                if (flags.search()) stats.search.add(indexShard.searchStats());
+                if (flags.merge()) stats.merge.add(indexShard.mergeStats());
+                if (flags.refresh()) stats.refresh.add(indexShard.refreshStats());
+                if (flags.flush()) stats.flush.add(indexShard.flushStats());
+                if (flags.filterCache()) stats.filterCache.add(indexShard.filterCacheStats());
+                if (flags.idCache()) stats.idCache.add(indexShard.idCacheStats());
+                if (flags.fieldData()) stats.fieldData.add(indexShard.fieldDataStats());
             }
         }
-        return new NodeIndicesStats(storeStats, docsStats, indexingStats, getStats, searchStats, fieldDataStats, mergeStats, refreshStats, flushStats, filterCacheStats, idCacheStats);
+        return new NodeIndicesStats(stats);
     }
 
     /**

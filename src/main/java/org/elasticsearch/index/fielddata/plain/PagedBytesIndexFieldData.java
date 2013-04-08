@@ -19,22 +19,21 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AbstractIndexFieldData;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -42,36 +41,18 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  */
-public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesAtomicFieldData> implements IndexFieldData.WithOrdinals<PagedBytesAtomicFieldData> {
+public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedBytesAtomicFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
+        public IndexFieldData<PagedBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
             return new PagedBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
 
     public PagedBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
-    }
-
-    @Override
-    public boolean valuesOrdered() {
-        return true;
-    }
-
-    @Override
-    public PagedBytesAtomicFieldData load(AtomicReaderContext context) {
-        try {
-            return cache.load(context, this);
-        } catch (Throwable e) {
-            if (e instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e;
-            } else {
-                throw new ElasticSearchException(e.getMessage(), e);
-            }
-        }
     }
 
     @Override
@@ -123,7 +104,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
         try {
             // 0 is reserved for "unset"
             bytes.copyUsingLengthPrefix(new BytesRef());
-            TermsEnum termsEnum = terms.iterator(null);
+            TermsEnum termsEnum = filter(terms, reader);
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final int termOrd = builder.nextOrdinal();
@@ -148,11 +129,5 @@ public class PagedBytesIndexFieldData extends AbstractIndexFieldData<PagedBytesA
         } finally {
             builder.close();
         }
-    }
-
-    @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
-        // TODO support "missingValue" for sortMissingValue options here...
-        return new BytesRefFieldComparatorSource(this, sortMode);
     }
 }

@@ -497,6 +497,14 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                     .field("type", "string")
                     .field("fielddata","format=fst")
                  .endObject()
+                 .startObject("filtered")
+                    .field("type", "string")
+                    .field("fielddata","format=fst;filter.regex.pattern=\\d{1,2}") // only 1 or 2 digits 
+                 .endObject()
+                  .startObject("filtered_mv")
+                    .field("type", "string")
+                    .field("fielddata","format=fst;filter.regex.pattern=\\d{1,2}") // only 1 or 2 digits 
+                 .endObject()
                 .endObject().endObject().endObject())
         .execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -506,9 +514,11 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                     .field("name_concrete", ""+i)
                     .field("name_paged", ""+i)
                     .field("name_fst", ""+i)
+                    .field("filtered", ""+i)
                     .field("name_concrete_mv", ""+i, ""+Math.min(99, i+1))
                     .field("name_paged_mv", ""+i,""+ Math.min(99, i+1))
                     .field("name_fst_mv", ""+i,""+Math.min(99, i+1))
+                    .field("filtered_mv", ""+i,""+Math.min(99, i+1), ""+(100 + i))
                     .endObject()).execute().actionGet();
         }
         
@@ -559,7 +569,10 @@ public class SimpleFacetsTests extends AbstractNodesTests {
                      final SearchRequestBuilder facetRequest;
                      int incrementAndGet = count.incrementAndGet();
                      final String field;
-                    switch (incrementAndGet % 2) {
+                    switch (incrementAndGet % 3) {
+                    case 2:
+                        field =  "filtered"+postfix;
+                        break;
                     case 1:
                         field = "name_concrete"+postfix;
                         break;

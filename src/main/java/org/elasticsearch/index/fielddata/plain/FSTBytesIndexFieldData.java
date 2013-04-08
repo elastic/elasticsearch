@@ -30,16 +30,11 @@ import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.INPUT_TYPE;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.apache.lucene.util.fst.Util;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AbstractIndexFieldData;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -47,36 +42,18 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  */
-public class FSTBytesIndexFieldData extends AbstractIndexFieldData<FSTBytesAtomicFieldData> implements IndexFieldData.WithOrdinals<FSTBytesAtomicFieldData> {
+public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytesAtomicFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
+        public IndexFieldData<FSTBytesAtomicFieldData> build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
             return new FSTBytesIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
 
-    public FSTBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    FSTBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
-    }
-
-    @Override
-    public boolean valuesOrdered() {
-        return true;
-    }
-
-    @Override
-    public FSTBytesAtomicFieldData load(AtomicReaderContext context) {
-        try {
-            return cache.load(context, this);
-        } catch (Throwable e) {
-            if (e instanceof ElasticSearchException) {
-                throw (ElasticSearchException) e;
-            } else {
-                throw new ElasticSearchException(e.getMessage(), e);
-            }
-        }
     }
 
     @Override
@@ -96,7 +73,7 @@ public class FSTBytesIndexFieldData extends AbstractIndexFieldData<FSTBytesAtomi
             
             // 0 is reserved for "unset"
             fstBuilder.add(Util.toIntsRef(new BytesRef(), scratch), 0l);
-            TermsEnum termsEnum = terms.iterator(null);
+            TermsEnum termsEnum = filter(terms, reader);
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final int termOrd = builder.nextOrdinal();
@@ -115,11 +92,5 @@ public class FSTBytesIndexFieldData extends AbstractIndexFieldData<FSTBytesAtomi
         } finally {
             builder.close();
         }
-    }
-
-    @Override
-    public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, SortMode sortMode) {
-        // TODO support "missingValue" for sortMissingValue options here...
-        return new BytesRefFieldComparatorSource(this, sortMode);
     }
 }

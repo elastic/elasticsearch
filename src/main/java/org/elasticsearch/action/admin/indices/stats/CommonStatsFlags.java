@@ -24,23 +24,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
+import java.util.EnumSet;
 
 /**
  */
 public class CommonStatsFlags implements Streamable {
-
-    private boolean docs = true;
-    private boolean store = true;
-    private boolean indexing = true;
-    private boolean get = true;
-    private boolean search = true;
-    private boolean merge = false;
-    private boolean refresh = false;
-    private boolean flush = false;
-    private boolean warmer = false;
-    private boolean filterCache = false;
-    private boolean idCache = false;
-    private boolean fieldData = false;
+    private EnumSet<Flag> flags = EnumSet.of(Flag.Docs, Flag.Store, Flag.Indexing, Flag.Get, Flag.Search);
     private String[] types = null;
     private String[] groups = null;
 
@@ -48,18 +37,7 @@ public class CommonStatsFlags implements Streamable {
      * Sets all flags to return all stats.
      */
     public CommonStatsFlags all() {
-        docs = true;
-        store = true;
-        get = true;
-        indexing = true;
-        search = true;
-        merge = true;
-        refresh = true;
-        flush = true;
-        warmer = true;
-        filterCache = true;
-        idCache = true;
-        fieldData = true;
+        flags = EnumSet.allOf(Flag.class);
         types = null;
         groups = null;
         return this;
@@ -69,25 +47,18 @@ public class CommonStatsFlags implements Streamable {
      * Clears all stats.
      */
     public CommonStatsFlags clear() {
-        docs = false;
-        store = false;
-        get = false;
-        indexing = false;
-        search = false;
-        merge = false;
-        refresh = false;
-        flush = false;
-        warmer = false;
-        filterCache = false;
-        idCache = false;
-        fieldData = false;
+        flags = EnumSet.noneOf(Flag.class);
         types = null;
         groups = null;
         return this;
     }
 
     public boolean anySet() {
-        return docs || store || get || indexing || search || merge || refresh || flush || warmer || filterCache || idCache || fieldData;
+        return !flags.isEmpty();
+    }
+    
+    public Flag[] getFlags() {
+        return flags.toArray(new Flag[flags.size()]);
     }
 
     /**
@@ -119,113 +90,26 @@ public class CommonStatsFlags implements Streamable {
     public String[] groups() {
         return this.groups;
     }
-
-    public CommonStatsFlags docs(boolean docs) {
-        this.docs = docs;
+    
+    public boolean isSet(Flag flag) {
+        return flags.contains(flag);
+    }
+    
+    boolean unSet(Flag flag) {
+        return flags.remove(flag);
+    }
+    
+    void set(Flag flag) {
+        flags.add(flag);
+    }
+    
+    public CommonStatsFlags set(Flag flag, boolean add) {
+        if (add) {
+            set(flag);
+        } else {
+            unSet(flag);
+        }
         return this;
-    }
-
-    public boolean docs() {
-        return this.docs;
-    }
-
-    public CommonStatsFlags store(boolean store) {
-        this.store = store;
-        return this;
-    }
-
-    public boolean store() {
-        return this.store;
-    }
-
-    public CommonStatsFlags indexing(boolean indexing) {
-        this.indexing = indexing;
-        return this;
-    }
-
-    public boolean indexing() {
-        return this.indexing;
-    }
-
-    public CommonStatsFlags get(boolean get) {
-        this.get = get;
-        return this;
-    }
-
-    public boolean get() {
-        return this.get;
-    }
-
-    public CommonStatsFlags search(boolean search) {
-        this.search = search;
-        return this;
-    }
-
-    public boolean search() {
-        return this.search;
-    }
-
-    public CommonStatsFlags merge(boolean merge) {
-        this.merge = merge;
-        return this;
-    }
-
-    public boolean merge() {
-        return this.merge;
-    }
-
-    public CommonStatsFlags refresh(boolean refresh) {
-        this.refresh = refresh;
-        return this;
-    }
-
-    public boolean refresh() {
-        return this.refresh;
-    }
-
-    public CommonStatsFlags flush(boolean flush) {
-        this.flush = flush;
-        return this;
-    }
-
-    public boolean flush() {
-        return this.flush;
-    }
-
-    public CommonStatsFlags warmer(boolean warmer) {
-        this.warmer = warmer;
-        return this;
-    }
-
-    public boolean warmer() {
-        return this.warmer;
-    }
-
-    public CommonStatsFlags filterCache(boolean filterCache) {
-        this.filterCache = filterCache;
-        return this;
-    }
-
-    public boolean filterCache() {
-        return this.filterCache;
-    }
-
-    public CommonStatsFlags idCache(boolean idCache) {
-        this.idCache = idCache;
-        return this;
-    }
-
-    public boolean idCache() {
-        return this.idCache;
-    }
-
-    public CommonStatsFlags fieldData(boolean fieldData) {
-        this.fieldData = fieldData;
-        return this;
-    }
-
-    public boolean fieldData() {
-        return this.fieldData;
     }
 
     public static CommonStatsFlags readCommonStatsFlags(StreamInput in) throws IOException {
@@ -236,18 +120,11 @@ public class CommonStatsFlags implements Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(docs);
-        out.writeBoolean(store);
-        out.writeBoolean(indexing);
-        out.writeBoolean(get);
-        out.writeBoolean(search);
-        out.writeBoolean(merge);
-        out.writeBoolean(flush);
-        out.writeBoolean(refresh);
-        out.writeBoolean(warmer);
-        out.writeBoolean(filterCache);
-        out.writeBoolean(idCache);
-        out.writeBoolean(fieldData);
+        long longFlags = 0;
+        for (Flag flag : flags) {
+            longFlags |= (1 << flag.ordinal());
+        }
+        out.writeLong(longFlags);
         if (types == null) {
             out.writeVInt(0);
         } else {
@@ -268,18 +145,13 @@ public class CommonStatsFlags implements Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        docs = in.readBoolean();
-        store = in.readBoolean();
-        indexing = in.readBoolean();
-        get = in.readBoolean();
-        search = in.readBoolean();
-        merge = in.readBoolean();
-        flush = in.readBoolean();
-        refresh = in.readBoolean();
-        warmer = in.readBoolean();
-        filterCache = in.readBoolean();
-        idCache = in.readBoolean();
-        fieldData = in.readBoolean();
+        final long longFlags = in.readLong();
+        flags.clear();
+        for(Flag flag : Flag.values()) {
+            if ((longFlags & (1 << flag.ordinal())) != 0) {
+                flags.add(flag);
+            }
+        }
         int size = in.readVInt();
         if (size > 0) {
             types = new String[size];
@@ -294,5 +166,31 @@ public class CommonStatsFlags implements Streamable {
                 groups[i] = in.readString();
             }
         }
+    }
+    
+    public static enum Flag {
+        Store("store"),
+        Indexing("indexing"),
+        Get("get"),
+        Search("search"),
+        Merge("merge"),
+        Flush("flush"),
+        Refresh("refresh"),
+        FilterCache("filter_cache"),
+        IdCache("id_cache"),
+        FieldData("fielddata"),
+        Docs("docs"),
+        Warmer("warmer");
+        
+        private final String restName;
+        
+        Flag(String restName) {
+            this.restName = restName;
+        }
+        
+        public String getRestName() {
+            return restName;
+        }
+            
     }
 }

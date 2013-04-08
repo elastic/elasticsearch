@@ -19,11 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import java.io.IOException;
+
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
@@ -85,111 +86,112 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
     }
 
     public IndicesStatsRequest docs(boolean docs) {
-        flags.docs(docs);
+        flags.set(Flag.Docs, docs);
         return this;
     }
 
     public boolean docs() {
-        return flags.docs();
+        return flags.isSet(Flag.Docs);
     }
 
     public IndicesStatsRequest store(boolean store) {
-        flags.store(store);
+        flags.set(Flag.Store, store);
         return this;
     }
 
     public boolean store() {
-        return flags.store();
+        return flags.isSet(Flag.Store);
     }
 
     public IndicesStatsRequest indexing(boolean indexing) {
-        flags.indexing(indexing);
+        flags.set(Flag.Indexing, indexing);
+
         return this;
     }
 
     public boolean indexing() {
-        return flags.indexing();
+        return flags.isSet(Flag.Indexing);
     }
 
     public IndicesStatsRequest get(boolean get) {
-        flags.get(get);
+        flags.set(Flag.Get, get);
         return this;
     }
 
     public boolean get() {
-        return flags.get();
+        return flags.isSet(Flag.Get);
     }
 
     public IndicesStatsRequest search(boolean search) {
-        flags.search(search);
+        flags.set(Flag.Search, search);
         return this;
     }
 
     public boolean search() {
-        return flags.search();
+        return flags.isSet(Flag.Search);
     }
 
     public IndicesStatsRequest merge(boolean merge) {
-        flags.merge(merge);
+        flags.set(Flag.Merge, merge);
         return this;
     }
 
     public boolean merge() {
-        return flags.merge();
+        return flags.isSet(Flag.Merge);
     }
 
     public IndicesStatsRequest refresh(boolean refresh) {
-        flags.refresh(refresh);
+        flags.set(Flag.Refresh, refresh); 
         return this;
     }
 
     public boolean refresh() {
-        return flags.refresh();
+        return flags.isSet(Flag.Refresh);
     }
 
     public IndicesStatsRequest flush(boolean flush) {
-        flags.flush(flush);
+        flags.set(Flag.Flush, flush);
         return this;
     }
 
     public boolean flush() {
-        return flags.flush();
+        return flags.isSet(Flag.Flush);
     }
 
     public IndicesStatsRequest warmer(boolean warmer) {
-        flags.warmer(warmer);
+        flags.set(Flag.Warmer, warmer);
         return this;
     }
 
     public boolean warmer() {
-        return flags.warmer();
+        return flags.isSet(Flag.Warmer);
     }
 
     public IndicesStatsRequest filterCache(boolean filterCache) {
-        flags.filterCache(filterCache);
+        flags.set(Flag.FilterCache, filterCache);
         return this;
     }
 
     public boolean filterCache() {
-        return flags.filterCache();
+        return flags.isSet(Flag.FilterCache);
     }
 
     public IndicesStatsRequest idCache(boolean idCache) {
-        flags.idCache(idCache);
+        flags.set(Flag.IdCache, idCache);
         return this;
     }
 
     public boolean idCache() {
-        return flags.idCache();
+        return flags.isSet(Flag.IdCache);
     }
 
     public IndicesStatsRequest fieldData(boolean fieldData) {
-        flags.fieldData(fieldData);
+        flags.set(Flag.FieldData, fieldData);
         return this;
     }
 
     public boolean fieldData() {
-        return flags.fieldData();
+        return flags.isSet(Flag.FieldData);
     }
 
     @Override

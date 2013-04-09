@@ -404,4 +404,118 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
     }
 
+    @Test
+    public void testThatGetFromTranslogShouldWorkWithExclude() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        String index = "test";
+        String type = "type1";
+
+        String mapping = jsonBuilder()
+                .startObject()
+                    .startObject("source_excludes")
+                        .startObject("_source")
+                            .array("excludes", "excluded")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .string();
+
+        client.admin().indices().prepareCreate(index)
+                .addMapping(type, mapping)
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .execute().actionGet();
+
+        client.prepareIndex(index, type, "1")
+                .setSource(jsonBuilder().startObject().field("field", "1", "2").field("excluded", "should not be seen").endObject())
+                .execute().actionGet();
+
+        GetResponse responseBeforeFlush = client.prepareGet(index, type, "1").execute().actionGet();
+        client.admin().indices().prepareFlush(index).execute().actionGet();
+        GetResponse responseAfterFlush = client.prepareGet(index, type, "1").execute().actionGet();
+
+        assertThat(responseBeforeFlush.isExists(), is(true));
+        assertThat(responseAfterFlush.isExists(), is(true));
+        assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("field"));
+        assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("excluded")));
+        assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
+    }
+
+    @Test
+    public void testThatGetFromTranslogShouldWorkWithInclude() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        String index = "test";
+        String type = "type1";
+
+        String mapping = jsonBuilder()
+            .startObject()
+                .startObject("source_excludes")
+                    .startObject("_source")
+                        .array("includes", "included")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .string();
+
+        client.admin().indices().prepareCreate(index)
+                .addMapping(type, mapping)
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .execute().actionGet();
+
+        client.prepareIndex(index, type, "1")
+                .setSource(jsonBuilder().startObject().field("field", "1", "2").field("included", "should be seen").endObject())
+                .execute().actionGet();
+
+        GetResponse responseBeforeFlush = client.prepareGet(index, type, "1").execute().actionGet();
+        client.admin().indices().prepareFlush(index).execute().actionGet();
+        GetResponse responseAfterFlush = client.prepareGet(index, type, "1").execute().actionGet();
+
+        assertThat(responseBeforeFlush.isExists(), is(true));
+        assertThat(responseAfterFlush.isExists(), is(true));
+        assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("field")));
+        assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("included"));
+        assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
+    }
+
+    @Test
+    public void testThatGetFromTranslogShouldWorkWithIncludeExcludeAndFields() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        String index = "test";
+        String type = "type1";
+
+        String mapping = jsonBuilder()
+            .startObject()
+                .startObject("source_excludes")
+                    .startObject("_source")
+                        .array("includes", "included")
+                        .array("exlcudes", "excluded")
+                    .endObject()
+                .endObject()
+            .endObject()
+            .string();
+
+        client.admin().indices().prepareCreate(index)
+                .addMapping(type, mapping)
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
+                .execute().actionGet();
+
+        client.prepareIndex(index, type, "1")
+                .setSource(jsonBuilder().startObject()
+                        .field("field", "1", "2")
+                        .field("included", "should be seen")
+                        .field("excluded", "should not be seen")
+                    .endObject())
+                .execute().actionGet();
+
+        GetResponse responseBeforeFlush = client.prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
+        client.admin().indices().prepareFlush(index).execute().actionGet();
+        GetResponse responseAfterFlush = client.prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
+
+        assertThat(responseBeforeFlush.isExists(), is(true));
+        assertThat(responseAfterFlush.isExists(), is(true));
+        assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("excluded")));
+        assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("field")));
+        assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("included"));
+        assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
+    }
+
 }

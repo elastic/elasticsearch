@@ -214,6 +214,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         return this.enabled;
     }
 
+    public String[] excludes() {
+        return this.excludes;
+
+    }
+    public String[] includes() {
+        return this.includes;
+    }
+
     @Override
     public FieldType defaultFieldType() {
         return Defaults.FIELD_TYPE;

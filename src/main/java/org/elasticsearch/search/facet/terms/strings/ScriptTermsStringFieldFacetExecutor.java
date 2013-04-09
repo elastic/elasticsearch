@@ -182,7 +182,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
         @Override
         public void postCollection() {
             ScriptTermsStringFieldFacetExecutor.this.missing = missing;
-            ScriptTermsStringFieldFacetExecutor.this.total = missing;
+            ScriptTermsStringFieldFacetExecutor.this.total = total;
         }
 
         private boolean match(String value) {

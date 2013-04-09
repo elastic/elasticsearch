@@ -1297,11 +1297,15 @@ public class SimpleFacetsTests extends AbstractNodesTests {
 
             facet = searchResponse.getFacets().facet("facet1");
             assertThat(facet.getName(), equalTo("facet1"));
+            assertThat(facet.getTotalCount(), equalTo(2l));
+            assertThat(facet.getOtherCount(), equalTo(0l));
             assertThat(facet.getEntries().size(), equalTo(1));
             assertThat(facet.getEntries().get(0).getTerm().string(), equalTo("111"));
             assertThat(facet.getEntries().get(0).getCount(), equalTo(2));
 
             facet = searchResponse.getFacets().facet("facet2");
+            assertThat(facet.getTotalCount(), equalTo(4l));
+            assertThat(facet.getOtherCount(), equalTo(0l));
             assertThat(facet.getName(), equalTo("facet2"));
             assertThat(facet.getEntries().size(), equalTo(3));
             assertThat(facet.getEntries().get(0).getTerm().string(), equalTo("yyy"));

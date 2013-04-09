@@ -47,6 +47,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -145,7 +146,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return super.similarity(similarity);
         }
 
-        public T fieldDataSettings(String settings) {
+        public T fieldDataSettings(Settings settings) {
             return super.fieldDataSettings(settings);
         }
     }
@@ -255,8 +256,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return builder;
         }
 
-        protected T fieldDataSettings(String settings) {
-            this.fieldDataSettings = ImmutableSettings.builder().loadFromDelimitedString(settings, ';').build();
+        protected T fieldDataSettings(Settings settings) {
+            this.fieldDataSettings = settings;
             return builder;
         }
 
@@ -646,7 +647,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
 
         if (customFieldDataSettings != null) {
-            builder.field("fielddata", customFieldDataSettings.toDelimitedString(';'));
+            builder.field("fielddata", (Map)customFieldDataSettings.getAsMap());
         }
     }
 

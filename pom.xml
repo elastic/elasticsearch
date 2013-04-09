@@ -199,7 +199,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty</artifactId>
-            <version>3.6.3.Final</version>
+            <version>3.6.5.Final</version>
             <scope>compile</scope>
         </dependency>
 

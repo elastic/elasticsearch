@@ -23,11 +23,16 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -270,7 +275,27 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     sourceRequested = false;
                 }
 
-                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), sourceRequested ? source.source : null, fields);
+                // Cater for source excludes/includes at the cost of performance
+                BytesReference sourceToBeReturned = null;
+                if (sourceRequested) {
+                    sourceToBeReturned = source.source;
+
+                    SourceFieldMapper sourceFieldMapper = docMapper.sourceMapper();
+                    if (sourceFieldMapper.enabled()) {
+                        boolean filtered = sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0;
+                        if (filtered) {
+                            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(source.source, true);
+                            Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), sourceFieldMapper.includes(), sourceFieldMapper.excludes());
+                            try {
+                                sourceToBeReturned = XContentFactory.contentBuilder(mapTuple.v1()).map(filteredSource).bytes();
+                            } catch (IOException e) {
+                                throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
+                            }
+                        }
+                    }
+                }
+
+                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), sourceToBeReturned, fields);
             }
         } finally {
             get.release();

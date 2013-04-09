@@ -24,6 +24,9 @@ import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.Mapper;
@@ -118,7 +121,13 @@ public class TypeParsers {
             } else if (propName.equals("similarity")) {
                 builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
             } else if (propName.equals("fielddata")) {
-                builder.fieldDataSettings(propNode.toString());
+                final Settings settings;
+                if (propNode instanceof Map){
+                    settings = ImmutableSettings.builder().put(SettingsLoader.Helper.loadNestedFromMap((Map<String, Object>)propNode)).build();
+                } else {
+                    throw new ElasticSearchParseException("fielddata should be a hash but was of type: " + propNode.getClass());
+                }
+                builder.fieldDataSettings(settings);
             }
         }
     }

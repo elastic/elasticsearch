@@ -19,6 +19,7 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,16 +53,12 @@ public abstract class AbstractBytesIndexFieldData<FD extends AtomicFieldData.Wit
     protected AbstractBytesIndexFieldData(Index index, Settings indexSettings, Names fieldNames, FieldDataType fieldDataType,
             IndexFieldDataCache cache) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
-        frequency = getPrefixSettings(fieldDataType.getSettings(), "filter.frequency.");
-        regex = getPrefixSettings(fieldDataType.getSettings(), "filter.regex.");
+        final Map<String, Settings> groups = fieldDataType.getSettings().getGroups("filter");
+        frequency = groups.get("frequency");
+        regex = groups.get("regex");
        
     }
     
-    private final Settings getPrefixSettings(Settings settings, String prefix) {
-        Settings byPrefix = settings.getByPrefix(prefix);
-        return byPrefix.getAsMap().isEmpty() ? null : byPrefix;
-    }
-
     @Override
     public final boolean valuesOrdered() {
         return true;

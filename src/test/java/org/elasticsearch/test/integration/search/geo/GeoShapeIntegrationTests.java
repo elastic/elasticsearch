@@ -33,7 +33,7 @@ import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.geo.ShapeBuilder.newRectangle;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.geoShapeFilter;
+import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -94,7 +94,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
-                        geoShapeFilter("location", shape)))
+                        geoIntersectionFilter("location", shape)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
@@ -144,7 +144,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
-                        geoShapeFilter("location", query)))
+                        geoIntersectionFilter("location", query)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
@@ -188,7 +188,7 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(),
-                        geoShapeFilter("location", "Big_Rectangle", "shape_type")))
+                        geoIntersectionFilter("location", "Big_Rectangle", "shape_type")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));

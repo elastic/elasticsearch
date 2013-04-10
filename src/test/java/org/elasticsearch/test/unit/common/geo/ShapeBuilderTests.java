@@ -56,7 +56,7 @@ public class ShapeBuilderTests {
                 .point(45, 30)
                 .point(45, -30)
                 .point(-45, -30)
-                .point(-45, 30);
+                .close();
 
         Shape polygon = polygonBuilder.build();
         Geometry polygonGeometry = ShapeBuilder.toJTSGeometry(polygon);

@@ -43,6 +43,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
+import com.spatial4j.core.shape.Shape;
+
 import java.io.IOException;
 import java.util.Map;
 
@@ -213,7 +215,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     @Override
     public void parse(ParseContext context) throws IOException {
         try {
-            Field[] fields = defaultStrategy.createIndexableFields(GeoJSONShapeParser.parse(context.parser()));
+            Shape shape = GeoJSONShapeParser.parse(context.parser());
+            Field[] fields = defaultStrategy.createIndexableFields(shape);
             if (fields == null || fields.length == 0) {
                 return;
             }

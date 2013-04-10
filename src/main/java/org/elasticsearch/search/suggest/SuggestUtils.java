@@ -220,7 +220,7 @@ public final class SuggestUtils {
                 suggestion.maxInspections(parser.intValue());
             } else if ("max_term_freq".equals(fieldName) || "maxTermFreq".equals(fieldName)) {
                 suggestion.maxTermFreq(parser.floatValue());
-            } else if ("prefix_length".equals(fieldName) || "prefixLength".equals(fieldName)) {
+            } else if ("prefix_len".equals(fieldName) || "prefixLen".equals(fieldName)) {
                 suggestion.prefixLength(parser.intValue());
             } else if ("min_word_len".equals(fieldName) || "minWordLen".equals(fieldName)) {
                 suggestion.minQueryLength(parser.intValue());

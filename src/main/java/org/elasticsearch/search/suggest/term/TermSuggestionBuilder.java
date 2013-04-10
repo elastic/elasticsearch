@@ -211,7 +211,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             builder.field("max_term_freq", maxTermFreq);
         }
         if (prefixLength != null) {
-            builder.field("prefix_length", prefixLength);
+            builder.field("prefix_len", prefixLength);
         }
         if (minWordLength != null) {
             builder.field("min_word_len", minWordLength);

@@ -35,7 +35,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
     private final int numOrds;
     private final int maxOrd;
     private final int numDocs;
-    private long size;
+    private long size = -1;
 
     public SparseMultiArrayOrdinals(OrdinalsBuilder builder, int maxSize) {
         int blockShift = Math.min(floorPow2(builder.getTotalNumOrds() << 1), floorPow2(maxSize));

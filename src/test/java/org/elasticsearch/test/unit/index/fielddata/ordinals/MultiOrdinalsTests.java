@@ -19,22 +19,17 @@
 
 package org.elasticsearch.test.unit.index.fielddata.ordinals;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Random;
-import java.util.Set;
-
 import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.testng.annotations.Test;
+
+import java.util.*;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */
@@ -205,6 +200,7 @@ public abstract class MultiOrdinalsTests {
         assertThat(docs.getNumOrds(), equalTo(maxOrds));
         assertThat(docs.getMaxOrd(), equalTo(maxOrds + 1)); // Includes null ord
         assertThat(docs.isMultiValued(), equalTo(true));
+        assertThat(ordinals.getMemorySizeInBytes(), greaterThan(0l));
 
         // Document 1
         assertThat(docs.getOrd(0), equalTo(2));

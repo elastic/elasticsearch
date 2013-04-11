@@ -19,21 +19,12 @@
 
 package org.elasticsearch.test.unit.index.fielddata;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Sort;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -41,6 +32,9 @@ import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.testng.annotations.Test;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -93,6 +87,7 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         IndexFieldData indexFieldData = getForField("value");
         AtomicReaderContext readerContext = refreshReader();
         AtomicFieldData fieldData = indexFieldData.load(readerContext);
+        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
@@ -185,6 +180,7 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         fillSingleValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
+        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
@@ -263,6 +259,7 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         fillMultiValueAllSet();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
+        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
@@ -350,6 +347,7 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         fillMultiValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
+        assertThat(fieldData.getMemorySizeInBytes(), greaterThan(0l));
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 
@@ -409,6 +407,8 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         fillAllMissing();
         IndexFieldData indexFieldData = getForField("value");
         AtomicFieldData fieldData = indexFieldData.load(refreshReader());
+        // Some impls (FST) return size 0 and some (PagedBytes) do take size in the case no actual data is loaded
+        assertThat(fieldData.getMemorySizeInBytes(), greaterThanOrEqualTo(0l));
 
         assertThat(fieldData.getNumDocs(), equalTo(3));
 

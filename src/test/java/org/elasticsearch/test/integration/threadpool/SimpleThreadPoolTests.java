@@ -95,6 +95,7 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
         });
         client1.admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.type", "fixed").build()).execute().actionGet();
         barrier.await();
+        Thread.sleep(200);
 
         // Check that node info is correct
         NodesInfoResponse nodesInfoResponse = client2.admin().cluster().prepareNodesInfo().all().execute().actionGet();

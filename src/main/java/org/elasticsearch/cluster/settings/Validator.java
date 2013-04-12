@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.settings;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 
+import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
+
 /**
  * Validates a setting, returning a failure message if applicable.
  */
@@ -49,4 +51,137 @@ public interface Validator {
             return null;
         }
     };
+
+    public static final Validator FLOAT = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                Float.parseFloat(value);
+            } catch (NumberFormatException ex) {
+                return "cannot parse value [" + value + "] as a float";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator NON_NEGATIVE_FLOAT = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                if (Float.parseFloat(value) < 0.0) {
+                    return "the value of the setting " + setting + " must be a non negative float";
+                }
+            } catch (NumberFormatException ex) {
+                return "cannot parse value [" + value + "] as a double";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator DOUBLE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                Double.parseDouble(value);
+            } catch (NumberFormatException ex) {
+                return "cannot parse value [" + value + "] as a double";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator NON_NEGATIVE_DOUBLE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                if (Double.parseDouble(value) < 0.0) {
+                    return "the value of the setting " + setting + " must be a non negative double";
+                }
+            } catch (NumberFormatException ex) {
+                return "cannot parse value [" + value + "] as a double";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator DOUBLE_GTE_2 = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                if (Double.parseDouble(value) < 2.0) {
+                    return "the value of the setting " + setting + " must be >= 2.0";
+                }
+            } catch (NumberFormatException ex) {
+                return "cannot parse value [" + value + "] as a double";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator INTEGER = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                Integer.parseInt(value);
+            } catch (NumberFormatException ex) {
+                return "cannot parse value [" + value + "] as an integer";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator POSITIVE_INTEGER = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                if (Integer.parseInt(value) <= 0) {
+                    return "the value of the setting " + setting + " must be a positive integer";
+                }
+            } catch (NumberFormatException ex) {
+                return "cannot parse value [" + value + "] as an integer";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator NON_NEGATIVE_INTEGER = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                if (Integer.parseInt(value) < 0) {
+                    return "the value of the setting " + setting + " must be a non negative integer";
+                }
+            } catch (NumberFormatException ex) {
+                return "cannot parse value [" + value + "] as an integer";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator INTEGER_GTE_2 = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                if (Integer.parseInt(value) < 2) {
+                    return "the value of the setting " + setting + " must be >= 2";
+                }
+            } catch (NumberFormatException ex) {
+                return "cannot parse value [" + value + "] as an integer";
+            }
+            return null;
+        }
+    };
+
+    public static final Validator BYTES_SIZE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                parseBytesSizeValue(value);
+            } catch (ElasticSearchParseException ex) {
+                return ex.getMessage();
+            }
+            return null;
+        }
+    };
+
 }

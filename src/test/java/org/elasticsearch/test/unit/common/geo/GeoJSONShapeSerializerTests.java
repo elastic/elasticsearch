@@ -1,5 +1,7 @@
 package org.elasticsearch.test.unit.common.geo;
 
+import com.spatial4j.core.distance.DistanceUtils;
+import com.spatial4j.core.shape.Circle;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
@@ -212,6 +214,34 @@ public class GeoJSONShapeSerializerTests {
         MultiPolygon multiPolygon = GEOMETRY_FACTORY.createMultiPolygon(new Polygon[] {withHoles, withoutHoles});
 
         assertSerializationEquals(expected, new JtsGeometry(multiPolygon, GeoShapeConstants.SPATIAL_CONTEXT, false));
+    }
+
+    @Test
+    public void serializeCircle() throws IOException {
+        double radiusInKm = 4.2; // avoiding rounding errors by using this... not best-practice
+
+        XContentBuilder expected = XContentFactory.jsonBuilder().startObject().field("type", "Circle")
+                .startArray("coordinates").value(100.0).value(10.0).endArray()
+                .field("radius", "4200.0m")
+                .endObject();
+
+        double dist = radiusInKm / ( DistanceUtils.DEGREES_TO_RADIANS * DistanceUtils.EARTH_MEAN_RADIUS_KM);
+        Circle circle = GeoShapeConstants.SPATIAL_CONTEXT.makeCircle(100, 10, dist);
+        assertSerializationEquals(expected, circle);
+    }
+
+    @Test
+    public void serializeCircleUsingDistanceUnit() throws IOException {
+        double radiusInKm = 4.2;
+
+        XContentBuilder expected = XContentFactory.jsonBuilder().startObject().field("type", "Circle")
+                .startArray("coordinates").value(100.0).value(10.0).endArray()
+                .field("radius", "4200.0m")
+                .endObject();
+
+        double dist = radiusInKm / ( DistanceUtils.DEGREES_TO_RADIANS * DistanceUtils.EARTH_MEAN_RADIUS_KM);
+        Circle circle = GeoShapeConstants.SPATIAL_CONTEXT.makeCircle(100, 10, dist);
+        assertSerializationEquals(expected, circle);
     }
 
     private void assertSerializationEquals(XContentBuilder expected, Shape shape) throws IOException {

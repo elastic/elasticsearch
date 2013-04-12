@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.geo;
 
+import com.spatial4j.core.distance.DistanceUtils;
+import com.spatial4j.core.shape.Point;
 import com.spatial4j.core.shape.Shape;
 import com.spatial4j.core.shape.impl.RectangleImpl;
 import com.spatial4j.core.shape.jts.JtsGeometry;
@@ -28,6 +30,7 @@ import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -72,6 +75,7 @@ public class GeoJSONShapeParser {
         }
 
         String shapeType = null;
+        double radius = 0;
         CoordinateNode node = null;
 
         XContentParser.Token token;
@@ -88,6 +92,9 @@ public class GeoJSONShapeParser {
                 } else if ("coordinates".equals(fieldName)) {
                     parser.nextToken();
                     node = parseCoordinates(parser);
+                } else if ("radius".equals(fieldName)) {
+                    parser.nextToken();
+                    radius = DistanceUnit.parse(parser.text(), DistanceUnit.METERS, DistanceUnit.METERS);
                 } else {
                     parser.nextToken();
                     parser.skipChildren();
@@ -99,9 +106,11 @@ public class GeoJSONShapeParser {
             throw new ElasticSearchParseException("Shape type not included");
         } else if (node == null) {
             throw new ElasticSearchParseException("Coordinates not included");
+        } else if ("circle".equals(shapeType) && radius <= 0) {
+            throw new ElasticSearchParseException("No positive radius set for circle");
         }
 
-        return buildShape(shapeType, node);
+        return buildShape(shapeType, node, radius);
     }
 
     /**
@@ -136,11 +145,13 @@ public class GeoJSONShapeParser {
      * Builds the actual {@link Shape} with the given shape type from the tree
      * of coordinates
      *
+     *
      * @param shapeType Type of Shape to be built
      * @param node      Root node of the coordinate tree
+     * @param radius
      * @return Shape built from the coordinates
      */
-    private static Shape buildShape(String shapeType, CoordinateNode node) {
+    private static Shape buildShape(String shapeType, CoordinateNode node, double radius) {
         if ("point".equals(shapeType)) {
             return new JtsPoint(GEOMETRY_FACTORY.createPoint(node.coordinate), GeoShapeConstants.SPATIAL_CONTEXT);
         } else if ("linestring".equals(shapeType)) {
@@ -161,6 +172,10 @@ public class GeoJSONShapeParser {
                     GEOMETRY_FACTORY.createMultiPolygon(polygons),
                     GeoShapeConstants.SPATIAL_CONTEXT,
                     true);
+        } else if ("circle".equals(shapeType)) {
+            Point center = new JtsPoint(GEOMETRY_FACTORY.createPoint(node.coordinate), GeoShapeConstants.SPATIAL_CONTEXT);
+            double dist = radius / ( DistanceUtils.DEGREES_TO_RADIANS * DistanceUtils.EARTH_MEAN_RADIUS_KM * 1000);
+            return GeoShapeConstants.SPATIAL_CONTEXT.makeCircle(center, dist);
         }
 
         throw new UnsupportedOperationException("ShapeType [" + shapeType + "] not supported");

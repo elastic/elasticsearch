@@ -1,11 +1,14 @@
 package org.elasticsearch.test.unit.common.geo;
 
-import com.spatial4j.core.shape.Shape;
+import com.spatial4j.core.distance.DistanceUtils;
+import com.spatial4j.core.shape.*;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.spatial4j.core.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.*;
+import com.vividsolutions.jts.geom.Point;
 import org.elasticsearch.common.geo.GeoJSONShapeParser;
 import org.elasticsearch.common.geo.GeoShapeConstants;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -229,6 +232,34 @@ public class GeoJSONShapeParserTests {
 
         Point expected = GEOMETRY_FACTORY.createPoint(new Coordinate(100.0, 0.0));
         assertGeometryEquals(new JtsPoint(expected, GeoShapeConstants.SPATIAL_CONTEXT), pointGeoJson);
+    }
+
+    @Test
+    public void testThatCircleCanBeParsed() throws IOException {
+        double radiusInM = 4200;
+
+        String circleJson = XContentFactory.jsonBuilder().startObject().field("type", "Circle")
+                .startArray("coordinates").value(100.0).value(10.0).endArray()
+                .field("radius", radiusInM)
+                .endObject().string();
+
+        double dist = radiusInM / (DistanceUtils.DEGREES_TO_RADIANS * DistanceUtils.EARTH_MEAN_RADIUS_KM * 1000);
+        Circle expected = GeoShapeConstants.SPATIAL_CONTEXT.makeCircle(100, 10, dist);
+        assertGeometryEquals(expected, circleJson);
+    }
+
+    @Test
+    public void testThatCircleSupportsDistanceUnit() throws IOException {
+        String radiusAsString = "2mi";
+        String circleJson = XContentFactory.jsonBuilder().startObject().field("type", "Circle")
+                .startArray("coordinates").value(100.0).value(10.0).endArray()
+                .field("radius", radiusAsString)
+                .endObject().string();
+
+        double radius = DistanceUnit.parse(radiusAsString, DistanceUnit.METERS, DistanceUnit.METERS);
+        double dist = radius / ( DistanceUtils.DEGREES_TO_RADIANS * DistanceUtils.EARTH_MEAN_RADIUS_KM * 1000);
+        Circle expected = GeoShapeConstants.SPATIAL_CONTEXT.makeCircle(100, 10, dist);
+        assertGeometryEquals(expected, circleJson);
     }
 
     private void assertGeometryEquals(Shape expected, String geoJson) throws IOException {

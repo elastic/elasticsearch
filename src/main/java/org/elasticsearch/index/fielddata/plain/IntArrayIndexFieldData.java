@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import gnu.trove.iterator.TIntIterator;
 import gnu.trove.list.array.TIntArrayList;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -42,7 +43,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  */
-public class IntArrayIndexFieldData extends AbstractIndexFieldData<IntArrayAtomicFieldData> implements IndexNumericFieldData<IntArrayAtomicFieldData> {
+public class IntArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumericFieldData> implements IndexNumericFieldData<AtomicNumericFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -69,7 +70,7 @@ public class IntArrayIndexFieldData extends AbstractIndexFieldData<IntArrayAtomi
     }
 
     @Override
-    public IntArrayAtomicFieldData load(AtomicReaderContext context) {
+    public AtomicNumericFieldData load(AtomicReaderContext context) {
         try {
             return cache.load(context, this);
         } catch (Throwable e) {
@@ -82,7 +83,7 @@ public class IntArrayIndexFieldData extends AbstractIndexFieldData<IntArrayAtomi
     }
 
     @Override
-    public IntArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
@@ -94,12 +95,61 @@ public class IntArrayIndexFieldData extends AbstractIndexFieldData<IntArrayAtomi
         values.add(0); // first "t" indicates null value
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
         try {
-            BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric32Bit(terms.iterator(null)), reader.getLiveDocs());
             BytesRef term;
+            int max = Integer.MIN_VALUE;
+            int min = Integer.MAX_VALUE;
+            BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric32Bit(terms.iterator(null)), reader.getLiveDocs());
             while ((term = iter.next()) != null) {
-                values.add(NumericUtils.prefixCodedToInt(term));
+                int value = NumericUtils.prefixCodedToInt(term);
+                values.add(value);
+                if (value > max) {
+                    max = value;
+                }
+                if (value < min) {
+                    min = value;
+                }
             }
+
             Ordinals build = builder.build(fieldDataType.getSettings());
+            if (fieldDataType.getSettings().getAsBoolean("optimize_type", true)) {
+                // if we can fit all our values in a byte or short we should do this!
+                if (min >= Byte.MIN_VALUE && max <= Byte.MAX_VALUE) {
+                    return ByteArrayIndexFieldData.build(reader, fieldDataType, builder, build, new ByteArrayIndexFieldData.BuilderBytes() {
+                        @Override
+                        public byte get(int index) {
+                            return (byte) values.get(index);
+                        }
+
+                        @Override
+                        public byte[] toArray() {
+                            byte[] bValues = new byte[values.size()];
+                            int i = 0;
+                            for (TIntIterator it = values.iterator(); it.hasNext(); ) {
+                                bValues[i++] = (byte) it.next();
+                            }
+                            return bValues;
+                        }
+                    });
+                } else if (min >= Short.MIN_VALUE && max <= Short.MAX_VALUE) {
+                    return ShortArrayIndexFieldData.build(reader, fieldDataType, builder, build, new ShortArrayIndexFieldData.BuilderShorts() {
+                        @Override
+                        public short get(int index) {
+                            return (short) values.get(index);
+                        }
+
+                        @Override
+                        public short[] toArray() {
+                            short[] sValues = new short[values.size()];
+                            int i = 0;
+                            for (TIntIterator it = values.iterator(); it.hasNext(); ) {
+                                sValues[i++] = (short) it.next();
+                            }
+                            return sValues;
+                        }
+                    });
+                }
+            }
+
             return build(reader, fieldDataType, builder, build, new BuilderIntegers() {
                 @Override
                 public int get(int index) {

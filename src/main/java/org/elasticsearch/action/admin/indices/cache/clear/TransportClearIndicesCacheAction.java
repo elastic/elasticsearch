@@ -155,6 +155,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                     }
                 } else {
                     service.cache().clear("api");
+                    service.fieldData().clear();
                     termsFilterCache.clear("api");
                 }
             }

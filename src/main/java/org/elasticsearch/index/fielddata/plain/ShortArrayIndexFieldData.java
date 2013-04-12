@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import gnu.trove.iterator.TShortIterator;
 import gnu.trove.list.array.TShortArrayList;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -42,7 +43,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  */
-public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayAtomicFieldData> implements IndexNumericFieldData<ShortArrayAtomicFieldData> {
+public class ShortArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumericFieldData> implements IndexNumericFieldData<AtomicNumericFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -69,7 +70,7 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
     }
 
     @Override
-    public ShortArrayAtomicFieldData load(AtomicReaderContext context) {
+    public AtomicNumericFieldData load(AtomicReaderContext context) {
         try {
             return cache.load(context, this);
         } catch (Throwable e) {
@@ -82,7 +83,7 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
     }
 
     @Override
-    public ShortArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
@@ -94,13 +95,44 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
         values.add((short) 0); // first "t" indicates null value
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
         try {
-            BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric32Bit(terms.iterator(null)), reader.getLiveDocs());
             BytesRef term;
+            short max = Short.MIN_VALUE;
+            short min = Short.MAX_VALUE;
+            BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric32Bit(terms.iterator(null)), reader.getLiveDocs());
             while ((term = iter.next()) != null) {
-                values.add((short) NumericUtils.prefixCodedToInt(term));
+                short value = (short) NumericUtils.prefixCodedToInt(term);
+                values.add(value);
+                if (value > max) {
+                    max = value;
+                }
+                if (value < min) {
+                    min = value;
+                }
             }
 
             Ordinals build = builder.build(fieldDataType.getSettings());
+            if (fieldDataType.getSettings().getAsBoolean("optimize_type", true)) {
+                // if we can fit all our values in a byte we should do this!
+                if (min >= Byte.MIN_VALUE && max <= Byte.MAX_VALUE) {
+                    return ByteArrayIndexFieldData.build(reader, fieldDataType, builder, build, new ByteArrayIndexFieldData.BuilderBytes() {
+                        @Override
+                        public byte get(int index) {
+                            return (byte) values.get(index);
+                        }
+
+                        @Override
+                        public byte[] toArray() {
+                            byte[] bValues = new byte[values.size()];
+                            int i = 0;
+                            for (TShortIterator it = values.iterator(); it.hasNext(); ) {
+                                bValues[i++] = (byte) it.next();
+                            }
+                            return bValues;
+                        }
+                    });
+                }
+            }
+
             return build(reader, fieldDataType, builder, build, new BuilderShorts() {
                 @Override
                 public short get(int index) {

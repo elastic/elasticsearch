@@ -163,6 +163,7 @@ public class CacheTests extends AbstractNodesTests {
         assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
 
         client.admin().indices().prepareClearCache().execute().actionGet();
+        Thread.sleep(100); // Make sure the filter cache entries have been removed...
         nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true)
                 .execute().actionGet();
         assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));

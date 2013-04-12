@@ -477,8 +477,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     }
 
     @Override
-    public FieldDataStats fieldDataStats() {
-        return shardFieldData.stats();
+    public FieldDataStats fieldDataStats(String... fields) {
+        return shardFieldData.stats(fields);
     }
 
     @Override

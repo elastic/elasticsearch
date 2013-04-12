@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.indices.cache;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -34,8 +35,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -91,8 +91,8 @@ public class CacheTests extends AbstractNodesTests {
     public void testFieldDataStats() {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.prepareIndex("test", "type", "1").setSource("field", "value1").execute().actionGet();
-        client.prepareIndex("test", "type", "2").setSource("field", "value2").execute().actionGet();
+        client.prepareIndex("test", "type", "1").setSource("field", "value1", "field2", "value1").execute().actionGet();
+        client.prepareIndex("test", "type", "2").setSource("field", "value2", "field2", "value2").execute().actionGet();
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         NodesStatsResponse nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
@@ -109,12 +109,27 @@ public class CacheTests extends AbstractNodesTests {
         indicesStats = client.admin().indices().prepareStats("test").clear().setFieldData(true).execute().actionGet();
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
 
-        client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
+        // sort to load it to field data...
+        client.prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
+        client.prepareSearch().addSort("field2", SortOrder.ASC).execute().actionGet();
 
+        // now check the per field stats
+        nodesStats = client.admin().cluster().prepareNodesStats().setIndices(new CommonStatsFlags().set(CommonStatsFlags.Flag.FieldData, true).fieldDataFields("*")).execute().actionGet();
+        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getFields().get("field"), greaterThan(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getFields().get("field"), lessThan(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes()));
+
+        indicesStats = client.admin().indices().prepareStats("test").clear().setFieldData(true).setFieldDataFields("*").execute().actionGet();
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getFieldData().getFields().get("field"), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getFieldData().getFields().get("field"), lessThan(indicesStats.getTotal().getFieldData().getMemorySizeInBytes()));
+
+        client.admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
         nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
         assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
         indicesStats = client.admin().indices().prepareStats("test").clear().setFieldData(true).execute().actionGet();
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+
     }
 
     @Test

@@ -192,98 +192,110 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
     public NodeIndicesStats stats(boolean includePrevious, CommonStatsFlags flags) {
         CommonStats stats = new CommonStats();
         Flag[] setFlags = flags.getFlags();
-        for(Flag flag : setFlags) {
+        for (Flag flag : setFlags) {
             switch (flag) {
-            case Docs:
-                stats.docs = new DocsStats();
-                break;
-            case Store:
-                stats.store = new StoreStats();
-                break;
-            case Warmer:
-                stats.warmer = new WarmerStats();
-                break;
-            case Get:
-                stats.get = new GetStats();
-                if (includePrevious) {stats.get.add(oldShardsStats.getStats);}
-                break;
-            case Indexing:
-                stats.indexing = new IndexingStats();
-                if (includePrevious) {stats.indexing.add(oldShardsStats.indexingStats);}
-                break;
-            case Search:
-                stats.search = new SearchStats();
-                if (includePrevious) {stats.search.add(oldShardsStats.searchStats);}
-                break;
-            case Merge:
-                stats.merge = new MergeStats();
-                if (includePrevious) {stats.merge.add(oldShardsStats.mergeStats);}
-                break;
-            case Refresh:
-                stats.refresh = new RefreshStats();
-                if (includePrevious) {stats.refresh.add(oldShardsStats.refreshStats);}
-                break;
-            case Flush:
-                stats.flush = new FlushStats();
-                if (includePrevious) {stats.flush.add(oldShardsStats.flushStats);}
-                break;
-            case FieldData:
-                stats.fieldData = new FieldDataStats();
-                break;
-            case IdCache:
-                stats.idCache = new IdCacheStats();
-                break;
-            case FilterCache:
-                stats.filterCache = new FilterCacheStats();
-                break;
-            default:
-                throw new IllegalStateException("Unknown Flag: " + flag);
+                case Docs:
+                    stats.docs = new DocsStats();
+                    break;
+                case Store:
+                    stats.store = new StoreStats();
+                    break;
+                case Warmer:
+                    stats.warmer = new WarmerStats();
+                    break;
+                case Get:
+                    stats.get = new GetStats();
+                    if (includePrevious) {
+                        stats.get.add(oldShardsStats.getStats);
+                    }
+                    break;
+                case Indexing:
+                    stats.indexing = new IndexingStats();
+                    if (includePrevious) {
+                        stats.indexing.add(oldShardsStats.indexingStats);
+                    }
+                    break;
+                case Search:
+                    stats.search = new SearchStats();
+                    if (includePrevious) {
+                        stats.search.add(oldShardsStats.searchStats);
+                    }
+                    break;
+                case Merge:
+                    stats.merge = new MergeStats();
+                    if (includePrevious) {
+                        stats.merge.add(oldShardsStats.mergeStats);
+                    }
+                    break;
+                case Refresh:
+                    stats.refresh = new RefreshStats();
+                    if (includePrevious) {
+                        stats.refresh.add(oldShardsStats.refreshStats);
+                    }
+                    break;
+                case Flush:
+                    stats.flush = new FlushStats();
+                    if (includePrevious) {
+                        stats.flush.add(oldShardsStats.flushStats);
+                    }
+                    break;
+                case FieldData:
+                    stats.fieldData = new FieldDataStats();
+                    break;
+                case IdCache:
+                    stats.idCache = new IdCacheStats();
+                    break;
+                case FilterCache:
+                    stats.filterCache = new FilterCacheStats();
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown Flag: " + flag);
             }
         }
-        
+
 
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
-                for(Flag flag : setFlags) {
+                for (Flag flag : setFlags) {
                     switch (flag) {
-                    case Store:
-                        stats.store.add(indexShard.storeStats());
-                        break;
-                    case Docs:
-                        stats.docs.add(indexShard.docStats());
-                        break;
-                    case Get:
-                        stats.get.add(indexShard.getStats());
-                        break;
-                    case Indexing:
-                        stats.indexing.add(indexShard.indexingStats());
-                        break;
-                    case Search:
-                        stats.search.add(indexShard.searchStats());
-                        break;
-                    case Merge:
-                        stats.merge.add(indexShard.mergeStats());
-                        break;
-                    case Refresh:
-                        stats.refresh.add(indexShard.refreshStats());
-                        break;
-                    case Flush:
-                        stats.flush.add(indexShard.flushStats());
-                        break;
-                    case FilterCache:
-                        stats.filterCache.add(indexShard.filterCacheStats());
-                        break;
-                    case IdCache:
-                        stats.idCache.add(indexShard.idCacheStats());
-                        break;
-                    case FieldData:
-                        stats.fieldData.add(indexShard.fieldDataStats());
-                        break;
-                    case Warmer:
-                        stats.warmer.add(indexShard.warmerStats());
-                        break;
-                    default:
-                        throw new IllegalStateException("Unknown Flag: " + flag);
+                        case Store:
+                            stats.store.add(indexShard.storeStats());
+                            break;
+                        case Docs:
+                            stats.docs.add(indexShard.docStats());
+                            break;
+                        case Get:
+                            stats.get.add(indexShard.getStats());
+                            break;
+                        case Indexing:
+                            stats.indexing.add(indexShard.indexingStats());
+                            break;
+                        case Search:
+                            stats.search.add(indexShard.searchStats());
+                            break;
+                        case Merge:
+                            stats.merge.add(indexShard.mergeStats());
+                            break;
+                        case Refresh:
+                            stats.refresh.add(indexShard.refreshStats());
+                            break;
+                        case Flush:
+                            stats.flush.add(indexShard.flushStats());
+                            break;
+                        case FilterCache:
+                            stats.filterCache.add(indexShard.filterCacheStats());
+                            break;
+                        case IdCache:
+                            stats.idCache.add(indexShard.idCacheStats());
+                            break;
+                        case FieldData:
+                            stats.fieldData.add(indexShard.fieldDataStats(flags.fieldDataFields()));
+                            break;
+                        case Warmer:
+                            stats.warmer.add(indexShard.warmerStats());
+                            break;
+                        default:
+                            throw new IllegalStateException("Unknown Flag: " + flag);
                     }
                 }
             }

@@ -171,6 +171,9 @@ public class PathTrie<T> {
             }
 
             if (index == (path.length - 1)) {
+                if (params != null && node.isNamedWildcard()) {
+                    put(params, node.namedWildcard(), token);
+                }
                 return node.value;
             }
 

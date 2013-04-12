@@ -86,6 +86,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
 
         controller.registerHandler(GET, "/_stats/fielddata", new RestFieldDataStatsHandler());
         controller.registerHandler(GET, "/{index}/_stats/fielddata", new RestFieldDataStatsHandler());
+        controller.registerHandler(GET, "/_stats/fielddata/{fields}", new RestFieldDataStatsHandler());
+        controller.registerHandler(GET, "/{index}/_stats/fielddata/{fields}", new RestFieldDataStatsHandler());
     }
 
     @Override
@@ -548,6 +550,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
             indicesStatsRequest.clear().fieldData(true);
             indicesStatsRequest.indices(splitIndices(request.param("index")));
             indicesStatsRequest.types(splitTypes(request.param("types")));
+            indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fields", null));
 
             client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                 @Override

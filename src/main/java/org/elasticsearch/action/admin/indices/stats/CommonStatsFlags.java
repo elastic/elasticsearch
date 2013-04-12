@@ -28,10 +28,11 @@ import java.util.EnumSet;
 
 /**
  */
-public class CommonStatsFlags implements Streamable {
+public class CommonStatsFlags implements Streamable, Cloneable {
     private EnumSet<Flag> flags = EnumSet.of(Flag.Docs, Flag.Store, Flag.Indexing, Flag.Get, Flag.Search);
     private String[] types = null;
     private String[] groups = null;
+    private String[] fieldDataFields = null;
 
     /**
      * Sets all flags to return all stats.
@@ -40,6 +41,7 @@ public class CommonStatsFlags implements Streamable {
         flags = EnumSet.allOf(Flag.class);
         types = null;
         groups = null;
+        fieldDataFields = null;
         return this;
     }
 
@@ -50,13 +52,14 @@ public class CommonStatsFlags implements Streamable {
         flags = EnumSet.noneOf(Flag.class);
         types = null;
         groups = null;
+        fieldDataFields = null;
         return this;
     }
 
     public boolean anySet() {
         return !flags.isEmpty();
     }
-    
+
     public Flag[] getFlags() {
         return flags.toArray(new Flag[flags.size()]);
     }
@@ -90,19 +93,33 @@ public class CommonStatsFlags implements Streamable {
     public String[] groups() {
         return this.groups;
     }
-    
+
+    /**
+     * Sets specific search group stats to retrieve the stats for. Mainly affects search
+     * when enabled.
+     */
+    public CommonStatsFlags fieldDataFields(String... fieldDataFields) {
+        this.fieldDataFields = fieldDataFields;
+        return this;
+    }
+
+    public String[] fieldDataFields() {
+        return this.fieldDataFields;
+    }
+
+
     public boolean isSet(Flag flag) {
         return flags.contains(flag);
     }
-    
+
     boolean unSet(Flag flag) {
         return flags.remove(flag);
     }
-    
+
     void set(Flag flag) {
         flags.add(flag);
     }
-    
+
     public CommonStatsFlags set(Flag flag, boolean add) {
         if (add) {
             set(flag);
@@ -125,49 +142,37 @@ public class CommonStatsFlags implements Streamable {
             longFlags |= (1 << flag.ordinal());
         }
         out.writeLong(longFlags);
-        if (types == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(types.length);
-            for (String type : types) {
-                out.writeString(type);
-            }
-        }
-        if (groups == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(groups.length);
-            for (String group : groups) {
-                out.writeString(group);
-            }
-        }
+
+        out.writeStringArrayNullable(types);
+        out.writeStringArrayNullable(groups);
+        out.writeStringArrayNullable(fieldDataFields);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         final long longFlags = in.readLong();
         flags.clear();
-        for(Flag flag : Flag.values()) {
+        for (Flag flag : Flag.values()) {
             if ((longFlags & (1 << flag.ordinal())) != 0) {
                 flags.add(flag);
             }
         }
-        int size = in.readVInt();
-        if (size > 0) {
-            types = new String[size];
-            for (int i = 0; i < size; i++) {
-                types[i] = in.readString();
-            }
-        }
-        size = in.readVInt();
-        if (size > 0) {
-            groups = new String[size];
-            for (int i = 0; i < size; i++) {
-                groups[i] = in.readString();
-            }
+        types = in.readStringArray();
+        groups = in.readStringArray();
+        fieldDataFields = in.readStringArray();
+    }
+
+    @Override
+    public CommonStatsFlags clone() {
+        try {
+            CommonStatsFlags cloned = (CommonStatsFlags) super.clone();
+            cloned.flags = flags.clone();
+            return cloned;
+        } catch (CloneNotSupportedException e) {
+            throw new AssertionError(e);
         }
     }
-    
+
     public static enum Flag {
         // Do not change the order of these flags we use
         // the ordinal for encoding! Only append to the end!
@@ -183,16 +188,16 @@ public class CommonStatsFlags implements Streamable {
         FieldData("fielddata"),
         Docs("docs"),
         Warmer("warmer");
-        
+
         private final String restName;
-        
+
         Flag(String restName) {
             this.restName = restName;
         }
-        
+
         public String getRestName() {
             return restName;
         }
-            
+
     }
 }

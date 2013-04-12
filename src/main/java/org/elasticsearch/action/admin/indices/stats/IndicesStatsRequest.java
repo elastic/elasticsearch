@@ -19,12 +19,12 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+
+import java.io.IOException;
 
 /**
  * A request to get indices level stats. Allow to enable different stats to be returned.
@@ -141,7 +141,7 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
     }
 
     public IndicesStatsRequest refresh(boolean refresh) {
-        flags.set(Flag.Refresh, refresh); 
+        flags.set(Flag.Refresh, refresh);
         return this;
     }
 
@@ -192,6 +192,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
 
     public boolean fieldData() {
         return flags.isSet(Flag.FieldData);
+    }
+
+    public IndicesStatsRequest fieldDataFields(String... fieldDataFields) {
+        flags.fieldDataFields(fieldDataFields);
+        return this;
+    }
+
+    public String[] fieldDataFields() {
+        return flags.fieldDataFields();
     }
 
     @Override

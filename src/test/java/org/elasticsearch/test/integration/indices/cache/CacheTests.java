@@ -46,7 +46,8 @@ public class CacheTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        startNode("node1");
+        // Filter cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
+        startNode("node1", ImmutableSettings.settingsBuilder().put("indices.cache.filter.clean_interval", "1ms"));
         client = getClient();
     }
 
@@ -115,4 +116,63 @@ public class CacheTests extends AbstractNodesTests {
         indicesStats = client.admin().indices().prepareStats("test").clear().setFieldData(true).execute().actionGet();
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
     }
+
+    @Test
+    public void testClearAllCaches() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", 1))
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client.prepareIndex("test", "type", "1").setSource("field", "value1").execute().actionGet();
+        client.prepareIndex("test", "type", "2").setSource("field", "value2").execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        NodesStatsResponse nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true)
+                .execute().actionGet();
+        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+
+        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats("test")
+                .clear().setFieldData(true).setFilterCache(true)
+                .execute().actionGet();
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+
+        // sort to load it to field data and filter to load filter cache
+        client.prepareSearch()
+                .setFilter(FilterBuilders.termFilter("field", "value1"))
+                .addSort("field", SortOrder.ASC)
+                .execute().actionGet();
+        client.prepareSearch()
+                .setFilter(FilterBuilders.termFilter("field", "value2"))
+                .addSort("field", SortOrder.ASC)
+                .execute().actionGet();
+
+        nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true)
+                .execute().actionGet();
+        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
+
+        indicesStats = client.admin().indices().prepareStats("test")
+                .clear().setFieldData(true).setFilterCache(true)
+                .execute().actionGet();
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
+        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(0l));
+
+        client.admin().indices().prepareClearCache().execute().actionGet();
+        nodesStats = client.admin().cluster().prepareNodesStats().setIndices(true)
+                .execute().actionGet();
+        assertThat(nodesStats.getNodes()[0].getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(nodesStats.getNodes()[0].getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+
+        indicesStats = client.admin().indices().prepareStats("test")
+                .clear().setFieldData(true).setFilterCache(true)
+                .execute().actionGet();
+        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
+        assertThat(indicesStats.getTotal().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
+    }
+
 }

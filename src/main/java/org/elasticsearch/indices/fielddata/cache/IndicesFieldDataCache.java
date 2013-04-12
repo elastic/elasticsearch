@@ -102,7 +102,11 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
     public void onRemoval(RemovalNotification<Key, AtomicFieldData> notification) {
         if (notification.getKey() != null && notification.getKey().listener != null) {
             IndexFieldCache indexCache = notification.getKey().indexCache;
-            notification.getKey().listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), notification.getKey().sizeInBytes, notification.getValue());
+            long sizeInBytes = notification.getKey().sizeInBytes;
+            if (sizeInBytes == -1 && notification.getValue() != null) {
+                sizeInBytes = notification.getValue().getMemorySizeInBytes();
+            }
+            notification.getKey().listener.onUnload(indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), sizeInBytes, notification.getValue());
         }
     }
 

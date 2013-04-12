@@ -58,7 +58,14 @@ public class RestNodesStatsAction extends BaseRestHandler {
             controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/" + flag.getRestName(), indicesHandler);
             controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/" + flag.getRestName(), indicesHandler);
             controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/" + flag.getRestName() + "/stats", indicesHandler);
-            controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/" + flag.getRestName() + "/stats", indicesHandler);    
+            controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/" + flag.getRestName() + "/stats", indicesHandler);
+            if (flag == Flag.FieldData) {
+                // add field specific endpoint
+                controller.registerHandler(RestRequest.Method.GET, "/_nodes/stats/indices/" + flag.getRestName() + "/{fields}", indicesHandler);
+                controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/stats/indices/" + flag.getRestName() + "/{fields}", indicesHandler);
+                controller.registerHandler(RestRequest.Method.GET, "/_nodes/indices/" + flag.getRestName() + "/{fields}/stats", indicesHandler);
+                controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/indices/" + flag.getRestName() + "/{fields}/stats", indicesHandler);
+            }
         }
 
         RestOsHandler osHandler = new RestOsHandler();
@@ -174,6 +181,10 @@ public class RestNodesStatsAction extends BaseRestHandler {
         @Override
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(RestActions.splitNodes(request.param("nodeId")));
+            CommonStatsFlags flags = this.flags;
+            if (flags.isSet(Flag.FieldData) && request.hasParam("fields")) {
+                flags = flags.clone().fieldDataFields(request.paramAsStringArray("fields", null));
+            }
             nodesStatsRequest.clear().indices(flags);
             executeNodeStats(request, channel, nodesStatsRequest);
         }

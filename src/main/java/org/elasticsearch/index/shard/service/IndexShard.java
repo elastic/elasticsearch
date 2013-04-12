@@ -92,7 +92,7 @@ public interface IndexShard extends IndexShardComponent {
 
     IdCacheStats idCacheStats();
 
-    FieldDataStats fieldDataStats();
+    FieldDataStats fieldDataStats(String... fields);
 
     IndexShardState state();
 

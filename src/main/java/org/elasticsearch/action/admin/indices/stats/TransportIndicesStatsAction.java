@@ -179,7 +179,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
             stats.stats.idCache = indexShard.idCacheStats();
         }
         if (request.request.fieldData()) {
-            stats.stats.fieldData = indexShard.fieldDataStats();
+            stats.stats.fieldData = indexShard.fieldDataStats(request.request.fieldDataFields());
         }
 
         return stats;

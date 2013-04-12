@@ -82,7 +82,11 @@ public interface IndexFieldDataCache {
         @Override
         public void onRemoval(RemovalNotification<Key, AtomicFieldData> notification) {
             if (notification.getKey() != null) {
-                notification.getKey().listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), notification.getKey().sizeInBytes, notification.getValue());
+                long sizeInBytes = notification.getKey().sizeInBytes;
+                if (sizeInBytes == -1 && notification.getValue() != null) {
+                    sizeInBytes = notification.getValue().getMemorySizeInBytes();
+                }
+                notification.getKey().listener.onUnload(fieldNames, fieldDataType, notification.wasEvicted(), sizeInBytes, notification.getValue());
             }
         }
 

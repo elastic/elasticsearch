@@ -114,7 +114,7 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + +RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_DOUBLE) + ordinals.getMemorySizeInBytes();
+                size = RamUsage.NUM_BYTES_INT/*size*/ + RamUsage.NUM_BYTES_INT/*numDocs*/ + +RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_LONG) + ordinals.getMemorySizeInBytes();
             }
             return size;
         }
@@ -275,7 +275,7 @@ public abstract class LongArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_DOUBLE);
+                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_LONG);
             }
             return size;
         }

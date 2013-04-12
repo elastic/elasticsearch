@@ -188,7 +188,7 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_DOUBLE) + (set.getBits().length * RamUsage.NUM_BYTES_LONG);
+                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_INT) + (set.getBits().length * RamUsage.NUM_BYTES_LONG);
             }
             return size;
         }
@@ -275,7 +275,7 @@ public abstract class IntArrayAtomicFieldData extends AtomicNumericFieldData {
         @Override
         public long getMemorySizeInBytes() {
             if (size == -1) {
-                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_DOUBLE);
+                size = RamUsage.NUM_BYTES_ARRAY_HEADER + (values.length * RamUsage.NUM_BYTES_INT);
             }
             return size;
         }

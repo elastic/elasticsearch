@@ -53,7 +53,8 @@ public class MatchQuery {
     public static enum Type {
         BOOLEAN,
         PHRASE,
-        PHRASE_PREFIX
+        PHRASE_PREFIX,
+        ACROSS
     }
 
     public static enum ZeroTermsQuery {
@@ -337,7 +338,7 @@ public class MatchQuery {
         throw new ElasticSearchIllegalStateException("No type found for [" + type + "]");
     }
 
-    private Query newTermQuery(@Nullable FieldMapper mapper, Term term) {
+    protected Query newTermQuery(@Nullable FieldMapper mapper, Term term) {
         if (fuzziness != null) {
             if (mapper != null) {
                 Query query = mapper.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions);
@@ -362,7 +363,7 @@ public class MatchQuery {
         return new TermQuery(term);
     }
     
-    private static BytesRef termToByteRef(CharTermAttribute attr) {
+    protected static BytesRef termToByteRef(CharTermAttribute attr) {
         final BytesRef ref = new BytesRef();
         UnicodeUtil.UTF16toUTF8(attr.buffer(), 0, attr.length(), ref);
         return ref;

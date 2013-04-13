@@ -47,7 +47,11 @@ public class MatchQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         /**
          * The text is analyzed and used in a phrase query, with the last term acting as a prefix.
          */
-        PHRASE_PREFIX
+        PHRASE_PREFIX,
+        /**
+         * The text is analyzed and terms in each position must match in at least one field.
+         */
+        ACROSS
     }
 
     public static enum ZeroTermsQuery {

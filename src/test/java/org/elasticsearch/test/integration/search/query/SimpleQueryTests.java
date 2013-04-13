@@ -34,6 +34,8 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import org.elasticsearch.action.explain.ExplainResponse;
+
 import java.util.Arrays;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -44,6 +46,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
+import static org.testng.Assert.*;
 
 /**
  *
@@ -580,6 +583,33 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         builder.lenient(true);
         searchResponse = client.prepareSearch().setQuery(builder).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat("1", equalTo(searchResponse.getHits().getAt(0).id()));
+    }
+
+    @Test
+    public void testMultiMatchAcrossQuery() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value5 vv", "field3", "value3").execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field1", "value2", "field2", "value5", "field3", "value2").execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource("field1", "value3", "field2", "value6", "field3", "value1").execute().actionGet();
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        MultiMatchQueryBuilder builder = QueryBuilders.multiMatchQuery("value1 value5", "field1", "field2", "field3")
+            .operator(MatchQueryBuilder.Operator.AND)
+            .type(MatchQueryBuilder.Type.ACROSS);
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(builder)
+                .execute().actionGet();
+
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat("1", equalTo(searchResponse.getHits().getAt(0).id()));
     }

@@ -109,6 +109,8 @@ public class MultiMatchQueryParser implements QueryParser {
                         type = MatchQuery.Type.PHRASE;
                     } else if ("phrase_prefix".equals(tStr) || "phrasePrefix".equals(currentFieldName)) {
                         type = MatchQuery.Type.PHRASE_PREFIX;
+                    } else if ("across".equals(tStr)) {
+                        type = MatchQuery.Type.ACROSS;
                     }
                 } else if ("analyzer".equals(currentFieldName)) {
                     String analyzer = parser.text();

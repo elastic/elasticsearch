@@ -30,6 +30,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
@@ -146,6 +147,11 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
                             }
                             return sValues;
                         }
+
+                        @Override
+                        public int size() {
+                            return values.size();
+                        }
                     });
                 } else if (min >= Integer.MIN_VALUE && max <= Integer.MAX_VALUE) {
                     return IntArrayIndexFieldData.build(reader, fieldDataType, builder, build, new IntArrayIndexFieldData.BuilderIntegers() {
@@ -163,18 +169,33 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
                             }
                             return iValues;
                         }
+
+                        @Override
+                        public int size() {
+                            return values.size();
+                        }
+
                     });
                 }
             }
 
             if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
+                final FixedBitSet set = builder.buildDocsWithValuesSet();
+
+                // there's sweatspot where due to low unique value count, using ordinals will consume less memory
+                long singleValuesArraySize = reader.maxDoc() * RamUsage.NUM_BYTES_LONG + (set == null ? 0 : set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_INT);
+                long uniqueValuesArraySize = values.size() * RamUsage.NUM_BYTES_LONG;
+                long ordinalsSize = build.getMemorySizeInBytes();
+                if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
+                    return new LongArrayAtomicFieldData.WithOrdinals(values.toArray(new long[values.size()]), reader.maxDoc(), build);
+                }
+
                 long[] sValues = new long[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();
                 for (int i = 0; i < maxDoc; i++) {
                     sValues[i] = values.get(ordinals.getOrd(i));
                 }
-                final FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
                     return new LongArrayAtomicFieldData.Single(sValues, reader.maxDoc());
                 } else {

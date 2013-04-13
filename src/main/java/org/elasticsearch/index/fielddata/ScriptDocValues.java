@@ -235,6 +235,33 @@ public abstract class ScriptDocValues {
         public GeoPoint getValue() {
             return values.getValue(docId);
         }
+
+        public double getLat() {
+            return getValue().lat();
+        }
+
+        public double[] getLats() {
+            List<GeoPoint> points = getValues();
+            double[] lats = new double[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                lats[i] = points.get(i).lat();
+            }
+            return lats;
+        }
+
+        public double [] getLons() {
+            List<GeoPoint> points = getValues();
+            double[] lons = new double[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                lons[i] = points.get(i).lon();
+            }
+            return lons;
+        }
+
+        public double getLon() {
+            return getValue().lon();
+        }
+
         
         public List<GeoPoint> getValues() {
             if (!listLoaded) {

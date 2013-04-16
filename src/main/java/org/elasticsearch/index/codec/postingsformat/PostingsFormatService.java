@@ -84,7 +84,7 @@ public class PostingsFormatService extends AbstractIndexComponent {
 
     public PostingsFormatProvider get(String name) throws ElasticSearchIllegalArgumentException {
         PostingsFormatProvider provider = providers.get(name);
-        if (name == null) {
+        if (provider == null) {
             throw new ElasticSearchIllegalArgumentException("failed to find postings_format [" + name + "]");
         }
         return provider;

@@ -24,6 +24,8 @@ import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -67,7 +69,19 @@ public class RestMultiSearchAction extends BaseRestHandler {
         }
 
         try {
-            multiSearchRequest.add(request.content(), request.contentUnsafe(), indices, types, request.param("search_type"), ignoreIndices);
+            BytesReference content = null;
+            boolean contentUnsafe = false;
+            if (request.hasContent()) {
+                content = request.content();
+                contentUnsafe = request.contentUnsafe();
+            } else {
+                String source = request.param("source");
+                if (source != null) {
+                    content = new BytesArray(source);
+                    contentUnsafe = false;
+                }
+            }
+            multiSearchRequest.add(content, contentUnsafe, indices, types, request.param("search_type"), ignoreIndices);
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

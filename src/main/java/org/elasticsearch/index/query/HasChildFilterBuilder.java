@@ -32,6 +32,8 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
     private final QueryBuilder queryBuilder;
     private String childType;
     private String filterName;
+    private Boolean cache;
+    private String cacheKey;
 
     public HasChildFilterBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
@@ -53,6 +55,23 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Should the filter be cached or not. Defaults to <tt>false</tt>.
+     */
+    public HasChildFilterBuilder cache(boolean cache) {
+        this.cache = cache;
+        return this;
+    }
+
+    /**
+     * Defines what should be used as key to represent this filter in the filter cache.
+     * By default the filter itself is used as key.
+     */
+    public HasChildFilterBuilder cacheKey(String cacheKey) {
+        this.cacheKey = cacheKey;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasChildFilterParser.NAME);
@@ -66,6 +85,12 @@ public class HasChildFilterBuilder extends BaseFilterBuilder {
         builder.field("child_type", childType);
         if (filterName != null) {
             builder.field("_name", filterName);
+        }
+        if (cache != null) {
+            builder.field("_cache", cache);
+        }
+        if (cacheKey != null) {
+            builder.field("_cache_key", cacheKey);
         }
         builder.endObject();
     }

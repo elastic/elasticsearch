@@ -31,7 +31,6 @@ import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
-import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -52,6 +51,36 @@ public abstract class HasChildFilter extends Filter implements SearchContext.Rew
         this.parentType = parentType;
         this.childType = childType;
         this.childQuery = childQuery;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != this.getClass()) {
+            return false;
+        }
+
+        HasChildFilter that = (HasChildFilter) obj;
+        if (!childQuery.equals(that.childQuery)) {
+            return false;
+        }
+        if (!childType.equals(that.childType)) {
+            return false;
+        }
+        if (!parentType.equals(that.parentType)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = childQuery.hashCode();
+        result = 31 * result + parentType.hashCode();
+        result = 31 * result + childType.hashCode();
+        return result;
     }
 
     @Override

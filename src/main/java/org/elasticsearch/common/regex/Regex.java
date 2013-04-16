@@ -22,12 +22,20 @@ package org.elasticsearch.common.regex;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
  *
  */
 public class Regex {
+    
+    /**
+     * This Regex / {@link Pattern} flag is supported from Java 7 on.
+     * If set on a Java6 JVM the flag will be ignored.
+     * 
+     */
+    public static final int UNICODE_CHARACTER_CLASS = 0x100; // supported in JAVA7
 
     /**
      * Is the str a simple match pattern.
@@ -107,22 +115,25 @@ public class Regex {
             if (s.isEmpty()) {
                 continue;
             }
-            if ("CASE_INSENSITIVE".equalsIgnoreCase(s)) {
+            s = s.toUpperCase(Locale.ROOT);
+            if ("CASE_INSENSITIVE".equals(s)) {
                 pFlags |= Pattern.CASE_INSENSITIVE;
-            } else if ("MULTILINE".equalsIgnoreCase(s)) {
+            } else if ("MULTILINE".equals(s)) {
                 pFlags |= Pattern.MULTILINE;
-            } else if ("DOTALL".equalsIgnoreCase(s)) {
+            } else if ("DOTALL".equals(s)) {
                 pFlags |= Pattern.DOTALL;
-            } else if ("UNICODE_CASE".equalsIgnoreCase(s)) {
+            } else if ("UNICODE_CASE".equals(s)) {
                 pFlags |= Pattern.UNICODE_CASE;
-            } else if ("CANON_EQ".equalsIgnoreCase(s)) {
+            } else if ("CANON_EQ".equals(s)) {
                 pFlags |= Pattern.CANON_EQ;
-            } else if ("UNIX_LINES".equalsIgnoreCase(s)) {
+            } else if ("UNIX_LINES".equals(s)) {
                 pFlags |= Pattern.UNIX_LINES;
-            } else if ("LITERAL".equalsIgnoreCase(s)) {
+            } else if ("LITERAL".equals(s)) {
                 pFlags |= Pattern.LITERAL;
-            } else if ("COMMENTS".equalsIgnoreCase(s)) {
+            } else if ("COMMENTS".equals(s)) {
                 pFlags |= Pattern.COMMENTS;
+            } else if ("UNICODE_CHAR_CLASS".equals(s)) {
+                pFlags |= UNICODE_CHARACTER_CLASS;
             } else {
                 throw new ElasticSearchIllegalArgumentException("Unknown regex flag [" + s + "]");
             }
@@ -155,6 +166,9 @@ public class Regex {
         }
         if ((flags & Pattern.COMMENTS) != 0) {
             sb.append("COMMENTS|");
+        } 
+        if ((flags & UNICODE_CHARACTER_CLASS) != 0) {
+            sb.append("UNICODE_CHAR_CLASS|");
         }
         return sb.toString();
     }

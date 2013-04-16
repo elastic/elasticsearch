@@ -19,9 +19,12 @@
 
 package org.elasticsearch.test.integration.search.preference;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -31,6 +34,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 @Test
@@ -55,6 +59,30 @@ public class SearchPreferenceTests extends AbstractNodesTests {
     protected Client getClient() {
         return client("server1");
     }
+    
+    @Test // see #2896
+    public void testStopOneNodePreferenceWithRedState() throws InterruptedException {
+        startNode("server3");
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 10).put("index.number_of_replicas", 0)).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        for (int i = 0; i < 10; i++) {
+            client.prepareIndex("test", "type1", ""+i).setSource("field1", "value1").execute().actionGet();
+        }
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        closeNode("server3");
+        client.admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).execute().actionGet();
+        String[] preferences = new String[] {"_primary", "_local", "_primary_first", "_only_local", "_prefer_node:somenode", "_prefer_node:server2"};
+        for (String pref : preferences) {
+            SearchResponse searchResponse = client.prepareSearch().setSearchType(SearchType.COUNT).setPreference(pref).execute().actionGet();
+            assertThat(RestStatus.OK, equalTo(searchResponse.status()));
+            assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
+            searchResponse = client.prepareSearch().setPreference(pref).execute().actionGet();
+            assertThat(RestStatus.OK, equalTo(searchResponse.status()));
+            assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
+        }
+    }
+    
 
     @Test
     public void noPreferenceRandom() throws Exception {

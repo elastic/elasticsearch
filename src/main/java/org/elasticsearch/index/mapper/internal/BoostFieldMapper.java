@@ -278,7 +278,9 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, don't write it at all
-        if (name().equals(Defaults.NAME) && nullValue == null) {
+        if (name().equals(Defaults.NAME) && nullValue == null &&
+				fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
+                fieldType.stored() == Defaults.FIELD_TYPE.stored()) {
             return builder;
         }
         builder.startObject(contentType());
@@ -287,6 +289,12 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         }
         if (nullValue != null) {
             builder.field("null_value", nullValue);
+		}
+        if (fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
+            builder.field("index", fieldType.indexed());
+        }
+        if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+            builder.field("store", fieldType.stored());
         }
         builder.endObject();
         return builder;

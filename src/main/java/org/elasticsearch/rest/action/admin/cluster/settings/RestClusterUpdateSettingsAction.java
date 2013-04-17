@@ -26,8 +26,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -67,7 +69,24 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
             @Override
             public void onResponse(ClusterUpdateSettingsResponse response) {
                 try {
-                    channel.sendResponse(new StringRestResponse(RestStatus.OK));
+                    XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
+                    builder.startObject();
+
+                    builder.startObject("persistent");
+                    for (Map.Entry<String, String> entry : response.getPersistentSettings().getAsMap().entrySet()) {
+                        builder.field(entry.getKey(), entry.getValue());
+                    }
+                    builder.endObject();
+
+                    builder.startObject("transient");
+                    for (Map.Entry<String, String> entry : response.getTransientSettings().getAsMap().entrySet()) {
+                        builder.field(entry.getKey(), entry.getValue());
+                    }
+                    builder.endObject();
+
+                    builder.endObject();
+
+                    channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }

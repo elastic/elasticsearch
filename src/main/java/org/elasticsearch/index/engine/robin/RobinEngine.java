@@ -726,10 +726,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     }
 
     @Override
-    public Searcher searcher() throws EngineException {
+    public Searcher searcher() throws EngineException{
         SearcherManager manager = this.searcherManager;
-        IndexSearcher searcher = manager.acquire();
-        return new RobinSearcher(searcher, manager);
+        try {
+            IndexSearcher searcher = manager.acquire();
+            return new RobinSearcher(searcher, manager);
+        } catch (IOException ex) {
+            logger.error("failed to accquire searcher for shard [{}]", ex, shardId);
+            throw new EngineException(shardId, ex.getMessage());
+        }
     }
 
     @Override

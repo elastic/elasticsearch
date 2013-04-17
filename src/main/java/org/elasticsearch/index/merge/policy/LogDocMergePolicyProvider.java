@@ -20,6 +20,7 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.LogDocMergePolicy;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Preconditions;
@@ -167,6 +168,13 @@ public class LogDocMergePolicyProvider extends AbstractIndexShardComponent imple
                 return null;
             }
             return super.findMerges(trigger, infos);
+        }
+        
+        @Override
+        public MergePolicy clone() {
+            // Lucene IW makes a clone internally but since we hold on to this instance 
+            // the clone will just be the identity.
+            return this;
         }
     }
 }

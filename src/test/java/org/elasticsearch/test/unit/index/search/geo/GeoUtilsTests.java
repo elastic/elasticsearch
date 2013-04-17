@@ -19,8 +19,13 @@
 
 package org.elasticsearch.test.unit.index.search.geo;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+
+import org.apache.lucene.spatial.prefix.tree.Cell;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
-import org.apache.lucene.spatial.prefix.tree.Node;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -28,11 +33,6 @@ import org.testng.annotations.Test;
 
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.not;
 
 /**
  *
@@ -214,7 +214,7 @@ public class GeoUtilsTests {
         SpatialContext spatialContext = new SpatialContext(true);
 
         GeohashPrefixTree geohashPrefixTree = new GeohashPrefixTree(spatialContext, GeohashPrefixTree.getMaxLevelsPossible()/2);
-        Node gNode = geohashPrefixTree.getWorldNode();
+        Cell gNode = geohashPrefixTree.getWorldCell();
 
         for(int i = 0; i<geohashPrefixTree.getMaxLevels(); i++) {
             double width = GeoUtils.geoHashCellWidth(i);
@@ -234,7 +234,7 @@ public class GeoUtilsTests {
         }
 
         QuadPrefixTree quadPrefixTree = new QuadPrefixTree(spatialContext);
-        Node qNode = quadPrefixTree.getWorldNode();
+        Cell qNode = quadPrefixTree.getWorldCell();
         for (int i = 0; i < QuadPrefixTree.DEFAULT_MAX_LEVELS; i++) {
 
             double degrees = 360.0/(1L<<i);

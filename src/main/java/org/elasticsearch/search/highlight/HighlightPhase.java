@@ -267,7 +267,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                                     fragmentsBuilder = new SourceSimpleFragmentsBuilder(mapper, context, field.preTags(), field.postTags(), boundaryScanner);
                                 }
                             } else {
-                                fragListBuilder = field.fragmentOffset() == -1 ? new XSimpleFragListBuilder() : new XSimpleFragListBuilder(field.fragmentOffset());
+                                fragListBuilder = field.fragmentOffset() == -1 ? new SimpleFragListBuilder() : new SimpleFragListBuilder(field.fragmentOffset());
                                 if (field.scoreOrdered()) {
                                     if (mapper.fieldType().stored()) {
                                         fragmentsBuilder = new ScoreOrderFragmentsBuilder(field.preTags(), field.postTags(), boundaryScanner);

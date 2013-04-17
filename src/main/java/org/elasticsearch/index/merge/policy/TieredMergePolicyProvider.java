@@ -217,6 +217,13 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
             super.close();
             provider.policies.remove(this);
         }
+        
+        @Override
+        public MergePolicy clone() {
+            // Lucene IW makes a clone internally but since we hold on to this instance 
+            // the clone will just be the identity.
+            return this;
+        }
     }
 
     public static class EnableMergeTieredMergePolicyProvider extends CustomTieredMergePolicyProvider {

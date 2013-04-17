@@ -175,6 +175,46 @@ public class SimpleIndexStatsTests extends AbstractNodesTests {
     }
     
     @Test
+    public void testMergeStats() {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        // rely on 1 replica for this tests
+        client.admin().indices().prepareCreate("test1").execute().actionGet();
+
+        ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        
+        // clear all
+        IndicesStatsResponse stats = client.admin().indices().prepareStats()
+                .setDocs(false)
+                .setStore(false)
+                .setIndexing(false)
+                .setFlush(true)
+                .setRefresh(true)
+                .setMerge(true)
+                .clear() // reset defaults
+                .execute().actionGet();
+
+        assertThat(stats.getTotal().getDocs(), nullValue());
+        assertThat(stats.getTotal().getStore(), nullValue());
+        assertThat(stats.getTotal().getIndexing(), nullValue());
+        assertThat(stats.getTotal().getGet(), nullValue());
+        assertThat(stats.getTotal().getSearch(), nullValue());
+        
+        for (int i = 0; i < 20; i++) {
+            client.prepareIndex("test1", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client.prepareIndex("test1", "type2", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client.admin().indices().prepareFlush().execute().actionGet();
+        }
+        client.admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+        stats = client.admin().indices().prepareStats()
+                .setMerge(true)
+                .execute().actionGet();
+
+        assertThat(stats.getTotal().getMerge(), notNullValue());
+        assertThat(stats.getTotal().getMerge().getTotal(), greaterThan(0l));
+    }
+    
+    @Test
     public void testAllFlags() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
         // rely on 1 replica for this tests

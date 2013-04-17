@@ -309,6 +309,11 @@ final class QueryRescorer implements Rescorer {
                             while(nextDoc() < target) {}
                             return docId;
                         }
+
+                        @Override
+                        public long cost() {
+                            return docIds.length;
+                        }
                     };
                 }
             };

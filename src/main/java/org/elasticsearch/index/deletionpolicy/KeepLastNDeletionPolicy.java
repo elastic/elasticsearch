@@ -33,7 +33,7 @@ import java.util.List;
 /**
  *
  */
-public class KeepLastNDeletionPolicy extends AbstractIndexShardComponent implements IndexDeletionPolicy {
+public class KeepLastNDeletionPolicy extends AbstractESDeletionPolicy {
 
     private final int numToKeep;
 

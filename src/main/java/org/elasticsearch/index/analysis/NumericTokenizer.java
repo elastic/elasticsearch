@@ -39,7 +39,7 @@ public abstract class NumericTokenizer extends Tokenizer {
     }
 
     protected NumericTokenizer(Reader reader, NumericTokenStream numericTokenStream, char[] buffer, Object extra) throws IOException {
-        super(numericTokenStream, reader);
+        super(reader);
         this.numericTokenStream = numericTokenStream;
         this.extra = extra;
         this.buffer = buffer;

@@ -311,11 +311,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public Tokenizer create(Reader reader) {
-                try {
-                    return new PatternTokenizer(reader, Regex.compile("\\W+", null), -1);
-                } catch (IOException e) {
-                    throw new ElasticSearchIllegalStateException("failed to parse default pattern");
-                }
+                return new PatternTokenizer(reader, Regex.compile("\\W+", null), -1);
             }
         }));
 

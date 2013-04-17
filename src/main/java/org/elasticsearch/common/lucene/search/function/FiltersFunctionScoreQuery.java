@@ -347,6 +347,11 @@ public class FiltersFunctionScoreQuery extends Query {
         public int freq() throws IOException {
             return scorer.freq();
         }
+
+        @Override
+        public long cost() {
+            return scorer.cost();
+        }
     }
 
 

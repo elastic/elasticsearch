@@ -386,5 +386,10 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         public int freq() throws IOException {
             return docs[index].count; // The number of matches in the child doc, which is propagated to parent
         }
+
+        @Override
+        public long cost() {
+            return docs.length;
+        }
     }
 }

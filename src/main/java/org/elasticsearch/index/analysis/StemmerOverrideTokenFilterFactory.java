@@ -20,8 +20,8 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.XStemmerOverrideFilter;
-import org.apache.lucene.analysis.miscellaneous.XStemmerOverrideFilter.StemmerOverrideMap;
+import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter;
+import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter.StemmerOverrideMap;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -48,7 +48,7 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
             throw new ElasticSearchIllegalArgumentException("stemmer override filter requires either `rules` or `rules_path` to be configured");
         }
         
-        XStemmerOverrideFilter.Builder builder = new XStemmerOverrideFilter.Builder();
+        StemmerOverrideFilter.Builder builder = new StemmerOverrideFilter.Builder(false);
         parseRules(rules, builder, "=>");
         overrideMap = builder.build();
 
@@ -56,10 +56,10 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new XStemmerOverrideFilter(tokenStream, overrideMap, false);
+        return new StemmerOverrideFilter(tokenStream, overrideMap);
     }
 
-    static void parseRules(List<String> rules, XStemmerOverrideFilter.Builder builder, String mappingSep) {
+    static void parseRules(List<String> rules, StemmerOverrideFilter.Builder builder, String mappingSep) {
         for (String rule : rules) {
             String key, override;
             List<String> mapping = Strings.splitSmart(rule, mappingSep, false);

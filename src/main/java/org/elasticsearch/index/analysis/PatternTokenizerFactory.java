@@ -54,10 +54,6 @@ public class PatternTokenizerFactory extends AbstractTokenizerFactory {
 
     @Override
     public Tokenizer create(Reader reader) {
-        try {
-            return new PatternTokenizer(reader, pattern, group);
-        } catch (IOException e) {
-            throw new ElasticSearchIllegalStateException("failed to create pattern tokenizer", e);
-        }
+        return new PatternTokenizer(reader, pattern, group);
     }
 }

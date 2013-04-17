@@ -20,6 +20,7 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.LogByteSizeMergePolicy;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Preconditions;
@@ -166,6 +167,13 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         public void close() {
             super.close();
             provider.policies.remove(this);
+        }
+        
+        @Override
+        public MergePolicy clone() {
+            // Lucene IW makes a clone internally but since we hold on to this instance 
+            // the clone will just be the identity.
+            return this;
         }
     }
 

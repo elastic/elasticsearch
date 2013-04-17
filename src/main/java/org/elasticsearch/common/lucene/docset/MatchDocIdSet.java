@@ -106,6 +106,11 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
             }
             return doc = NO_MORE_DOCS;
         }
+
+        @Override
+        public long cost() {
+            return maxDoc;
+        }
     }
 
     class FixedBitSetIterator extends FilteredDocIdSetIterator {
@@ -154,6 +159,11 @@ public abstract class MatchDocIdSet extends DocIdSet implements Bits {
                 }
             }
             return doc = NO_MORE_DOCS;
+        }
+
+        @Override
+        public long cost() {
+            return maxDoc;
         }
     }
 }

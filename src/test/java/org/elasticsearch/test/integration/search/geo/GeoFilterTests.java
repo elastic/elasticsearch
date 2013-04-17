@@ -50,7 +50,6 @@ import org.elasticsearch.common.geo.ShapeBuilder;
 import org.elasticsearch.common.geo.ShapeBuilder.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.ShapeBuilder.PolygonBuilder;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -58,8 +57,6 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
-import org.apache.lucene.spatial.prefix.tree.Node;
-import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;

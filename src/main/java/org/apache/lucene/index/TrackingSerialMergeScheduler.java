@@ -123,4 +123,11 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
     @Override
     public void close() {
     }
+
+    @Override
+    public MergeScheduler clone() {
+        // Lucene IW makes a clone internally but since we hold on to this instance 
+        // the clone will just be the identity.
+        return this;
+    }
 }

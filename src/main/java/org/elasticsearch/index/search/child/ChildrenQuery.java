@@ -301,6 +301,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
                 return nextDoc();
             }
         }
+
+        @Override
+        public long cost() {
+            return parentsIterator.cost();
+        }
     }
 
     static class AvgParentScorer extends ParentScorer {

@@ -19,20 +19,15 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
-import org.apache.lucene.analysis.miscellaneous.KeywordMarkerFilter;
+import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
-
-import java.util.Set;
-
 /**
  *
  */
@@ -48,6 +43,6 @@ public class BrazilianStemTokenFilterFactory extends AbstractTokenFilterFactory 
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new BrazilianStemFilter(new KeywordMarkerFilter(tokenStream, exclusions));
+        return new BrazilianStemFilter(new SetKeywordMarkerFilter(tokenStream, exclusions));
     }
 }

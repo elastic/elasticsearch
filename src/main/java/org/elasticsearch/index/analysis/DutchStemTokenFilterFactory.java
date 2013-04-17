@@ -20,7 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.KeywordMarkerFilter;
+import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
 import org.apache.lucene.analysis.nl.DutchStemFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
@@ -44,6 +44,6 @@ public class DutchStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new DutchStemFilter(new KeywordMarkerFilter(tokenStream, exclusions));
+        return new DutchStemFilter(new SetKeywordMarkerFilter(tokenStream, exclusions));
     }
 }

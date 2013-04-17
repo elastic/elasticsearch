@@ -307,5 +307,10 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
             }
             return currentChildDoc;
         }
+
+        @Override
+        public long cost() {
+            return childrenIterator.cost();
+        }
     }
 }

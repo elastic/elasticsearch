@@ -178,6 +178,8 @@ public class XContentMapConverter {
             gen.writeBinary((byte[]) value);
         } else if (value instanceof Date) {
             gen.writeString(XContentBuilder.defaultDatePrinter.print(((Date) value).getTime()));
+        } else if (value instanceof Calendar) {
+            gen.writeString(XContentBuilder.defaultDatePrinter.print((((Calendar) value)).getTimeInMillis()));
         } else if (value instanceof BytesReference) {
             BytesReference bytes = (BytesReference) value;
             if (!bytes.hasArray()) {

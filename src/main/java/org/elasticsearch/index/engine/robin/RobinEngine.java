@@ -179,7 +179,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         this.codecService = codecService;
 
         this.indexConcurrency = indexSettings.getAsInt(INDEX_INDEX_CONCURRENCY, IndexWriterConfig.DEFAULT_MAX_THREAD_STATES);
-        this.versionMap = ConcurrentCollections.newConcurrentMap();
+        this.versionMap = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
         this.dirtyLocks = new Object[indexConcurrency * 50]; // we multiply it to have enough...
         for (int i = 0; i < dirtyLocks.length; i++) {
             dirtyLocks[i] = new Object();

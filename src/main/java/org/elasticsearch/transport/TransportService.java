@@ -54,7 +54,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     volatile ImmutableMap<String, TransportRequestHandler> serverHandlers = ImmutableMap.of();
     final Object serverHandlersMutex = new Object();
 
-    final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentCollections.newConcurrentMapLong();
+    final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     final AtomicLong requestIds = new AtomicLong();
 

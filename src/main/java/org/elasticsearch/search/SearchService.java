@@ -96,7 +96,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final CleanContextOnIndicesLifecycleListener indicesLifecycleListener = new CleanContextOnIndicesLifecycleListener();
 
-    private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLong();
+    private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 

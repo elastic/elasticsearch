@@ -91,9 +91,6 @@ public class GeoShapeQueryParser implements QueryParser {
                             if (shapeRelation == null) {
                                 throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + " ]");
                             }
-                            if (shapeRelation != ShapeRelation.INTERSECTS) {
-                                throw new QueryParsingException(parseContext.index(), String.format("Unsupported shape operation [%s]. Only [%s] operation is supported", parser.text(), ShapeRelation.INTERSECTS.getRelationName()));
-                            }
                         } else if ("indexed_shape".equals(currentFieldName) || "indexedShape".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {

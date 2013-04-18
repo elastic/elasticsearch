@@ -233,11 +233,9 @@ public class GeoFilterTests extends AbstractNodesTests {
     public void testShapeRelations() throws Exception {
 
         assert intersectSupport: "Intersect relation is not supported";
-//      assert disjointSupport: "Disjoint relation is not supported";
-//      assert withinSupport: "within relation is not supported";
+        assert disjointSupport: "Disjoint relation is not supported";
+        assert withinSupport: "within relation is not supported";
 
-        assert !disjointSupport: "Disjoint relation is now supported";
-        assert !withinSupport: "within relation is now supported";
 
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()

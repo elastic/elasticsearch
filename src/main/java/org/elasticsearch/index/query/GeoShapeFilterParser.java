@@ -111,9 +111,6 @@ public class GeoShapeFilterParser implements FilterParser {
                             if (shapeRelation == null) {
                                 throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + "]");
                             }
-                            if (shapeRelation != ShapeRelation.INTERSECTS) {
-                                throw new QueryParsingException(parseContext.index(), String.format("Unsupported shape operation [%s]. Only [%s] operation is supported", parser.text(), ShapeRelation.INTERSECTS.getRelationName()));
-                            }
                         } else if ("strategy".equals(currentFieldName)) {
                             strategyName = parser.text();
                         } else if ("indexed_shape".equals(currentFieldName) || "indexedShape".equals(currentFieldName)) {

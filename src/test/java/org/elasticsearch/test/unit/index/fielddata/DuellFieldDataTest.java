@@ -42,6 +42,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.English;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.BytesValues;
@@ -254,6 +255,9 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
                 int[] numbers = getNumbers(random, Integer.MAX_VALUE);
                 for (int j : numbers) {
                     d.add(new StringField("bytes", English.longToEnglish(j), Field.Store.NO));
+                }
+                if (random.nextInt(10) == 0) {
+                    d.add(new StringField("bytes", "", Field.Store.NO));
                 }
             }
             writer.addDocument(d);

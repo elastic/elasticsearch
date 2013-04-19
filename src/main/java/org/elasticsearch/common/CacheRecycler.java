@@ -30,7 +30,7 @@ public final class CacheRecycler  {
 
     private static final Recycler INSTANCE;
     static {
-        String property = System.getProperty("ES.RECYCLE");
+        String property = System.getProperty("es.cache.recycle");
         if (property != null && !Boolean.parseBoolean(property)) {
             INSTANCE = new NoCacheCacheRecycler();
         } else {

@@ -268,6 +268,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 String parent = getResult.getFields().containsKey(ParentFieldMapper.NAME) ? getResult.field(ParentFieldMapper.NAME).getValue().toString() : null;
 
                 IndexRequest indexRequest = updateRequest.getDoc();
+                
+                // set the version
+                indexRequest.version(getResult.version()+1);
+                
                 updatedSourceAsMap = sourceAndContent.v2();
                 if (indexRequest.ttl() > 0) {
                     ttl = indexRequest.ttl();
@@ -384,6 +388,24 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
         }
     }
+    
+    private void indexRequestOnReplica(IndexShard indexShard, IndexRequest indexRequest) { 
+    	try {
+            SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
+                    .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
+
+            if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
+                Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                indexShard.index(index);
+            } else {
+                Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
+                indexShard.create(create);
+            }
+        } catch (Exception e) {
+            // ignore, we are on backup
+        	logger.warn("indexRequest on replica failed for request {}", e,indexRequest.id());
+        }
+    }
 
     @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
@@ -396,21 +418,23 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             }
             if (item.request() instanceof IndexRequest) {
                 IndexRequest indexRequest = (IndexRequest) item.request();
-                try {
-                    SourceToParse sourceToParse = SourceToParse.source(indexRequest.source()).type(indexRequest.type()).id(indexRequest.id())
-                            .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
+                
+            	indexRequestOnReplica(indexShard, indexRequest);
 
-                    if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
-                        indexShard.index(index);
-                    } else {
-                        Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).origin(Engine.Operation.Origin.REPLICA);
-                        indexShard.create(create);
-                    }
-                } catch (Exception e) {
-                    // ignore, we are on backup
-                }
-            } else if (item.request() instanceof DeleteRequest) {
+                
+            } else if(item.request() instanceof PartialDocumentUpdateRequest) {
+            	PartialDocumentUpdateRequest updateRequest = (PartialDocumentUpdateRequest) item.request();
+            	logger.debug("updateRequest on replica for request {}",updateRequest.getId());
+            	
+            	// document is already merged in shardOperationOnPrimary action
+            	
+            	IndexRequest indexRequest = updateRequest.getUpsertRequest();
+            	if(indexRequest == null) { 
+            		indexRequest = updateRequest.getDoc();
+            	}
+            	indexRequestOnReplica(indexShard, indexRequest);
+            	
+            }  else if (item.request() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
                 try {
                     Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version()).origin(Engine.Operation.Origin.REPLICA);

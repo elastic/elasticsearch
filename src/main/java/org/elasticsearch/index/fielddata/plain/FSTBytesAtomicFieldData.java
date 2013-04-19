@@ -107,7 +107,10 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
             BytesRefFSTEnum<Long> fstEnum = new BytesRefFSTEnum<Long>(fst);
             int[] hashes = new int[ordinals.getMaxOrd()];
             InputOutput<Long> next;
-            int i = 0;
+            // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
+            // empty strings twice. ie. them merge fails for long output.
+            hashes[0] = new BytesRef().hashCode();
+            int i = 1;
             try {
                 while((next = fstEnum.next()) != null) {
                     hashes[i++] =  next.input.hashCode();
@@ -141,6 +144,10 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
 
         @Override
         public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
+            if (ord == 0) {
+                ret.length = 0;
+                return ret;
+            }
             in.setPosition(0);
             fst.getFirstArc(firstArc);
             try {

@@ -71,12 +71,13 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
         try {
             
-            // 0 is reserved for "unset"
-            fstBuilder.add(Util.toIntsRef(new BytesRef(), scratch), 0l);
+            // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
+            // empty strings twice. ie. them merge fails for long output.
             TermsEnum termsEnum = filter(terms, reader);
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final int termOrd = builder.nextOrdinal();
+                assert termOrd > 0;
                 fstBuilder.add(Util.toIntsRef(term, scratch), (long)termOrd);
                 docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                 for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {

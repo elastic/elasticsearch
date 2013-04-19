@@ -81,6 +81,9 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             if (request.hasParam("id_cache")) {
                 clearIndicesCacheRequest.idCache(request.paramAsBoolean("id_cache", clearIndicesCacheRequest.idCache()));
             }
+            if (request.hasParam("recycler")) {
+                clearIndicesCacheRequest.recycler(request.paramAsBoolean("recycler", clearIndicesCacheRequest.recycler()));
+            }
             clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
             clearIndicesCacheRequest.filterKeys(request.paramAsStringArray("filter_keys", clearIndicesCacheRequest.filterKeys()));
 

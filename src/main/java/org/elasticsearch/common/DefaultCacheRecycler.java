@@ -42,7 +42,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 public class DefaultCacheRecycler implements Recycler {
  
-    
+    private static final int QUEUE_MAX_SIZE = 256;
     
     @Override
     public void clear() {
@@ -113,8 +113,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             hashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ----- THashSet -----
@@ -148,8 +150,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             hashSet.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ------ ExtTDoubleObjectHashMap -----
@@ -183,8 +187,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             doubleObjectHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ----- ExtTLongObjectHashMap ----
@@ -218,8 +224,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             longObjectHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ----- TLongLongHashMap ----
@@ -252,8 +260,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             longLongHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ----- TIntIntHashMap ----
@@ -287,8 +297,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             intIntHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
 
@@ -323,8 +335,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             floatIntHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
 
@@ -359,8 +373,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             doubleIntHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
 
@@ -395,8 +411,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             byteIntHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ----- TShortIntHashMap ---
@@ -430,8 +448,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             shortIntHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
 
@@ -466,8 +486,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             longIntHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ------ TObjectIntHashMap -----
@@ -502,8 +524,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             objectIntHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ------ TIntObjectHashMap -----
@@ -538,8 +562,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             intObjectHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ------ TObjectFloatHashMap -----
@@ -573,8 +599,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             objectFloatHashMap.set(ref);
         }
-        map.clear();
-        ref.add(map);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            map.clear();
+            ref.add(map);
+        }
     }
 
     // ----- int[] -----
@@ -611,8 +639,10 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             objectArray.set(ref);
         }
-        Arrays.fill(objects, null);
-        ref.add(objects);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            Arrays.fill(objects, null);
+            ref.add(objects);
+        }
     }
 
 
@@ -676,7 +706,9 @@ public class DefaultCacheRecycler implements Recycler {
             ref = ConcurrentCollections.newQueue();
             intArray.set(ref);
         }
-        Arrays.fill(ints, sentinal);
-        ref.add(ints);
+        if (ref.size() < QUEUE_MAX_SIZE) {
+            Arrays.fill(ints, sentinal);
+            ref.add(ints);
+        }
     }
 }

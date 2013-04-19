@@ -42,7 +42,6 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 public class DefaultCacheRecycler implements Recycler {
  
-    private static final int QUEUE_MAX_SIZE = 256;
     
     @Override
     public void clear() {
@@ -92,11 +91,7 @@ public class DefaultCacheRecycler implements Recycler {
     @Override
     @SuppressWarnings("unchecked")
     public <K, V> ExtTHashMap<K, V> popHashMap() {
-        Queue<ExtTHashMap> ref = hashMap.get();
-        if (ref == null) {
-            return new ExtTHashMap<K, V>();
-        }
-        ExtTHashMap map = ref.poll();
+        ExtTHashMap map = pop(hashMap);
         if (map == null) {
             return new ExtTHashMap<K, V>();
         }
@@ -108,15 +103,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushHashMap(ExtTHashMap map) {
-        Queue<ExtTHashMap> ref = hashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            hashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(hashMap, map);
     }
 
     // ----- THashSet -----
@@ -129,11 +117,7 @@ public class DefaultCacheRecycler implements Recycler {
     @Override
     @SuppressWarnings("unchecked")
     public <T> THashSet<T> popHashSet() {
-        Queue<THashSet> ref = hashSet.get();
-        if (ref == null) {
-            return new THashSet<T>();
-        }
-        THashSet set = ref.poll();
+        THashSet set = pop(hashSet);
         if (set == null) {
             return new THashSet<T>();
         }
@@ -145,15 +129,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushHashSet(THashSet map) {
-        Queue<THashSet> ref = hashSet.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            hashSet.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(hashSet, map);
     }
 
     // ------ ExtTDoubleObjectHashMap -----
@@ -166,11 +143,7 @@ public class DefaultCacheRecycler implements Recycler {
     @Override
     @SuppressWarnings("unchecked")
     public <T> ExtTDoubleObjectHashMap<T> popDoubleObjectMap() {
-        Queue<ExtTDoubleObjectHashMap> ref = doubleObjectHashMap.get();
-        if (ref == null) {
-            return new ExtTDoubleObjectHashMap();
-        }
-        ExtTDoubleObjectHashMap map = ref.poll();
+        ExtTDoubleObjectHashMap map = pop(doubleObjectHashMap);
         if (map == null) {
             return new ExtTDoubleObjectHashMap();
         }
@@ -182,15 +155,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushDoubleObjectMap(ExtTDoubleObjectHashMap map) {
-        Queue<ExtTDoubleObjectHashMap> ref = doubleObjectHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            doubleObjectHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(doubleObjectHashMap, map);
     }
 
     // ----- ExtTLongObjectHashMap ----
@@ -203,31 +169,20 @@ public class DefaultCacheRecycler implements Recycler {
     @Override
     @SuppressWarnings("unchecked")
     public <T> ExtTLongObjectHashMap<T> popLongObjectMap() {
-        Queue<ExtTLongObjectHashMap> ref = longObjectHashMap.get();
-        if (ref == null) {
-            return new ExtTLongObjectHashMap();
-        }
-        ExtTLongObjectHashMap map = ref.poll();
-        if (map == null) {
+        ExtTLongObjectHashMap map = pop(longObjectHashMap);
+        if (map == null ) {
             return new ExtTLongObjectHashMap();
         }
         return map;
     }
-
+    
     /* (non-Javadoc)
      * @see org.elasticsearch.common.Recycler#pushLongObjectMap(org.elasticsearch.common.trove.ExtTLongObjectHashMap)
      */
     @Override
     public void pushLongObjectMap(ExtTLongObjectHashMap map) {
-        Queue<ExtTLongObjectHashMap> ref = longObjectHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            longObjectHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(longObjectHashMap, map);
     }
 
     // ----- TLongLongHashMap ----
@@ -239,11 +194,7 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public TLongLongHashMap popLongLongMap() {
-        Queue<TLongLongHashMap> ref = longLongHashMap.get();
-        if (ref == null) {
-            return new TLongLongHashMap();
-        }
-        TLongLongHashMap map = ref.poll();
+        TLongLongHashMap map = pop(longLongHashMap);
         if (map == null) {
             return new TLongLongHashMap();
         }
@@ -255,16 +206,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushLongLongMap(TLongLongHashMap map) {
-        Queue<TLongLongHashMap> ref = longLongHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            longLongHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
-    }
+        map.clear();
+        push(longLongHashMap, map);    }
 
     // ----- TIntIntHashMap ----
 
@@ -276,11 +219,7 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public TIntIntHashMap popIntIntMap() {
-        Queue<TIntIntHashMap> ref = intIntHashMap.get();
-        if (ref == null) {
-            return new TIntIntHashMap();
-        }
-        TIntIntHashMap map = ref.poll();
+        TIntIntHashMap map = pop(intIntHashMap);
         if (map == null) {
             return new TIntIntHashMap();
         }
@@ -292,15 +231,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushIntIntMap(TIntIntHashMap map) {
-        Queue<TIntIntHashMap> ref = intIntHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            intIntHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(intIntHashMap, map);
     }
 
 
@@ -314,11 +246,7 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public TFloatIntHashMap popFloatIntMap() {
-        Queue<TFloatIntHashMap> ref = floatIntHashMap.get();
-        if (ref == null) {
-            return new TFloatIntHashMap();
-        }
-        TFloatIntHashMap map = ref.poll();
+        TFloatIntHashMap map = pop(floatIntHashMap);
         if (map == null) {
             return new TFloatIntHashMap();
         }
@@ -330,15 +258,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushFloatIntMap(TFloatIntHashMap map) {
-        Queue<TFloatIntHashMap> ref = floatIntHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            floatIntHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(floatIntHashMap, map);
     }
 
 
@@ -352,11 +273,7 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public TDoubleIntHashMap popDoubleIntMap() {
-        Queue<TDoubleIntHashMap> ref = doubleIntHashMap.get();
-        if (ref == null) {
-            return new TDoubleIntHashMap();
-        }
-        TDoubleIntHashMap map = ref.poll();
+        TDoubleIntHashMap map = pop(doubleIntHashMap);
         if (map == null) {
             return new TDoubleIntHashMap();
         }
@@ -368,15 +285,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushDoubleIntMap(TDoubleIntHashMap map) {
-        Queue<TDoubleIntHashMap> ref = doubleIntHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            doubleIntHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(doubleIntHashMap, map);
     }
 
 
@@ -390,11 +300,7 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public TByteIntHashMap popByteIntMap() {
-        Queue<TByteIntHashMap> ref = byteIntHashMap.get();
-        if (ref == null) {
-            return new TByteIntHashMap();
-        }
-        TByteIntHashMap map = ref.poll();
+        TByteIntHashMap map = pop(byteIntHashMap);
         if (map == null) {
             return new TByteIntHashMap();
         }
@@ -406,17 +312,11 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushByteIntMap(TByteIntHashMap map) {
-        Queue<TByteIntHashMap> ref = byteIntHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            byteIntHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(byteIntHashMap, map);
     }
-
+    
+   
     // ----- TShortIntHashMap ---
 
     private final SoftWrapper<Queue<TShortIntHashMap>> shortIntHashMap = new SoftWrapper<Queue<TShortIntHashMap>>();
@@ -427,11 +327,7 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public TShortIntHashMap popShortIntMap() {
-        Queue<TShortIntHashMap> ref = shortIntHashMap.get();
-        if (ref == null) {
-            return new TShortIntHashMap();
-        }
-        TShortIntHashMap map = ref.poll();
+        TShortIntHashMap map = pop(shortIntHashMap);
         if (map == null) {
             return new TShortIntHashMap();
         }
@@ -443,15 +339,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushShortIntMap(TShortIntHashMap map) {
-        Queue<TShortIntHashMap> ref = shortIntHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            shortIntHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(shortIntHashMap, map);
     }
 
 
@@ -469,7 +358,7 @@ public class DefaultCacheRecycler implements Recycler {
         if (ref == null) {
             return new TLongIntHashMap();
         }
-        TLongIntHashMap map = ref.poll();
+        TLongIntHashMap map = pop(longIntHashMap);
         if (map == null) {
             return new TLongIntHashMap();
         }
@@ -481,15 +370,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushLongIntMap(TLongIntHashMap map) {
-        Queue<TLongIntHashMap> ref = longIntHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            longIntHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(longIntHashMap, map);
     }
 
     // ------ TObjectIntHashMap -----
@@ -503,11 +385,7 @@ public class DefaultCacheRecycler implements Recycler {
     @Override
     @SuppressWarnings({"unchecked"})
     public <T> TObjectIntHashMap<T> popObjectIntMap() {
-        Queue<TObjectIntHashMap> ref = objectIntHashMap.get();
-        if (ref == null) {
-            return new TObjectIntHashMap();
-        }
-        TObjectIntHashMap map = ref.poll();
+        TObjectIntHashMap map = pop(objectIntHashMap);
         if (map == null) {
             return new TObjectIntHashMap();
         }
@@ -519,15 +397,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public <T> void pushObjectIntMap(TObjectIntHashMap<T> map) {
-        Queue<TObjectIntHashMap> ref = objectIntHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            objectIntHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(objectIntHashMap, map);
     }
 
     // ------ TIntObjectHashMap -----
@@ -541,11 +412,7 @@ public class DefaultCacheRecycler implements Recycler {
     @Override
     @SuppressWarnings({"unchecked"})
     public <T> TIntObjectHashMap<T> popIntObjectMap() {
-        Queue<TIntObjectHashMap> ref = intObjectHashMap.get();
-        if (ref == null) {
-            return new TIntObjectHashMap<T>();
-        }
-        TIntObjectHashMap<T> map = ref.poll();
+        TIntObjectHashMap<T> map = pop(intObjectHashMap);
         if (map == null) {
             return new TIntObjectHashMap<T>();
         }
@@ -557,15 +424,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public <T> void pushIntObjectMap(TIntObjectHashMap<T> map) {
-        Queue<TIntObjectHashMap> ref = intObjectHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            intObjectHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(intObjectHashMap, map);
     }
 
     // ------ TObjectFloatHashMap -----
@@ -578,11 +438,7 @@ public class DefaultCacheRecycler implements Recycler {
     @Override
     @SuppressWarnings({"unchecked"})
     public <T> TObjectFloatHashMap<T> popObjectFloatMap() {
-        Queue<TObjectFloatHashMap> ref = objectFloatHashMap.get();
-        if (ref == null) {
-            return new TObjectFloatHashMap();
-        }
-        TObjectFloatHashMap map = ref.poll();
+        final TObjectFloatHashMap map = pop(objectFloatHashMap);
         if (map == null) {
             return new TObjectFloatHashMap();
         }
@@ -594,15 +450,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public <T> void pushObjectFloatMap(TObjectFloatHashMap<T> map) {
-        Queue<TObjectFloatHashMap> ref = objectFloatHashMap.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            objectFloatHashMap.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            map.clear();
-            ref.add(map);
-        }
+        map.clear();
+        push(objectFloatHashMap, map);
     }
 
     // ----- int[] -----
@@ -634,15 +483,8 @@ public class DefaultCacheRecycler implements Recycler {
      */
     @Override
     public void pushObjectArray(Object[] objects) {
-        Queue<Object[]> ref = objectArray.get();
-        if (ref == null) {
-            ref = ConcurrentCollections.newQueue();
-            objectArray.set(ref);
-        }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            Arrays.fill(objects, null);
-            ref.add(objects);
-        }
+        Arrays.fill(objects, null);
+        push(objectArray, objects);
     }
 
 
@@ -687,28 +529,30 @@ public class DefaultCacheRecycler implements Recycler {
         }
         return ints;
     }
-
-    /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushIntArray(int[])
-     */
+    
     @Override
     public void pushIntArray(int[] ints) {
         pushIntArray(ints, 0);
     }
 
-    /* (non-Javadoc)
-     * @see org.elasticsearch.common.Recycler#pushIntArray(int[], int)
-     */
     @Override
     public void pushIntArray(int[] ints, int sentinal) {
-        Queue<int[]> ref = intArray.get();
+        Arrays.fill(ints, sentinal);
+        push(intArray, ints);
+    }
+    
+    private static final <T> void push(SoftWrapper<Queue<T>> wrapper, T obj) {
+        Queue<T> ref = wrapper.get();
         if (ref == null) {
             ref = ConcurrentCollections.newQueue();
-            intArray.set(ref);
+            wrapper.set(ref);
         }
-        if (ref.size() < QUEUE_MAX_SIZE) {
-            Arrays.fill(ints, sentinal);
-            ref.add(ints);
-        }
+        ref.add(obj);
     }
+
+    private static final <T> T pop(SoftWrapper<Queue<T>> wrapper) {
+        Queue<T> queue = wrapper.get();
+        return queue == null ? null : queue.poll();
+    }
+
 }

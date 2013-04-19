@@ -182,7 +182,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                     // exclude myself
                     Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
                     boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.onFailure(e);
                     return;
                 }
@@ -336,7 +336,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 public void onResponse(SearchResponse result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

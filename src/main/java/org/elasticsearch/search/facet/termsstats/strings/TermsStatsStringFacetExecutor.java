@@ -19,27 +19,31 @@
 
 package org.elasticsearch.search.facet.termsstats.strings;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.CacheRecycler;
-import org.elasticsearch.common.lucene.HashedBytesRef;
-import org.elasticsearch.common.trove.ExtTHashMap;
-import org.elasticsearch.index.fielddata.DoubleValues;
-import org.elasticsearch.index.fielddata.HashedBytesValues;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.facet.FacetExecutor;
-import org.elasticsearch.search.facet.InternalFacet;
-import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
-import org.elasticsearch.search.internal.SearchContext;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+
+import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.lucene.HashedBytesRef;
+import org.elasticsearch.common.trove.ExtTHashMap;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.DoubleValues;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
+import org.elasticsearch.search.facet.FacetExecutor;
+import org.elasticsearch.search.facet.InternalFacet;
+import org.elasticsearch.search.facet.terms.strings.HashedAggregator;
+import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
+import org.elasticsearch.search.internal.SearchContext;
+
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 
 public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
@@ -47,9 +51,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     final IndexFieldData keyIndexFieldData;
     final IndexNumericFieldData valueIndexFieldData;
     final SearchScript script;
-
     private final int size;
-    private final int numberOfShards;
 
     final ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries;
     long missing;
@@ -61,8 +63,6 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         this.script = valueScript;
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = context.numberOfShards();
-
         this.entries = CacheRecycler.popHashMap();
     }
 
@@ -100,7 +100,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         private final Aggregator aggregator;
-        private HashedBytesValues keyValues;
+        private BytesValues keyValues;
 
         public Collector() {
             if (script != null) {
@@ -119,8 +119,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
-            keyValues = keyIndexFieldData.load(context).getHashedBytesValues();
-            aggregator.keyValues = keyValues;
+            keyValues = keyIndexFieldData.load(context).getBytesValues();
             if (script != null) {
                 script.setNextReader(context);
             } else {
@@ -130,22 +129,22 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            keyValues.forEachValueInDoc(doc, aggregator);
+            aggregator.onDoc(doc, keyValues);
         }
 
         @Override
         public void postCollection() {
             TermsStatsStringFacetExecutor.this.missing = aggregator.missing;
+            aggregator.release();
         }
     }
 
-    public static class Aggregator implements HashedBytesValues.ValueInDocProc {
+    public static class Aggregator extends HashedAggregator {
 
         final ExtTHashMap<HashedBytesRef, InternalTermsStatsStringFacet.StringEntry> entries;
-
+        final HashedBytesRef spare = new HashedBytesRef();
         int missing = 0;
 
-        HashedBytesValues keyValues;
         DoubleValues valueValues;
 
         ValueAggregator valueAggregator = new ValueAggregator();
@@ -155,30 +154,22 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         }
 
         @Override
-        public void onValue(int docId, HashedBytesRef value) {
-            InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
+        public void onValue(int docId, BytesRef value, int hashCode, BytesValues values) {
+            spare.reset(value, hashCode);
+            InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(spare);
             if (stringEntry == null) {
-                value = keyValues.makeSafe(value);
-                stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
-                entries.put(value, stringEntry);
+                HashedBytesRef theValue = new HashedBytesRef(makesSafe(value, values), hashCode);
+                stringEntry = new InternalTermsStatsStringFacet.StringEntry(theValue, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+                entries.put(theValue, stringEntry);
             }
             stringEntry.count++;
             valueAggregator.stringEntry = stringEntry;
-            valueValues.forEachValueInDoc(docId, valueAggregator);
+            valueAggregator.onDoc(docId, valueValues);
         }
 
-        @Override
-        public void onMissing(int docId) {
-            missing++;
-        }
-
-        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
+        public static class ValueAggregator extends DoubleFacetAggregatorBase {
 
             InternalTermsStatsStringFacet.StringEntry stringEntry;
-
-            @Override
-            public void onMissing(int docId) {
-            }
 
             @Override
             public void onValue(int docId, double value) {
@@ -203,12 +194,13 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
         }
 
         @Override
-        public void onValue(int docId, HashedBytesRef value) {
-            InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(value);
+        public void onValue(int docId, BytesRef value, int hashCode, BytesValues values) {
+            spare.reset(value, hashCode);
+            InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(spare);
             if (stringEntry == null) {
-                value = keyValues.makeSafe(value);
-                stringEntry = new InternalTermsStatsStringFacet.StringEntry(value, 1, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
-                entries.put(value, stringEntry);
+                HashedBytesRef theValue = new HashedBytesRef(makesSafe(value, values), hashCode);
+                stringEntry = new InternalTermsStatsStringFacet.StringEntry(theValue, 1, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
+                entries.put(theValue, stringEntry);
             } else {
                 stringEntry.count++;
             }

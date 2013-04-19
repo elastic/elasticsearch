@@ -63,7 +63,7 @@ public class RestIndicesExistsAction extends BaseRestHandler {
                     } else {
                         channel.sendResponse(new StringRestResponse(NOT_FOUND));
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

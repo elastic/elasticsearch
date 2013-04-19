@@ -1087,4 +1087,61 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
+
+    @Test
+    public void testNumericRangeFilter_2826() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+        )
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("num_byte").field("type", "byte").endObject()
+                        .startObject("num_short").field("type", "short").endObject()
+                        .startObject("num_integer").field("type", "integer").endObject()
+                        .startObject("num_long").field("type", "long").endObject()
+                        .startObject("num_float").field("type", "float").endObject()
+                        .startObject("num_double").field("type", "double").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("num_long", 1)
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("num_long", 2)
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("num_long", 3)
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
+                .field("num_long", 4)
+                .endObject())
+                .execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        SearchResponse response = client.prepareSearch("test").setFilter(
+                FilterBuilders.boolFilter()
+                        .should(FilterBuilders.rangeFilter("num_long").from(1).to(2))
+                        .should(FilterBuilders.rangeFilter("num_long").from(3).to(4))
+        ).execute().actionGet();
+        assertThat(response.getHits().totalHits(), equalTo(4l));
+
+        // This made 2826 fail! (only with bit based filters)
+        response = client.prepareSearch("test").setFilter(
+                FilterBuilders.boolFilter()
+                        .should(FilterBuilders.numericRangeFilter("num_long").from(1).to(2))
+                        .should(FilterBuilders.numericRangeFilter("num_long").from(3).to(4))
+        ).execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(4l));
+    }
+
 }

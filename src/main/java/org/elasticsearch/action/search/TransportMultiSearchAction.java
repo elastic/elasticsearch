@@ -104,7 +104,7 @@ public class TransportMultiSearchAction extends TransportAction<MultiSearchReque
                 public void onResponse(MultiSearchResponse response) {
                     try {
                         channel.sendResponse(response);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

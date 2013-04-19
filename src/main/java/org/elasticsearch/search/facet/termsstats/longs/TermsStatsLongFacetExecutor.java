@@ -29,8 +29,10 @@ import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
+import org.elasticsearch.search.facet.LongFacetAggregatorBase;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -47,7 +49,6 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
     final SearchScript script;
 
     private final int size;
-    private final int numberOfShards;
 
     final ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> entries;
     long missing;
@@ -56,7 +57,6 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
                                        int size, TermsStatsFacet.ComparatorType comparatorType, SearchContext context) {
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = context.numberOfShards();
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.script = script;
@@ -128,19 +128,18 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            keyValues.forEachValueInDoc(doc, aggregator);
+            aggregator.onDoc(doc, keyValues);
         }
 
         @Override
         public void postCollection() {
-            TermsStatsLongFacetExecutor.this.missing = aggregator.missing;
+            TermsStatsLongFacetExecutor.this.missing = aggregator.missing();
         }
     }
 
-    public static class Aggregator implements LongValues.ValueInDocProc {
+    public static class Aggregator extends LongFacetAggregatorBase {
 
         final ExtTLongObjectHashMap<InternalTermsStatsLongFacet.LongEntry> entries;
-        int missing;
         DoubleValues valueValues;
         final ValueAggregator valueAggregator = new ValueAggregator();
 
@@ -157,21 +156,13 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
             }
             longEntry.count++;
             valueAggregator.longEntry = longEntry;
-            valueValues.forEachValueInDoc(docId, valueAggregator);
+            valueAggregator.onDoc(docId, valueValues);
         }
 
-        @Override
-        public void onMissing(int docId) {
-            missing++;
-        }
 
-        public static class ValueAggregator implements DoubleValues.ValueInDocProc {
+        public final static class ValueAggregator extends DoubleFacetAggregatorBase {
 
             InternalTermsStatsLongFacet.LongEntry longEntry;
-
-            @Override
-            public void onMissing(int docId) {
-            }
 
             @Override
             public void onValue(int docId, double value) {

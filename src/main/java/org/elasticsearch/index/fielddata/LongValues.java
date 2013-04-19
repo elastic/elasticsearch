@@ -20,49 +20,130 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
-import org.elasticsearch.index.fielddata.util.LongArrayRef;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
 /**
  */
-public interface LongValues {
+public abstract class LongValues {
 
-    static final LongValues EMPTY = new Empty();
+    public static final LongValues EMPTY = new Empty();
+    private final boolean multiValued;
+    protected final Iter.Single iter = new Iter.Single();
+
+
+    protected LongValues(boolean multiValued) {
+        this.multiValued = multiValued;
+    }
 
     /**
      * Is one of the documents in this field data values is multi valued?
      */
-    boolean isMultiValued();
+    public final boolean isMultiValued() {
+        return multiValued;
+    }
 
     /**
      * Is there a value for this doc?
      */
-    boolean hasValue(int docId);
+    public abstract boolean hasValue(int docId);
 
-    long getValue(int docId);
+    public abstract long getValue(int docId);
 
-    long getValueMissing(int docId, long missingValue);
-
-    LongArrayRef getValues(int docId);
-
-    Iter getIter(int docId);
-
-    void forEachValueInDoc(int docId, ValueInDocProc proc);
-
-    static interface ValueInDocProc {
-
-        void onValue(int docId, long value);
-
-        void onMissing(int docId);
+    public long getValueMissing(int docId, long missingValue) {
+        if (hasValue(docId)) {
+            return getValue(docId);
+        }
+        return missingValue;
     }
 
-    static interface Iter {
+    public Iter getIter(int docId) {
+        assert !isMultiValued();
+        if (hasValue(docId)) {
+            return iter.reset(getValue(docId));
+        } else {
+            return Iter.Empty.INSTANCE;
+        }
+    }
+
+
+    public static abstract class Dense extends LongValues {
+
+
+        protected Dense(boolean multiValued) {
+            super(multiValued);
+        }
+
+        @Override
+        public final boolean hasValue(int docId) {
+            return true;
+        }
+
+        public final long getValueMissing(int docId, long missingValue) {
+            assert hasValue(docId);
+            assert !isMultiValued();
+            return getValue(docId);
+        }
+
+        public final Iter getIter(int docId) {
+            assert hasValue(docId);
+            assert !isMultiValued();
+            return iter.reset(getValue(docId));
+        }
+
+    }
+
+    public static abstract class WithOrdinals extends LongValues {
+
+        protected final Docs ordinals;
+        private final Iter.Multi iter;
+
+        protected WithOrdinals(Ordinals.Docs ordinals) {
+            super(ordinals.isMultiValued());
+            this.ordinals = ordinals;
+            iter = new Iter.Multi(this);
+        }
+
+        public Docs ordinals() {
+            return this.ordinals;
+        }
+
+        @Override
+        public final boolean hasValue(int docId) {
+            return ordinals.getOrd(docId) != 0;
+        }
+
+        @Override
+        public final long getValue(int docId) {
+            return getValueByOrd(ordinals.getOrd(docId));
+        }
+
+        public abstract long getValueByOrd(int ord);
+
+        @Override
+        public final Iter getIter(int docId) {
+            return iter.reset(ordinals.getIter(docId));
+        }
+
+        @Override
+        public final long getValueMissing(int docId, long missingValue) {
+            final int ord = ordinals.getOrd(docId);
+            if (ord == 0) {
+                return missingValue;
+            } else {
+                return getValueByOrd(ord);
+            }
+        }
+
+    }
+
+    public static interface Iter {
 
         boolean hasNext();
 
         long next();
 
-        static class Empty implements Iter {
+        public static class Empty implements Iter {
 
             public static final Empty INSTANCE = new Empty();
 
@@ -100,12 +181,41 @@ public interface LongValues {
                 return value;
             }
         }
+
+        static class Multi implements Iter {
+
+            private org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter ordsIter;
+            private int ord;
+            private WithOrdinals values;
+
+            public Multi(WithOrdinals values) {
+                this.values = values;
+            }
+
+            public Multi reset(Ordinals.Docs.Iter ordsIter) {
+                this.ordsIter = ordsIter;
+                this.ord = ordsIter.next();
+                return this;
+            }
+
+            @Override
+            public boolean hasNext() {
+                return ord != 0;
+            }
+
+            @Override
+            public long next() {
+                long value = values.getValueByOrd(ord);
+                ord = ordsIter.next();
+                return value;
+            }
+        }
     }
 
-    static class Empty implements LongValues {
-        @Override
-        public boolean isMultiValued() {
-            return false;
+    static class Empty extends LongValues {
+
+        public Empty() {
+            super(false);
         }
 
         @Override
@@ -119,36 +229,19 @@ public interface LongValues {
         }
 
         @Override
-        public long getValueMissing(int docId, long missingValue) {
-            return missingValue;
-        }
-
-        @Override
-        public LongArrayRef getValues(int docId) {
-            return LongArrayRef.EMPTY;
-        }
-
-        @Override
         public Iter getIter(int docId) {
             return Iter.Empty.INSTANCE;
         }
 
-        @Override
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            proc.onMissing(docId);
-        }
     }
-    
-    public static class FilteredLongValues implements LongValues {
+
+    public static class Filtered extends LongValues {
 
         protected final LongValues delegate;
 
-        public FilteredLongValues(LongValues delegate) {
+        public Filtered(LongValues delegate) {
+            super(delegate.isMultiValued());
             this.delegate = delegate;
-        }
-
-        public boolean isMultiValued() {
-            return delegate.isMultiValued();
         }
 
         public boolean hasValue(int docId) {
@@ -159,20 +252,8 @@ public interface LongValues {
             return delegate.getValue(docId);
         }
 
-        public long getValueMissing(int docId, long missingValue) {
-            return delegate.getValueMissing(docId, missingValue);
-        }
-
-        public LongArrayRef getValues(int docId) {
-            return delegate.getValues(docId);
-        }
-
         public Iter getIter(int docId) {
             return delegate.getIter(docId);
-        }
-
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            delegate.forEachValueInDoc(docId, proc);
         }
     }
 

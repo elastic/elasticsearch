@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
@@ -121,7 +122,11 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
         IndexNumericFieldData valueIndexFieldData = null;
         SearchScript valueScript = null;
         if (valueField != null) {
-            valueIndexFieldData = context.fieldData().getForField(context.smartNameFieldMapper(valueField));
+            FieldMapper fieldMapper = context.smartNameFieldMapper(valueField);
+            if (!(fieldMapper instanceof NumberFieldMapper)) {
+                throw new FacetPhaseExecutionException(facetName, "value_field [" + valueField + "] isn't a number field, but a " + fieldMapper.fieldDataType().getType());
+            }
+            valueIndexFieldData = context.fieldData().getForField(fieldMapper);
         } else {
             valueScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
         }

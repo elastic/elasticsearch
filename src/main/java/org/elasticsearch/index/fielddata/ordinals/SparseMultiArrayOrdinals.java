@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
 /**
  * Ordinals implementation that stores the ordinals into sparse fixed arrays.
@@ -35,7 +35,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
     private final int numOrds;
     private final int maxOrd;
     private final int numDocs;
-    private long size;
+    private long size = -1;
 
     public SparseMultiArrayOrdinals(OrdinalsBuilder builder, int maxSize) {
         int blockShift = Math.min(floorPow2(builder.getTotalNumOrds() << 1), floorPow2(maxSize));
@@ -46,14 +46,14 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
         this.lookup = new int[numDocs];
         this.numOrds = builder.getNumOrds();
         this.maxOrd = numOrds + 1;
-        IntArrayRef spare;
+        IntsRef spare;
         for (int doc = 0; doc < numDocs; doc++) {
             spare = builder.docOrds(doc);
-            int size = spare.size();
+            final int size = spare.length;
             if (size == 0) {
                 lookup[doc] = 0;
             } else if (size == 1) {
-                lookup[doc] = spare.values[spare.start];
+                lookup[doc] = spare.ints[spare.offset];
             } else {
                 int offset = pool.put(spare);
                 lookup[doc] = -(offset) - 1;
@@ -115,7 +115,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
 
         private final IterImpl iter;
         private final PositiveIntPool pool;
-        private final IntArrayRef spare = new IntArrayRef(new int[1]);
+        private final IntsRef spare = new IntsRef(1);
 
         public Docs(SparseMultiArrayOrdinals parent, int[] lookup, PositiveIntPool pool) {
             this.parent = parent;
@@ -159,19 +159,20 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
         }
 
         @Override
-        public IntArrayRef getOrds(int docId) {
-            spare.end = 0;
+        public IntsRef getOrds(int docId) {
+            spare.offset = 0;
             int pointer = lookup[docId];
             if (pointer == 0) {
-                return IntArrayRef.EMPTY;
+                spare.length = 0;
             } else if (pointer > 0) {
-                spare.end = 1;
-                spare.values[0] = pointer;
+                spare.length = 1;
+                spare.ints[0] = pointer;
                 return spare;
             } else {
                 pool.fill(spare, -(pointer + 1));
                 return spare;
             }
+            return spare;
         }
 
         @Override
@@ -186,8 +187,8 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
                 proc.onOrdinal(docId, pointer);
             } else {
                 pool.fill(spare, -(pointer + 1));
-                for (int i = spare.start; i < spare.end; i++) {
-                    proc.onOrdinal(docId, spare.values[i]);
+                for (int i = spare.offset; i < spare.length + spare.offset; i++) {
+                    proc.onOrdinal(docId, spare.ints[i]);
                 }
             }
         }
@@ -195,7 +196,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
         class IterImpl implements Docs.Iter {
             private final int[] lookup;
             private final PositiveIntPool pool;
-            private final IntArrayRef slice = new IntArrayRef(new int[1]);
+            private final IntsRef slice = new IntsRef(1);
             private int valuesOffset;
 
             public IterImpl(int[] lookup, PositiveIntPool pool) {
@@ -208,9 +209,9 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
                 if (pointer < 0) {
                     pool.fill(slice, -(pointer + 1));
                 } else {
-                    slice.values[0] = pointer;
-                    slice.start = 0;
-                    slice.end = 1;
+                    slice.ints[0] = pointer;
+                    slice.offset = 0;
+                    slice.length = 1;
                 }
                 valuesOffset = 0;
                 return this;
@@ -218,10 +219,10 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
 
             @Override
             public int next() {
-                if (valuesOffset >= slice.end) {
+                if (valuesOffset >= slice.length) {
                     return 0;
                 }
-                return slice.values[slice.start + (valuesOffset++)];
+                return slice.ints[slice.offset + (valuesOffset++)];
             }
         }
     }

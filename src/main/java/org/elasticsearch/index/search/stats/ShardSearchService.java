@@ -42,6 +42,7 @@ public class ShardSearchService extends AbstractIndexShardComponent {
     private final ShardSlowLogSearchService slowLogSearchService;
 
     private final StatsHolder totalStats = new StatsHolder();
+    private final CounterMetric openContexts = new CounterMetric();
 
     private volatile Map<String, StatsHolder> groupsStats = ImmutableMap.of();
 
@@ -75,7 +76,7 @@ public class ShardSearchService extends AbstractIndexShardComponent {
                 }
             }
         }
-        return new SearchStats(total, groupsSt);
+        return new SearchStats(total, openContexts.count(), groupsSt);
     }
 
     public void onPreQueryPhase(SearchContext searchContext) {
@@ -169,6 +170,14 @@ public class ShardSearchService extends AbstractIndexShardComponent {
             }
         }
         return stats;
+    }
+
+    public void onNewContext(SearchContext context) {
+        openContexts.inc();
+    }
+
+    public void onFreeContext(SearchContext context) {
+        openContexts.dec();
     }
 
     static class StatsHolder {

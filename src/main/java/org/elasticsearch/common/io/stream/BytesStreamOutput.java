@@ -19,13 +19,12 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.Bytes;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.BytesStream;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 /**
  *
@@ -72,7 +71,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     public void writeByte(byte b) throws IOException {
         int newcount = count + 1;
         if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Bytes.oversize(newcount, 1));
+            buf = ArrayUtil.grow(buf, newcount);
         }
         buf[count] = b;
         count = newcount;
@@ -81,7 +80,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
     public void skip(int length) {
         int newcount = count + length;
         if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Bytes.oversize(newcount, 1));
+            buf = ArrayUtil.grow(buf, newcount);
         }
         count = newcount;
     }
@@ -93,7 +92,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         }
         int newcount = count + length;
         if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Bytes.oversize(newcount, 1));
+            buf = ArrayUtil.grow(buf, newcount);
         }
         System.arraycopy(b, offset, buf, count, length);
         count = newcount;

@@ -24,6 +24,9 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.*;
@@ -35,9 +38,10 @@ import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.CacheStats;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
+import org.elasticsearch.index.cache.id.IdCacheStats;
 import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngine;
 import org.elasticsearch.index.engine.IndexEngineModule;
@@ -68,6 +72,7 @@ import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -180,41 +185,122 @@ public class InternalIndicesService extends AbstractLifecycleComponent<IndicesSe
 
     @Override
     public NodeIndicesStats stats(boolean includePrevious) {
-        DocsStats docsStats = new DocsStats();
-        StoreStats storeStats = new StoreStats();
-        IndexingStats indexingStats = new IndexingStats();
-        GetStats getStats = new GetStats();
-        SearchStats searchStats = new SearchStats();
-        CacheStats cacheStats = new CacheStats();
-        FieldDataStats fieldDataStats = new FieldDataStats();
-        MergeStats mergeStats = new MergeStats();
-        RefreshStats refreshStats = new RefreshStats();
-        FlushStats flushStats = new FlushStats();
+        return stats(true, new CommonStatsFlags().all());
+    }
 
-        if (includePrevious) {
-            getStats.add(oldShardsStats.getStats);
-            indexingStats.add(oldShardsStats.indexingStats);
-            searchStats.add(oldShardsStats.searchStats);
-            mergeStats.add(oldShardsStats.mergeStats);
-            refreshStats.add(oldShardsStats.refreshStats);
-            flushStats.add(oldShardsStats.flushStats);
+    @Override
+    public NodeIndicesStats stats(boolean includePrevious, CommonStatsFlags flags) {
+        CommonStats stats = new CommonStats();
+        Flag[] setFlags = flags.getFlags();
+        for (Flag flag : setFlags) {
+            switch (flag) {
+                case Docs:
+                    stats.docs = new DocsStats();
+                    break;
+                case Store:
+                    stats.store = new StoreStats();
+                    break;
+                case Warmer:
+                    stats.warmer = new WarmerStats();
+                    break;
+                case Get:
+                    stats.get = new GetStats();
+                    if (includePrevious) {
+                        stats.get.add(oldShardsStats.getStats);
+                    }
+                    break;
+                case Indexing:
+                    stats.indexing = new IndexingStats();
+                    if (includePrevious) {
+                        stats.indexing.add(oldShardsStats.indexingStats);
+                    }
+                    break;
+                case Search:
+                    stats.search = new SearchStats();
+                    if (includePrevious) {
+                        stats.search.add(oldShardsStats.searchStats);
+                    }
+                    break;
+                case Merge:
+                    stats.merge = new MergeStats();
+                    if (includePrevious) {
+                        stats.merge.add(oldShardsStats.mergeStats);
+                    }
+                    break;
+                case Refresh:
+                    stats.refresh = new RefreshStats();
+                    if (includePrevious) {
+                        stats.refresh.add(oldShardsStats.refreshStats);
+                    }
+                    break;
+                case Flush:
+                    stats.flush = new FlushStats();
+                    if (includePrevious) {
+                        stats.flush.add(oldShardsStats.flushStats);
+                    }
+                    break;
+                case FieldData:
+                    stats.fieldData = new FieldDataStats();
+                    break;
+                case IdCache:
+                    stats.idCache = new IdCacheStats();
+                    break;
+                case FilterCache:
+                    stats.filterCache = new FilterCacheStats();
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown Flag: " + flag);
+            }
         }
+
 
         for (IndexService indexService : indices.values()) {
             for (IndexShard indexShard : indexService) {
-                storeStats.add(indexShard.storeStats());
-                docsStats.add(indexShard.docStats());
-                getStats.add(indexShard.getStats());
-                indexingStats.add(indexShard.indexingStats());
-                searchStats.add(indexShard.searchStats());
-                mergeStats.add(indexShard.mergeStats());
-                refreshStats.add(indexShard.refreshStats());
-                flushStats.add(indexShard.flushStats());
+                for (Flag flag : setFlags) {
+                    switch (flag) {
+                        case Store:
+                            stats.store.add(indexShard.storeStats());
+                            break;
+                        case Docs:
+                            stats.docs.add(indexShard.docStats());
+                            break;
+                        case Get:
+                            stats.get.add(indexShard.getStats());
+                            break;
+                        case Indexing:
+                            stats.indexing.add(indexShard.indexingStats());
+                            break;
+                        case Search:
+                            stats.search.add(indexShard.searchStats());
+                            break;
+                        case Merge:
+                            stats.merge.add(indexShard.mergeStats());
+                            break;
+                        case Refresh:
+                            stats.refresh.add(indexShard.refreshStats());
+                            break;
+                        case Flush:
+                            stats.flush.add(indexShard.flushStats());
+                            break;
+                        case FilterCache:
+                            stats.filterCache.add(indexShard.filterCacheStats());
+                            break;
+                        case IdCache:
+                            stats.idCache.add(indexShard.idCacheStats());
+                            break;
+                        case FieldData:
+                            stats.fieldData.add(indexShard.fieldDataStats(flags.fieldDataFields()));
+                            break;
+                        case Warmer:
+                            stats.warmer.add(indexShard.warmerStats());
+                            break;
+                        default:
+                            throw new IllegalStateException("Unknown Flag: " + flag);
+                    }
+                }
             }
-            cacheStats.add(indexService.cache().stats());
-            fieldDataStats.add(indexService.fieldData().stats());
         }
-        return new NodeIndicesStats(storeStats, docsStats, indexingStats, getStats, searchStats, cacheStats, fieldDataStats, mergeStats, refreshStats, flushStats);
+        return new NodeIndicesStats(stats);
     }
 
     /**

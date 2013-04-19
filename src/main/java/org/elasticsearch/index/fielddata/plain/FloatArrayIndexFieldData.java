@@ -29,6 +29,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
@@ -101,14 +102,23 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
                 values.add(NumericUtils.sortableIntToFloat(NumericUtils.prefixCodedToInt(term)));
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued()) {
+            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
+                final FixedBitSet set = builder.buildDocsWithValuesSet();
+
+                // there's sweatspot where due to low unique value count, using ordinals will consume less memory
+                long singleValuesArraySize = reader.maxDoc() * RamUsage.NUM_BYTES_FLOAT + (set == null ? 0 : set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_INT);
+                long uniqueValuesArraySize = values.size() * RamUsage.NUM_BYTES_FLOAT;
+                long ordinalsSize = build.getMemorySizeInBytes();
+                if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
+                    return new FloatArrayAtomicFieldData.WithOrdinals(values.toArray(new float[values.size()]), reader.maxDoc(), build);
+                }
+
                 float[] sValues = new float[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();
                 for (int i = 0; i < maxDoc; i++) {
                     sValues[i] = values.get(ordinals.getOrd(i));
                 }
-                final FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
                     return new FloatArrayAtomicFieldData.Single(sValues, reader.maxDoc());
                 } else {

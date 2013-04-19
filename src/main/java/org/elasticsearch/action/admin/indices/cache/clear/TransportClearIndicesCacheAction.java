@@ -155,10 +155,10 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                     }
                 } else {
                     service.cache().clear("api");
+                    service.fieldData().clear();
                     termsFilterCache.clear("api");
                 }
             }
-            service.cache().invalidateStatsCache();
         }
         return new ShardClearIndicesCacheResponse(request.index(), request.shardId());
     }

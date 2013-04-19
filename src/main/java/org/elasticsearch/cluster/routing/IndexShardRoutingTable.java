@@ -284,6 +284,14 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     public ShardIterator primaryShardIt() {
         return new PlainShardIterator(shardId, primaryAsList);
     }
+    
+    public ShardIterator primaryActiveShardIt() {
+        if (!primaryAsList.isEmpty() && !primaryAsList.get(0).active()) {
+            List<ShardRouting> primaryList = ImmutableList.of();
+            return new PlainShardIterator(shardId, primaryList);
+        }
+        return primaryShardIt();
+    }
 
     public ShardIterator primaryFirstActiveShardsIt() {
         ArrayList<ShardRouting> ordered = new ArrayList<ShardRouting>(activeShards.size());

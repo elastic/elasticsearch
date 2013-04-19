@@ -32,7 +32,6 @@ import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
-import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -356,7 +355,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
                         assert false : "AVG has it's own collector";
                         
                     default:
-                        assert false : "Are we missing a sore type here? -- " + scoreType;
+                        assert false : "Are we missing a score type here? -- " + scoreType;
                         break;
                 }
             }

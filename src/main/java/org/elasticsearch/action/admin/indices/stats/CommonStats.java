@@ -25,6 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
+import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
@@ -42,31 +45,40 @@ import java.io.IOException;
 public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
-    DocsStats docs;
+    public DocsStats docs;
 
     @Nullable
-    StoreStats store;
+    public StoreStats store;
 
     @Nullable
-    IndexingStats indexing;
+    public IndexingStats indexing;
 
     @Nullable
-    GetStats get;
+    public GetStats get;
 
     @Nullable
-    SearchStats search;
+    public SearchStats search;
 
     @Nullable
-    MergeStats merge;
+    public MergeStats merge;
 
     @Nullable
-    RefreshStats refresh;
+    public RefreshStats refresh;
 
     @Nullable
-    FlushStats flush;
+    public FlushStats flush;
 
     @Nullable
-    WarmerStats warmer;
+    public WarmerStats warmer;
+
+    @Nullable
+    public FilterCacheStats filterCache;
+
+    @Nullable
+    public IdCacheStats idCache;
+
+    @Nullable
+    public FieldDataStats fieldData;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -141,6 +153,32 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             warmer.add(stats.getWarmer());
         }
+        if (filterCache == null) {
+            if (stats.getFilterCache() != null) {
+                filterCache = new FilterCacheStats();
+                filterCache.add(stats.getFilterCache());
+            }
+        } else {
+            filterCache.add(stats.getFilterCache());
+        }
+
+        if (idCache == null) {
+            if (stats.getIdCache() != null) {
+                idCache = new IdCacheStats();
+                idCache.add(stats.getIdCache());
+            }
+        } else {
+            idCache.add(stats.getIdCache());
+        }
+
+        if (fieldData == null) {
+            if (stats.getFieldData() != null) {
+                fieldData = new FieldDataStats();
+                fieldData.add(stats.getFieldData());
+            }
+        } else {
+            fieldData.add(stats.getFieldData());
+        }
     }
 
     @Nullable
@@ -188,6 +226,21 @@ public class CommonStats implements Streamable, ToXContent {
         return this.warmer;
     }
 
+    @Nullable
+    public FilterCacheStats getFilterCache() {
+        return this.filterCache;
+    }
+
+    @Nullable
+    public IdCacheStats getIdCache() {
+        return this.idCache;
+    }
+
+    @Nullable
+    public FieldDataStats getFieldData() {
+        return this.fieldData;
+    }
+
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
         CommonStats stats = new CommonStats();
         stats.readFrom(in);
@@ -222,6 +275,15 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (in.readBoolean()) {
             warmer = WarmerStats.readWarmerStats(in);
+        }
+        if (in.readBoolean()) {
+            filterCache = FilterCacheStats.readFilterCacheStats(in);
+        }
+        if (in.readBoolean()) {
+            idCache = IdCacheStats.readIdCacheStats(in);
+        }
+        if (in.readBoolean()) {
+            fieldData = FieldDataStats.readFieldDataStats(in);
         }
     }
 
@@ -281,6 +343,24 @@ public class CommonStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             warmer.writeTo(out);
         }
+        if (filterCache == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            filterCache.writeTo(out);
+        }
+        if (idCache == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            idCache.writeTo(out);
+        }
+        if (fieldData == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            fieldData.writeTo(out);
+        }
     }
 
     // note, requires a wrapping object
@@ -312,6 +392,15 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (warmer != null) {
             warmer.toXContent(builder, params);
+        }
+        if (filterCache != null) {
+            filterCache.toXContent(builder, params);
+        }
+        if (idCache != null) {
+            idCache.toXContent(builder, params);
+        }
+        if (fieldData != null) {
+            fieldData.toXContent(builder, params);
         }
         return builder;
     }

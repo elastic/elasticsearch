@@ -129,7 +129,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                     });
 
                     return newClusterStateBuilder().state(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.onFailure(e);
                     return currentState;
                 }

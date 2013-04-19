@@ -32,6 +32,8 @@ import java.io.IOException;
  */
 public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterStateRequest> {
 
+    public final static String NONE = "_na";
+
     private boolean filterRoutingTable = false;
 
     private boolean filterNodes = false;
@@ -102,6 +104,11 @@ public class ClusterStateRequest extends MasterNodeOperationRequest<ClusterState
 
     public String[] filteredIndices() {
         return filteredIndices;
+    }
+
+    public ClusterStateRequest filterOutIndices() {
+        this.filteredIndices = new String[]{NONE};
+        return this;
     }
 
     public ClusterStateRequest filteredIndices(String... filteredIndices) {

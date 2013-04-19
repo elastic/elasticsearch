@@ -31,8 +31,8 @@ public class ConcurrentHashMapLong<T> implements ConcurrentMapLong<T> {
 
     private final ConcurrentMap<Long, T> map;
 
-    public ConcurrentHashMapLong() {
-        this.map = ConcurrentCollections.newConcurrentMap();
+    public ConcurrentHashMapLong(ConcurrentMap<Long, T> map) {
+        this.map = map;
     }
 
     @Override

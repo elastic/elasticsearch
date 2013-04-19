@@ -19,13 +19,13 @@
 
 package org.elasticsearch.test.unit.index.fielddata.ordinals;
 
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.fielddata.ordinals.SparseMultiArrayOrdinals;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -103,62 +103,62 @@ public class SparseMultiOrdinalsTests extends MultiOrdinalsTests {
 
         // Document 1
         assertThat(docs.getOrd(0), equalTo(1));
-        IntArrayRef ref = docs.getOrds(0);
-        assertThat(ref.start, equalTo(0));
+        IntsRef ref = docs.getOrds(0);
+        assertThat(ref.offset, equalTo(0));
         for (int i = 0; i < 10; i++) {
-            assertThat(ref.values[i], equalTo(i + 1));
+            assertThat(ref.ints[i], equalTo(i + 1));
         }
-        assertThat(ref.end, equalTo(10));
+        assertThat(ref.length, equalTo(10));
 
         // Document 2
         assertThat(docs.getOrd(1), equalTo(1));
         ref = docs.getOrds(1);
-        assertThat(ref.start, equalTo(0));
+        assertThat(ref.offset, equalTo(0));
         for (int i = 0; i < 15; i++) {
-            assertThat(ref.values[i], equalTo(i + 1));
+            assertThat(ref.ints[i], equalTo(i + 1));
         }
-        assertThat(ref.end, equalTo(15));
+        assertThat(ref.length, equalTo(15));
 
         // Document 3
         assertThat(docs.getOrd(2), equalTo(1));
         ref = docs.getOrds(2);
-        assertThat(ref.start, equalTo(0));
-        assertThat(ref.values[0], equalTo(1));
-        assertThat(ref.end, equalTo(1));
+        assertThat(ref.offset, equalTo(0));
+        assertThat(ref.ints[0], equalTo(1));
+        assertThat(ref.length, equalTo(1));
 
         // Document 4
         assertThat(docs.getOrd(3), equalTo(1));
         ref = docs.getOrds(3);
-        assertThat(ref.start, equalTo(0));
+        assertThat(ref.offset, equalTo(0));
         for (int i = 0; i < 5; i++) {
-            assertThat(ref.values[i], equalTo(i + 1));
+            assertThat(ref.ints[i], equalTo(i + 1));
         }
-        assertThat(ref.end, equalTo(5));
+        assertThat(ref.length, equalTo(5));
 
         // Document 5
         assertThat(docs.getOrd(4), equalTo(1));
         ref = docs.getOrds(4);
-        assertThat(ref.start, equalTo(0));
+        assertThat(ref.offset, equalTo(0));
         for (int i = 0; i < 6; i++) {
-            assertThat(ref.values[i], equalTo(i + 1));
+            assertThat(ref.ints[i], equalTo(i + 1));
         }
-        assertThat(ref.end, equalTo(6));
+        assertThat(ref.length, equalTo(6));
 
         // Document 6
         assertThat(docs.getOrd(5), equalTo(2));
         ref = docs.getOrds(5);
-        assertThat(ref.start, equalTo(0));
-        assertThat(ref.values[0], equalTo(2));
-        assertThat(ref.end, equalTo(1));
+        assertThat(ref.offset, equalTo(0));
+        assertThat(ref.ints[0], equalTo(2));
+        assertThat(ref.length, equalTo(1));
 
         // Document 7
         assertThat(docs.getOrd(6), equalTo(1));
         ref = docs.getOrds(6);
-        assertThat(ref.start, equalTo(0));
+        assertThat(ref.offset, equalTo(0));
         for (int i = 0; i < 10; i++) {
-            assertThat(ref.values[i], equalTo(i + 1));
+            assertThat(ref.ints[i], equalTo(i + 1));
         }
-        assertThat(ref.end, equalTo(10));
+        assertThat(ref.length, equalTo(10));
     }
 
 }

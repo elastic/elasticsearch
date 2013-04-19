@@ -106,7 +106,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 DfsSearchResult result = searchService.executeDfsPhase(request);
                 listener.onResult(result);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {
@@ -174,7 +174,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 QuerySearchResult result = searchService.executeQueryPhase(request);
                 listener.onResult(result);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {
@@ -208,7 +208,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 ScrollQuerySearchResult result = searchService.executeQueryPhase(request);
                 listener.onResult(result.queryResult());
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {
@@ -242,7 +242,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 QueryFetchSearchResult result = searchService.executeFetchPhase(request);
                 listener.onResult(result);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {
@@ -276,7 +276,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 QueryFetchSearchResult result = searchService.executeFetchPhase(request);
                 listener.onResult(result);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {
@@ -310,7 +310,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 ScrollQueryFetchSearchResult result = searchService.executeFetchPhase(request);
                 listener.onResult(result.result());
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {
@@ -412,7 +412,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
             try {
                 ScrollQueryFetchSearchResult result = searchService.executeScan(request);
                 listener.onResult(result.result());
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
             }
         } else {

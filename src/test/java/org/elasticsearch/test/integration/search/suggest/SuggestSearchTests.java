@@ -280,7 +280,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         Suggest suggest = searchSuggest(client, termSuggestion("size1")
-                        .size(1).text("prefix_abcd").maxTermFreq(10).minDocFreq(0)
+                        .size(1).text("prefix_abcd").maxTermFreq(10).prefixLength(1).minDocFreq(0)
                         .field("field1").suggestMode("always"),
                 termSuggestion("field2")
                         .field("field2").text("prefix_eeeh prefix_efgh")
@@ -426,6 +426,68 @@ public class SuggestSearchTests extends AbstractNodesTests {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
+    }
+    
+    @Test
+    public void testPrefixLength() throws ElasticSearchException, IOException {
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
+        builder.put("index.analysis.analyzer.reverse.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.reverse.filter", "lowercase", "reverse");
+        builder.put("index.analysis.analyzer.body.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.body.filter", "lowercase");
+        builder.put("index.analysis.analyzer.bigram.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.bigram.filter", "my_shingle", "lowercase");
+        builder.put("index.analysis.filter.my_shingle.type", "shingle");
+        builder.put("index.analysis.filter.my_shingle.output_unigrams", false);
+        builder.put("index.analysis.filter.my_shingle.min_shingle_size", 2);
+        builder.put("index.analysis.filter.my_shingle.max_shingle_size", 2);
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
+        .startObject("properties")
+        .startObject("body").field("type", "string").field("analyzer", "body").endObject()
+        .startObject("body_reverse").field("type", "string").field("analyzer", "reverse").endObject()
+        .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
+        .endObject()
+        .endObject().endObject();
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client.prepareIndex("test", "type1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("body", "hello world").endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1")
+        .setSource(XContentFactory.jsonBuilder().startObject().field("body", "hello world").endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1")
+        .setSource(XContentFactory.jsonBuilder().startObject().field("body", "hello words").endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        Suggest searchSuggest = searchSuggest(
+                client,
+                "hello word",
+                phraseSuggestion("simple_phrase").field("body")
+                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").prefixLength(4).minWordLength(1).suggestMode("always"))
+                        .size(1).confidence(1.0f));
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("hello word"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("hello words"));
+        
+        
+        searchSuggest = searchSuggest(
+                client,
+                "hello word",
+                phraseSuggestion("simple_phrase").field("body")
+                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").prefixLength(2).minWordLength(1).suggestMode("always"))
+                        .size(1).confidence(1.0f));
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("hello word"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("hello world"));
+        
     }
     
     

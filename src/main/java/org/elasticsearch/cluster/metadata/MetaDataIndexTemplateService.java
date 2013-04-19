@@ -93,7 +93,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         try {
             validate(request);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             listener.onFailure(e);
             return;
         }
@@ -110,7 +110,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             for (Map.Entry<String, IndexMetaData.Custom> entry : request.customs.entrySet()) {
                 templateBuilder.putCustom(entry.getKey(), entry.getValue());
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             listener.onFailure(e);
             return;
         }

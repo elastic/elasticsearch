@@ -124,17 +124,17 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
             perform(null);
         }
 
-        private void onFailure(ShardRouting shardRouting, Exception e) {
+        private void onFailure(ShardRouting shardRouting, Throwable e) {
             if (logger.isTraceEnabled() && e != null) {
                 logger.trace("{}: failed to execute [{}]", e, shardRouting, request);
             }
             perform(e);
         }
 
-        private void perform(@Nullable final Exception lastException) {
+        private void perform(@Nullable final Throwable lastException) {
             final ShardRouting shardRouting = shardIt.nextOrNull();
             if (shardRouting == null) {
-                Exception failure = lastException;
+                Throwable failure = lastException;
                 if (failure == null) {
                     failure = new NoShardAvailableActionException(shardIt.shardId(), "No shard available for [" + request + "]");
                 } else {
@@ -155,7 +155,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                             try {
                                 Response response = shardOperation(request, shardRouting.id());
                                 listener.onResponse(response);
-                            } catch (Exception e) {
+                            } catch (Throwable e) {
                                 onFailure(shardRouting, e);
                             }
                         }
@@ -164,7 +164,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                     try {
                         final Response response = shardOperation(request, shardRouting.id());
                         listener.onResponse(response);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(shardRouting, e);
                     }
                 }
@@ -219,7 +219,7 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                 public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

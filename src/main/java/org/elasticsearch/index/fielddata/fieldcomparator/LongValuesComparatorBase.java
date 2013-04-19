@@ -72,7 +72,7 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
         return this;
     }
 
-    private static final class MultiValueWrapper extends LongValues.FilteredLongValues {
+    private static final class MultiValueWrapper extends LongValues.Filtered {
 
         private final SortMode sortMode;
 

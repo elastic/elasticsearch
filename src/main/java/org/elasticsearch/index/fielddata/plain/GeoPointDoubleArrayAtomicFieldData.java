@@ -21,17 +21,16 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.BytesValues;
+import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.util.GeoPointArrayRef;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
-import org.elasticsearch.index.fielddata.util.StringArrayRef;
 
 /**
  */
-public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPointFieldData {
+public abstract class GeoPointDoubleArrayAtomicFieldData extends AtomicGeoPointFieldData<ScriptDocValues> {
 
     public static final GeoPointDoubleArrayAtomicFieldData EMPTY = new Empty();
 
@@ -88,18 +87,8 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
         }
 
         @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return HashedBytesValues.EMPTY;
-        }
-
-        @Override
         public GeoPointValues getGeoPointValues() {
             return GeoPointValues.EMPTY;
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return StringValues.EMPTY;
         }
 
         @Override
@@ -136,122 +125,8 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
         }
 
         @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues(lon, lat, ordinals.ordinals());
-        }
-
-        @Override
         public GeoPointValues getGeoPointValues() {
             return new GeoPointValues(lon, lat, ordinals.ordinals());
-        }
-
-        static class StringValues implements org.elasticsearch.index.fielddata.StringValues {
-
-            private final double[] lon;
-            private final double[] lat;
-            private final Ordinals.Docs ordinals;
-
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
-            private final ValuesIter valuesIter;
-
-            StringValues(double[] lon, double[] lat, Ordinals.Docs ordinals) {
-                this.lon = lon;
-                this.lat = lat;
-                this.ordinals = ordinals;
-                this.valuesIter = new ValuesIter(lon, lat);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return ordinals.isMultiValued();
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return ordinals.getOrd(docId) != 0;
-            }
-
-            @Override
-            public String getValue(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    return null;
-                }
-                return GeoHashUtils.encode(lat[ord], lon[ord]);
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return StringArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    int ord = ords.values[i];
-                    arrayScratch.values[arrayScratch.end++] = GeoHashUtils.encode(lat[ord], lon[ord]);
-                }
-                return arrayScratch;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return valuesIter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, GeoHashUtils.encode(lat[ord], lon[ord]));
-                } while ((ord = iter.next()) != 0);
-            }
-
-            static class ValuesIter implements Iter {
-
-                private final double[] lon;
-                private final double[] lat;
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                ValuesIter(double[] lon, double[] lat) {
-                    this.lon = lon;
-                    this.lat = lat;
-                }
-
-                public ValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public String next() {
-                    String value = GeoHashUtils.encode(lat[ord], lon[ord]);
-                    ord = ordsIter.next();
-                    return value;
-                }
-            }
         }
 
         static class GeoPointValues implements org.elasticsearch.index.fielddata.GeoPointValues {
@@ -261,7 +136,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
             private final Ordinals.Docs ordinals;
 
             private final GeoPoint scratch = new GeoPoint();
-            private final GeoPointArrayRef arrayScratch = new GeoPointArrayRef(new GeoPoint[1], 1);
             private final ValuesIter valuesIter;
             private final SafeValuesIter safeValuesIter;
 
@@ -302,20 +176,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
             }
 
             @Override
-            public GeoPointArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return GeoPointArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    int ord = ords.values[i];
-                    arrayScratch.values[arrayScratch.end++].reset(lat[ord], lon[ord]);
-                }
-                return arrayScratch;
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 return valuesIter.reset(ordinals.getIter(docId));
             }
@@ -325,44 +185,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
                 return safeValuesIter.reset(ordinals.getIter(docId));
             }
 
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, scratch.reset(lat[ord], lon[ord]));
-                } while ((ord = iter.next()) != 0);
-            }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, new GeoPoint(lat[ord], lon[ord]));
-                } while ((ord = iter.next()) != 0);
-            }
-
-            @Override
-            public void forEachLatLonValueInDoc(int docId, LatLonValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    proc.onValue(docId, lat[ord], lon[ord]);
-                } while ((ord = iter.next()) != 0);
-            }
 
             static class ValuesIter implements Iter {
 
@@ -462,87 +284,10 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
         }
 
         @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues(lon, lat, set);
-        }
-
-        @Override
         public GeoPointValues getGeoPointValues() {
             return new GeoPointValues(lon, lat, set);
         }
 
-        static class StringValues implements org.elasticsearch.index.fielddata.StringValues {
-
-            private final double[] lon;
-            private final double[] lat;
-            private final FixedBitSet set;
-
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
-            private final Iter.Single iter = new Iter.Single();
-
-            StringValues(double[] lon, double[] lat, FixedBitSet set) {
-                this.lon = lon;
-                this.lat = lat;
-                this.set = set;
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return set.get(docId);
-            }
-
-            @Override
-            public String getValue(int docId) {
-                if (set.get(docId)) {
-                    return GeoHashUtils.encode(lat[docId], lon[docId]);
-                } else {
-                    return null;
-                }
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0] = GeoHashUtils.encode(lat[docId], lon[docId]);
-                    return arrayScratch;
-                } else {
-                    return StringArrayRef.EMPTY;
-                }
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                if (set.get(docId)) {
-                    return iter.reset(GeoHashUtils.encode(lat[docId], lon[docId]));
-                } else {
-                    return Iter.Empty.INSTANCE;
-                }
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, GeoHashUtils.encode(lat[docId], lon[docId]));
-                } else {
-                    proc.onMissing(docId);
-                }
-            }
-        }
 
         static class GeoPointValues implements org.elasticsearch.index.fielddata.GeoPointValues {
 
@@ -551,7 +296,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
             private final FixedBitSet set;
 
             private final GeoPoint scratch = new GeoPoint();
-            private final GeoPointArrayRef arrayScratch = new GeoPointArrayRef(new GeoPoint[1]);
             private final Iter.Single iter = new Iter.Single();
 
             GeoPointValues(double[] lon, double[] lat, FixedBitSet set) {
@@ -589,16 +333,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
             }
 
             @Override
-            public GeoPointArrayRef getValues(int docId) {
-                if (set.get(docId)) {
-                    arrayScratch.values[0].reset(lat[docId], lon[docId]);
-                    return arrayScratch;
-                } else {
-                    return GeoPointArrayRef.EMPTY;
-                }
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 if (set.get(docId)) {
                     return iter.reset(scratch.reset(lat[docId], lon[docId]));
@@ -613,33 +347,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
                     return iter.reset(new GeoPoint(lat[docId], lon[docId]));
                 } else {
                     return Iter.Empty.INSTANCE;
-                }
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, scratch.reset(lat[docId], lon[docId]));
-                } else {
-                    proc.onMissing(docId);
-                }
-            }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, new GeoPoint(lat[docId], lon[docId]));
-                } else {
-                    proc.onMissing(docId);
-                }
-            }
-
-            @Override
-            public void forEachLatLonValueInDoc(int docId, LatLonValueInDocProc proc) {
-                if (set.get(docId)) {
-                    proc.onValue(docId, lat[docId], lon[docId]);
-                } else {
-                    proc.onMissing(docId);
                 }
             }
         }
@@ -672,69 +379,10 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
             return size;
         }
 
-        @Override
-        public BytesValues getBytesValues() {
-            return new BytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public HashedBytesValues getHashedBytesValues() {
-            return new HashedBytesValues.StringBased(getStringValues());
-        }
-
-        @Override
-        public StringValues getStringValues() {
-            return new StringValues(lon, lat);
-        }
 
         @Override
         public GeoPointValues getGeoPointValues() {
             return new GeoPointValues(lon, lat);
-        }
-
-        static class StringValues implements org.elasticsearch.index.fielddata.StringValues {
-
-            private final double[] lon;
-            private final double[] lat;
-
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
-            private final Iter.Single iter = new Iter.Single();
-
-            StringValues(double[] lon, double[] lat) {
-                this.lon = lon;
-                this.lat = lat;
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public boolean hasValue(int docId) {
-                return true;
-            }
-
-            @Override
-            public String getValue(int docId) {
-                return GeoHashUtils.encode(lat[docId], lon[docId]);
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                arrayScratch.values[0] = GeoHashUtils.encode(lat[docId], lon[docId]);
-                return arrayScratch;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return iter.reset(GeoHashUtils.encode(lat[docId], lon[docId]));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                proc.onValue(docId, GeoHashUtils.encode(lat[docId], lon[docId]));
-            }
         }
 
         static class GeoPointValues implements org.elasticsearch.index.fielddata.GeoPointValues {
@@ -743,7 +391,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
             private final double[] lat;
 
             private final GeoPoint scratch = new GeoPoint();
-            private final GeoPointArrayRef arrayScratch = new GeoPointArrayRef(new GeoPoint[1]);
             private final Iter.Single iter = new Iter.Single();
 
             GeoPointValues(double[] lon, double[] lat) {
@@ -772,12 +419,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
             }
 
             @Override
-            public GeoPointArrayRef getValues(int docId) {
-                arrayScratch.values[0].reset(lat[docId], lon[docId]);
-                return arrayScratch;
-            }
-
-            @Override
             public Iter getIter(int docId) {
                 return iter.reset(scratch.reset(lat[docId], lon[docId]));
             }
@@ -785,21 +426,6 @@ public abstract class GeoPointDoubleArrayAtomicFieldData implements AtomicGeoPoi
             @Override
             public Iter getIterSafe(int docId) {
                 return iter.reset(new GeoPoint(lat[docId], lon[docId]));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                proc.onValue(docId, scratch.reset(lat[docId], lon[docId]));
-            }
-
-            @Override
-            public void forEachSafeValueInDoc(int docId, ValueInDocProc proc) {
-                proc.onValue(docId, new GeoPoint(lat[docId], lon[docId]));
-            }
-
-            @Override
-            public void forEachLatLonValueInDoc(int docId, LatLonValueInDocProc proc) {
-                proc.onValue(docId, lat[docId], lon[docId]);
             }
         }
     }

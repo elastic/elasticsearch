@@ -35,6 +35,18 @@ import org.elasticsearch.index.settings.IndexSettings;
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
+    public static class CommonSettings {
+
+        /**
+         * Should single value cross documents case be optimized to remove ords. Note, this optimization
+         * might not be supported by all Field Data implementations, but the ones that do, should consult
+         * this method to check if it should be done or not.
+         */
+        public static boolean removeOrdsOnSingleValue(FieldDataType fieldDataType) {
+            return !"always".equals(fieldDataType.getSettings().get("ordinals"));
+        }
+    }
+
     /**
      * The field name.
      */

@@ -21,17 +21,14 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
+import org.apache.lucene.util.PagedBytes.Reader;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
-import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
-import org.elasticsearch.index.fielddata.util.StringArrayRef;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
 /**
  */
@@ -46,7 +43,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
     private final PackedInts.Reader termOrdToBytesOffset;
     protected final Ordinals ordinals;
 
-    private int[] hashes;
+    private volatile int[] hashes;
     private long size = -1;
     private final long readerBytesSize;
 
@@ -88,14 +85,8 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         }
         return size;
     }
-
-    @Override
-    public BytesValues.WithOrdinals getBytesValues() {
-        return ordinals.isMultiValued() ? new BytesValues.Multi(bytes, termOrdToBytesOffset, ordinals.ordinals()) : new BytesValues.Single(bytes, termOrdToBytesOffset, ordinals.ordinals());
-    }
-
-    @Override
-    public HashedBytesValues.WithOrdinals getHashedBytesValues() {
+    
+    private final int[] getHashes() {
         if (hashes == null) {
             int numberOfValues = termOrdToBytesOffset.size();
             int[] hashes = new int[numberOfValues];
@@ -106,20 +97,28 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             }
             this.hashes = hashes;
         }
-        return ordinals.isMultiValued() ? new HashedBytesValues.Multi(bytes, termOrdToBytesOffset, hashes, ordinals.ordinals()) : new HashedBytesValues.Single(bytes, termOrdToBytesOffset, hashes, ordinals.ordinals());
+        return hashes;
     }
 
     @Override
-    public StringValues.WithOrdinals getStringValues() {
-        return ordinals.isMultiValued() ? new StringValues.Multi(bytes, termOrdToBytesOffset, ordinals.ordinals()) : new StringValues.Single(bytes, termOrdToBytesOffset, ordinals.ordinals());
+    public BytesValues.WithOrdinals getBytesValues() {
+        return ordinals.isMultiValued() ? new BytesValues.Multi(bytes, termOrdToBytesOffset, ordinals.ordinals()) : new BytesValues.Single(
+                bytes, termOrdToBytesOffset, ordinals.ordinals());
     }
-
+    
+    @Override
+    public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getHashedBytesValues() {
+        final int[] hashes = getHashes();
+        return ordinals.isMultiValued() ? new BytesValues.MultiHashed(hashes, bytes, termOrdToBytesOffset, ordinals.ordinals())
+                : new BytesValues.SingleHashed(hashes, bytes, termOrdToBytesOffset, ordinals.ordinals());
+    }
+    
     @Override
     public ScriptDocValues.Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getStringValues());
+        return new ScriptDocValues.Strings(getBytesValues());
     }
 
-    static abstract class BytesValues implements org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
+    static abstract class BytesValues extends org.elasticsearch.index.fielddata.BytesValues.WithOrdinals {
 
         protected final PagedBytes.Reader bytes;
         protected final PackedInts.Reader termOrdToBytesOffset;
@@ -128,6 +127,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         protected final BytesRef scratch = new BytesRef();
 
         BytesValues(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
+            super(ordinals);
             this.bytes = bytes;
             this.termOrdToBytesOffset = termOrdToBytesOffset;
             this.ordinals = ordinals;
@@ -136,12 +136,6 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
         @Override
         public Ordinals.Docs ordinals() {
             return this.ordinals;
-        }
-
-        @Override
-        public BytesRef getValueByOrd(int ord) {
-            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-            return scratch;
         }
 
         @Override
@@ -150,481 +144,95 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
             return ret;
         }
 
-        @Override
-        public BytesRef getSafeValueByOrd(int ord) {
-            final BytesRef retVal = new BytesRef();
-            bytes.fill(retVal, termOrdToBytesOffset.get(ord));
-            return retVal;
-        }
-
-        @Override
-        public boolean hasValue(int docId) {
-            return ordinals.getOrd(docId) != 0;
-        }
-
-        @Override
-        public BytesRef makeSafe(BytesRef bytes) {
-            return BytesRef.deepCopyOf(bytes);
-        }
-
-        @Override
-        public BytesRef getValue(int docId) {
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) return null;
-            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-            return scratch;
-        }
-
-        @Override
-        public BytesRef getValueScratch(int docId, BytesRef ret) {
-            bytes.fill(ret, termOrdToBytesOffset.get(ordinals.getOrd(docId)));
-            return ret;
-        }
 
         static class Single extends BytesValues {
 
-            private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[1], 1);
-            private final Iter.Single iter = new Iter.Single();
+            private final Iter.Single iter;
 
             Single(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, ordinals);
+                assert !ordinals.isMultiValued();
+                iter = newSingleIter();
             }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public BytesRefArrayRef getValues(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return BytesRefArrayRef.EMPTY;
-                arrayScratch.values[0] = new BytesRef();
-                bytes.fill(arrayScratch.values[0], termOrdToBytesOffset.get(ord));
-                return arrayScratch;
-            }
-
+            
             @Override
             public Iter getIter(int docId) {
                 int ord = ordinals.getOrd(docId);
                 if (ord == 0) return Iter.Empty.INSTANCE;
                 bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                return iter.reset(scratch);
+                return iter.reset(scratch, ord);
             }
 
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                } else {
-                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                    proc.onValue(docId, scratch);
-                }
-            }
         }
+        
+        static final class SingleHashed extends Single {
+            private final int[] hashes;
+
+            SingleHashed(int[] hashes, Reader bytes, org.apache.lucene.util.packed.PackedInts.Reader termOrdToBytesOffset, Docs ordinals) {
+                super(bytes, termOrdToBytesOffset, ordinals);
+                this.hashes = hashes;
+            }
+            
+            @Override
+            protected Iter.Single newSingleIter() {
+                return new Iter.Single() {
+                    public int hash() {
+                        return hashes[ord];
+                    }
+                };
+            }
+            
+            @Override
+            public int getValueHashed(int docId, BytesRef ret) {
+                final int ord = ordinals.getOrd(docId);
+                getValueScratchByOrd(ord, ret);
+                return hashes[ord];
+            }
+            
+        }
+        
 
         static class Multi extends BytesValues {
 
-            private final BytesRefArrayRef arrayScratch = new BytesRefArrayRef(new BytesRef[10], 0);
-            private final ValuesIter iter;
+            private final Iter.Multi iter;
 
             Multi(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, ordinals);
-                this.iter = new ValuesIter(bytes, termOrdToBytesOffset);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return true;
-            }
-
-            @Override
-            public BytesRefArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return BytesRefArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    final BytesRef bytesRef = new BytesRef();
-                    bytes.fill(bytesRef, termOrdToBytesOffset.get(ords.values[i]));
-                    arrayScratch.values[arrayScratch.end++] = bytesRef;
-                }
-                return arrayScratch;
+                assert ordinals.isMultiValued();
+                this.iter = newMultiIter();
             }
 
             @Override
             public Iter getIter(int docId) {
                 return iter.reset(ordinals.getIter(docId));
             }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                    proc.onValue(docId, scratch);
-                } while ((ord = iter.next()) != 0);
-            }
-
-            static class ValuesIter implements Iter {
-
-                private final PagedBytes.Reader bytes;
-                private final PackedInts.Reader termOrdToBytesOffset;
-                private final BytesRef scratch = new BytesRef();
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                ValuesIter(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset) {
-                    this.bytes = bytes;
-                    this.termOrdToBytesOffset = termOrdToBytesOffset;
-                }
-
-                public ValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public BytesRef next() {
-                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                    ord = ordsIter.next();
-                    return scratch;
-                }
-            }
         }
-    }
+        
+        static final class MultiHashed extends Multi {
 
-    static abstract class HashedBytesValues implements org.elasticsearch.index.fielddata.HashedBytesValues.WithOrdinals {
+            private final int[] hashes;
 
-        protected final PagedBytes.Reader bytes;
-        protected final PackedInts.Reader termOrdToBytesOffset;
-        protected final int[] hashes;
-        protected final Ordinals.Docs ordinals;
-
-        protected final BytesRef scratch1 = new BytesRef();
-        protected final HashedBytesRef scratch = new HashedBytesRef();
-
-        HashedBytesValues(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, int[] hashes, Ordinals.Docs ordinals) {
-            this.bytes = bytes;
-            this.termOrdToBytesOffset = termOrdToBytesOffset;
-            this.hashes = hashes;
-            this.ordinals = ordinals;
-        }
-
-        @Override
-        public Ordinals.Docs ordinals() {
-            return this.ordinals;
-        }
-
-        @Override
-        public HashedBytesRef getValueByOrd(int ord) {
-            bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
-            return scratch.reset(scratch1, hashes[ord]);
-        }
-
-        @Override
-        public HashedBytesRef getSafeValueByOrd(int ord) {
-            final BytesRef bytesRef = new BytesRef();
-            bytes.fill(bytesRef, termOrdToBytesOffset.get(ord));
-            return new HashedBytesRef(bytesRef, hashes[ord]);
-        }
-
-        @Override
-        public boolean hasValue(int docId) {
-            return ordinals.getOrd(docId) != 0;
-        }
-
-        @Override
-        public HashedBytesRef makeSafe(HashedBytesRef bytes) {
-            return new HashedBytesRef(BytesRef.deepCopyOf(bytes.bytes), bytes.hash);
-        }
-
-        @Override
-        public HashedBytesRef getValue(int docId) {
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) return null;
-            bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
-            return scratch.reset(scratch1, hashes[ord]);
-        }
-
-        static class Single extends HashedBytesValues {
-
-            private final Iter.Single iter = new Iter.Single();
-
-            Single(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, int[] hashes, Ordinals.Docs ordinals) {
-                super(bytes, termOrdToBytesOffset, hashes, ordinals);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return false;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return Iter.Empty.INSTANCE;
-                bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
-                return iter.reset(scratch.reset(scratch1, hashes[ord]));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                } else {
-                    bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
-                    proc.onValue(docId, scratch.reset(scratch1, hashes[ord]));
-                }
-            }
-        }
-
-        static class Multi extends HashedBytesValues {
-
-            private final ValuesIter iter;
-
-            Multi(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, int[] hashes, Ordinals.Docs ordinals) {
-                super(bytes, termOrdToBytesOffset, hashes, ordinals);
-                this.iter = new ValuesIter(bytes, termOrdToBytesOffset, hashes);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return true;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return iter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
-                    proc.onValue(docId, scratch.reset(scratch1, hashes[ord]));
-                } while ((ord = iter.next()) != 0);
-            }
-
-            static class ValuesIter implements Iter {
-
-                private final PagedBytes.Reader bytes;
-                private final PackedInts.Reader termOrdToBytesOffset;
-                private final int[] hashes;
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                private final BytesRef scratch1 = new BytesRef();
-                private final HashedBytesRef scratch = new HashedBytesRef();
-
-                ValuesIter(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, int[] hashes) {
-                    this.bytes = bytes;
-                    this.termOrdToBytesOffset = termOrdToBytesOffset;
-                    this.hashes = hashes;
-                }
-
-                public ValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public HashedBytesRef next() {
-                    bytes.fill(scratch1, termOrdToBytesOffset.get(ord));
-                    HashedBytesRef value = scratch.reset(scratch1, hashes[ord]);
-                    ord = ordsIter.next();
-                    return value;
-                }
-            }
-        }
-    }
-
-    static abstract class StringValues implements org.elasticsearch.index.fielddata.StringValues.WithOrdinals {
-
-        protected final PagedBytes.Reader bytes;
-        protected final PackedInts.Reader termOrdToBytesOffset;
-        protected final Ordinals.Docs ordinals;
-
-        protected final BytesRef scratch = new BytesRef();
-
-        protected StringValues(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
-            this.bytes = bytes;
-            this.termOrdToBytesOffset = termOrdToBytesOffset;
-            this.ordinals = ordinals;
-        }
-
-        @Override
-        public Ordinals.Docs ordinals() {
-            return ordinals;
-        }
-
-        @Override
-        public String getValueByOrd(int ord) {
-            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-            return scratch.utf8ToString();
-        }
-
-        @Override
-        public boolean hasValue(int docId) {
-            return ordinals.getOrd(docId) != 0;
-        }
-
-        @Override
-        public String getValue(int docId) {
-            int ord = ordinals.getOrd(docId);
-            if (ord == 0) return null;
-            bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-            return scratch.utf8ToString();
-        }
-
-        static class Single extends StringValues {
-
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[1], 1);
-            private final Iter.Single iter = new Iter.Single();
-
-            Single(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
+            MultiHashed(int[] hashes, Reader bytes, org.apache.lucene.util.packed.PackedInts.Reader termOrdToBytesOffset, Docs ordinals) {
                 super(bytes, termOrdToBytesOffset, ordinals);
+                this.hashes = hashes;
             }
 
             @Override
-            public boolean isMultiValued() {
-                return false;
+            protected Iter.Multi newMultiIter() {
+                return new Iter.Multi(this) {
+                    public int hash() {
+                        return hashes[ord];
+                    }
+                };
             }
 
             @Override
-            public StringArrayRef getValues(int docId) {
+            public int getValueHashed(int docId, BytesRef ret) {
                 int ord = ordinals.getOrd(docId);
-                if (ord == 0) return StringArrayRef.EMPTY;
-                bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                arrayScratch.values[0] = scratch.utf8ToString();
-                return arrayScratch;
+                getValueScratchByOrd(ord, ret);
+                return hashes[ord];
             }
-
-            @Override
-            public Iter getIter(int docId) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) return Iter.Empty.INSTANCE;
-                bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                return iter.reset(scratch.utf8ToString());
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                int ord = ordinals.getOrd(docId);
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                proc.onValue(docId, scratch.utf8ToString());
-            }
-        }
-
-        static class Multi extends StringValues {
-
-            private final StringArrayRef arrayScratch = new StringArrayRef(new String[10], 0);
-            private final ValuesIter iter;
-
-            Multi(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset, Ordinals.Docs ordinals) {
-                super(bytes, termOrdToBytesOffset, ordinals);
-                iter = new ValuesIter(bytes, termOrdToBytesOffset);
-            }
-
-            @Override
-            public boolean isMultiValued() {
-                return true;
-            }
-
-            @Override
-            public StringArrayRef getValues(int docId) {
-                IntArrayRef ords = ordinals.getOrds(docId);
-                int size = ords.size();
-                if (size == 0) return StringArrayRef.EMPTY;
-
-                arrayScratch.reset(size);
-                for (int i = ords.start; i < ords.end; i++) {
-                    bytes.fill(scratch, termOrdToBytesOffset.get(ords.values[i]));
-                    arrayScratch.values[arrayScratch.end++] = scratch.utf8ToString();
-                }
-                return arrayScratch;
-            }
-
-            @Override
-            public Iter getIter(int docId) {
-                return iter.reset(ordinals.getIter(docId));
-            }
-
-            @Override
-            public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-                Ordinals.Docs.Iter iter = ordinals.getIter(docId);
-                int ord = iter.next();
-                if (ord == 0) {
-                    proc.onMissing(docId);
-                    return;
-                }
-                do {
-                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                    proc.onValue(docId, scratch.utf8ToString());
-                } while ((ord = iter.next()) != 0);
-            }
-
-            static class ValuesIter implements StringValues.Iter {
-
-                private final PagedBytes.Reader bytes;
-                private final PackedInts.Reader termOrdToBytesOffset;
-                private final BytesRef scratch = new BytesRef();
-                private Ordinals.Docs.Iter ordsIter;
-                private int ord;
-
-                ValuesIter(PagedBytes.Reader bytes, PackedInts.Reader termOrdToBytesOffset) {
-                    this.bytes = bytes;
-                    this.termOrdToBytesOffset = termOrdToBytesOffset;
-                }
-
-                public ValuesIter reset(Ordinals.Docs.Iter ordsIter) {
-                    this.ordsIter = ordsIter;
-                    this.ord = ordsIter.next();
-                    return this;
-                }
-
-                @Override
-                public boolean hasNext() {
-                    return ord != 0;
-                }
-
-                @Override
-                public String next() {
-                    bytes.fill(scratch, termOrdToBytesOffset.get(ord));
-                    ord = ordsIter.next();
-                    return scratch.utf8ToString();
-                }
-            }
+            
         }
     }
 
@@ -657,17 +265,7 @@ public class PagedBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<S
 
         @Override
         public BytesValues.WithOrdinals getBytesValues() {
-            return new BytesValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
-        }
-
-        @Override
-        public HashedBytesValues.WithOrdinals getHashedBytesValues() {
-            return new HashedBytesValues.Empty((EmptyOrdinals) ordinals);
-        }
-
-        @Override
-        public StringValues.WithOrdinals getStringValues() {
-            return new StringValues.WithOrdinals.Empty((EmptyOrdinals) ordinals);
+            return new BytesValues.WithOrdinals.Empty(ordinals.ordinals());
         }
 
         @Override

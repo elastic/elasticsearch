@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.service.IndexService;
 
 /**
  *
@@ -39,6 +40,9 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
         }
     }
 
+    // we need to "inject" the index service to not create cyclic dep
+    void setIndexService(IndexService indexService);
+
     String type();
 
     Filter cache(Filter filterToCache);
@@ -48,8 +52,4 @@ public interface FilterCache extends IndexComponent, CloseableComponent {
     void clear(String reason);
 
     void clear(String reason, String[] keys);
-
-    EntriesStats entriesStats();
-
-    long evictions();
 }

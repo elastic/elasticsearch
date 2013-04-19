@@ -296,7 +296,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     /**
      * The idea of the store directory is to cache file level meta data, as well as md5 of it
      */
-    class StoreDirectory extends Directory implements ForceSyncDirectory {
+    public class StoreDirectory extends Directory implements ForceSyncDirectory {
 
         private final Distributor distributor;
 
@@ -314,6 +314,10 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 filesMetadata = builder.immutableMap();
                 files = filesMetadata.keySet().toArray(new String[filesMetadata.size()]);
             }
+        }
+
+        public ShardId shardId() {
+            return Store.this.shardId();
         }
 
         public Directory[] delegates() {

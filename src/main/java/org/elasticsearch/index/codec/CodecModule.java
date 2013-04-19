@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -92,12 +93,16 @@ public class CodecModule extends AbstractModule {
             String name = entry.getKey();
             Settings settings = entry.getValue();
 
-            Class<? extends PostingsFormatProvider> type =
-                    settings.getAsClass("type", null, "org.elasticsearch.index.codec.postingsformat.", "PostingsFormatProvider");
-
-            if (type == null) {
-                // nothing found, see if its in bindings as a binding name
+            String sType = settings.get("type");
+            if (sType == null || sType.trim().isEmpty()) {
                 throw new ElasticSearchIllegalArgumentException("PostingsFormat Factory [" + name + "] must have a type associated with it");
+            }
+
+            Class<? extends PostingsFormatProvider> type;
+            try {
+                type = settings.getAsClass("type", null, "org.elasticsearch.index.codec.postingsformat.", "PostingsFormatProvider");
+            } catch (NoClassSettingsException e) {
+                throw new ElasticSearchIllegalArgumentException("The specified type [" + sType + "] for postingsFormat Factory [" + name + "] can't be found");
             }
             postingFormatProviders.put(name, type);
         }

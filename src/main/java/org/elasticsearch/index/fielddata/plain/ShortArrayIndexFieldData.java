@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import gnu.trove.iterator.TShortIterator;
 import gnu.trove.list.array.TShortArrayList;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
@@ -29,6 +30,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
@@ -42,7 +44,7 @@ import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  */
-public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayAtomicFieldData> implements IndexNumericFieldData<ShortArrayAtomicFieldData> {
+public class ShortArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumericFieldData> implements IndexNumericFieldData<AtomicNumericFieldData> {
 
     public static class Builder implements IndexFieldData.Builder {
 
@@ -69,7 +71,7 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
     }
 
     @Override
-    public ShortArrayAtomicFieldData load(AtomicReaderContext context) {
+    public AtomicNumericFieldData load(AtomicReaderContext context) {
         try {
             return cache.load(context, this);
         } catch (Throwable e) {
@@ -82,7 +84,7 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
     }
 
     @Override
-    public ShortArrayAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicNumericFieldData loadDirect(AtomicReaderContext context) throws Exception {
         AtomicReader reader = context.reader();
         Terms terms = reader.terms(getFieldNames().indexName());
         if (terms == null) {
@@ -94,14 +96,45 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
         values.add((short) 0); // first "t" indicates null value
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
         try {
-            BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric32Bit(terms.iterator(null)), reader.getLiveDocs());
             BytesRef term;
+            short max = Short.MIN_VALUE;
+            short min = Short.MAX_VALUE;
+            BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric32Bit(terms.iterator(null)), reader.getLiveDocs());
             while ((term = iter.next()) != null) {
-                values.add((short) NumericUtils.prefixCodedToInt(term));
+                short value = (short) NumericUtils.prefixCodedToInt(term);
+                values.add(value);
+                if (value > max) {
+                    max = value;
+                }
+                if (value < min) {
+                    min = value;
+                }
             }
 
             Ordinals build = builder.build(fieldDataType.getSettings());
-            return build(reader, builder, build, new BuilderShorts() {
+            if (fieldDataType.getSettings().getAsBoolean("optimize_type", true)) {
+                // if we can fit all our values in a byte we should do this!
+                if (min >= Byte.MIN_VALUE && max <= Byte.MAX_VALUE) {
+                    return ByteArrayIndexFieldData.build(reader, fieldDataType, builder, build, new ByteArrayIndexFieldData.BuilderBytes() {
+                        @Override
+                        public byte get(int index) {
+                            return (byte) values.get(index);
+                        }
+
+                        @Override
+                        public byte[] toArray() {
+                            byte[] bValues = new byte[values.size()];
+                            int i = 0;
+                            for (TShortIterator it = values.iterator(); it.hasNext(); ) {
+                                bValues[i++] = (byte) it.next();
+                            }
+                            return bValues;
+                        }
+                    });
+                }
+            }
+
+            return build(reader, fieldDataType, builder, build, new BuilderShorts() {
                 @Override
                 public short get(int index) {
                     return values.get(index);
@@ -110,6 +143,11 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
                 @Override
                 public short[] toArray() {
                     return values.toArray();
+                }
+
+                @Override
+                public int size() {
+                    return values.size();
                 }
             });
         } finally {
@@ -121,17 +159,29 @@ public class ShortArrayIndexFieldData extends AbstractIndexFieldData<ShortArrayA
         short get(int index);
 
         short[] toArray();
+
+        int size();
     }
 
-    static ShortArrayAtomicFieldData build(AtomicReader reader, OrdinalsBuilder builder, Ordinals build, BuilderShorts values) {
-        if (!build.isMultiValued()) {
+    static ShortArrayAtomicFieldData build(AtomicReader reader, FieldDataType fieldDataType, OrdinalsBuilder builder, Ordinals build, BuilderShorts values) {
+        if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
             Docs ordinals = build.ordinals();
+            final FixedBitSet set = builder.buildDocsWithValuesSet();
+
+            // there's sweatspot where due to low unique value count, using ordinals will consume less memory
+            long singleValuesArraySize = reader.maxDoc() * RamUsage.NUM_BYTES_SHORT + (set == null ? 0 : set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_INT);
+            long uniqueValuesArraySize = values.size() * RamUsage.NUM_BYTES_SHORT;
+            long ordinalsSize = build.getMemorySizeInBytes();
+            if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
+                return new ShortArrayAtomicFieldData.WithOrdinals(values.toArray(), reader.maxDoc(), build);
+            }
+
             short[] sValues = new short[reader.maxDoc()];
             int maxDoc = reader.maxDoc();
             for (int i = 0; i < maxDoc; i++) {
                 sValues[i] = values.get(ordinals.getOrd(i));
             }
-            final FixedBitSet set = builder.buildDocsWithValuesSet();
+
             if (set == null) {
                 return new ShortArrayAtomicFieldData.Single(sValues, reader.maxDoc());
             } else {

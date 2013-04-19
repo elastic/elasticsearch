@@ -19,12 +19,13 @@
 
 package org.elasticsearch.indices;
 
+import org.elasticsearch.ElasticSearchWrapperException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexException;
 
 /**
  */
-public class IndexCreationException extends IndexException {
+public class IndexCreationException extends IndexException implements ElasticSearchWrapperException {
 
     public IndexCreationException(Index index, Throwable cause) {
         super(index, "failed to create index", cause);

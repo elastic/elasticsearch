@@ -19,16 +19,18 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
+import java.io.IOException;
+
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.GeoPointValues;
+import org.elasticsearch.index.fielddata.GeoPointValues.Iter;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
-
-import java.io.IOException;
 
 /**
  *
@@ -57,7 +59,7 @@ public class GeoDistanceFacetExecutor extends FacetExecutor {
 
     @Override
     public Collector collector() {
-        return new Collector();
+        return new Collector(new Aggregator(fixedSourceDistance, entries));
     }
 
     @Override
@@ -68,10 +70,10 @@ public class GeoDistanceFacetExecutor extends FacetExecutor {
     class Collector extends FacetExecutor.Collector {
 
         protected GeoPointValues values;
-        protected GeoPointValues.LatLonValueInDocProc aggregator;
+        protected final Aggregator aggregator;
 
-        Collector() {
-            this.aggregator = new Aggregator(fixedSourceDistance, entries);
+        Collector(Aggregator aggregator) {
+            this.aggregator = aggregator;
         }
 
         @Override
@@ -84,7 +86,7 @@ public class GeoDistanceFacetExecutor extends FacetExecutor {
             for (GeoDistanceFacet.Entry entry : entries) {
                 entry.foundInDoc = false;
             }
-            values.forEachLatLonValueInDoc(doc, aggregator);
+            this.aggregator.onDoc(doc, values);
         }
 
         @Override
@@ -92,41 +94,45 @@ public class GeoDistanceFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class Aggregator implements GeoPointValues.LatLonValueInDocProc {
+    public static class Aggregator {
 
-        private final GeoDistance.FixedSourceDistance fixedSourceDistance;
+        protected final GeoDistance.FixedSourceDistance fixedSourceDistance;
 
-        private final GeoDistanceFacet.Entry[] entries;
+        protected final GeoDistanceFacet.Entry[] entries;
 
         public Aggregator(GeoDistance.FixedSourceDistance fixedSourceDistance, GeoDistanceFacet.Entry[] entries) {
             this.fixedSourceDistance = fixedSourceDistance;
             this.entries = entries;
         }
-
-        @Override
-        public void onMissing(int docId) {
-        }
-
-        @Override
-        public void onValue(int docId, double lat, double lon) {
-            double distance = fixedSourceDistance.calculate(lat, lon);
-            for (GeoDistanceFacet.Entry entry : entries) {
-                if (entry.foundInDoc) {
-                    continue;
-                }
-                if (distance >= entry.getFrom() && distance < entry.getTo()) {
-                    entry.foundInDoc = true;
-                    entry.count++;
-                    entry.totalCount++;
-                    entry.total += distance;
-                    if (distance < entry.min) {
-                        entry.min = distance;
+        
+        public void onDoc(int docId, GeoPointValues values) {
+            final Iter iter = values.getIter(docId);
+            while(iter.hasNext()) {
+                final GeoPoint next = iter.next();
+                double distance = fixedSourceDistance.calculate(next.getLat(), next.getLon());
+                for (GeoDistanceFacet.Entry entry : entries) {
+                    if (entry.foundInDoc) {
+                        continue;
                     }
-                    if (distance > entry.max) {
-                        entry.max = distance;
+                    if (distance >= entry.getFrom() && distance < entry.getTo()) {
+                       entry.foundInDoc = true;
+                       collectGeoPoint(entry, docId, distance);
                     }
                 }
             }
         }
+        
+        protected void collectGeoPoint(GeoDistanceFacet.Entry entry, int docId, double distance) {
+            entry.count++;
+            entry.totalCount++;
+            entry.total += distance;
+            if (distance < entry.min) {
+                entry.min = distance;
+            }
+            if (distance > entry.max) {
+                entry.max = distance;
+            }
+        }
+        
     }
 }

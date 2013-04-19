@@ -101,4 +101,20 @@ public class SizeMappingTests {
 
         assertThat(doc.rootDoc().getField("_size"), nullValue());
     }
+
+    @Test
+    public void testThatDisablingWorksWhenMerging() throws Exception {
+        String enabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_size").field("enabled", true).endObject()
+                .endObject().endObject().string();
+        DocumentMapper enabledMapper = MapperTests.newParser().parse(enabledMapping);
+
+        String disabledMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_size").field("enabled", false).endObject()
+                .endObject().endObject().string();
+        DocumentMapper disabledMapper = MapperTests.newParser().parse(disabledMapping);
+
+        enabledMapper.merge(disabledMapper, DocumentMapper.MergeFlags.mergeFlags().simulate(false));
+        assertThat(enabledMapper.SizeFieldMapper().enabled(), is(false));
+    }
 }

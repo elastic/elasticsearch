@@ -253,7 +253,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         private void finishHim() {
             try {
                 innerFinishHim();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(new ReduceSearchPhaseException("fetch", "", e, buildShardFailures()));
             }
         }

@@ -26,6 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.search.child.HasParentFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -56,6 +57,8 @@ public class HasParentFilterParser implements FilterParser {
         boolean queryFound = false;
         String parentType = null;
 
+        boolean cache = false;
+        CacheKeyFilter.Key cacheKey = null;
         String filterName = null;
         String currentFieldName = null;
         XContentParser.Token token;
@@ -92,6 +95,10 @@ public class HasParentFilterParser implements FilterParser {
                     throw new QueryParsingException(parseContext.index(), "the [_scope] support in [has_parent] filter has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parser.booleanValue();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new CacheKeyFilter.Key(parser.text());
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_parent] filter does not support [" + currentFieldName + "]");
                 }
@@ -120,11 +127,16 @@ public class HasParentFilterParser implements FilterParser {
 
         HasParentFilter parentFilter = HasParentFilter.create(query, parentType, searchContext);
         searchContext.addRewrite(parentFilter);
+        Filter filter = parentFilter;
+
+        if (cache) {
+            filter = parseContext.cacheFilter(filter, cacheKey);
+        }
 
         if (filterName != null) {
-            parseContext.addNamedFilter(filterName, parentFilter);
+            parseContext.addNamedFilter(filterName, filter);
         }
-        return parentFilter;
+        return filter;
     }
 
 }

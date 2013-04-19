@@ -43,7 +43,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     public static class Defaults extends IntegerFieldMapper.Defaults {
         public static final String NAME = CONTENT_TYPE;
-        public static final boolean ENABLED = false;
+        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.DISABLED;
 
         public static final FieldType SIZE_FIELD_TYPE = new FieldType(IntegerFieldMapper.Defaults.FIELD_TYPE);
 
@@ -54,15 +54,15 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, IntegerFieldMapper> {
 
-        protected boolean enabled = Defaults.ENABLED;
+        protected EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
 
         public Builder() {
             super(Defaults.NAME, new FieldType(Defaults.SIZE_FIELD_TYPE));
             builder = this;
         }
 
-        public Builder enabled(boolean enabled) {
-            this.enabled = enabled;
+        public Builder enabled(EnabledAttributeMapper enabled) {
+            this.enabledState = enabled;
             return builder;
         }
 
@@ -73,7 +73,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabled, fieldType, provider, fieldDataSettings);
+            return new SizeFieldMapper(enabledState, fieldType, provider, fieldDataSettings);
         }
     }
 
@@ -85,7 +85,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode));
+                    builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                 } else if (fieldName.equals("store")) {
                     builder.store(parseStore(fieldName, fieldNode.toString()));
                 }
@@ -94,16 +94,16 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         }
     }
 
-    private final boolean enabled;
+    private EnabledAttributeMapper enabledState;
 
     public SizeFieldMapper() {
-        this(Defaults.ENABLED, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null);
+        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null);
     }
 
-    public SizeFieldMapper(boolean enabled, FieldType fieldType, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
+    public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(Defaults.NAME), Defaults.PRECISION_STEP,
                 Defaults.BOOST, fieldType, Defaults.NULL_VALUE, Defaults.IGNORE_MALFORMED, provider, null, fieldDataSettings);
-        this.enabled = enabled;
+        this.enabledState = enabled;
     }
 
     @Override
@@ -112,7 +112,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     public boolean enabled() {
-        return this.enabled;
+        return this.enabledState.enabled;
     }
 
     @Override
@@ -141,7 +141,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     @Override
     protected Field innerParseCreateField(ParseContext context) throws IOException {
-        if (!enabled) {
+        if (!enabledState.enabled) {
             return null;
         }
         if (context.flyweight()) {
@@ -153,14 +153,14 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // all are defaults, no need to write it at all
-        if (enabled == Defaults.ENABLED && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (enabledState == Defaults.ENABLED_STATE && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
             return builder;
         }
         builder.startObject(contentType());
-        if (enabled != Defaults.ENABLED) {
-            builder.field("enabled", enabled);
+        if (enabledState != Defaults.ENABLED_STATE) {
+            builder.field("enabled", enabledState.enabled);
         }
-        if (fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored() && enabledState.enabled) {
             builder.field("store", fieldType().stored());
         }
         builder.endObject();
@@ -169,6 +169,11 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        // maybe allow to change enabled? But then we need to figure out null for default value
+        SizeFieldMapper sizeFieldMapperMergeWith = (SizeFieldMapper) mergeWith;
+        if (!mergeContext.mergeFlags().simulate()) {
+            if (sizeFieldMapperMergeWith.enabledState != enabledState && !sizeFieldMapperMergeWith.enabledState.unset()) {
+                this.enabledState = sizeFieldMapperMergeWith.enabledState;
+            }
+        }
     }
 }

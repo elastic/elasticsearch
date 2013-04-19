@@ -240,14 +240,30 @@ public class IndexTemplateMetaData {
             }
             builder.endObject();
 
-            builder.startArray("mappings");
-            for (Map.Entry<String, CompressedString> entry : indexTemplateMetaData.mappings().entrySet()) {
-                byte[] data = entry.getValue().uncompressed();
-                XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                Map<String, Object> mapping = parser.mapOrderedAndClose();
-                builder.map(mapping);
+            if (params.paramAsBoolean("reduce_mappings", false)) {
+                builder.startObject("mappings");
+                for (Map.Entry<String, CompressedString> entry : indexTemplateMetaData.mappings().entrySet()) {
+                    byte[] mappingSource = entry.getValue().uncompressed();
+                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                    Map<String, Object> mapping = parser.map();
+                    if (mapping.size() == 1 && mapping.containsKey(entry.getKey())) {
+                        // the type name is the root value, reduce it
+                        mapping = (Map<String, Object>) mapping.get(entry.getKey());
+                    }
+                    builder.field(entry.getKey());
+                    builder.map(mapping);
+                }
+                builder.endObject();
+            } else {
+                builder.startArray("mappings");
+                for (Map.Entry<String, CompressedString> entry : indexTemplateMetaData.mappings().entrySet()) {
+                    byte[] data = entry.getValue().uncompressed();
+                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
+                    Map<String, Object> mapping = parser.mapOrderedAndClose();
+                    builder.map(mapping);
+                }
+                builder.endArray();
             }
-            builder.endArray();
 
             for (Map.Entry<String, IndexMetaData.Custom> entry : indexTemplateMetaData.customs().entrySet()) {
                 builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);

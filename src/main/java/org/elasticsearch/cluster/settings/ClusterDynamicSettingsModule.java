@@ -38,37 +38,35 @@ public class ClusterDynamicSettingsModule extends AbstractModule {
 
     public ClusterDynamicSettingsModule() {
         clusterDynamicSettings = new DynamicSettings();
-        clusterDynamicSettings.addDynamicSettings(
-                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES,
-                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP + "*",
-                BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR,
-                BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR,
-                BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR,
-                BalancedShardsAllocator.SETTING_THRESHOLD,
-                ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE,
-                DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION,
-                DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION,
-                DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION,
-                ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
-                FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP + "*",
-                FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP + "*",
-                FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP + "*",
-                IndicesFilterCache.INDICES_CACHE_FILTER_SIZE,
-                IndicesFilterCache.INDICES_CACHE_FILTER_EXPIRE,
-                IndicesStore.INDICES_STORE_THROTTLE_TYPE,
-                IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC,
-                IndicesTTLService.INDICES_TTL_INTERVAL,
-                MetaData.SETTING_READ_ONLY,
-                RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE,
-                RecoverySettings.INDICES_RECOVERY_TRANSLOG_OPS,
-                RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE,
-                RecoverySettings.INDICES_RECOVERY_COMPRESS,
-                RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS,
-                RecoverySettings.INDICES_RECOVERY_MAX_SIZE_PER_SEC,
-                ThreadPool.THREADPOOL_GROUP + "*",
-                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES,
-                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES
-        );
+        clusterDynamicSettings.addDynamicSetting(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES);
+        clusterDynamicSettings.addDynamicSetting(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP + "*");
+        clusterDynamicSettings.addDynamicSetting(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, Validator.FLOAT);
+        clusterDynamicSettings.addDynamicSetting(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, Validator.FLOAT);
+        clusterDynamicSettings.addDynamicSetting(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, Validator.FLOAT);
+        clusterDynamicSettings.addDynamicSetting(BalancedShardsAllocator.SETTING_THRESHOLD, Validator.NON_NEGATIVE_FLOAT);
+        clusterDynamicSettings.addDynamicSetting(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, Validator.INTEGER);
+        clusterDynamicSettings.addDynamicSetting(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION);
+        clusterDynamicSettings.addDynamicSetting(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION);
+        clusterDynamicSettings.addDynamicSetting(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_REPLICA_ALLOCATION);
+        clusterDynamicSettings.addDynamicSetting(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, Validator.INTEGER);
+        clusterDynamicSettings.addDynamicSetting(FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP + "*");
+        clusterDynamicSettings.addDynamicSetting(FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP + "*");
+        clusterDynamicSettings.addDynamicSetting(FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP + "*");
+        clusterDynamicSettings.addDynamicSetting(IndicesFilterCache.INDICES_CACHE_FILTER_SIZE);
+        clusterDynamicSettings.addDynamicSetting(IndicesFilterCache.INDICES_CACHE_FILTER_EXPIRE, Validator.TIME);
+        clusterDynamicSettings.addDynamicSetting(IndicesStore.INDICES_STORE_THROTTLE_TYPE);
+        clusterDynamicSettings.addDynamicSetting(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, Validator.BYTES_SIZE);
+        clusterDynamicSettings.addDynamicSetting(IndicesTTLService.INDICES_TTL_INTERVAL, Validator.TIME);
+        clusterDynamicSettings.addDynamicSetting(MetaData.SETTING_READ_ONLY);
+        clusterDynamicSettings.addDynamicSetting(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, Validator.BYTES_SIZE);
+        clusterDynamicSettings.addDynamicSetting(RecoverySettings.INDICES_RECOVERY_TRANSLOG_OPS, Validator.INTEGER);
+        clusterDynamicSettings.addDynamicSetting(RecoverySettings.INDICES_RECOVERY_TRANSLOG_SIZE, Validator.BYTES_SIZE);
+        clusterDynamicSettings.addDynamicSetting(RecoverySettings.INDICES_RECOVERY_COMPRESS);
+        clusterDynamicSettings.addDynamicSetting(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, Validator.POSITIVE_INTEGER);
+        clusterDynamicSettings.addDynamicSetting(RecoverySettings.INDICES_RECOVERY_MAX_SIZE_PER_SEC, Validator.BYTES_SIZE);
+        clusterDynamicSettings.addDynamicSetting(ThreadPool.THREADPOOL_GROUP + "*");
+        clusterDynamicSettings.addDynamicSetting(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES, Validator.INTEGER);
+        clusterDynamicSettings.addDynamicSetting(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, Validator.INTEGER);
     }
 
     public void addDynamicSettings(String... settings) {

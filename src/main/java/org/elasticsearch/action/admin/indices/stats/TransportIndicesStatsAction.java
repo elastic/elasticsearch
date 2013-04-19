@@ -172,6 +172,15 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         if (request.request.warmer()) {
             stats.stats.warmer = indexShard.warmerStats();
         }
+        if (request.request.filterCache()) {
+            stats.stats.filterCache = indexShard.filterCacheStats();
+        }
+        if (request.request.idCache()) {
+            stats.stats.idCache = indexShard.idCacheStats();
+        }
+        if (request.request.fieldData()) {
+            stats.stats.fieldData = indexShard.fieldDataStats(request.request.fieldDataFields());
+        }
 
         return stats;
     }

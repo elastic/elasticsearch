@@ -121,7 +121,7 @@ public class RestGetWarmerAction extends BaseRestHandler {
                     }
 
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

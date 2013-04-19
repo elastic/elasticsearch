@@ -3,6 +3,7 @@ package org.elasticsearch.test.integration.threadpool;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,8 +37,8 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        startNode("node1");
-        startNode("node2");
+        startNode("node1", ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build());
+        startNode("node2", ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build());
         client1 = client("node1");
         client2 = client("node2");
         threadPool = ((InternalNode) node("node1")).injector().getInstance(ThreadPool.class);
@@ -94,6 +95,7 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
         });
         client1.admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.type", "fixed").build()).execute().actionGet();
         barrier.await();
+        Thread.sleep(200);
 
         // Check that node info is correct
         NodesInfoResponse nodesInfoResponse = client2.admin().cluster().prepareNodesInfo().all().execute().actionGet();

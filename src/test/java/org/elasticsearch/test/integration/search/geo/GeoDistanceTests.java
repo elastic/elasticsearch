@@ -361,6 +361,62 @@ public class GeoDistanceTests extends AbstractNodesTests {
     }
 
     @Test
+    // Regression bug: https://github.com/elasticsearch/elasticsearch/issues/2851
+    public void testDistanceSortingWithMissingGeoPoint() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+                .endObject().endObject().string();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .addMapping("type1", mapping)
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("names", "Times Square", "Tribeca")
+                .startArray("locations")
+                        // to NY: 5.286 km
+                .startObject().field("lat", 40.759011).field("lon", -73.9844722).endObject()
+                        // to NY: 0.4621 km
+                .startObject().field("lat", 40.718266).field("lon", -74.007819).endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("names", "Wall Street", "Soho")
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        // Order: Asc
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
+
+        // Order: Desc
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).order(SortOrder.DESC))
+                .execute().actionGet();
+
+        // Doc with missing geo point is first, is consistent with 0.20.x
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
+    }
+
+    @Test
     public void distanceScriptTests() throws Exception {
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();

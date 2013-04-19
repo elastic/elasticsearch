@@ -31,7 +31,9 @@ import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -50,7 +52,6 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
     private final IndexNumericFieldData indexFieldData;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
-    private final int numberOfShards;
     private final SearchScript script;
     private final ImmutableSet<BytesRef> excluded;
 
@@ -63,23 +64,47 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
         this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
-        this.numberOfShards = context.numberOfShards();
         this.script = script;
         this.excluded = excluded;
 
         this.facets = CacheRecycler.popDoubleIntMap();
 
-        // TODO: we need to support this with the new field data....
-//        if (allTerms) {
-//            try {
-//                for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
-//                    DoubleFieldData fieldData = (DoubleFieldData) fieldDataCache.cache(fieldDataType, readerContext.reader(), indexFieldName);
-//                    fieldData.forEachValue(aggregator);
-//                }
-//            } catch (Exception e) {
-//                throw new FacetPhaseExecutionException(facetName, "failed to load all terms", e);
-//            }
-//        }
+        if (allTerms) {
+            for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
+                int maxDoc = readerContext.reader().maxDoc();
+                DoubleValues values = indexFieldData.load(readerContext).getDoubleValues();
+                if (values instanceof DoubleValues.WithOrdinals) {
+                    DoubleValues.WithOrdinals valuesWithOrds = (DoubleValues.WithOrdinals) values;
+                    Ordinals.Docs ordinals = valuesWithOrds.ordinals();
+                    for (int ord = 1; ord < ordinals.getMaxOrd(); ord++) {
+                        facets.putIfAbsent(valuesWithOrds.getValueByOrd(ord), 0);
+                    }
+                } else {
+                    // Shouldn't be true, otherwise it is WithOrdinals... just to be sure...
+                    if (values.isMultiValued()) {
+                        for (int docId = 0; docId < maxDoc; docId++) {
+                            if (!values.hasValue(docId)) {
+                                continue;
+                            }
+
+                            DoubleValues.Iter iter = values.getIter(docId);
+                            while (iter.hasNext()) {
+                                facets.putIfAbsent(iter.next(), 0);
+                            }
+                        }
+                    } else {
+                        for (int docId = 0; docId < maxDoc; docId++) {
+                            if (!values.hasValue(docId)) {
+                                continue;
+                            }
+
+                            double value = values.getValue(docId);
+                            facets.putIfAbsent(value, 0);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     @Override
@@ -147,7 +172,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
 
         @Override
         public void collect(int doc) throws IOException {
-            values.forEachValueInDoc(doc, aggregator);
+            aggregator.onDoc(doc, values);
         }
 
         @Override
@@ -200,12 +225,9 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class StaticAggregatorValueProc implements DoubleValues.ValueInDocProc {
+    public static class StaticAggregatorValueProc extends DoubleFacetAggregatorBase {
 
         private final TDoubleIntHashMap facets;
-
-        private int missing;
-        private int total;
 
         public StaticAggregatorValueProc(TDoubleIntHashMap facets) {
             this.facets = facets;
@@ -214,24 +236,10 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
         @Override
         public void onValue(int docId, double value) {
             facets.adjustOrPutValue(value, 1, 1);
-            total++;
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            missing++;
         }
 
         public final TDoubleIntHashMap facets() {
             return facets;
-        }
-
-        public final int missing() {
-            return this.missing;
-        }
-
-        public int total() {
-            return this.total;
         }
     }
 }

@@ -24,6 +24,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.index.IndexComponent;
+import org.elasticsearch.index.service.IndexService;
 
 import java.util.List;
 
@@ -32,6 +33,9 @@ import java.util.List;
  */
 public interface IdCache extends IndexComponent, CloseableComponent, Iterable<IdReaderCache> {
 
+    // we need to "inject" the index service to not create cyclic dep
+    void setIndexService(IndexService indexService);
+
     void clear();
 
     void clear(IndexReader reader);
@@ -39,7 +43,4 @@ public interface IdCache extends IndexComponent, CloseableComponent, Iterable<Id
     void refresh(List<AtomicReaderContext> readers) throws Exception;
 
     IdReaderCache reader(AtomicReader reader);
-
-    long sizeInBytes();
-
 }

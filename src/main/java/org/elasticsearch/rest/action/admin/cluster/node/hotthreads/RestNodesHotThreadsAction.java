@@ -70,7 +70,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
                         sb.append('\n');
                     }
                     channel.sendResponse(new StringRestResponse(RestStatus.OK, sb.toString()));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

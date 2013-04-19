@@ -39,6 +39,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Map;
 
@@ -734,6 +735,8 @@ public final class XContentBuilder implements BytesStream {
             field(name, ((Boolean) value).booleanValue());
         } else if (value instanceof Date) {
             field(name, (Date) value);
+        } else if (value instanceof Calendar) {
+            field(name, convertCalendar((Calendar) value));
         } else if (type == byte[].class) {
             field(name, (byte[]) value);
         } else if (value instanceof ReadableInstant) {
@@ -843,6 +846,8 @@ public final class XContentBuilder implements BytesStream {
             value((byte[]) value);
         } else if (value instanceof Date) {
             value((Date) value);
+        } else if (value instanceof Calendar) {
+            value(convertCalendar((Calendar) value));
         } else if (value instanceof ReadableInstant) {
             value((ReadableInstant) value);
         } else if (value instanceof BytesReference) {
@@ -858,6 +863,10 @@ public final class XContentBuilder implements BytesStream {
             throw new IOException("Type not allowed [" + type + "]");
         }
         return this;
+    }
+
+    private Date convertCalendar(Calendar value) {
+        return value.getTime();
     }
 
     public XContentBuilder field(String name, boolean value) throws IOException {

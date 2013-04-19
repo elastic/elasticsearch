@@ -30,6 +30,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
@@ -114,7 +115,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
             if (fieldDataType.getSettings().getAsBoolean("optimize_type", true)) {
                 // since the default mapping for numeric is long, its worth optimizing the actual type used to represent the data
                 if (min >= Byte.MIN_VALUE && max <= Byte.MAX_VALUE) {
-                    return ByteArrayIndexFieldData.build(reader, builder, build, new ByteArrayIndexFieldData.BuilderBytes() {
+                    return ByteArrayIndexFieldData.build(reader, fieldDataType, builder, build, new ByteArrayIndexFieldData.BuilderBytes() {
                         @Override
                         public byte get(int index) {
                             return (byte) values.get(index);
@@ -131,7 +132,7 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
                         }
                     });
                 } else if (min >= Short.MIN_VALUE && max <= Short.MAX_VALUE) {
-                    return ShortArrayIndexFieldData.build(reader, builder, build, new ShortArrayIndexFieldData.BuilderShorts() {
+                    return ShortArrayIndexFieldData.build(reader, fieldDataType, builder, build, new ShortArrayIndexFieldData.BuilderShorts() {
                         @Override
                         public short get(int index) {
                             return (short) values.get(index);
@@ -146,9 +147,14 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
                             }
                             return sValues;
                         }
+
+                        @Override
+                        public int size() {
+                            return values.size();
+                        }
                     });
                 } else if (min >= Integer.MIN_VALUE && max <= Integer.MAX_VALUE) {
-                    return IntArrayIndexFieldData.build(reader, builder, build, new IntArrayIndexFieldData.BuilderIntegers() {
+                    return IntArrayIndexFieldData.build(reader, fieldDataType, builder, build, new IntArrayIndexFieldData.BuilderIntegers() {
                         @Override
                         public int get(int index) {
                             return (int) values.get(index);
@@ -163,18 +169,33 @@ public class LongArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumeri
                             }
                             return iValues;
                         }
+
+                        @Override
+                        public int size() {
+                            return values.size();
+                        }
+
                     });
                 }
             }
 
-            if (!build.isMultiValued()) {
+            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
+                final FixedBitSet set = builder.buildDocsWithValuesSet();
+
+                // there's sweatspot where due to low unique value count, using ordinals will consume less memory
+                long singleValuesArraySize = reader.maxDoc() * RamUsage.NUM_BYTES_LONG + (set == null ? 0 : set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_INT);
+                long uniqueValuesArraySize = values.size() * RamUsage.NUM_BYTES_LONG;
+                long ordinalsSize = build.getMemorySizeInBytes();
+                if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
+                    return new LongArrayAtomicFieldData.WithOrdinals(values.toArray(new long[values.size()]), reader.maxDoc(), build);
+                }
+
                 long[] sValues = new long[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();
                 for (int i = 0; i < maxDoc; i++) {
                     sValues[i] = values.get(ordinals.getOrd(i));
                 }
-                final FixedBitSet set = builder.buildDocsWithValuesSet();
                 if (set == null) {
                     return new LongArrayAtomicFieldData.Single(sValues, reader.maxDoc());
                 } else {

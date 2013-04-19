@@ -73,6 +73,9 @@ public class RestNodesInfoAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/http", new RestHttpHandler());
         controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/http", new RestHttpHandler());
 
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/plugin", new RestPluginHandler());
+        controller.registerHandler(RestRequest.Method.GET, "/_nodes/{nodeId}/plugin", new RestPluginHandler());
+
         this.settingsFilter = settingsFilter;
     }
 
@@ -97,6 +100,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         nodesInfoRequest.network(request.paramAsBoolean("network", nodesInfoRequest.network()));
         nodesInfoRequest.transport(request.paramAsBoolean("transport", nodesInfoRequest.transport()));
         nodesInfoRequest.http(request.paramAsBoolean("http", nodesInfoRequest.http()));
+        nodesInfoRequest.plugin(request.paramAsBoolean("plugin", nodesInfoRequest.plugin()));
 
         executeNodeRequest(request, channel, nodesInfoRequest);
     }
@@ -114,7 +118,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
                     response.toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }
@@ -198,6 +202,15 @@ public class RestNodesInfoAction extends BaseRestHandler {
         public void handleRequest(final RestRequest request, final RestChannel channel) {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
             nodesInfoRequest.clear().http(true);
+            executeNodeRequest(request, channel, nodesInfoRequest);
+        }
+    }
+
+    class RestPluginHandler implements RestHandler {
+        @Override
+        public void handleRequest(final RestRequest request, final RestChannel channel) {
+            NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(RestActions.splitNodes(request.param("nodeId")));
+            nodesInfoRequest.clear().plugin(true);
             executeNodeRequest(request, channel, nodesInfoRequest);
         }
     }

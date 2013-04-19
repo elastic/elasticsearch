@@ -220,7 +220,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 public void onResponse(Response result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }
@@ -372,7 +372,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                     }
                 }
                 shardIt = shards(clusterState, request);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 listener.onFailure(e);
                 return true;
             }

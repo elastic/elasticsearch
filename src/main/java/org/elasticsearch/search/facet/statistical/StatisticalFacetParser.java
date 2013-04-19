@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
 import org.elasticsearch.search.facet.FacetPhaseExecutionException;
@@ -104,6 +105,9 @@ public class StatisticalFacetParser extends AbstractComponent implements FacetPa
                 if (fieldMapper == null) {
                     throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + fieldsNames[i] + "]");
                 }
+                if (!(fieldMapper instanceof NumberFieldMapper)) {
+                    throw new FacetPhaseExecutionException(facetName, "field [" + field + "] isn't a number field, but a " + fieldMapper.fieldDataType().getType());
+                }
                 indexFieldDatas[i] = context.fieldData().getForField(fieldMapper);
             }
             return new StatisticalFieldsFacetExecutor(indexFieldDatas, context);
@@ -115,6 +119,9 @@ public class StatisticalFacetParser extends AbstractComponent implements FacetPa
             FieldMapper fieldMapper = context.smartNameFieldMapper(field);
             if (fieldMapper == null) {
                 throw new FacetPhaseExecutionException(facetName, "No mapping found for field [" + field + "]");
+            }
+            if (!(fieldMapper instanceof NumberFieldMapper)) {
+                throw new FacetPhaseExecutionException(facetName, "field [" + field + "] isn't a number field, but a " + fieldMapper.fieldDataType().getType());
             }
             IndexNumericFieldData indexFieldData = context.fieldData().getForField(fieldMapper);
             return new StatisticalFacetExecutor(indexFieldData, context);

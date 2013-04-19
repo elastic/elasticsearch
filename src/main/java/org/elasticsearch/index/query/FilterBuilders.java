@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.ShapeRelation;
 
 /**
  * A static factory for simple "import static" usage.
@@ -358,17 +359,60 @@ public abstract class FilterBuilders {
     }
 
     /**
-     * A filter to filter based on the relationship between a shape and indexed shapes
+     * A filter based on the relationship of a shape and indexed shapes
+     *
+     * @param name  The shape field name
+     * @param shape Shape to use in the filter
+     * @param relation relation of the shapes
+     */
+    public static GeoShapeFilterBuilder geoShapeFilter(String name, Shape shape, ShapeRelation relation) {
+        return new GeoShapeFilterBuilder(name, shape, relation);
+    }
+
+    public static GeoShapeFilterBuilder geoShapeFilter(String name, String indexedShapeId, String indexedShapeType, ShapeRelation relation) {
+        return new GeoShapeFilterBuilder(name, indexedShapeId, indexedShapeType, relation);
+    }
+
+    /**
+     * A filter to filter indexed shapes intersecting with shapes
      *
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
-    public static GeoShapeFilterBuilder geoShapeFilter(String name, Shape shape) {
-        return new GeoShapeFilterBuilder(name, shape);
+    public static GeoShapeFilterBuilder geoIntersectionFilter(String name, Shape shape) {
+        return geoShapeFilter(name, shape, ShapeRelation.INTERSECTS);
     }
 
-    public static GeoShapeFilterBuilder geoShapeFilter(String name, String indexedShapeId, String indexedShapeType) {
-        return new GeoShapeFilterBuilder(name, indexedShapeId, indexedShapeType);
+    public static GeoShapeFilterBuilder geoIntersectionFilter(String name, String indexedShapeId, String indexedShapeType) {
+        return geoShapeFilter(name, indexedShapeId, indexedShapeType, ShapeRelation.INTERSECTS);
+    }
+
+    /**
+     * A filter to filter indexed shapes that are contained by a shape
+     *
+     * @param name  The shape field name
+     * @param shape Shape to use in the filter
+     */
+    public static GeoShapeFilterBuilder geoWithinFilter(String name, Shape shape) {
+        return geoShapeFilter(name, shape, ShapeRelation.WITHIN);
+    }
+
+    public static GeoShapeFilterBuilder geoWithinFilter(String name, String indexedShapeId, String indexedShapeType) {
+        return geoShapeFilter(name, indexedShapeId, indexedShapeType, ShapeRelation.WITHIN);
+    }
+
+    /**
+     * A filter to filter indexed shapes that are not intersection with the query shape
+     *
+     * @param name  The shape field name
+     * @param shape Shape to use in the filter
+     */
+    public static GeoShapeFilterBuilder geoDisjointFilter(String name, Shape shape) {
+        return geoShapeFilter(name, shape, ShapeRelation.DISJOINT);
+    }
+
+    public static GeoShapeFilterBuilder geoDisjointFilter(String name, String indexedShapeId, String indexedShapeType) {
+        return geoShapeFilter(name, indexedShapeId, indexedShapeType, ShapeRelation.DISJOINT);
     }
 
     /**

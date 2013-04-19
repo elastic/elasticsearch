@@ -33,6 +33,14 @@ import java.io.IOException;
  */
 public class DocIdSets {
 
+    public static long sizeInBytes(DocIdSet docIdSet) {
+        if (docIdSet instanceof FixedBitSet) {
+            return ((FixedBitSet) docIdSet).getBits().length * 8 + 16;
+        }
+        // only for empty ones and unknowns...
+        return 1;
+    }
+
     /**
      * Is it an empty {@link DocIdSet}?
      */

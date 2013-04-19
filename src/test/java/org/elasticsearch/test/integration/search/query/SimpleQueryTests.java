@@ -679,39 +679,46 @@ public class SimpleQueryTests extends AbstractNodesTests {
                 .setQuery(multiMatchQuery)
                 .execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("1"));
 
-    	multiMatchQuery.minimumShouldMatch("30%");
+        multiMatchQuery.minimumShouldMatch("30%");
         searchResponse = client.prepareSearch()
                 .setQuery(multiMatchQuery)
                 .execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("2"));
 
         multiMatchQuery.useDisMax(false);
-    	multiMatchQuery.minimumShouldMatch("70%");
+        multiMatchQuery.minimumShouldMatch("70%");
         searchResponse = client.prepareSearch()
                 .setQuery(multiMatchQuery)
                 .execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("1"));
 
-    	multiMatchQuery.minimumShouldMatch("30%");
+        multiMatchQuery.minimumShouldMatch("30%");
         searchResponse = client.prepareSearch()
                 .setQuery(multiMatchQuery)
                 .execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].id(), equalTo("2"));
 
         multiMatchQuery = multiMatchQuery("value1 value2 bar", "field1");
-    	multiMatchQuery.minimumShouldMatch("100%");
+        multiMatchQuery.minimumShouldMatch("100%");
         searchResponse = client.prepareSearch()
                 .setQuery(multiMatchQuery)
                 .execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
-    	multiMatchQuery.minimumShouldMatch("70%");
+        multiMatchQuery.minimumShouldMatch("70%");
         searchResponse = client.prepareSearch()
                 .setQuery(multiMatchQuery)
                 .execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-}
+        assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("1"));
+    }
     @Test
     public void testFuzzyQueryString() {
         client.admin().indices().prepareDelete().execute().actionGet();

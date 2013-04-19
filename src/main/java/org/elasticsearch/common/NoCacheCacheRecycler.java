@@ -51,6 +51,7 @@ public class NoCacheCacheRecycler implements Recycler {
 
     @Override
     public void pushHashMap(ExtTHashMap map) {
+        map.clear();
     }
 
     @Override
@@ -61,6 +62,7 @@ public class NoCacheCacheRecycler implements Recycler {
 
     @Override
     public void pushHashSet(THashSet map) {
+        map.clear();
     }
 
     @Override
@@ -71,6 +73,7 @@ public class NoCacheCacheRecycler implements Recycler {
 
     @Override
     public void pushDoubleObjectMap(ExtTDoubleObjectHashMap map) {
+        map.clear();
     }
 
     @Override
@@ -81,6 +84,7 @@ public class NoCacheCacheRecycler implements Recycler {
 
     @Override
     public void pushLongObjectMap(ExtTLongObjectHashMap map) {
+        map.clear();
     }
 
     @Override

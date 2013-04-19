@@ -34,8 +34,10 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
     private boolean filterCache = false;
     private boolean fieldDataCache = false;
     private boolean idCache = false;
+    private boolean recycler = false;
     private String[] fields = null;
     private String[] filterKeys = null;
+    
 
     ClearIndicesCacheRequest() {
     }
@@ -85,6 +87,15 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
     public boolean idCache() {
         return this.idCache;
     }
+    
+    public ClearIndicesCacheRequest recycler(boolean recycler) {
+        this.recycler = recycler;
+        return this;
+    }
+    
+    public boolean recycler() {
+        return this.recycler;
+    }
 
     public ClearIndicesCacheRequest idCache(boolean idCache) {
         this.idCache = idCache;
@@ -96,6 +107,7 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         filterCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
         idCache = in.readBoolean();
+        recycler = in.readBoolean();
         fields = in.readStringArray();
         filterKeys = in.readStringArray();
     }
@@ -105,7 +117,10 @@ public class ClearIndicesCacheRequest extends BroadcastOperationRequest<ClearInd
         out.writeBoolean(filterCache);
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(idCache);
+        out.writeBoolean(recycler);
         out.writeStringArrayNullable(fields);
         out.writeStringArrayNullable(filterKeys);
     }
+
+   
 }

@@ -33,6 +33,8 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     private boolean filterCache = false;
     private boolean fieldDataCache = false;
     private boolean idCache = false;
+    private boolean recycler;
+
     private String[] fields = null;
     private String[] filterKeys = null;
 
@@ -46,6 +48,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         idCache = request.idCache();
         fields = request.fields();
         filterKeys = request.filterKeys();
+        recycler = request.recycler();
     }
 
     public boolean filterCache() {
@@ -58,6 +61,10 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
 
     public boolean idCache() {
         return this.idCache;
+    }
+    
+    public boolean recycler() {
+        return this.recycler;
     }
 
     public String[] fields() {
@@ -79,6 +86,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         filterCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
         idCache = in.readBoolean();
+        recycler = in.readBoolean();
         fields = in.readStringArray();
         filterKeys = in.readStringArray();
     }
@@ -89,6 +97,7 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         out.writeBoolean(filterCache);
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(idCache);
+        out.writeBoolean(recycler);
         out.writeStringArrayNullable(fields);
         out.writeStringArrayNullable(filterKeys);
     }

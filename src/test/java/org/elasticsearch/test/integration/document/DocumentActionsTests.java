@@ -140,7 +140,7 @@ public class DocumentActionsTests extends AbstractNodesTests {
         assertThat(indicesExistsResponse.isExists(), equalTo(false));
 
         logger.info("Clearing cache");
-        ClearIndicesCacheResponse clearIndicesCacheResponse = client1.admin().indices().clearCache(clearIndicesCacheRequest("test")).actionGet();
+        ClearIndicesCacheResponse clearIndicesCacheResponse = client1.admin().indices().clearCache(clearIndicesCacheRequest("test").recycler(true).fieldDataCache(true).filterCache(true).idCache(true)).actionGet();
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(10));
         assertThat(clearIndicesCacheResponse.getFailedShards(), equalTo(0));
 

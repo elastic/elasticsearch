@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
@@ -142,6 +143,11 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
                         service.fieldData().clearField(field);
                     }
                 }
+            }
+            if (request.recycler()) {
+                logger.info("Clear CacheRecycler on index [{}]", service.index());
+                clearedAtLeastOne = true;
+                CacheRecycler.clear();
             }
             if (request.idCache()) {
                 clearedAtLeastOne = true;

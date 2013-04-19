@@ -21,13 +21,13 @@ package org.elasticsearch.common;
 
 import gnu.trove.map.hash.*;
 import gnu.trove.set.hash.THashSet;
+
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 
 public final class CacheRecycler  {
 
-    
     private static final Recycler INSTANCE;
     static {
         String property = System.getProperty("ES.RECYCLE");

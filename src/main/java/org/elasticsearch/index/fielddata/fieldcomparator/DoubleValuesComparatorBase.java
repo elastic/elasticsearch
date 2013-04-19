@@ -62,13 +62,7 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends NumberCompar
     }
 
     static final int compare(double left, double right) {
-        if (left > right) {
-            return 1;
-        } else if (left < right) {
-            return -1;
-        } else {
-            return 0;
-        }
+        return Double.compare(left, right);
     }
 
     static final class MultiValueWrapper extends DoubleValues.Filtered {

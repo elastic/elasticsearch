@@ -659,6 +659,60 @@ public class SimpleQueryTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testMultiMatchQueryMinShouldMatch() {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource("field1", new String[]{"value1","value2","value3"}).execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("field2", "value1").execute().actionGet();
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+    	MultiMatchQueryBuilder multiMatchQuery = multiMatchQuery("value1 value2 foo", "field1","field2");
+
+    	multiMatchQuery.useDisMax(true);
+    	multiMatchQuery.minimumShouldMatch("70%");
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(multiMatchQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+    	multiMatchQuery.minimumShouldMatch("30%");
+        searchResponse = client.prepareSearch()
+                .setQuery(multiMatchQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+
+        multiMatchQuery.useDisMax(false);
+    	multiMatchQuery.minimumShouldMatch("70%");
+        searchResponse = client.prepareSearch()
+                .setQuery(multiMatchQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+
+    	multiMatchQuery.minimumShouldMatch("30%");
+        searchResponse = client.prepareSearch()
+                .setQuery(multiMatchQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+
+        multiMatchQuery = multiMatchQuery("value1 value2 bar", "field1");
+    	multiMatchQuery.minimumShouldMatch("100%");
+        searchResponse = client.prepareSearch()
+                .setQuery(multiMatchQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
+
+    	multiMatchQuery.minimumShouldMatch("70%");
+        searchResponse = client.prepareSearch()
+                .setQuery(multiMatchQuery)
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+}
+    @Test
     public void testFuzzyQueryString() {
         client.admin().indices().prepareDelete().execute().actionGet();
 

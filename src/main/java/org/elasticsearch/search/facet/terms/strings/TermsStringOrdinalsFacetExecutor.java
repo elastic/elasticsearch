@@ -30,6 +30,7 @@ import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
@@ -198,6 +199,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         private long total;
         private BytesValues.WithOrdinals values;
         private ReaderAggregator current;
+        private Ordinals.Docs ordinals;
 
         @Override
         public void setNextReader(AtomicReaderContext context) throws IOException {
@@ -210,11 +212,17 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             }
             values = indexFieldData.load(context).getBytesValues();
             current = new ReaderAggregator(values, ordinalsCacheAbove);
+            ordinals = values.ordinals();
         }
 
         @Override
         public void collect(int doc) throws IOException {
-            values.ordinals().forEachOrdinalInDoc(doc, current);
+            Iter iter = ordinals.getIter(doc);
+            int ord = iter.next();
+            current.onOrdinal(doc, ord);
+            while((ord = iter.next()) != 0) {
+                current.onOrdinal(doc, ord);
+            }
         }
 
         @Override
@@ -233,7 +241,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
         }
     }
 
-    public static class ReaderAggregator implements Ordinals.Docs.OrdinalInDocProc {
+    public static final class ReaderAggregator {
 
         final BytesValues.WithOrdinals values;
         final int[] counts;
@@ -254,8 +262,7 @@ public class TermsStringOrdinalsFacetExecutor extends FacetExecutor {
             }
         }
 
-        @Override
-        public void onOrdinal(int docId, int ordinal) {
+        final void onOrdinal(int docId, int ordinal) {
             counts[ordinal]++;
             total++;
         }

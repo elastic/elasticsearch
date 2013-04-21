@@ -180,19 +180,6 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
             return iter.reset(docId);
         }
 
-        @Override
-        public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-            int pointer = lookup[docId];
-            if (pointer >= 0) {
-                proc.onOrdinal(docId, pointer);
-            } else {
-                pool.fill(spare, -(pointer + 1));
-                for (int i = spare.offset; i < spare.length + spare.offset; i++) {
-                    proc.onOrdinal(docId, spare.ints[i]);
-                }
-            }
-        }
-
         class IterImpl implements Docs.Iter {
             private final int[] lookup;
             private final PositiveIntPool pool;

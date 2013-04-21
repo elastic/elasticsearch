@@ -119,15 +119,6 @@ public interface Ordinals {
          */
         Iter getIter(int docId);
 
-        /**
-         * Iterates over the ordinals associated with a docId. If there are no values,
-         * a callback with a value 0 will be done.
-         */
-        void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc);
-
-        public static interface OrdinalInDocProc {
-            void onOrdinal(int docId, int ordinal);
-        }
 
         /**
          * An iterator over ordinals values.

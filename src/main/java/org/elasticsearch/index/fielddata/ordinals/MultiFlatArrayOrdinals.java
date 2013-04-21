@@ -163,18 +163,6 @@ public final class MultiFlatArrayOrdinals implements Ordinals {
             return iter.reset(docId);
         }
 
-        @Override
-        public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-            for (int i = 0; i < ordinals.length; i++) {
-                int ordinal = ordinals[i][docId];
-                if (ordinal == 0) {
-                    if (i == 0) proc.onOrdinal(docId, 0);
-                    return;
-                }
-                proc.onOrdinal(docId, ordinal);
-            }
-        }
-
         public static class IterImpl implements Docs.Iter {
 
             private final int[][] ordinals;

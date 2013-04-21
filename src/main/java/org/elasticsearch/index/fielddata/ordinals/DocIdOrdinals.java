@@ -128,10 +128,5 @@ public class DocIdOrdinals implements Ordinals {
         public Iter getIter(int docId) {
             return iter.reset(docId + 1);
         }
-
-        @Override
-        public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-            proc.onOrdinal(docId, docId + 1);
-        }
     }
 }

@@ -120,9 +120,5 @@ public class EmptyOrdinals implements Ordinals {
             return EmptyIter.INSTANCE;
         }
 
-        @Override
-        public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-            proc.onOrdinal(docId, 0);
-        }
     }
 }

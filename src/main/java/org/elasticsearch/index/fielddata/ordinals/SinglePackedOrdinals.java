@@ -147,9 +147,5 @@ public class SinglePackedOrdinals implements Ordinals {
             return iter.reset((int) reader.get(docId));
         }
 
-        @Override
-        public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-            proc.onOrdinal(docId, (int) reader.get(docId));
-        }
     }
 }

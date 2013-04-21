@@ -122,7 +122,6 @@ public abstract class MultiOrdinalsTests {
                         array[i] = docOrds.get(i);
                     }
                     assertIter(docs.getIter(docId), array);
-                    docs.forEachOrdinalInDoc(docId, assertOrdinalInProcDoc(array));
                 }
                 for (int i = docId + 1; i < ordAndId.id; i++) {
                     assertThat(docs.getOrd(i), equalTo(0));
@@ -210,7 +209,6 @@ public abstract class MultiOrdinalsTests {
         assertThat(ref.ints[1], equalTo(4));
         assertThat(ref.length, equalTo(2));
         assertIter(docs.getIter(0), 2, 4);
-        docs.forEachOrdinalInDoc(0, assertOrdinalInProcDoc(2, 4));
 
         // Document 2
         assertThat(docs.getOrd(1), equalTo(1));
@@ -219,7 +217,6 @@ public abstract class MultiOrdinalsTests {
         assertThat(ref.ints[0], equalTo(1));
         assertThat(ref.length, equalTo(1));
         assertIter(docs.getIter(1), 1);
-        docs.forEachOrdinalInDoc(1, assertOrdinalInProcDoc(1));
 
         // Document 3
         assertThat(docs.getOrd(2), equalTo(3));
@@ -228,7 +225,6 @@ public abstract class MultiOrdinalsTests {
         assertThat(ref.ints[0], equalTo(3));
         assertThat(ref.length, equalTo(1));
         assertIter(docs.getIter(2), 3);
-        docs.forEachOrdinalInDoc(2, assertOrdinalInProcDoc(3));
 
         // Document 4
         assertThat(docs.getOrd(3), equalTo(0));
@@ -236,7 +232,6 @@ public abstract class MultiOrdinalsTests {
         assertThat(ref.offset, equalTo(0));
         assertThat(ref.length, equalTo(0));
         assertIter(docs.getIter(3));
-        docs.forEachOrdinalInDoc(3, assertOrdinalInProcDoc(0));
 
         // Document 5
         assertThat(docs.getOrd(4), equalTo(1));
@@ -249,7 +244,6 @@ public abstract class MultiOrdinalsTests {
         assertThat(ref.ints[4], equalTo(6));
         assertThat(ref.length, equalTo(5));
         assertIter(docs.getIter(4), 1, 3, 4, 5, 6);
-        docs.forEachOrdinalInDoc(4, assertOrdinalInProcDoc(1, 3, 4, 5, 6));
 
         // Document 6
         assertThat(docs.getOrd(5), equalTo(1));
@@ -261,7 +255,6 @@ public abstract class MultiOrdinalsTests {
             assertThat(ref.ints[i], equalTo(i + 1));
         }
         assertIter(docs.getIter(5), expectedOrds);
-        docs.forEachOrdinalInDoc(5, assertOrdinalInProcDoc(expectedOrds));
         assertThat(ref.length, equalTo(maxOrds));
 
         // Document 7
@@ -274,7 +267,6 @@ public abstract class MultiOrdinalsTests {
             assertThat(ref.ints[i], equalTo(i + 1));
         }
         assertIter(docs.getIter(6), expectedOrds);
-        docs.forEachOrdinalInDoc(6, assertOrdinalInProcDoc(expectedOrds));
         assertThat(ref.length, equalTo(maxOrds));
     }
 
@@ -284,25 +276,6 @@ public abstract class MultiOrdinalsTests {
         }
         assertThat(iter.next(), equalTo(0)); // Last one should always be 0
         assertThat(iter.next(), equalTo(0)); // Just checking it stays 0
-    }
-
-    protected static Ordinals.Docs.OrdinalInDocProc assertOrdinalInProcDoc(int... expectedOrdinals) {
-        return new AssertingOrdinalInDocProc(expectedOrdinals);
-    }
-
-    static class AssertingOrdinalInDocProc implements Ordinals.Docs.OrdinalInDocProc {
-
-        private final int[] expectedOrdinals;
-        private int index = 0;
-
-        AssertingOrdinalInDocProc(int... expectedOrdinals) {
-            this.expectedOrdinals = expectedOrdinals;
-        }
-
-        @Override
-        public void onOrdinal(int docId, int ordinal) {
-            assertThat(ordinal, equalTo(expectedOrdinals[index++]));
-        }
     }
 
 }

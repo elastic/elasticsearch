@@ -143,9 +143,5 @@ public class SingleArrayOrdinals implements Ordinals {
             return iter.reset(ordinals[docId]);
         }
 
-        @Override
-        public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-            proc.onOrdinal(docId, ordinals[docId]);
-        }
     }
 }

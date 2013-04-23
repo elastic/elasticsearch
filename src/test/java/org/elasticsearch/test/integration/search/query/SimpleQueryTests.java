@@ -19,14 +19,18 @@
 
 package org.elasticsearch.test.integration.search.query;
 
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
+import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
@@ -34,6 +38,7 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -1203,6 +1208,53 @@ public class SimpleQueryTests extends AbstractNodesTests {
         ).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(4l));
+    }
+    
+    @Test // see #2926
+    public void testMustNot() throws ElasticSearchException, IOException {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 2)
+                        .put("index.number_of_replicas", 0)
+        )
+                .execute().actionGet();
+
+        client.prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+                .field("description", "foo other anything bar")
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
+                .field("description", "foo other anything")
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "test", "3").setSource(jsonBuilder().startObject()
+                .field("description", "foo other")
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "test", "4").setSource(jsonBuilder().startObject()
+                .field("description", "foo")
+                .endObject())
+                .execute().actionGet();
+        
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        
+        SearchResponse response = client.prepareSearch("test")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .execute().actionGet();
+        assertThat(response.getShardFailures().length, equalTo(0));
+        assertThat(response.getHits().totalHits(), equalTo(4l));
+        
+        response = client.prepareSearch("test").setQuery(
+                QueryBuilders.boolQuery()
+                        .mustNot(QueryBuilders.matchQuery("description", "anything").type(Type.BOOLEAN))
+        ).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).execute().actionGet();
+        assertThat(response.getShardFailures().length, equalTo(0));
+        assertThat(response.getHits().totalHits(), equalTo(2l));
     }
 
 }

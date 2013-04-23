@@ -23,7 +23,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,7 +52,8 @@ public class CachedDfSource extends IndexSearcher {
     public TermStatistics termStatistics(Term term, TermContext context) throws IOException {
         TermStatistics termStatistics = aggregatedDfs.termStatistics().get(term);
         if (termStatistics == null) {
-            throw new ElasticSearchIllegalArgumentException("Not distributed term statistics for term: " + term);
+            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+           return super.termStatistics(term, context);
         }
         return termStatistics;
     }
@@ -62,11 +62,12 @@ public class CachedDfSource extends IndexSearcher {
     public CollectionStatistics collectionStatistics(String field) throws IOException {
         CollectionStatistics collectionStatistics = aggregatedDfs.fieldStatistics().get(field);
         if (collectionStatistics == null) {
-            throw new ElasticSearchIllegalArgumentException("Not distributed collection statistics for field: " + field);
+            // we don't have stats for this - this might be a must_not clauses etc. that doesn't allow extract terms on the query
+           return super.collectionStatistics(field);
         }
         return collectionStatistics;
     }
-
+    
     public int maxDoc() {
         return this.maxDoc;
     }

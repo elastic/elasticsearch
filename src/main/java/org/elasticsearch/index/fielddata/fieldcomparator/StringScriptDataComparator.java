@@ -23,6 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.script.SearchScript;
 
@@ -31,7 +32,7 @@ import java.io.IOException;
 /**
  *
  */
-public class StringScriptDataComparator extends FieldComparator<String> {
+public class StringScriptDataComparator extends FieldComparator<BytesRef> {
 
     public static IndexFieldData.XFieldComparatorSource comparatorSource(SearchScript script) {
         return new InnerSource(script);
@@ -58,18 +59,23 @@ public class StringScriptDataComparator extends FieldComparator<String> {
 
     private final SearchScript script;
 
-    private String[] values;
+    private BytesRef[] values;
 
-    private String bottom;
+    private BytesRef bottom;
+    
+    private BytesRef spare = new BytesRef();
+    
+    private int spareDoc = -1;
 
     public StringScriptDataComparator(int numHits, SearchScript script) {
         this.script = script;
-        values = new String[numHits];
+        values = new BytesRef[numHits];
     }
 
     @Override
-    public FieldComparator<String> setNextReader(AtomicReaderContext context) throws IOException {
+    public FieldComparator<BytesRef> setNextReader(AtomicReaderContext context) throws IOException {
         script.setNextReader(context);
+        spareDoc = -1;
         return this;
     }
 
@@ -80,8 +86,8 @@ public class StringScriptDataComparator extends FieldComparator<String> {
 
     @Override
     public int compare(int slot1, int slot2) {
-        final String val1 = values[slot1];
-        final String val2 = values[slot2];
+        final BytesRef val1 = values[slot1];
+        final BytesRef val2 = values[slot2];
         if (val1 == null) {
             if (val2 == null) {
                 return 0;
@@ -96,30 +102,38 @@ public class StringScriptDataComparator extends FieldComparator<String> {
 
     @Override
     public int compareBottom(int doc) {
-        script.setNextDocId(doc);
-        final String val2 = script.run().toString();
+      
         if (bottom == null) {
-            if (val2 == null) {
-                return 0;
-            }
             return -1;
-        } else if (val2 == null) {
-            return 1;
         }
-        return bottom.compareTo(val2);
+        return bottom.compareTo(spare);
     }
 
     @Override
-    public int compareDocToValue(int doc, String val2) throws IOException {
+    public int compareDocToValue(int doc, BytesRef val2) throws IOException {
         script.setNextDocId(doc);
-        String val1 = script.run().toString();
-        return val1.compareTo(val2);
+        setSpare(doc);
+        return spare.compareTo(val2);
+    }
+    
+    private void setSpare(int doc) {
+        if (spareDoc == doc) {
+            return;
+        }
+        
+        script.setNextDocId(doc);
+        spare.copyChars(script.run().toString());
+        spareDoc = doc;
     }
 
     @Override
     public void copy(int slot, int doc) {
-        script.setNextDocId(doc);
-        values[slot] = script.run().toString();
+        setSpare(doc);
+        if (values[slot] == null) {
+           values[slot] = BytesRef.deepCopyOf(spare);
+        } else {
+            values[slot].copyBytes(spare);
+        }
     }
 
     @Override
@@ -128,7 +142,7 @@ public class StringScriptDataComparator extends FieldComparator<String> {
     }
 
     @Override
-    public String value(int slot) {
+    public BytesRef value(int slot) {
         return values[slot];
     }
 }

@@ -431,6 +431,40 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.toString(), not(containsString("error")));
     }
     
+    @Test 
+    public void testSortScript() throws IOException {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        
+        String mapping = jsonBuilder().startObject().startObject("profile").field("dynamic", "strict")
+                .startObject("properties")
+                .startObject("id").field("type", "integer").field("index", "not_analyzed").field("store", true).endObject()
+                .startObject("groups_code").startObject("properties").field("type", "integer").field("index", "not_analyzed").endObject().endObject()
+                .startObject("date").field("type", "date").field("index", "not_analyzed").field("format", "date_time_no_millis").endObject()
+                .endObject().endObject().endObject().string();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0)).addMapping("test", mapping);
+        
+        client.prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+                .startArray("groups_code").startObject().field("id", 47642).field("date", "2010-08-12T07:54:55Z").endObject().endArray()
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
+                .startArray("groups_code").startObject().field("id", 47642).field("date", "2010-05-04T12:10:54Z").endObject().endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(SortBuilders.scriptSort("\u0027\u0027", "string")).setSize(10)
+                .execute().actionGet();
+
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        
+    }
+    
     @Test
     public void testSortMinValueScript() throws IOException {
         try {

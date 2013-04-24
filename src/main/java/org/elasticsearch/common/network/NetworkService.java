@@ -172,11 +172,15 @@ public class NetworkService extends AbstractComponent {
                 }
                 Collection<NetworkInterface> allInterfs = NetworkUtils.getAllAvailableInterfaces();
                 for (NetworkInterface ni : allInterfs) {
-                    if (!ni.isUp() || ni.isLoopback()) {
+                    if (!ni.isUp()) {
                         continue;
                     }
                     if (host.equals(ni.getName()) || host.equals(ni.getDisplayName())) {
-                        return NetworkUtils.getFirstNonLoopbackAddress(ni, stackType);
+                        if (ni.isLoopback()) {
+                            return NetworkUtils.getFirstAddress(ni, stackType);
+                        } else {
+                            return NetworkUtils.getFirstNonLoopbackAddress(ni, stackType);
+                        }
                     }
                 }
             }

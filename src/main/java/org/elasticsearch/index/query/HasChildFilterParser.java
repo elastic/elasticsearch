@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -106,13 +107,13 @@ public class HasChildFilterParser implements FilterParser {
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[child] filter requires 'query' field");
+            throw new QueryParsingException(parseContext.index(), "[has_child] filter requires 'query' field");
         }
         if (query == null) {
             return null;
         }
         if (childType == null) {
-            throw new QueryParsingException(parseContext.index(), "[child] filter requires 'type' field");
+            throw new QueryParsingException(parseContext.index(), "[has_child] filter requires 'type' field");
         }
 
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
@@ -128,6 +129,9 @@ public class HasChildFilterParser implements FilterParser {
         query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
+        if (searchContext == null) {
+            throw new ElasticSearchIllegalStateException("[has_child] Can't execute, search context not set.");
+        }
 
         HasChildFilter childFilter = HasChildFilter.create(query, parentType, childType, searchContext);
         searchContext.addRewrite(childFilter);

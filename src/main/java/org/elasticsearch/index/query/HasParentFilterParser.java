@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
@@ -105,25 +106,29 @@ public class HasParentFilterParser implements FilterParser {
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[parent] filter requires 'query' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'query' field");
         }
         if (query == null) {
             return null;
         }
 
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[parent] filter requires 'parent_type' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] filter requires 'parent_type' field");
         }
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[parent] filter configured 'parent_type' [" + parentType + "] is not a valid type");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] filter configured 'parent_type' [" + parentType + "] is not a valid type");
         }
 
         // wrap the query with type query
         query = new XFilteredQuery(query, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
+        // In case of delete by query api
+        if (searchContext == null) {
+            throw new ElasticSearchIllegalStateException("[has_parent] Can't execute, search context not set");
+        }
 
         HasParentFilter parentFilter = HasParentFilter.create(query, parentType, searchContext);
         searchContext.addRewrite(parentFilter);

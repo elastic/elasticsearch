@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -118,6 +119,9 @@ public class HasChildQueryParser implements QueryParser {
 
         // wrap the query with type query
         SearchContext searchContext = SearchContext.current();
+        if (searchContext == null) {
+            throw new ElasticSearchIllegalStateException("[has_child] Can't execute, search context not set.");
+        }
         Query query;
         if (scoreType != null) {
             Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);

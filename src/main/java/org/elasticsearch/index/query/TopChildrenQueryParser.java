@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -97,10 +98,10 @@ public class TopChildrenQueryParser implements QueryParser {
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[child] requires 'query' field");
+            throw new QueryParsingException(parseContext.index(), "[top_children] requires 'query' field");
         }
         if (childType == null) {
-            throw new QueryParsingException(parseContext.index(), "[child] requires 'type' field");
+            throw new QueryParsingException(parseContext.index(), "[top_children] requires 'type' field");
         }
 
         if (query == null) {
@@ -121,6 +122,9 @@ public class TopChildrenQueryParser implements QueryParser {
         query = new XFilteredQuery(query, parseContext.cacheFilter(childDocMapper.typeFilter(), null));
 
         SearchContext searchContext = SearchContext.current();
+        if (searchContext == null) {
+            throw new ElasticSearchIllegalStateException("[top_children] Can't execute, search context not set.");
+        }
         TopChildrenQuery childQuery = new TopChildrenQuery(searchContext, query, childType, parentType, scoreType, factor, incrementalFactor);
         searchContext.addRewrite(childQuery);
         return childQuery;

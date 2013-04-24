@@ -23,6 +23,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
@@ -99,19 +100,19 @@ public class HasParentQueryParser implements QueryParser {
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[parent] query requires 'query' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'query' field");
         }
         if (innerQuery == null) {
             return null;
         }
 
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[parent] query requires 'parent_type' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'parent_type' field");
         }
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
         }
 
         List<String> childTypes = new ArrayList<String>(2);
@@ -144,6 +145,10 @@ public class HasParentQueryParser implements QueryParser {
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
         SearchContext searchContext = SearchContext.current();
+        if (searchContext == null) {
+            throw new ElasticSearchIllegalStateException("[has_parent] Can't execute, search context not set.");
+        }
+
         Query query;
         if (score) {
             ParentQuery parentQuery = new ParentQuery(searchContext, innerQuery, parentType, childTypes, childFilter);

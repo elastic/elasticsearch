@@ -163,6 +163,25 @@ public abstract class NetworkUtils {
     }
 
     /**
+     * Returns the first address with the proper ipVersion on the given interface on the current host.
+     *
+     * @param intf      the interface to be checked
+     * @param ipVersion Constraint on IP version of address to be returned, 4 or 6
+     */
+    public static InetAddress getFirstAddress(NetworkInterface intf, StackType ipVersion) throws SocketException {
+        if (intf == null)
+            throw new IllegalArgumentException("Network interface pointer is null");
+
+        for (Enumeration addresses = intf.getInetAddresses(); addresses.hasMoreElements(); ) {
+            InetAddress address = (InetAddress) addresses.nextElement();
+            if ((address instanceof Inet4Address && ipVersion == StackType.IPv4) ||
+                    (address instanceof Inet6Address && ipVersion == StackType.IPv6))
+                return address;
+        }
+        return null;
+    }
+
+    /**
      * A function to check if an interface supports an IP version (i.e has addresses
      * defined for that IP version).
      *

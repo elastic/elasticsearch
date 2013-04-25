@@ -56,9 +56,9 @@ public enum ReplicationType {
      */
     public static ReplicationType fromId(byte id) {
         if (id == 0) {
-            return ASYNC;
-        } else if (id == 1) {
             return SYNC;
+        } else if (id == 1) {
+            return ASYNC;
         } else if (id == 2) {
             return DEFAULT;
         } else {

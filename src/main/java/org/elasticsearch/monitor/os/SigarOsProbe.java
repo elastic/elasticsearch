@@ -101,6 +101,7 @@ public class SigarOsProbe extends AbstractComponent implements OsProbe {
             stats.cpu.sys = (short) (cpuPerc.getSys() * 100);
             stats.cpu.user = (short) (cpuPerc.getUser() * 100);
             stats.cpu.idle = (short) (cpuPerc.getIdle() * 100);
+            stats.cpu.stolen = (short) (cpuPerc.getStolen() * 100);
         } catch (SigarException e) {
             // ignore
         }

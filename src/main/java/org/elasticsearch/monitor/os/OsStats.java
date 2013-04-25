@@ -114,6 +114,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         static final XContentBuilderString SYS = new XContentBuilderString("sys");
         static final XContentBuilderString USER = new XContentBuilderString("user");
         static final XContentBuilderString IDLE = new XContentBuilderString("idle");
+        static final XContentBuilderString STOLEN = new XContentBuilderString("stolen");
 
         static final XContentBuilderString MEM = new XContentBuilderString("mem");
         static final XContentBuilderString SWAP = new XContentBuilderString("swap");
@@ -154,6 +155,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             builder.field(Fields.SYS, cpu.sys());
             builder.field(Fields.USER, cpu.user());
             builder.field(Fields.IDLE, cpu.idle());
+            builder.field(Fields.STOLEN, cpu.stolen());
             builder.endObject();
         }
 
@@ -370,6 +372,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
         short sys = -1;
         short user = -1;
         short idle = -1;
+        short stolen = -1;
 
         Cpu() {
 
@@ -386,6 +389,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             sys = in.readShort();
             user = in.readShort();
             idle = in.readShort();
+            stolen = in.readShort();
         }
 
         @Override
@@ -393,6 +397,7 @@ public class OsStats implements Streamable, Serializable, ToXContent {
             out.writeShort(sys);
             out.writeShort(user);
             out.writeShort(idle);
+            out.writeShort(stolen);
         }
 
         public short sys() {
@@ -417,6 +422,14 @@ public class OsStats implements Streamable, Serializable, ToXContent {
 
         public short getIdle() {
             return idle();
+        }
+
+        public short stolen() {
+            return stolen;
+        }
+
+        public short getStolen() {
+            return stolen();
         }
     }
 }

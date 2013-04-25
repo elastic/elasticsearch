@@ -81,4 +81,10 @@ public class ImmutableSettingsTests {
         assertThat(settings.toDelimitedString(';'), equalTo("key1=value1;key2=value2;"));
     }
 
+    @Test(expectedExceptions = NoClassSettingsException.class)
+    public void testThatAllClassNotFoundExceptionsAreCaught() {
+        // this should be nGram in order to really work, but for sure not not throw a NoClassDefFoundError
+        Settings settings = settingsBuilder().put("type", "ngram").build();
+        settings.getAsClass("type", null, "org.elasticsearch.index.analysis.", "TokenFilterFactory");
+    }
 }

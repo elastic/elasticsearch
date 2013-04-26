@@ -24,7 +24,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
-import org.apache.lucene.search.vectorhighlight.XScoreOrderFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -35,7 +35,7 @@ import java.util.List;
 /**
  *
  */
-public class SourceScoreOrderFragmentsBuilder extends XScoreOrderFragmentsBuilder {
+public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
     private final FieldMapper mapper;
 

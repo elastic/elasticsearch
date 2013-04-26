@@ -21,7 +21,6 @@ package org.apache.lucene.search.vectorhighlight;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;

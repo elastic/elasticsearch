@@ -646,7 +646,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     if (currentVersion == -1) {
                         // its an external version, that's fine, we allow it to be set
                         //throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), -1, delete.version());
-                    } else if (currentVersion >= delete.version()) {
+                    } else if (currentVersion > delete.version()) {
                         throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, delete.version());
                     }
                     updatedVersion = delete.version();

@@ -24,7 +24,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
-import org.apache.lucene.search.vectorhighlight.XSimpleFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.SimpleFragmentsBuilder;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -35,13 +35,13 @@ import java.util.List;
 /**
  *
  */
-public class SourceSimpleFragmentsBuilder extends XSimpleFragmentsBuilder {
+public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
 
-    private final FieldMapper mapper;
+    private final FieldMapper<?> mapper;
 
     private final SearchContext searchContext;
 
-    public SourceSimpleFragmentsBuilder(FieldMapper mapper, SearchContext searchContext,
+    public SourceSimpleFragmentsBuilder(FieldMapper<?> mapper, SearchContext searchContext,
                                         String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;

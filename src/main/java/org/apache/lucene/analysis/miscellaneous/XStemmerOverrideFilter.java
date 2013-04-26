@@ -30,10 +30,12 @@ import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.Version;
 import org.apache.lucene.util.fst.ByteSequenceOutputs;
 import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.Arc;
 import org.apache.lucene.util.fst.FST.BytesReader;
+import org.elasticsearch.common.lucene.Lucene;
 
 /**
  * Provides the ability to override any {@link KeywordAttribute} aware stemmer
@@ -47,9 +49,12 @@ public final class XStemmerOverrideFilter extends TokenFilter {
     private final KeywordAttribute keywordAtt = addAttribute(KeywordAttribute.class);
     private final BytesReader fstReader;
     private final Arc<BytesRef> scratchArc = new FST.Arc<BytesRef>();
-  ;
     private final CharsRef spare = new CharsRef();
     private final boolean ignoreCase;
+    
+    static {
+        assert Version.LUCENE_42 == Lucene.VERSION: "Elasticsearch has upgraded to Lucene Version: [" + Lucene.VERSION + "] this should can be removed"; 
+    }
     
     /**
      * Create a new StemmerOverrideFilter, performing dictionary-based stemming

@@ -21,6 +21,8 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
+import org.apache.lucene.analysis.ngram.XNGramTokenFilter;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +49,10 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
+        if (this.version.onOrAfter(Version.LUCENE_42)) {
+            // LUCENE MONITOR: this token filter is a copy from lucene trunk and should go away once we upgrade to lucene 4.4 
+            return new XNGramTokenFilter(version, tokenStream, minGram, maxGram);
+        }
         return new NGramTokenFilter(tokenStream, minGram, maxGram);
     }
 }

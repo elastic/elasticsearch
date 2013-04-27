@@ -21,8 +21,11 @@ package org.elasticsearch.test.integration.search.stats;
 
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
@@ -30,6 +33,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -94,5 +98,31 @@ public class SearchStatsTests extends AbstractNodesTests {
         NodesStatsResponse nodeStats = client.admin().cluster().prepareNodesStats().execute().actionGet();
         assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryCount(), greaterThan(0l));
         assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0l));
+    }
+
+    @Test
+    public void testOpenContexts() {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        for (int i = 0; i < 50; i++) {
+            client.prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+        }
+        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats().execute().actionGet();
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
+
+        SearchResponse searchResponse = client.prepareSearch()
+                .setSearchType(SearchType.SCAN)
+                .setQuery(matchAllQuery())
+                .setSize(5)
+                .setScroll(TimeValue.timeValueMinutes(2))
+                .execute().actionGet();
+
+        indicesStats = client.admin().indices().prepareStats().execute().actionGet();
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(3l)); // 3 shards
+
+        // scroll, but with no timeout (so no context)
+        searchResponse = client.prepareSearchScroll(searchResponse.getScrollId()).execute().actionGet();
+
+        indicesStats = client.admin().indices().prepareStats().execute().actionGet();
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
     }
 }

@@ -203,7 +203,7 @@ public class SearchStats implements Streamable, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.SEARCH);
-        builder.field(Fields.OPEN, openContexts);
+        builder.field(Fields.OPEN_CONTEXTS, openContexts);
         totalStats.toXContent(builder, params);
         if (groupStats != null && !groupStats.isEmpty()) {
             builder.startObject(Fields.GROUPS);
@@ -220,7 +220,7 @@ public class SearchStats implements Streamable, ToXContent {
 
     static final class Fields {
         static final XContentBuilderString SEARCH = new XContentBuilderString("search");
-        static final XContentBuilderString OPEN = new XContentBuilderString("open");
+        static final XContentBuilderString OPEN_CONTEXTS = new XContentBuilderString("open_contexts");
         static final XContentBuilderString GROUPS = new XContentBuilderString("groups");
         static final XContentBuilderString QUERY_TOTAL = new XContentBuilderString("query_total");
         static final XContentBuilderString QUERY_TIME = new XContentBuilderString("query_time");

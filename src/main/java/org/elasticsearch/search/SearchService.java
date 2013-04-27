@@ -516,7 +516,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (context == null) {
             return;
         }
-        freeContext(context);
+        context.indexShard().searchService().onFreeContext(context);
+        context.release();
     }
 
     private void freeContext(SearchContext context) {

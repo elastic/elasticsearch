@@ -22,6 +22,7 @@ package org.elasticsearch;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
@@ -36,89 +37,89 @@ public class Version implements Serializable {
     // the (internal) format of the id is there so we can easily do after/before checks on the id
 
     public static final int V_0_18_0_ID = /*00*/180099;
-    public static final Version V_0_18_0 = new Version(V_0_18_0_ID, false);
+    public static final Version V_0_18_0 = new Version(V_0_18_0_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_18_1_ID = /*00*/180199;
-    public static final Version V_0_18_1 = new Version(V_0_18_1_ID, false);
+    public static final Version V_0_18_1 = new Version(V_0_18_1_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_18_2_ID = /*00*/180299;
-    public static final Version V_0_18_2 = new Version(V_0_18_2_ID, false);
+    public static final Version V_0_18_2 = new Version(V_0_18_2_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_18_3_ID = /*00*/180399;
-    public static final Version V_0_18_3 = new Version(V_0_18_3_ID, false);
+    public static final Version V_0_18_3 = new Version(V_0_18_3_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_18_4_ID = /*00*/180499;
-    public static final Version V_0_18_4 = new Version(V_0_18_4_ID, false);
+    public static final Version V_0_18_4 = new Version(V_0_18_4_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_18_5_ID = /*00*/180599;
-    public static final Version V_0_18_5 = new Version(V_0_18_5_ID, false);
+    public static final Version V_0_18_5 = new Version(V_0_18_5_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_18_6_ID = /*00*/180699;
-    public static final Version V_0_18_6 = new Version(V_0_18_6_ID, false);
+    public static final Version V_0_18_6 = new Version(V_0_18_6_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_18_7_ID = /*00*/180799;
-    public static final Version V_0_18_7 = new Version(V_0_18_7_ID, false);
+    public static final Version V_0_18_7 = new Version(V_0_18_7_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_18_8_ID = /*00*/180899;
-    public static final Version V_0_18_8 = new Version(V_0_18_8_ID, false);
+    public static final Version V_0_18_8 = new Version(V_0_18_8_ID, false, org.apache.lucene.util.Version.LUCENE_36);
 
     public static final int V_0_19_0_RC1_ID = /*00*/190051;
-    public static final Version V_0_19_0_RC1 = new Version(V_0_19_0_RC1_ID, false);
+    public static final Version V_0_19_0_RC1 = new Version(V_0_19_0_RC1_ID, false, org.apache.lucene.util.Version.LUCENE_36);
 
     public static final int V_0_19_0_RC2_ID = /*00*/190052;
-    public static final Version V_0_19_0_RC2 = new Version(V_0_19_0_RC2_ID, false);
+    public static final Version V_0_19_0_RC2 = new Version(V_0_19_0_RC2_ID, false, org.apache.lucene.util.Version.LUCENE_36);
 
     public static final int V_0_19_0_RC3_ID = /*00*/190053;
-    public static final Version V_0_19_0_RC3 = new Version(V_0_19_0_RC3_ID, false);
+    public static final Version V_0_19_0_RC3 = new Version(V_0_19_0_RC3_ID, false, org.apache.lucene.util.Version.LUCENE_36);
 
     public static final int V_0_19_0_ID = /*00*/190099;
-    public static final Version V_0_19_0 = new Version(V_0_19_0_ID, false);
+    public static final Version V_0_19_0 = new Version(V_0_19_0_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_1_ID = /*00*/190199;
-    public static final Version V_0_19_1 = new Version(V_0_19_1_ID, false);
+    public static final Version V_0_19_1 = new Version(V_0_19_1_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_2_ID = /*00*/190299;
-    public static final Version V_0_19_2 = new Version(V_0_19_2_ID, false);
+    public static final Version V_0_19_2 = new Version(V_0_19_2_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_3_ID = /*00*/190399;
-    public static final Version V_0_19_3 = new Version(V_0_19_3_ID, false);
+    public static final Version V_0_19_3 = new Version(V_0_19_3_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_4_ID = /*00*/190499;
-    public static final Version V_0_19_4 = new Version(V_0_19_4_ID, false);
+    public static final Version V_0_19_4 = new Version(V_0_19_4_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_5_ID = /*00*/190599;
-    public static final Version V_0_19_5 = new Version(V_0_19_5_ID, false);
+    public static final Version V_0_19_5 = new Version(V_0_19_5_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_6_ID = /*00*/190699;
-    public static final Version V_0_19_6 = new Version(V_0_19_6_ID, false);
+    public static final Version V_0_19_6 = new Version(V_0_19_6_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_7_ID = /*00*/190799;
-    public static final Version V_0_19_7 = new Version(V_0_19_7_ID, false);
+    public static final Version V_0_19_7 = new Version(V_0_19_7_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_8_ID = /*00*/190899;
-    public static final Version V_0_19_8 = new Version(V_0_19_8_ID, false);
+    public static final Version V_0_19_8 = new Version(V_0_19_8_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_9_ID = /*00*/190999;
-    public static final Version V_0_19_9 = new Version(V_0_19_9_ID, false);
+    public static final Version V_0_19_9 = new Version(V_0_19_9_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_10_ID = /*00*/191099;
-    public static final Version V_0_19_10 = new Version(V_0_19_10_ID, false);
+    public static final Version V_0_19_10 = new Version(V_0_19_10_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_11_ID = /*00*/191199;
-    public static final Version V_0_19_11 = new Version(V_0_19_11_ID, false);
+    public static final Version V_0_19_11 = new Version(V_0_19_11_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_12_ID = /*00*/191299;
-    public static final Version V_0_19_12 = new Version(V_0_19_12_ID, false);
+    public static final Version V_0_19_12 = new Version(V_0_19_12_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_19_13_ID = /*00*/191399;
-    public static final Version V_0_19_13 = new Version(V_0_19_13_ID, false);
+    public static final Version V_0_19_13 = new Version(V_0_19_13_ID, false, org.apache.lucene.util.Version.LUCENE_36);
 
     public static final int V_0_20_0_RC1_ID = /*00*/200051;
-    public static final Version V_0_20_0_RC1 = new Version(V_0_20_0_RC1_ID, false);
+    public static final Version V_0_20_0_RC1 = new Version(V_0_20_0_RC1_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_20_0_ID = /*00*/200099;
-    public static final Version V_0_20_0 = new Version(V_0_20_0_ID, false);
+    public static final Version V_0_20_0 = new Version(V_0_20_0_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_20_1_ID = /*00*/200199;
-    public static final Version V_0_20_1 = new Version(V_0_20_1_ID, false);
+    public static final Version V_0_20_1 = new Version(V_0_20_1_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_20_2_ID = /*00*/200299;
-    public static final Version V_0_20_2 = new Version(V_0_20_2_ID, false);
+    public static final Version V_0_20_2 = new Version(V_0_20_2_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_20_3_ID = /*00*/200399;
-    public static final Version V_0_20_3 = new Version(V_0_20_3_ID, false);
+    public static final Version V_0_20_3 = new Version(V_0_20_3_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_20_4_ID = /*00*/200499;
-    public static final Version V_0_20_4 = new Version(V_0_20_4_ID, false);
+    public static final Version V_0_20_4 = new Version(V_0_20_4_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_20_5_ID = /*00*/200599;
-    public static final Version V_0_20_5 = new Version(V_0_20_5_ID, false);
+    public static final Version V_0_20_5 = new Version(V_0_20_5_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_20_6_ID = /*00*/200699;
-    public static final Version V_0_20_6 = new Version(V_0_20_6_ID, false);
+    public static final Version V_0_20_6 = new Version(V_0_20_6_ID, false, org.apache.lucene.util.Version.LUCENE_36);
     public static final int V_0_20_7_ID = /*00*/200799;
-    public static final Version V_0_20_7 = new Version(V_0_20_7_ID, false);
+    public static final Version V_0_20_7 = new Version(V_0_20_7_ID, false, org.apache.lucene.util.Version.LUCENE_36);
 
     public static final int V_0_90_0_Beta1_ID = /*00*/900001;
-    public static final Version V_0_90_0_Beta1 = new Version(V_0_90_0_Beta1_ID, false);
+    public static final Version V_0_90_0_Beta1 = new Version(V_0_90_0_Beta1_ID, false, org.apache.lucene.util.Version.LUCENE_41);
     public static final int V_0_90_0_RC1_ID = /*00*/900051;
-    public static final Version V_0_90_0_RC1 = new Version(V_0_90_0_RC1_ID, false);
+    public static final Version V_0_90_0_RC1 = new Version(V_0_90_0_RC1_ID, false, org.apache.lucene.util.Version.LUCENE_41);
     public static final int V_0_90_0_RC2_ID = /*00*/900052;
-    public static final Version V_0_90_0_RC2 = new Version(V_0_90_0_RC2_ID, false);
+    public static final Version V_0_90_0_RC2 = new Version(V_0_90_0_RC2_ID, false, org.apache.lucene.util.Version.LUCENE_42);
     public static final int V_0_90_0_RC3_ID = /*00*/900053;
-    public static final Version V_0_90_0_RC3 = new Version(V_0_90_0_RC3_ID, true);
+    public static final Version V_0_90_0_RC3 = new Version(V_0_90_0_RC3_ID, true, org.apache.lucene.util.Version.LUCENE_42);
 
     public static final Version CURRENT = V_0_90_0_RC3;
 
@@ -211,7 +212,7 @@ public class Version implements Serializable {
                 return V_0_18_8;
 
             default:
-                return new Version(id, null);
+                return new Version(id, null, Lucene.VERSION);
         }
     }
 
@@ -225,14 +226,16 @@ public class Version implements Serializable {
     public final byte revision;
     public final byte build;
     public final Boolean snapshot;
+    public final org.apache.lucene.util.Version luceneVersion;
 
-    Version(int id, @Nullable Boolean snapshot) {
+    Version(int id, @Nullable Boolean snapshot, org.apache.lucene.util.Version luceneVersion) {
         this.id = id;
         this.major = (byte) ((id / 1000000) % 100);
         this.minor = (byte) ((id / 10000) % 100);
         this.revision = (byte) ((id / 100) % 100);
         this.build = (byte) (id % 100);
         this.snapshot = snapshot;
+        this.luceneVersion = luceneVersion;
     }
 
     public boolean snapshot() {

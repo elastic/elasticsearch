@@ -3,12 +3,14 @@ Japanese (kuromoji) Analysis for ElasticSearch
 
 The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-kuromoji/1.2.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-kuromoji/1.3.0`.
 
     --------------------------------------------------
     | Kuromoji Analysis Plugin      | ElasticSearch  |
     --------------------------------------------------
     | master                        | 0.90 -> master |
+    --------------------------------------------------
+    | 1.3.0                         | 0.90 -> master |
     --------------------------------------------------
     | 1.2.0                         | 0.90 -> master |
     --------------------------------------------------

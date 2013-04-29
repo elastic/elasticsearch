@@ -118,10 +118,10 @@ public class Version implements Serializable {
     public static final Version V_0_90_0_RC1 = new Version(V_0_90_0_RC1_ID, false, org.apache.lucene.util.Version.LUCENE_41);
     public static final int V_0_90_0_RC2_ID = /*00*/900052;
     public static final Version V_0_90_0_RC2 = new Version(V_0_90_0_RC2_ID, false, org.apache.lucene.util.Version.LUCENE_42);
-    public static final int V_0_90_0_RC3_ID = /*00*/900053;
-    public static final Version V_0_90_0_RC3 = new Version(V_0_90_0_RC3_ID, true, org.apache.lucene.util.Version.LUCENE_42);
+    public static final int V_0_90_0_ID = /*00*/900099;
+    public static final Version V_0_90_0 = new Version(V_0_90_0_ID, false, org.apache.lucene.util.Version.LUCENE_42);
 
-    public static final Version CURRENT = V_0_90_0_RC3;
+    public static final Version CURRENT = V_0_90_0;
 
     public static Version readVersion(StreamInput in) throws IOException {
         return fromId(in.readVInt());
@@ -129,8 +129,8 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
-            case V_0_90_0_RC3_ID:
-                return V_0_90_0_RC3;
+            case V_0_90_0_ID:
+                return V_0_90_0;
             case V_0_90_0_RC2_ID:
                 return V_0_90_0_RC2;
             case V_0_90_0_RC1_ID:

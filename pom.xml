@@ -31,8 +31,8 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.90.0.Beta1</elasticsearch.version>
-        <lucene.version>4.1.0</lucene.version>
+        <elasticsearch.version>0.90.0</elasticsearch.version>
+        <lucene.version>4.2.1</lucene.version>
     </properties>
 
     <repositories>

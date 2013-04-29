@@ -58,7 +58,7 @@ public class HunspellServiceTests extends AbstractNodesTests {
 
         HunspellDictionary dictionary = ((InternalNode) node).injector().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
-        Version expectedVersion = Lucene.parseVersion(settings.get("version"), Lucene.ANALYZER_VERSION, logger);
+        Version expectedVersion = Lucene.parseVersion(settings.get("indices.analysis.hunspell.version"), Lucene.ANALYZER_VERSION, logger);
         assertThat(dictionary.getVersion(), equalTo(expectedVersion));
         assertThat(dictionary.isIgnoreCase(), equalTo(true));
     }
@@ -77,7 +77,7 @@ public class HunspellServiceTests extends AbstractNodesTests {
 
         HunspellDictionary dictionary = ((InternalNode) node).injector().getInstance(HunspellService.class).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
-        Version expectedVersion = Lucene.parseVersion(settings.get("version"), Lucene.ANALYZER_VERSION, logger);
+        Version expectedVersion = Lucene.parseVersion(settings.get("indices.analysis.hunspell.version"), Lucene.ANALYZER_VERSION, logger);
         assertThat(dictionary.getVersion(), equalTo(expectedVersion));
         assertThat(dictionary.isIgnoreCase(), equalTo(false));
 

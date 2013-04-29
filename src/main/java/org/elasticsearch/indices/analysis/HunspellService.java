@@ -44,20 +44,20 @@ import java.util.Map;
  * the {@code <path.conf>/hunspell} directory, where each locale has its dedicated sub-directory which holds the dictionary
  * files. For example, the dictionary files for {@code en_US} locale must be placed under {@code <path.conf>/hunspell/en_US}
  * directory.
- *
+ * <p/>
  * The following settings can be set for each dictionary:
  * <ul>
- *     <li>{@code ignore_case} - If true, dictionary matching will be case insensitive (defaults to {@code false})</li>
- *     <li>{@code strict_affix_parsing} - Determines whether errors while reading a affix rules file will cause exception or simple be ignored (defaults to {@code true})</li>
+ * <li>{@code ignore_case} - If true, dictionary matching will be case insensitive (defaults to {@code false})</li>
+ * <li>{@code strict_affix_parsing} - Determines whether errors while reading a affix rules file will cause exception or simple be ignored (defaults to {@code true})</li>
  * </ul>
- *
+ * <p/>
  * These settings can either be configured as node level configuration, such as:
  * <br/><br/>
  * <pre><code>
  *     indices.analysis.hunspell.dictionary.en_US.ignore_case: true
  *     indices.analysis.hunspell.dictionary.en_US.strict_affix_parsing: false
  * </code></pre>
- *
+ * <p/>
  * or, as dedicated configuration per dictionary, placed in a {@code settings.yml} file under the dictionary directory. For
  * example, the following can be the content of the {@code <path.config>/hunspell/en_US/settings.yml} file:
  * <br/><br/>
@@ -91,7 +91,7 @@ public class HunspellService extends AbstractComponent {
         this.hunspellDir = resolveHunspellDirectory(settings, env);
         this.defaultIgnoreCase = settings.getAsBoolean("indices.analysis.hunspell.dictionary.ignore_case", false);
         this.defaultStrictAffixParsing = settings.getAsBoolean("indices.analysis.hunspell.dictionary.strict_affix_parsing", false);
-        final Version version = Lucene.parseVersion(settings.get("version"), Lucene.ANALYZER_VERSION, logger);
+        final Version version = Lucene.parseVersion(settings.get("indices.analysis.hunspell.version"), Lucene.ANALYZER_VERSION, logger);
         dictionaries = CacheBuilder.newBuilder().build(new CacheLoader<String, HunspellDictionary>() {
             @Override
             public HunspellDictionary load(String locale) throws Exception {
@@ -140,10 +140,10 @@ public class HunspellService extends AbstractComponent {
     /**
      * Loads the hunspell dictionary for the given local.
      *
-     * @param locale The locale of the hunspell dictionary to be loaded.
+     * @param locale       The locale of the hunspell dictionary to be loaded.
      * @param nodeSettings The node level settings
-     * @param env The node environment (from which the conf path will be resolved)
-     * @param version The lucene version
+     * @param env          The node environment (from which the conf path will be resolved)
+     * @param version      The lucene version
      * @return The loaded Hunspell dictionary
      * @throws Exception when loading fails (due to IO erros or malformed dictionary files)
      */
@@ -208,7 +208,7 @@ public class HunspellService extends AbstractComponent {
      * Each hunspell dictionary directory may contain a {@code settings.yml} which holds dictionary specific settings. Default
      * values for these settings are defined in the given default settings.
      *
-     * @param dir The directory of the dictionary
+     * @param dir      The directory of the dictionary
      * @param defaults The default settings for this dictionary
      * @return The resolved settings.
      */

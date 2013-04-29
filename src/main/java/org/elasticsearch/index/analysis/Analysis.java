@@ -52,10 +52,14 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -68,6 +72,21 @@ import java.util.*;
  *
  */
 public class Analysis {
+
+    public static Version parseAnalysisVersion(@IndexSettings Settings indexSettings, Settings settings, ESLogger logger) {
+        // check for explicit version on the specific analyzer component
+        String sVersion = settings.get("version");
+        if (sVersion != null) {
+            return Lucene.parseVersion(sVersion, Lucene.ANALYZER_VERSION, logger);
+        }
+        // check for explicit version on the index itself as default for all analysis components
+        sVersion = indexSettings.get("index.analysis.version");
+        if (sVersion != null) {
+            return Lucene.parseVersion(sVersion, Lucene.ANALYZER_VERSION, logger);
+        }
+        // resolve the analysis version based on the version the index was created with
+        return indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT).luceneVersion;
+    }
 
     public static boolean isNoStopwords(Settings settings) {
         String value = settings.get("stopwords");

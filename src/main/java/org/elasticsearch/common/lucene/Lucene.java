@@ -22,7 +22,6 @@ package org.elasticsearch.common.lucene;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
-import org.apache.lucene.index.SegmentInfos.FindSegmentsFile;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -35,7 +34,6 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Field;
 
@@ -101,7 +99,7 @@ public class Lucene {
         sis.read(directory);
         return sis;
     }
-    
+
     public static long count(IndexSearcher searcher, Query query) throws IOException {
         TotalHitCountCollector countCollector = new TotalHitCountCollector();
         // we don't need scores, so wrap it in a constant score query
@@ -377,7 +375,7 @@ public class Lucene {
     private Lucene() {
 
     }
-    
+
     public static final boolean indexExists(final Directory directory) {
         return DirectoryReader.indexExists(directory);
     }

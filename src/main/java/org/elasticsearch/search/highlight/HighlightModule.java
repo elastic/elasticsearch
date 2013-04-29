@@ -35,7 +35,7 @@ public class HighlightModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("highlight.type", DefaultHighlightModule.class, "org.elasticsearch.search.highlight.", "HighlightModule"), settings));
+        return ImmutableList.of(Modules.createModule(settings.getAsClass("search.highlight.type", DefaultHighlightModule.class, "org.elasticsearch.search.highlight.", "HighlightModule"), settings));
     }
 
     @Override

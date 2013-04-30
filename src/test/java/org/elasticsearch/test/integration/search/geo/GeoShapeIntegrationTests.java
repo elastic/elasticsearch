@@ -26,6 +26,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -36,7 +37,10 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
+
+import java.util.List;
+import java.util.Map;
 
 public class GeoShapeIntegrationTests extends AbstractNodesTests {
 
@@ -202,5 +206,49 @@ public class GeoShapeIntegrationTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+    }
+
+    @Test // Issue 2944
+    public void testThatShapeIsReturnedEvenWhenExclusionsAreSet() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .endObject().endObject()
+                .startObject("_source")
+                    .startArray("excludes").value("nonExistingField").endArray()
+                .endObject()
+                .endObject().endObject()
+                .string();
+        client.admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("name", "Document 1")
+                .startObject("location")
+                .field("type", "envelope")
+                .startArray("coordinates").startArray().value(-45.0).value(45).endArray().startArray().value(45).value(-45).endArray().endArray()
+                .endObject()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+
+        Map<String, Object> indexedMap = searchResponse.getHits().getAt(0).sourceAsMap();
+        assertThat(indexedMap.get("location"), instanceOf(Map.class));
+        Map<String, Object> locationMap = (Map<String, Object>) indexedMap.get("location");
+        assertThat(locationMap.get("coordinates"), instanceOf(List.class));
+        List<List<Number>> coordinates = (List<List<Number>>) locationMap.get("coordinates");
+        assertThat(coordinates.size(), equalTo(2));
+        assertThat(coordinates.get(0).size(), equalTo(2));
+        assertThat(coordinates.get(0).get(0).doubleValue(), equalTo(-45.0));
+        assertThat(coordinates.get(0).get(1).doubleValue(), equalTo(45.0));
+        assertThat(coordinates.get(1).size(), equalTo(2));
+        assertThat(coordinates.get(1).get(0).doubleValue(), equalTo(45.0));
+        assertThat(coordinates.get(1).get(1).doubleValue(), equalTo(-45.0));
+        assertThat(locationMap.size(), equalTo(2));
     }
 }

@@ -68,6 +68,12 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         cleanAndCloseNodes();
 
         Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("appAccountIds").field("type", "string").endObject().endObject()
+                .endObject().endObject().string();
+        node1.client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+
         node1.client().prepareIndex("test", "type1", "10990239").setSource(jsonBuilder().startObject()
                 .field("_id", "10990239")
                 .startArray("appAccountIds").value(14).value(179).endArray().endObject()).execute().actionGet();
@@ -118,6 +124,12 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         cleanAndCloseNodes();
 
         Node node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").put("index.number_of_shards", 1).build());
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("field").field("type", "string").endObject().startObject("num").field("type", "integer").endObject().endObject()
+                .endObject().endObject().string();
+        node1.client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+
         for (int i = 0; i < 100; i++) {
             node1.client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().field("_id", "1").field("field", "value1").startArray("num").value(14).value(179).endArray().endObject()).execute().actionGet();
             node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("_id", "2").field("field", "value2").startArray("num").value(14).endArray().endObject()).execute().actionGet();

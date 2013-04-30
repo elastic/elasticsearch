@@ -200,4 +200,6 @@ public interface FieldMapper<T> {
     FieldDataType fieldDataType();
 
     PostingsFormatProvider postingsFormatProvider();
+    
+    boolean isNumeric();
 }

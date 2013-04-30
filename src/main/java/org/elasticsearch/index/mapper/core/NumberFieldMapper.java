@@ -288,4 +288,9 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
             builder.field("ignore_malformed", ignoreMalformed.value());
         }
     }
+    
+    @Override
+    public boolean isNumeric() {
+        return true;
+    }
 }

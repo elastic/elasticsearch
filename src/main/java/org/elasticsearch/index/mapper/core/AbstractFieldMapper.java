@@ -706,4 +706,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         // nothing to do here, sub classes to override if needed
     }
 
+    @Override
+    public boolean isNumeric() {
+        return false;
+    }
+
 }

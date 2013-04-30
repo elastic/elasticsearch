@@ -20,8 +20,10 @@
 package org.elasticsearch.test.unit.common.xcontent.support;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.testng.annotations.Test;
@@ -194,5 +196,19 @@ public class XContentMapValuesTests {
 
         map = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
         assertThat(XContentMapValues.extractRawValues("path1.xxx.path2.yyy.test", map).get(0).toString(), equalTo("value"));
+    }
+
+    @Test
+    public void testThatFilteringWithNestedArrayAndExclusionWorks() throws Exception {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
+                .startArray("coordinates")
+                    .startArray().value("foo").endArray()
+                .endArray()
+            .endObject();
+
+        Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
+        Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"nonExistingField"});
+
+        assertThat(mapTuple.v2(), equalTo(filteredSource));
     }
 }

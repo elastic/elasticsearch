@@ -206,6 +206,9 @@ public class XContentMapValues {
             } else if (o instanceof List) {
                 List<Object> innerInto = new ArrayList<Object>();
                 filter((List<Object>) o, innerInto, includes, excludes, sb);
+                if (!innerInto.isEmpty()) {
+                    to.add(innerInto);
+                }
             } else {
                 to.add(o);
             }

@@ -19,10 +19,17 @@
 
 package org.elasticsearch.test.integration.indices.analyze;
 
+import java.io.IOException;
+import java.util.concurrent.CountDownLatch;
+
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -73,6 +80,34 @@ public class AnalyzeActionTests extends AbstractNodesTests {
             assertThat(token.getTerm(), equalTo("test"));
             assertThat(token.getStartOffset(), equalTo(10));
             assertThat(token.getEndOffset(), equalTo(14));
+        }
+    }
+    
+    @Test
+    public void analyzeNumericField() throws ElasticSearchException, IOException {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client.prepareIndex("test", "test", "1")
+        .setSource(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("long", 1l)
+                    .field("double", 1.0d)
+                .endObject())
+        .setRefresh(true).execute().actionGet();
+
+        try {
+            client.admin().indices().prepareAnalyze("test", "123").setField("long").execute().actionGet();
+        } catch (ElasticSearchIllegalArgumentException ex) {
+        }
+        try {
+            client.admin().indices().prepareAnalyze("test", "123.0").setField("double").execute().actionGet();
+        } catch (ElasticSearchIllegalArgumentException ex) {
         }
     }
 

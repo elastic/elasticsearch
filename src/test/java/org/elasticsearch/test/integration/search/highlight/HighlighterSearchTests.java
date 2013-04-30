@@ -60,6 +60,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -166,16 +167,6 @@ public class HighlighterSearchTests extends AbstractNodesTests {
 
         
     }
-    
-    public void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<String> matcher) {
-        assertThat(resp.getShardFailures().length, equalTo(0));
-        assertThat(resp.getHits().hits().length, greaterThan(hit));
-        assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field), notNullValue());
-        assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field).fragments().length, greaterThan(fragment));
-        assertThat(resp.getHits().hits()[hit].highlightFields().get(field).fragments()[fragment].string(),
-                matcher);
-    }
-
     
     @Test
     public void testEnsureNoNegativeOffsets() throws Exception {

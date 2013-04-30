@@ -46,6 +46,7 @@ import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.equalTo;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
@@ -504,6 +505,35 @@ public class SimpleQueryTests extends AbstractNodesTests {
         searchResponse = client.prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1"))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+    }
+    
+    @Test
+    public void testMatchQueryNumeric() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("long", 1l, "double", 1.0d).execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("long", 2l,  "double", 2.0d).execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource("long", 3l, "double", 3.0d).execute().actionGet();
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        SearchResponse searchResponse = client.prepareSearch().setQuery(matchQuery("long", "1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        
+        searchResponse = client.prepareSearch().setQuery(matchQuery("double", "2")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
+        try {
+            searchResponse = client.prepareSearch().setQuery(matchQuery("double", "2 3 4")).execute().actionGet();
+            assert false;
+        } catch (SearchPhaseExecutionException ex) {
+            // number format exception
+        }
     }
 
     @Test

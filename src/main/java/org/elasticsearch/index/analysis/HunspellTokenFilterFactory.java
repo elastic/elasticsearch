@@ -50,7 +50,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new ElasticSearchIllegalArgumentException(String.format("Unknown hunspell dictionary for locale [%s]", locale));
         }
 
-        dedup = settings.getAsBoolean("dedup", false);
+        dedup = settings.getAsBoolean("dedup", true);
     }
 
     @Override

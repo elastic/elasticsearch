@@ -115,6 +115,10 @@ public class GeoDistanceSortParser implements SortParser {
             sortMode = reverse ? SortMode.MAX : SortMode.MIN;
         }
 
+        if (sortMode == SortMode.SUM) {
+            throw new ElasticSearchIllegalArgumentException("sort_mode [sum] isn't supported for sorting by geo distance");
+        }
+
         FieldMapper mapper = context.smartNameFieldMapper(fieldName);
         if (mapper == null) {
             throw new ElasticSearchIllegalArgumentException("failed to find mapper for [" + fieldName + "] for geo distance based sort");

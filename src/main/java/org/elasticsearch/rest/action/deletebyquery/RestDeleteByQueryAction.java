@@ -39,7 +39,6 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
 import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
@@ -102,7 +101,8 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             public void onResponse(DeleteByQueryResponse result) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject().field("ok", true);
+                    RestStatus restStatus = result.status();
+                    builder.startObject().field("ok", restStatus == RestStatus.OK);
 
                     builder.startObject("_indices");
                     for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
@@ -119,7 +119,7 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                     builder.endObject();
 
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                    channel.sendResponse(new XContentRestResponse(request, restStatus, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }

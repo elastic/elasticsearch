@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
@@ -38,6 +39,7 @@ import org.testng.annotations.Test;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -45,6 +47,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 public class UpdateTests extends AbstractNodesTests {
+
     private Client client;
 
     @BeforeClass
@@ -378,4 +381,64 @@ public class UpdateTests extends AbstractNodesTests {
             assertThat(map2.containsKey("commonkey"), equalTo(true));
         }
     }
+
+    @Test
+    public void testConcurrentUpdateWithRetryOnConflict() throws Exception {
+        concurrentUpdateWithRetryOnConflict(false);
+    }
+
+    @Test
+    public void testConcurrentUpdateWithRetryOnConflict_bulk() throws Exception {
+        concurrentUpdateWithRetryOnConflict(true);
+    }
+
+    private void concurrentUpdateWithRetryOnConflict(final boolean useBulkApi) throws Exception {
+        createIndex();
+        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        int numberOfThreads = 5;
+        final CountDownLatch latch = new CountDownLatch(numberOfThreads);
+        final int numberOfUpdatesPerThread = 10000;
+        for (int i = 0; i < numberOfThreads; i++) {
+            Runnable r = new Runnable() {
+
+                @Override
+                public void run() {
+                    try {
+                        for (int i = 0; i < numberOfUpdatesPerThread; i++) {
+                            if (useBulkApi) {
+                                UpdateRequestBuilder updateRequestBuilder = client.prepareUpdate("test", "type1", Integer.toString(i))
+                                        .setScript("ctx._source.field += 1")
+                                        .setRetryOnConflict(Integer.MAX_VALUE)
+                                        .setUpsertRequest(jsonBuilder().startObject().field("field", 1).endObject());
+                                client.prepareBulk().add(updateRequestBuilder).execute().actionGet();
+                            } else {
+                                client.prepareUpdate("test", "type1", Integer.toString(i)).setScript("ctx._source.field += 1")
+                                        .setRetryOnConflict(Integer.MAX_VALUE)
+                                        .setUpsertRequest(jsonBuilder().startObject().field("field", 1).endObject())
+                                        .execute().actionGet();
+                            }
+                        }
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+            };
+            new Thread(r).start();
+        }
+        latch.await();
+
+        for (int i = 0; i < numberOfUpdatesPerThread; i++) {
+            GetResponse response = client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+            assertThat(response.getId(), equalTo(Integer.toString(i)));
+            assertThat(response.getVersion(), equalTo((long) numberOfThreads));
+            assertThat((Integer) response.getSource().get("field"), equalTo(numberOfThreads));
+        }
+    }
+
 }

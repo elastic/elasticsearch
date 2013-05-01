@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -68,6 +69,8 @@ public class BulkItemRequest implements Streamable {
             request = new IndexRequest();
         } else if (type == 1) {
             request = new DeleteRequest();
+        } else if (type == 2) {
+            request = new UpdateRequest();
         }
         request.readFrom(in);
     }
@@ -79,6 +82,8 @@ public class BulkItemRequest implements Streamable {
             out.writeByte((byte) 0);
         } else if (request instanceof DeleteRequest) {
             out.writeByte((byte) 1);
+        } else if (request instanceof UpdateRequest) {
+            out.writeByte((byte) 2);
         }
         request.writeTo(out);
     }

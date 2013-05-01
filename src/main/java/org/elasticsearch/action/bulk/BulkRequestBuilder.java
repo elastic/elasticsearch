@@ -27,6 +27,8 @@ import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationType;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.Nullable;
@@ -71,6 +73,24 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
     public BulkRequestBuilder add(DeleteRequestBuilder request) {
+        super.request.add(request.request());
+        return this;
+    }
+
+
+
+    /**
+     * Adds an {@link DeleteRequest} to the list of actions to execute.
+     */
+    public BulkRequestBuilder add(UpdateRequest request) {
+        super.request.add(request);
+        return this;
+    }
+
+    /**
+     * Adds an {@link DeleteRequest} to the list of actions to execute.
+     */
+    public BulkRequestBuilder add(UpdateRequestBuilder request) {
         super.request.add(request.request());
         return this;
     }

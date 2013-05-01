@@ -19,12 +19,14 @@
 
 package org.elasticsearch.test.integration.search.geo;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -41,6 +43,7 @@ import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.testng.AssertJUnit.fail;
 
 /**
  */
@@ -358,6 +361,45 @@ public class GeoDistanceTests extends AbstractNodesTests {
         assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
         assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
         assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
+
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+
+        try {
+            client.prepareSearch("test").setQuery(matchAllQuery())
+                    .addSort(SortBuilders.geoDistanceSort("locations").point(40.7143528, -74.0059731).sortMode("sum"))
+                    .execute().actionGet();
+            fail("Expected error");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.shardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
+        }
     }
 
     @Test

@@ -176,6 +176,7 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
 
             GeoPoint point = iter.next();
             double distance = fixedSourceDistance.calculate(point.lat(), point.lon());
+            int counter = 1;
             while (iter.hasNext()) {
                 point = iter.next();
                 double newDistance = fixedSourceDistance.calculate(point.lat(), point.lon());
@@ -190,9 +191,18 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
                             distance = newDistance;
                         }
                         break;
+                    case AVG:
+                        distance += newDistance;
+                        counter++;
+                        break;
                 }
             }
-            return distance;
+
+            if (sortMode == SortMode.AVG && counter > 1) {
+                return distance / counter;
+            } else {
+                return distance;
+            }
         }
 
     }

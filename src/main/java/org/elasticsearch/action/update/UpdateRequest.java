@@ -72,7 +72,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     @Nullable
     private IndexRequest doc;
 
-    UpdateRequest() {
+    public UpdateRequest() {
 
     }
 
@@ -186,6 +186,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     public UpdateRequest scriptLang(String scriptLang) {
         this.scriptLang = scriptLang;
         return this;
+    }
+
+    public String scriptLang() {
+        return scriptLang;
     }
 
     /**

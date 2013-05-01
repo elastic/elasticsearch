@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -81,6 +82,7 @@ public class DeleteByQueryTests extends AbstractNodesTests {
         deleteByQueryRequestBuilder.setQuery(QueryBuilders.matchAllQuery());
         
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
+        assertThat(actionGet.status(), equalTo(RestStatus.OK));
         assertThat(actionGet.getIndex("twitter"), notNullValue());
         assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));
         
@@ -111,6 +113,7 @@ public class DeleteByQueryTests extends AbstractNodesTests {
 
         deleteByQueryRequestBuilder.setIgnoreIndices(IgnoreIndices.MISSING);
         DeleteByQueryResponse actionGet = deleteByQueryRequestBuilder.execute().actionGet();
+        assertThat(actionGet.status(), equalTo(RestStatus.OK));
         assertThat(actionGet.getIndex("twitter").getFailedShards(), equalTo(0));
         assertThat(actionGet.getIndex("twitter"), notNullValue());
 
@@ -118,4 +121,19 @@ public class DeleteByQueryTests extends AbstractNodesTests {
         search = client.prepareSearch().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         assertThat(search.getHits().totalHits(), equalTo(0l));
     }
+
+    @Test
+    public void testFailure() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("twitter").execute().actionGet();
+
+        DeleteByQueryResponse response = client.prepareDeleteByQuery("twitter")
+                .setQuery(QueryBuilders.hasChildQuery("type", QueryBuilders.matchAllQuery()))
+                .execute().actionGet();
+
+        assertThat(response.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(response.getIndex("twitter").getSuccessfulShards(), equalTo(0));
+        assertThat(response.getIndex("twitter").getFailedShards(), equalTo(5));
+    }
+
 }

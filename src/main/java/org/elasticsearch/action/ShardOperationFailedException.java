@@ -20,6 +20,7 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.Serializable;
 
@@ -44,4 +45,9 @@ public interface ShardOperationFailedException extends Streamable, Serializable 
      * The reason of the failure.
      */
     String reason();
+
+    /**
+     * The status of the failure.
+     */
+    RestStatus status();
 }

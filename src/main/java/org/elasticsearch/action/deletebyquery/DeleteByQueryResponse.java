@@ -22,6 +22,7 @@ package org.elasticsearch.action.deletebyquery;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -58,6 +59,26 @@ public class DeleteByQueryResponse extends ActionResponse implements Iterable<In
      */
     public IndexDeleteByQueryResponse getIndex(String index) {
         return indices.get(index);
+    }
+
+    public RestStatus status() {
+        RestStatus status = RestStatus.OK;
+        for (IndexDeleteByQueryResponse indexResponse : indices.values()) {
+            if (indexResponse.getFailedShards() > 0) {
+                RestStatus indexStatus = indexResponse.getFailures()[0].status();
+                if (indexResponse.getFailures().length > 1) {
+                    for (int i = 1; i < indexResponse.getFailures().length; i++) {
+                        if (indexResponse.getFailures()[i].status().getStatus() >= 500) {
+                            indexStatus = indexResponse.getFailures()[i].status();
+                        }
+                    }
+                }
+                if (status.getStatus() < indexStatus.getStatus()) {
+                    status = indexStatus;
+                }
+            }
+        }
+        return status;
     }
 
     @Override

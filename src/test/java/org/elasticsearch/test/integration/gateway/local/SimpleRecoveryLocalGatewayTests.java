@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -351,7 +352,9 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
                 .put("action.admin.cluster.node.shutdown.delay", "10ms")
                 .put("gateway.recover_after_nodes", 4)
-                .put("gateway.type", "local");
+                .put("gateway.type", "local")
+                .put(BalancedShardsAllocator.SETTING_THRESHOLD, 1.1f); // use less agressive settings
+
         startNode("node1", settings);
         startNode("node2", settings);
         startNode("node3", settings);

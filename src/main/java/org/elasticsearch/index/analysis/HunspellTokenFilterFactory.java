@@ -57,4 +57,9 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     public TokenStream create(TokenStream tokenStream) {
         return new HunspellStemFilter(tokenStream, dictionary, dedup);
     }
+
+    public boolean dedup() {
+        return dedup;
+    }
+
 }

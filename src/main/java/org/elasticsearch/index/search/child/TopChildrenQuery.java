@@ -200,6 +200,36 @@ public class TopChildrenQuery extends Query implements ScopePhase.TopDocsPhase {
         return query.weight(searcher);
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != this.getClass()) {
+            return false;
+        }
+
+        HasChildFilter that = (HasChildFilter) obj;
+        if (!query.equals(that.childQuery)) {
+            return false;
+        }
+        if (!childType.equals(that.childType)) {
+            return false;
+        }
+        if (!parentType.equals(that.parentType)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = query.hashCode();
+        result = 31 * result + parentType.hashCode();
+        result = 31 * result + childType.hashCode();
+        return result;
+    }
+
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("score_child[").append(childType).append("/").append(parentType).append("](").append(query.toString(field)).append(')');

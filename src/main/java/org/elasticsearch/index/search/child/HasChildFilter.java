@@ -65,6 +65,36 @@ public abstract class HasChildFilter extends Filter implements ScopePhase.Collec
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != this.getClass()) {
+            return false;
+        }
+
+        HasChildFilter that = (HasChildFilter) obj;
+        if (!childQuery.equals(that.childQuery)) {
+            return false;
+        }
+        if (!childType.equals(that.childType)) {
+            return false;
+        }
+        if (!parentType.equals(that.parentType)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = childQuery.hashCode();
+        result = 31 * result + parentType.hashCode();
+        result = 31 * result + childType.hashCode();
+        return result;
+    }
+
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("child_filter[").append(childType).append("/").append(parentType).append("](").append(childQuery).append(')');

@@ -44,6 +44,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.node.settings.NodeSettingsService.Listener;
 import org.hamcrest.Matchers;
 import org.testng.annotations.Test;
 
@@ -306,6 +308,49 @@ public class BalanceConfigurationTests {
                 assertThat(primaries, Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
             }
         }
+    }
+    
+    @Test
+    public void testPersistedSettings() {
+        ImmutableSettings.Builder settings = settingsBuilder();
+        settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.2);
+        settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, 0.3);
+        settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, 0.5);
+        settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, 2.0);
+        final NodeSettingsService.Listener[] listeners = new NodeSettingsService.Listener[1];
+        NodeSettingsService service = new NodeSettingsService(settingsBuilder().build()) {
+
+            @Override
+            public void addListener(Listener listener) {
+                assert listeners[0] == null;
+                listeners[0] = listener; 
+            }
+            
+        };
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(settings.build(), service);
+        assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
+        assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
+        assertThat(allocator.getPrimaryBalance(), Matchers.equalTo(0.5f));
+        assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));
+        
+        settings = settingsBuilder();
+        settings.put("cluster.routing.allocation.allow_rebalance", ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
+        listeners[0].onRefreshSettings(settings.build());
+        assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.2f));
+        assertThat(allocator.getShardBalance(), Matchers.equalTo(0.3f));
+        assertThat(allocator.getPrimaryBalance(), Matchers.equalTo(0.5f));
+        assertThat(allocator.getThreshold(), Matchers.equalTo(2.0f));
+        
+        settings = settingsBuilder();
+        settings.put(BalancedShardsAllocator.SETTING_INDEX_BALANCE_FACTOR, 0.5);
+        settings.put(BalancedShardsAllocator.SETTING_SHARD_BALANCE_FACTOR, 0.1);
+        settings.put(BalancedShardsAllocator.SETTING_PRIMARY_BALANCE_FACTOR, 0.4);
+        settings.put(BalancedShardsAllocator.SETTING_THRESHOLD, 3.0);
+        listeners[0].onRefreshSettings(settings.build());
+        assertThat(allocator.getIndexBalance(), Matchers.equalTo(0.5f));
+        assertThat(allocator.getShardBalance(), Matchers.equalTo(0.1f));
+        assertThat(allocator.getPrimaryBalance(), Matchers.equalTo(0.4f));
+        assertThat(allocator.getThreshold(), Matchers.equalTo(3.0f));
     }
     
 }

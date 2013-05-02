@@ -84,6 +84,36 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != this.getClass()) {
+            return false;
+        }
+
+        HasChildFilter that = (HasChildFilter) obj;
+        if (!originalChildQuery.equals(that.childQuery)) {
+            return false;
+        }
+        if (!childType.equals(that.childType)) {
+            return false;
+        }
+        if (!parentType.equals(that.parentType)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = originalChildQuery.hashCode();
+        result = 31 * result + parentType.hashCode();
+        result = 31 * result + childType.hashCode();
+        return result;
+    }
+
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("ChildrenQuery[").append(childType).append("/").append(parentType).append("](").append(originalChildQuery

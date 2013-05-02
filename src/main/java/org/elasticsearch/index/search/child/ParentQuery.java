@@ -97,6 +97,32 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != this.getClass()) {
+            return false;
+        }
+
+        HasParentFilter that = (HasParentFilter) obj;
+        if (!originalParentQuery.equals(that.parentQuery)) {
+            return false;
+        }
+        if (!parentType.equals(that.parentType)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = originalParentQuery.hashCode();
+        result = 31 * result + parentType.hashCode();
+        return result;
+    }
+
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("ParentQuery[").append(parentType).append("/").append(childTypes)

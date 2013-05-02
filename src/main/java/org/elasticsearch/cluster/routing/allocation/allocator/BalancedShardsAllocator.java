@@ -66,14 +66,18 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     public static final String SETTING_INDEX_BALANCE_FACTOR = "cluster.routing.allocation.balance.index";
     public static final String SETTING_SHARD_BALANCE_FACTOR = "cluster.routing.allocation.balance.shard";
     public static final String SETTING_PRIMARY_BALANCE_FACTOR = "cluster.routing.allocation.balance.primary";
+    
+    private static final float DEFAULT_INDEX_BALANCE_FACTOR = 0.5f;
+    private static final float DEFAULT_SHARD_BALANCE_FACTOR  = 0.45f;
+    private static final float DEFAULT_PRIMARY_BALANCE_FACTOR = 0.05f;
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            float indexBalance = settings.getAsFloat(SETTING_INDEX_BALANCE_FACTOR, 0.5f);
-            float shardBalance = settings.getAsFloat(SETTING_SHARD_BALANCE_FACTOR, 0.45f);
-            float primaryBalance = settings.getAsFloat(SETTING_PRIMARY_BALANCE_FACTOR, 0.05f);
-            float threshold = settings.getAsFloat(SETTING_THRESHOLD, 1.0f);
+            float indexBalance = settings.getAsFloat(SETTING_INDEX_BALANCE_FACTOR, weightFunction.indexBalance);
+            float shardBalance = settings.getAsFloat(SETTING_SHARD_BALANCE_FACTOR, weightFunction.shardBalance);
+            float primaryBalance = settings.getAsFloat(SETTING_PRIMARY_BALANCE_FACTOR, weightFunction.primaryBalance);
+            float threshold = settings.getAsFloat(SETTING_THRESHOLD, BalancedShardsAllocator.this.threshold);
             if (threshold <= 0.0f) {
                 throw new ElasticSearchIllegalArgumentException("threshold must be greater than 0.0f but was: " + threshold);
             }
@@ -82,8 +86,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
     }
 
-    private volatile WeightFunction weightFunction;
-    private volatile float threshold;
+    private volatile WeightFunction weightFunction = new WeightFunction(DEFAULT_INDEX_BALANCE_FACTOR, DEFAULT_SHARD_BALANCE_FACTOR, DEFAULT_PRIMARY_BALANCE_FACTOR);
+    private volatile float threshold = 1.0f;
 
     public BalancedShardsAllocator(Settings settings) {
         this(settings, new NodeSettingsService(settings));
@@ -118,6 +122,34 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     public boolean move(MutableShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
         return balancer.move(shardRouting, node);
+    }
+    
+    /**
+     * Returns the currently configured delta threshold
+     */
+    public float getThreshold() {
+        return threshold;
+    }
+    
+    /**
+     * Returns the index related weight factor.
+     */
+    public float getIndexBalance() {
+        return weightFunction.indexBalance;
+    }
+    
+    /**
+     * Returns the primary related weight factor.
+     */
+    public float getPrimaryBalance() {
+        return weightFunction.primaryBalance;
+    }
+    
+    /**
+     * Returns the shard related weight factor.
+     */
+    public float getShardBalance() {
+        return weightFunction.shardBalance;
     }
 
 

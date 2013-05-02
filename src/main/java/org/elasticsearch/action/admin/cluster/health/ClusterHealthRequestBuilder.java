@@ -88,6 +88,11 @@ public class ClusterHealthRequestBuilder extends MasterNodeOperationRequestBuild
         return this;
     }
 
+    public ClusterHealthRequestBuilder setLocal(boolean local) {
+        request.local(local);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<ClusterHealthResponse> listener) {
         ((ClusterAdminClient) client).health(request, listener);

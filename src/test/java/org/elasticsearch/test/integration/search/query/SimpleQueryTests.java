@@ -20,7 +20,6 @@
 package org.elasticsearch.test.integration.search.query;
 
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -46,7 +45,6 @@ import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.equalTo;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
@@ -1203,21 +1201,25 @@ public class SimpleQueryTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", "test1")
                 .field("num_long", 1)
                 .endObject())
                 .execute().actionGet();
 
         client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("field1", "test1")
                 .field("num_long", 2)
                 .endObject())
                 .execute().actionGet();
 
         client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("field1", "test2")
                 .field("num_long", 3)
                 .endObject())
                 .execute().actionGet();
 
         client.prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
+                .field("field1", "test2")
                 .field("num_long", 4)
                 .endObject())
                 .execute().actionGet();
@@ -1238,6 +1240,16 @@ public class SimpleQueryTests extends AbstractNodesTests {
         ).execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(4l));
+
+        // This made #2979 fail!
+        response = client.prepareSearch("test").setFilter(
+                FilterBuilders.boolFilter()
+                        .must(FilterBuilders.termFilter("field1", "test1"))
+                        .should(FilterBuilders.rangeFilter("num_long").from(1).to(2))
+                        .should(FilterBuilders.rangeFilter("num_long").from(3).to(4))
+        ).execute().actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
     }
     
     @Test // see #2926

@@ -31,7 +31,9 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.NotDocIdSet;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 /**
  * Similar to {@link org.apache.lucene.queries.BooleanFilter}.
@@ -78,7 +80,6 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         boolean hasNonEmptyShouldClause = false;
         boolean hasMustClauses = false;
         boolean hasMustNotClauses = false;
-        boolean mustOrMustNotBeforeShould = false;
         for (int i = 0; i < clauses.size(); i++) {
             FilterClause clause = clauses.get(i);
             DocIdSet set = clause.getFilter().getDocIdSet(context, acceptDocs);
@@ -88,9 +89,6 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                     return null;
                 }
             } else if (clause.getOccur() == Occur.SHOULD) {
-                if (!hasShouldClauses && (hasMustClauses || hasMustNotClauses)) {
-                    mustOrMustNotBeforeShould = true;
-                }
                 hasShouldClauses = true;
                 if (DocIdSets.isEmpty(set)) {
                     continue;
@@ -115,35 +113,11 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
             return null;
         }
 
-        if (mustOrMustNotBeforeShould) {
-            // Sort the clause only once if we encounter a should before a must or must_not clause
-            Collections.sort(clauses, new Comparator<FilterClause>() {
-                @Override
-                public int compare(FilterClause o1, FilterClause o2) {
-                    if (o1.getOccur() != o2.getOccur()) {
-                        return o1.getOccur() == Occur.SHOULD ? -1 : 1;
-                    } else {
-                        return 0;
-                    }
-                }
-            });
-
-            // Because we sorted the clause we also need to sort the result clauses
-            Collections.sort(results, new Comparator<ResultClause>() {
-                @Override
-                public int compare(ResultClause o1, ResultClause o2) {
-                    if (o1.clause.getOccur() != o2.clause.getOccur()) {
-                        return o1.clause.getOccur() == Occur.SHOULD ? -1 : 1;
-                    } else {
-                        return 0;
-                    }
-                }
-            });
-        }
-
-        // now, go over the clauses and apply the "fast" ones...
+        // now, go over the clauses and apply the "fast" ones first...
         hasNonEmptyShouldClause = false;
         boolean hasBits = false;
+        // But first we need to handle the "fast" should clauses, otherwise a should clause can unset docs
+        // that don't match with a must or must_not clause.
         for (int i = 0; i < results.size(); i++) {
             ResultClause clause = results.get(i);
             // we apply bits in based ones (slow) in the second run
@@ -161,7 +135,18 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                     res = new FixedBitSet(reader.maxDoc());
                 }
                 res.or(it);
-            } else if (clause.clause.getOccur() == Occur.MUST) {
+            }
+        }
+
+        // Now we safely handle the "fast" must and must_not clauses.
+        for (int i = 0; i < results.size(); i++) {
+            ResultClause clause = results.get(i);
+            // we apply bits in based ones (slow) in the second run
+            if (clause.bits != null) {
+                hasBits = true;
+                continue;
+            }
+            if (clause.clause.getOccur() == Occur.MUST) {
                 DocIdSetIterator it = clause.docIdSet.iterator();
                 if (it == null) {
                     return null;

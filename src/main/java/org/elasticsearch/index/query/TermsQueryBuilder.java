@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  *
@@ -113,6 +114,16 @@ public class TermsQueryBuilder extends BaseQueryBuilder implements BoostableQuer
     public TermsQueryBuilder(String name, Object... values) {
         this.name = name;
         this.values = values;
+    }
+
+  /**
+   * A query for a field based on several terms matching on any of them.
+   *
+   * @param name    The field name
+   * @param values  The terms
+   */
+    public TermsQueryBuilder(String name, Collection values) {
+        this(name, values.toArray());
     }
 
     /**

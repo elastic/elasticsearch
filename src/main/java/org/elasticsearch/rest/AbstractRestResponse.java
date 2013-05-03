@@ -19,10 +19,17 @@
 
 package org.elasticsearch.rest;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+
 /**
  *
  */
 public abstract class AbstractRestResponse implements RestResponse {
+
+    Map<String, List<String>> customHeaders;
 
     @Override
     public byte[] prefixContent() {
@@ -52,5 +59,23 @@ public abstract class AbstractRestResponse implements RestResponse {
     @Override
     public int suffixContentOffset() {
         return 0;
+    }
+
+    @Override
+    public void addHeader(String name, String value) {
+        if (customHeaders == null) {
+            customHeaders = new HashMap<String, List<String>>(2);
+        }
+        List<String> header = customHeaders.get(name);
+        if (header == null) {
+            header = new ArrayList<String>();
+            customHeaders.put(name, header);
+        }
+        header.add(value);
+    }
+
+    @Override
+    public Map<String, List<String>> getHeaders() {
+        return customHeaders;
     }
 }

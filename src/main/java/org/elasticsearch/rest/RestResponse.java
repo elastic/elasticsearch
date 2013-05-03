@@ -20,6 +20,8 @@
 package org.elasticsearch.rest;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -59,4 +61,11 @@ public interface RestResponse {
     int suffixContentOffset();
 
     RestStatus status();
+
+    void addHeader(String name, String value);
+
+    /**
+     * @return The custom headers or null if none have been set
+     */
+    Map<String, List<String>> getHeaders();
 }

@@ -19,6 +19,12 @@
 
 package org.elasticsearch.test.integration.nodesinfo;
 
+import com.google.common.base.Function;
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
@@ -35,7 +41,10 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.Collections;
+import java.util.List;
 
+import static com.google.common.base.Predicates.*;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -72,29 +81,29 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         logger.info("--> started nodes: " + server1NodeId + " and " + server2NodeId);
 
         NodesInfoResponse response = client("server1").admin().cluster().prepareNodesInfo().execute().actionGet();
-        assertThat(response.getNodes().length, equalTo(2));
+        assertThat(response.getNodes().length, is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest()).actionGet();
-        assertThat(response.getNodes().length, equalTo(2));
+        assertThat(response.getNodes().length, is(2));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client("server1").admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.getNodes().length, equalTo(1));
+        assertThat(response.getNodes().length, is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest(server1NodeId)).actionGet();
-        assertThat(response.getNodes().length, equalTo(1));
+        assertThat(response.getNodes().length, is(1));
         assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
 
         response = client("server1").admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.getNodes().length, equalTo(1));
+        assertThat(response.getNodes().length, is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
 
         response = client("server2").admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
-        assertThat(response.getNodes().length, equalTo(1));
+        assertThat(response.getNodes().length, is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
     }
 
@@ -127,68 +136,64 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         NodesInfoResponse response = client("node1").admin().cluster().prepareNodesInfo().setPlugin(true).execute().actionGet();
         logger.info("--> full json answer, status " + response.toString());
 
-        checkPlugin(response, server1NodeId, 0, 0);
-        checkPlugin(response, server2NodeId, 1, 0);
-        checkPlugin(response, server3NodeId, 0, 1);
-        checkPlugin(response, server4NodeId, 1, 2); // Note that we have now 2 JVM plugins as we have already loaded one with node3
+        assertNodeContainsPlugins(response, server1NodeId, Collections.EMPTY_LIST, Collections.EMPTY_LIST,
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST);
+
+        assertNodeContainsPlugins(response, server2NodeId, Collections.EMPTY_LIST, Collections.EMPTY_LIST,
+                Lists.newArrayList(Fields.SITE_PLUGIN),
+                Lists.newArrayList(Fields.SITE_PLUGIN_DESCRIPTION));
+
+        assertNodeContainsPlugins(response, server3NodeId, Lists.newArrayList(TestPlugin.Fields.NAME),
+                Lists.newArrayList(TestPlugin.Fields.DESCRIPTION),
+                Collections.EMPTY_LIST, Collections.EMPTY_LIST);
+
+        // Note that we have now 2 JVM plugins as we have already loaded one with node3
+        assertNodeContainsPlugins(response, server4NodeId,
+                Lists.newArrayList(TestPlugin.Fields.NAME, TestNoVersionPlugin.Fields.NAME),
+                Lists.newArrayList(TestPlugin.Fields.DESCRIPTION, TestNoVersionPlugin.Fields.DESCRIPTION),
+                Lists.newArrayList(Fields.SITE_PLUGIN, TestNoVersionPlugin.Fields.NAME),
+                Lists.newArrayList(Fields.SITE_PLUGIN_NO_DESCRIPTION, TestNoVersionPlugin.Fields.DESCRIPTION));
     }
 
-    /**
-     * We check infos
-     * @param response Response
-     * @param nodeId NodeId we want to check
-     * @param expectedSitePlugins Number of site plugins expected
-     * @param expectedJvmPlugins Number of jvm plugins expected
-     */
-    private void checkPlugin(NodesInfoResponse response, String nodeId,
-                             int expectedSitePlugins, int expectedJvmPlugins) {
+    private void assertNodeContainsPlugins(NodesInfoResponse response, String nodeId,
+                                           List<String> expectedJvmPluginNames,
+                                           List<String> expectedJvmPluginDescriptions,
+                                           List<String> expectedSitePluginNames,
+                                           List<String> expectedSitePluginDescriptions) {
+
         assertThat(response.getNodesMap().get(nodeId), notNullValue());
 
         PluginsInfo plugins = response.getNodesMap().get(nodeId).getPlugins();
         assertThat(plugins, notNullValue());
 
-        int num_site_plugins = 0;
-        int num_jvm_plugins = 0;
-
-        for (PluginInfo pluginInfo : plugins.getInfos()) {
-            // It should be a site or a jvm plugin
-            assertThat(pluginInfo.isJvm() || pluginInfo.isSite(), is(true));
-
-            if (pluginInfo.isSite() && !pluginInfo.isJvm()) {
-                // Let's do some tests for site plugins
-                assertThat(pluginInfo.getName(), isOneOf(Fields.SITE_PLUGIN,
-                        TestNoVersionPlugin.Fields.NAME));
-                assertThat(pluginInfo.getDescription(),
-                        isOneOf(Fields.SITE_PLUGIN_DESCRIPTION,
-                                Fields.SITE_PLUGIN_NO_DESCRIPTION,
-                                Fields.JVM_PLUGIN_NO_DESCRIPTION));
-                assertThat(pluginInfo.getUrl(), notNullValue());
-                num_site_plugins++;
-            }
-
-            if (pluginInfo.isJvm() && !pluginInfo.isSite()) {
-                // Let's do some tests for site plugins
-                assertThat(pluginInfo.getName(),
-                        isOneOf(TestPlugin.Fields.NAME, TestNoVersionPlugin.Fields.NAME));
-                assertThat(pluginInfo.getDescription(),
-                        isOneOf(TestPlugin.Fields.DESCRIPTION, TestNoVersionPlugin.Fields.DESCRIPTION));
-                assertThat(pluginInfo.getUrl(), nullValue());
-                num_jvm_plugins++;
-            }
-
-            // On node4, test-no-version-plugin has an embedded _site structure
-            if (pluginInfo.isJvm() && pluginInfo.isSite()) {
-                assertThat(pluginInfo.getName(),
-                        is(TestNoVersionPlugin.Fields.NAME));
-                assertThat(pluginInfo.getDescription(),
-                        is(TestNoVersionPlugin.Fields.DESCRIPTION));
-                assertThat(pluginInfo.getUrl(), notNullValue());
-                num_jvm_plugins++;
-            }
+        List<String> pluginNames = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(nameFunction).toList();
+        for (String expectedJvmPluginName : expectedJvmPluginNames) {
+            assertThat(pluginNames, hasItem(expectedJvmPluginName));
         }
 
-        assertThat(num_site_plugins, is(expectedSitePlugins));
-        assertThat(num_jvm_plugins, is(expectedJvmPlugins));
+        List<String> pluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(descriptionFunction).toList();
+        for (String expectedJvmPluginDescription : expectedJvmPluginDescriptions) {
+            assertThat(pluginDescriptions, hasItem(expectedJvmPluginDescription));
+        }
+
+        FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getInfos())
+                .filter(and(jvmPluginPredicate, Predicates.not(sitePluginPredicate)))
+                .filter(isNull())
+                .transform(urlFunction);
+        assertThat(Iterables.size(jvmUrls), is(0));
+
+        List<String> sitePluginNames = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(nameFunction).toList();
+        for (String expectedSitePluginName : expectedSitePluginNames) {
+            assertThat(sitePluginNames, hasItem(expectedSitePluginName));
+        }
+
+        List<String> sitePluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(descriptionFunction).toList();
+        for (String sitePluginDescription : expectedSitePluginDescriptions) {
+            assertThat(sitePluginDescriptions, hasItem(sitePluginDescription));
+        }
+
+        List<String> sitePluginUrls = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(urlFunction).toList();
+        assertThat(sitePluginUrls, not(contains(nullValue())));
     }
 
     private String startNodeWithPlugins(String name) throws URISyntaxException {
@@ -209,4 +214,34 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         return serverNodeId;
     }
 
+
+    private Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
+        public boolean apply(PluginInfo pluginInfo) {
+            return pluginInfo.isJvm();
+        }
+    };
+
+    private Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
+        public boolean apply(PluginInfo pluginInfo) {
+            return pluginInfo.isSite();
+        }
+    };
+
+    private Function<PluginInfo, String> nameFunction = new Function<PluginInfo, String>() {
+        public String apply(PluginInfo pluginInfo) {
+            return pluginInfo.getName();
+        }
+    };
+
+    private Function<PluginInfo, String> descriptionFunction = new Function<PluginInfo, String>() {
+        public String apply(PluginInfo pluginInfo) {
+            return pluginInfo.getDescription();
+        }
+    };
+
+    private Function<PluginInfo, String> urlFunction = new Function<PluginInfo, String>() {
+        public String apply(PluginInfo pluginInfo) {
+            return pluginInfo.getUrl();
+        }
+    };
 }

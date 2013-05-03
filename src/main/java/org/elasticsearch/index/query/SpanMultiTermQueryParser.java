@@ -1,3 +1,21 @@
+/*
+ * Licensed to ElasticSearch and Shay Banon under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership. ElasticSearch licenses this
+ * file to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.index.query;
 
 import java.io.IOException;
@@ -11,6 +29,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
+/**
+ *
+ */
 public class SpanMultiTermQueryParser implements QueryParser {
 
 	public static final String NAME = "span_multi_term";
@@ -26,57 +47,25 @@ public class SpanMultiTermQueryParser implements QueryParser {
 	}
 
 	@Override
-	@Nullable
-	public Query parse(QueryParseContext parseContext) throws IOException,
-			QueryParsingException {
-		XContentParser parser = parseContext.parser();
-		Token token = parser.nextToken();
-		checkCorrectField(parseContext, parser, token);
-		token = parser.nextToken();
-		checkHasObject(parseContext, parser.currentToken());
-		Query ret = new SpanMultiTermQueryWrapper<MultiTermQuery>(getSubQuery(
-				parseContext, parser));
-		parser.nextToken();
-		return ret;
-	}
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        XContentParser parser = parseContext.parser();
 
+        Token token = parser.nextToken();
+            if (!MATCH_NAME.equals(parser.currentName()) || token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
+        }
 
-	private void checkCorrectField(QueryParseContext parseContext,
-			XContentParser parser, Token token) throws IOException {
-		if (!MATCH_NAME.equals(parser.currentName())
-				|| token != XContentParser.Token.FIELD_NAME) {
-			throwInvalidClause(parseContext);
-		}
-	}
+        token = parser.nextToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new QueryParsingException(parseContext.index(), "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
+        }
 
-	private MultiTermQuery getSubQuery(QueryParseContext parseContext,
-			XContentParser parser) throws IOException {
-		return tryParseSubQuery(parseContext, parser);
-	}
+        Query subQuery = parseContext.parseInnerQuery();
+        if (!(subQuery instanceof MultiTermQuery)) {
+            throw new QueryParsingException(parseContext.index(), "spanMultiTerm [" + MATCH_NAME + "] must be of type multi term query");
+        }
 
-	private MultiTermQuery tryParseSubQuery(QueryParseContext parseContext,
-			XContentParser parser) throws IOException {
-		Query subQuery = parseContext.parseInnerQuery();
-		if (!(subQuery instanceof MultiTermQuery)) {
-			throwInvalidSub(parseContext);
-		}
-		return (MultiTermQuery) subQuery;
-	}
-
-	private void throwInvalidSub(QueryParseContext parseContext) {
-		throw new QueryParsingException(parseContext.index(), "spanMultiTerm ["
-				+ MATCH_NAME + "] must be of type multi term query");
-	}
-
-	private void checkHasObject(QueryParseContext parseContext, Token token) {
-		if (token != XContentParser.Token.START_OBJECT) {
-			throwInvalidClause(parseContext);
-		}
-	}
-
-	private void throwInvalidClause(QueryParseContext parseContext) {
-		throw new QueryParsingException(parseContext.index(),
-				"spanMultiTerm must have [" + MATCH_NAME
-						+ "] multi term query clause");
-	}
+        parser.nextToken();
+        return new SpanMultiTermQueryWrapper<MultiTermQuery>((MultiTermQuery) subQuery);
+    }
 }

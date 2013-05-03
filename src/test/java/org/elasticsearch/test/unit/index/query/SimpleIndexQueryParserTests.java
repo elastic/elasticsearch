@@ -1539,59 +1539,75 @@ public class SimpleIndexQueryParserTests {
         assertThat(((SpanTermQuery) spanOrQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36, 0))));
     }
 
-	@Test
-	public void testSpanMultiTermWildcardQuery() throws IOException {
-		WildcardQuery expectedWrapped =	new WildcardQuery(new Term("user", "ki*y"));
-		expectedWrapped.setBoost(1.08f);
-		testSpanMultiTerm("/org/elasticsearch/test/unit/index/query/span-multi-term-wildcard.json", expectedWrapped);
-	}
-	
-	@Test
-	public void testSpanMultiTermPrefixQuery() throws IOException {
-		PrefixQuery expectedWrapped = new PrefixQuery(new Term("user", "ki"));
-		expectedWrapped.setBoost(1.08f);
-		testSpanMultiTerm("/org/elasticsearch/test/unit/index/query/span-multi-term-prefix.json", expectedWrapped);
-	}
-	
-	@Test
-	public void testSpanMultiTermFuzzyTermQuery() throws IOException {
-		IndexQueryParserService queryParser = queryParser();
-		String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/span-multi-term-fuzzy-term.json");
-		Query parsedQuery = queryParser.parse(query).query();
-		assertThat(parsedQuery, instanceOf(SpanMultiTermQueryWrapper.class));
-		SpanMultiTermQueryWrapper<MultiTermQuery> wrapper = (SpanMultiTermQueryWrapper<MultiTermQuery>) parsedQuery;
-		assertThat(wrapper.getField(), equalTo("user"));
-	}
-	
-	@Test
-	public void testSpanMultiTermFuzzyRangeQuery() throws IOException {
-		NumericRangeQuery<Long> expectedWrapped = NumericRangeQuery.newLongRange("age", 7l, 17l, true, true);
-		expectedWrapped.setBoost(2.0f);
-		testSpanMultiTerm("/org/elasticsearch/test/unit/index/query/span-multi-term-fuzzy-range.json", expectedWrapped);
-	}
-	
-	@Test
-	public void testSpanMultiTermNumericRangeQuery() throws IOException {
-		NumericRangeQuery<Long> expectedWrapped = NumericRangeQuery.newLongRange("age", 10l, 20l, true, false);
-		expectedWrapped.setBoost(2.0f);
-		testSpanMultiTerm("/org/elasticsearch/test/unit/index/query/span-multi-term-range-numeric.json", expectedWrapped);
-	}
-	@Test
-	
-	public void testSpanMultiTermTermRangeQuery() throws IOException {
-		NumericRangeQuery<Long> expectedWrapped = NumericRangeQuery.newLongRange("age", 10l, 20l, true, false);
-		expectedWrapped.setBoost(2.0f);
-		testSpanMultiTerm("/org/elasticsearch/test/unit/index/query/span-multi-term-range-numeric.json", expectedWrapped);
-	}
-	
-	private void testSpanMultiTerm(String file, MultiTermQuery expectedWrapped) throws IOException{
-		IndexQueryParserService queryParser = queryParser();
-		String query = copyToStringFromClasspath(file);
-		Query parsedQuery = queryParser.parse(query).query();
-		assertThat(parsedQuery, instanceOf(SpanMultiTermQueryWrapper.class));
-		SpanMultiTermQueryWrapper<MultiTermQuery> wrapper = (SpanMultiTermQueryWrapper<MultiTermQuery>) parsedQuery;
-		assertThat(wrapper, equalTo(new SpanMultiTermQueryWrapper<MultiTermQuery>(expectedWrapped)));
-	}
+    @Test
+    public void testSpanMultiTermWildcardQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/span-multi-term-wildcard.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(SpanMultiTermQueryWrapper.class));
+        WildcardQuery expectedWrapped = new WildcardQuery(new Term("user", "ki*y"));
+        expectedWrapped.setBoost(1.08f);
+        SpanMultiTermQueryWrapper<MultiTermQuery> wrapper = (SpanMultiTermQueryWrapper<MultiTermQuery>) parsedQuery;
+        assertThat(wrapper, equalTo(new SpanMultiTermQueryWrapper<MultiTermQuery>(expectedWrapped)));
+    }
+
+    @Test
+    public void testSpanMultiTermPrefixQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/span-multi-term-prefix.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(SpanMultiTermQueryWrapper.class));
+        PrefixQuery expectedWrapped = new PrefixQuery(new Term("user", "ki"));
+        expectedWrapped.setBoost(1.08f);
+        SpanMultiTermQueryWrapper<MultiTermQuery> wrapper = (SpanMultiTermQueryWrapper<MultiTermQuery>) parsedQuery;
+        assertThat(wrapper, equalTo(new SpanMultiTermQueryWrapper<MultiTermQuery>(expectedWrapped)));
+    }
+
+    @Test
+    public void testSpanMultiTermFuzzyTermQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/span-multi-term-fuzzy-term.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(SpanMultiTermQueryWrapper.class));
+        SpanMultiTermQueryWrapper<MultiTermQuery> wrapper = (SpanMultiTermQueryWrapper<MultiTermQuery>) parsedQuery;
+        assertThat(wrapper.getField(), equalTo("user"));
+    }
+
+    @Test
+    public void testSpanMultiTermFuzzyRangeQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/span-multi-term-fuzzy-range.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(SpanMultiTermQueryWrapper.class));
+        NumericRangeQuery<Long> expectedWrapped = NumericRangeQuery.newLongRange("age", 7l, 17l, true, true);
+        expectedWrapped.setBoost(2.0f);
+        SpanMultiTermQueryWrapper<MultiTermQuery> wrapper = (SpanMultiTermQueryWrapper<MultiTermQuery>) parsedQuery;
+        assertThat(wrapper, equalTo(new SpanMultiTermQueryWrapper<MultiTermQuery>(expectedWrapped)));
+    }
+
+    @Test
+    public void testSpanMultiTermNumericRangeQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/span-multi-term-range-numeric.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(SpanMultiTermQueryWrapper.class));
+        NumericRangeQuery<Long> expectedWrapped = NumericRangeQuery.newLongRange("age", 10l, 20l, true, false);
+        expectedWrapped.setBoost(2.0f);
+        SpanMultiTermQueryWrapper<MultiTermQuery> wrapper = (SpanMultiTermQueryWrapper<MultiTermQuery>) parsedQuery;
+        assertThat(wrapper, equalTo(new SpanMultiTermQueryWrapper<MultiTermQuery>(expectedWrapped)));
+    }
+
+    @Test
+    public void testSpanMultiTermTermRangeQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/span-multi-term-range-numeric.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(SpanMultiTermQueryWrapper.class));
+        NumericRangeQuery<Long> expectedWrapped = NumericRangeQuery.newLongRange("age", 10l, 20l, true, false);
+        expectedWrapped.setBoost(2.0f);
+        SpanMultiTermQueryWrapper<MultiTermQuery> wrapper = (SpanMultiTermQueryWrapper<MultiTermQuery>) parsedQuery;
+        assertThat(wrapper, equalTo(new SpanMultiTermQueryWrapper<MultiTermQuery>(expectedWrapped)));
+    }
 
     @Test
     public void testQueryFilterBuilder() throws Exception {

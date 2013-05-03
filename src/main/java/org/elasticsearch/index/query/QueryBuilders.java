@@ -22,6 +22,8 @@ package org.elasticsearch.index.query;
 import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.common.Nullable;
 
+import java.util.Collection;
+
 /**
  * A static factory for simple "import static" usage.
  */
@@ -667,6 +669,16 @@ public abstract class QueryBuilders {
      * @param name   The field name
      * @param values The terms
      */
+    public static TermsQueryBuilder termsQuery(String name, Collection values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
     public static TermsQueryBuilder inQuery(String name, String... values) {
         return new TermsQueryBuilder(name, values);
     }
@@ -718,6 +730,16 @@ public abstract class QueryBuilders {
      * @param values The terms
      */
     public static TermsQueryBuilder inQuery(String name, Object... values) {
+        return new TermsQueryBuilder(name, values);
+    }
+
+    /**
+     * A filer for a field based on several terms matching on any of them.
+     *
+     * @param name   The field name
+     * @param values The terms
+     */
+    public static TermsQueryBuilder inQuery(String name, Collection values) {
         return new TermsQueryBuilder(name, values);
     }
 

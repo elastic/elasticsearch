@@ -29,12 +29,14 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.hamcrest.Matchers;
 import org.testng.annotations.AfterClass;
@@ -42,13 +44,19 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+
 
 /**
  *
@@ -74,7 +82,7 @@ public class SimpleSortTests extends AbstractNodesTests {
     protected Client getClient() {
         return client("server1");
     }
-
+    
     @Test
     public void testTrackScores() throws Exception {
         try {
@@ -159,6 +167,42 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
+    
+    @Test
+    public void testIssue2991() {
+        for (int i = 1; i < 4; i++) {
+            try {
+                client.admin().indices().prepareDelete("test").execute().actionGet();
+            } catch (Exception e) {
+                // ignore
+            }
+            client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", i).put("index.number_of_replicas", 0)).execute().actionGet();
+            client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+            client.prepareIndex("test", "type", "1").setSource("tag", "alpha").execute().actionGet();
+            client.admin().indices().prepareRefresh().execute().actionGet();
+
+            client.prepareIndex("test", "type", "3").setSource("tag", "gamma").execute().actionGet();
+            client.admin().indices().prepareRefresh().execute().actionGet();
+
+            client.prepareIndex("test", "type", "4").setSource("tag", "delta").execute().actionGet();
+            
+            client.admin().indices().prepareRefresh().execute().actionGet();
+            client.prepareIndex("test", "type", "2").setSource("tag", "beta").execute().actionGet();
+            
+            client.admin().indices().prepareRefresh().execute().actionGet();
+            SearchResponse resp = client.prepareSearch("test").setSize(2).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("tag").order(SortOrder.ASC)).execute().actionGet();
+            assertHitCount(resp, 4);
+            assertThat(resp.getHits().hits().length, equalTo(2));
+            assertFirstHit(resp, hasId("1"));
+            assertSecondHit(resp, hasId("2"));
+            
+            resp = client.prepareSearch("test").setSize(2).setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("tag").order(SortOrder.DESC)).execute().actionGet();
+            assertHitCount(resp, 4);
+            assertThat(resp.getHits().hits().length, equalTo(2));
+            assertFirstHit(resp, hasId("3"));
+            assertSecondHit(resp, hasId("4"));
+        }
+    }
 
     @Test
     public void testSimpleSortsSingleShard() throws Exception {
@@ -176,6 +220,9 @@ public class SimpleSortTests extends AbstractNodesTests {
     }
 
     private void testSimpleSorts(int numberOfShards) throws Exception {
+        final long seed = System.currentTimeMillis();
+        logger.info("testSimpleSorts SEED:[{}]", seed);
+        Random random = new Random(seed);
         try {
             client.admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
@@ -195,9 +242,9 @@ public class SimpleSortTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
         client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        List<IndexRequestBuilder> builders = new ArrayList<IndexRequestBuilder>();
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+            IndexRequestBuilder builder = client.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
                     .field("str_value", new String(new char[]{(char) (97 + i), (char) (97 + i)}))
                     .field("boolean_value", true)
                     .field("byte_value", i)
@@ -206,36 +253,47 @@ public class SimpleSortTests extends AbstractNodesTests {
                     .field("long_value", i)
                     .field("float_value", 0.1 * i)
                     .field("double_value", 0.1 * i)
-                    .endObject()).execute().actionGet();
+                    .endObject());
+            builders.add(builder);
         }
-
-//        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        Collections.shuffle(builders, random);
+        for (IndexRequestBuilder builder : builders) {
+            builder.execute().actionGet();
+            if (random.nextBoolean()) {
+                if (random.nextInt(5) != 0) {
+                    client.admin().indices().prepareRefresh().execute().actionGet();
+                } else {
+                  client.admin().indices().prepareFlush().execute().actionGet();
+                }
+            }
+            
+        }
         client.admin().indices().prepareRefresh().execute().actionGet();
 
         // STRING
+        int size = 1 + random.nextInt(10);
 
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("str_value", SortOrder.ASC)
                 .execute().actionGet();
-
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             assertThat(searchResponse.getHits().getAt(i).sortValues()[0].toString(), equalTo(new String(new char[]{(char) (97 + i), (char) (97 + i)})));
         }
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("str_value", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(searchResponse.getHits().getAt(i).sortValues()[0].toString(), equalTo(new String(new char[]{(char) (97 + (9 - i)), (char) (97 + (9 - i))})));
         }
@@ -243,29 +301,29 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.toString(), not(containsString("error")));
 
         // BYTE
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("byte_value", SortOrder.ASC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).byteValue(), equalTo((byte) i));
         }
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("byte_value", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).byteValue(), equalTo((byte) (9 - i)));
         }
@@ -273,29 +331,29 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.toString(), not(containsString("error")));
 
         // SHORT
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("short_value", SortOrder.ASC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).shortValue(), equalTo((short) i));
         }
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("short_value", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).shortValue(), equalTo((short) (9 - i)));
         }
@@ -303,31 +361,31 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.toString(), not(containsString("error")));
 
         // INTEGER
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("integer_value", SortOrder.ASC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).intValue(), equalTo((int) i));
         }
 
         assertThat(searchResponse.toString(), not(containsString("error")));
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("integer_value", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).intValue(), equalTo((int) (9 - i)));
         }
@@ -335,31 +393,31 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.toString(), not(containsString("error")));
 
         // LONG
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("long_value", SortOrder.ASC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).longValue(), equalTo((long) i));
         }
 
         assertThat(searchResponse.toString(), not(containsString("error")));
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("long_value", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).longValue(), equalTo((long) (9 - i)));
         }
@@ -367,31 +425,31 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.toString(), not(containsString("error")));
 
         // FLOAT
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("float_value", SortOrder.ASC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * i, 0.000001d));
         }
 
         assertThat(searchResponse.toString(), not(containsString("error")));
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("float_value", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * (9 - i), 0.000001d));
         }
@@ -399,31 +457,31 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.toString(), not(containsString("error")));
 
         // DOUBLE
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("double_value", SortOrder.ASC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * i, 0.000001d));
         }
 
         assertThat(searchResponse.toString(), not(containsString("error")));
-
+        size = 1 + random.nextInt(10);
         searchResponse = client.prepareSearch()
                 .setQuery(matchAllQuery())
-                .setSize(10)
+                .setSize(size)
                 .addSort("double_value", SortOrder.DESC)
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(10l));
-        assertThat(searchResponse.getHits().hits().length, equalTo(10));
-        for (int i = 0; i < 10; i++) {
+        assertThat(searchResponse.getHits().hits().length, equalTo(size));
+        for (int i = 0; i < size; i++) {
             assertThat(searchResponse.getHits().getAt(i).id(), equalTo(Integer.toString(9 - i)));
             assertThat(((Number) searchResponse.getHits().getAt(i).sortValues()[0]).doubleValue(), closeTo(0.1d * (9 - i), 0.000001d));
         }

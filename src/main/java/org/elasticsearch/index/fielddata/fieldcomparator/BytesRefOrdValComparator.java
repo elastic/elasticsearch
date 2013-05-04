@@ -449,7 +449,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     }
 
     final protected static int binarySearch(BytesValues.WithOrdinals a, BytesRef key) {
-        return binarySearch(a, key, 1, a.ordinals().getNumOrds() - 1);
+        return binarySearch(a, key, 1, a.ordinals().getNumOrds());
     }
 
     final protected static int binarySearch(BytesValues.WithOrdinals a, BytesRef key, int low, int high) {

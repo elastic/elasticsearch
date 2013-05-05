@@ -129,24 +129,30 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
     }
 
     /**
-     * Adds an {@link IndexRequest} to the list of actions to execute. Follows the same behavior of {@link IndexRequest}
-     * (for example, if no id is provided, one will be generated, or usage of the create flag).
+     * Adds an {@link UpdateRequest} to the list of actions to execute.
      */
     public BulkRequest add(UpdateRequest request) {
         request.beforeLocalFork();
-        return internalAdd(request, null, 0);
+        return internalAdd(request, null);
     }
 
     public BulkRequest add(UpdateRequest request, @Nullable Object payload) {
         request.beforeLocalFork();
-        return internalAdd(request, payload, 0);
+        return internalAdd(request, payload);
     }
 
-    BulkRequest internalAdd(UpdateRequest request, @Nullable Object payload, int size) {
+    BulkRequest internalAdd(UpdateRequest request, @Nullable Object payload) {
         requests.add(request);
         addPayload(payload);
-        // There is no .getSource() method on UpdateRequests, so the size is passed in
-        sizeInBytes += size + REQUEST_OVERHEAD;
+        if (request.doc() != null) {
+            sizeInBytes += request.doc().source().length();
+        }
+        if (request.upsertRequest() != null) {
+            sizeInBytes += request.upsertRequest().source().length();
+        }
+        if (request.script() != null) {
+            sizeInBytes += request.script().length() * 2;
+        }
         return this;
     }
     /**
@@ -340,7 +346,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                     } else if ("update".equals(action)) {
                         internalAdd(new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
                                 .source(data.slice(from, nextMarker - from))
-                                .percolate(percolate), payload, nextMarker - from);
+                                .percolate(percolate), payload);
                     }
                     // move pointers
                     from = nextMarker + 1;

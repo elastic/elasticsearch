@@ -76,7 +76,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
             @Override
             public void onResponse(AnalyzeResponse response) {
                 try {
-                    XContentBuilder builder = restContentBuilder(request, false);
+                    XContentBuilder builder = restContentBuilder(request, null);
                     builder.startObject();
                     response.toXContent(builder, request);
                     builder.endObject();

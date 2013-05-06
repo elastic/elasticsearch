@@ -93,6 +93,14 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     }
 
     /**
+     * Returns the internal source bytes, as they are returned without munging (for example,
+     * might still be compressed).
+     */
+    public BytesReference getSourceInternal() {
+        return getResult.internalSourceRef();
+    }
+
+    /**
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesReference getSourceAsBytesRef() {

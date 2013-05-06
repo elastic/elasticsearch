@@ -68,6 +68,7 @@ import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.deletebyquery.RestDeleteByQueryAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
 import org.elasticsearch.rest.action.get.RestGetAction;
+import org.elasticsearch.rest.action.get.RestGetSourceAction;
 import org.elasticsearch.rest.action.get.RestHeadAction;
 import org.elasticsearch.rest.action.get.RestMultiGetAction;
 import org.elasticsearch.rest.action.index.RestIndexAction;
@@ -149,6 +150,7 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestIndexAction.class).asEagerSingleton();
         bind(RestGetAction.class).asEagerSingleton();
+        bind(RestGetSourceAction.class).asEagerSingleton();
         bind(RestHeadAction.class).asEagerSingleton();
         bind(RestMultiGetAction.class).asEagerSingleton();
         bind(RestDeleteAction.class).asEagerSingleton();

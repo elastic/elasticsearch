@@ -81,7 +81,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         }
 
         final DeleteIndexListener listener = new DeleteIndexListener(mdLock, request, userListener);
-        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 try {

@@ -1538,6 +1538,22 @@ public class SimpleIndexQueryParserTests {
         assertThat(((SpanTermQuery) spanNearQuery.getClauses()[2]).getTerm(), equalTo(new Term("age", longToPrefixCoded(36, 0))));
         assertThat(spanNearQuery.isInOrder(), equalTo(false));
     }
+    
+    @Test
+    public void testFieldMaskingSpanQuery() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/spanFieldMaskingTerm.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(SpanNearQuery.class));
+        SpanNearQuery spanNearQuery = (SpanNearQuery) parsedQuery;
+        assertThat(spanNearQuery.getClauses().length, equalTo(3));
+        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[0]).getTerm(), equalTo(new Term("age", longToPrefixCoded(34, 0))));
+        assertThat(((SpanTermQuery) spanNearQuery.getClauses()[1]).getTerm(), equalTo(new Term("age", longToPrefixCoded(35, 0))));
+        assertThat(((SpanTermQuery)((FieldMaskingSpanQuery) spanNearQuery.getClauses()[2]).getMaskedQuery()).getTerm(), equalTo(new Term("age_1", "36")));
+        assertThat(spanNearQuery.isInOrder(), equalTo(false));
+    }
+    
+    
 
     @Test
     public void testSpanOrQueryBuilder() throws IOException {

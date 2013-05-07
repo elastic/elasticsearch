@@ -21,6 +21,8 @@ package org.elasticsearch.test.hamcrest;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
+import java.util.Arrays;
+
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.hamcrest.Matcher;
@@ -61,8 +63,8 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<String> matcher) {
-        assertThat(resp.getShardFailures().length, equalTo(0));
-        assertThat(resp.getHits().hits().length, greaterThan(hit));
+        assertThat("Unexpectd ShardFailures: " + Arrays.toString(resp.getShardFailures()), resp.getShardFailures().length, equalTo(0));
+        assertThat("not enough hits", resp.getHits().hits().length, greaterThan(hit));
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field), notNullValue());
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field).fragments().length, greaterThan(fragment));
         assertThat(resp.getHits().hits()[hit].highlightFields().get(field).fragments()[fragment].string(), matcher);

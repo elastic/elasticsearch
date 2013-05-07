@@ -105,6 +105,6 @@ public class SpanTermQueryParser implements QueryParser {
 
         SpanTermQuery query = new SpanTermQuery(new Term(fieldName, valueBytes));
         query.setBoost(boost);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        return query;
     }
 }

@@ -238,7 +238,9 @@ public class GetActionTests extends AbstractNodesTests {
                         .startObject("_source").field("enabled", false).endObject()
                         .startObject("properties")
                         .startObject("str").field("type", "string").field("store", "yes").endObject()
+                        .startObject("strs").field("type", "string").field("store", "yes").endObject()
                         .startObject("int").field("type", "integer").field("store", "yes").endObject()
+                        .startObject("ints").field("type", "integer").field("store", "yes").endObject()
                         .startObject("date").field("type", "date").field("store", "yes").endObject()
                         .startObject("binary").field("type", "binary").field("store", "yes").endObject()
                         .endObject()
@@ -249,23 +251,44 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        client.prepareIndex("test", "type1", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z", "binary", Base64.encodeBytes(new byte[]{1, 2, 3})).execute().actionGet();
-        client.prepareIndex("test", "type2", "1").setSource("str", "test", "int", 42, "date", "2012-11-13T15:26:14.000Z", "binary", Base64.encodeBytes(new byte[]{1, 2, 3})).execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource(
+                jsonBuilder().startObject()
+                        .field("str", "test")
+                        .field("strs", new String[]{"A", "B", "C"})
+                        .field("int", 42)
+                        .field("ints", new int[]{1, 2, 3, 4})
+                        .field("date", "2012-11-13T15:26:14.000Z")
+                        .field("binary", Base64.encodeBytes(new byte[]{1, 2, 3}))
+                        .endObject()).execute().actionGet();
+
+        client.prepareIndex("test", "type2", "1").setSource(
+                jsonBuilder().startObject()
+                        .field("str", "test")
+                        .field("strs", new String[]{"A", "B", "C"})
+                        .field("int", 42)
+                        .field("ints", new int[]{1, 2, 3, 4})
+                        .field("date", "2012-11-13T15:26:14.000Z")
+                        .field("binary", Base64.encodeBytes(new byte[]{1, 2, 3}))
+                        .endObject()).execute().actionGet();
 
         // realtime get with stored source
         logger.info("--> realtime get (from source)");
-        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date", "binary").execute().actionGet();
+        GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
+        assertThat((List<String>) getResponse.getField("strs").getValue(), contains("A", "B", "C"));
         assertThat((Long) getResponse.getField("int").getValue(), equalTo(42l));
+        assertThat((List<Long>) getResponse.getField("ints").getValue(), contains(1L, 2L, 3L, 4L));
         assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
         assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
         logger.info("--> realtime get (from stored fields)");
-        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date", "binary").execute().actionGet();
+        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
+        assertThat((List<String>) getResponse.getField("strs").getValue(), contains("A", "B", "C"));
         assertThat((Integer) getResponse.getField("int").getValue(), equalTo(42));
+        assertThat((List<Integer>) getResponse.getField("ints").getValue(), contains(1, 2, 3, 4));
         assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
         assertThat((BytesReference) getResponse.getField("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
 
@@ -273,18 +296,22 @@ public class GetActionTests extends AbstractNodesTests {
         client.admin().indices().prepareFlush().execute().actionGet();
 
         logger.info("--> non realtime get (from source)");
-        getResponse = client.prepareGet("test", "type1", "1").setFields("str", "int", "date", "binary").execute().actionGet();
+        getResponse = client.prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
+        assertThat((List<String>) getResponse.getField("strs").getValue(), contains("A", "B", "C"));
         assertThat((Long) getResponse.getField("int").getValue(), equalTo(42l));
+        assertThat((List<Long>) getResponse.getField("ints").getValue(), contains(1L, 2L, 3L, 4L));
         assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
         assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
         logger.info("--> non realtime get (from stored fields)");
-        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "int", "date", "binary").execute().actionGet();
+        getResponse = client.prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
+        assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
         assertThat((Integer) getResponse.getField("int").getValue(), equalTo(42));
+        assertThat(getResponse.getField("ints").getValues(), contains((Object) 1, 2, 3, 4));
         assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
         assertThat((BytesReference) getResponse.getField("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
     }

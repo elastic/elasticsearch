@@ -43,6 +43,7 @@ import java.util.Arrays;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -1297,6 +1298,58 @@ public class SimpleQueryTests extends AbstractNodesTests {
         ).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).execute().actionGet();
         assertThat(response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(2l));
+    }
+    
+    @Test // see #2994
+    public void testSimpleSpan() throws ElasticSearchException, IOException {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+        )
+                .execute().actionGet();
+
+        client.prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+                .field("description", "foo other anything bar")
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
+                .field("description", "foo other anything")
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "test", "3").setSource(jsonBuilder().startObject()
+                .field("description", "foo other")
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "test", "4").setSource(jsonBuilder().startObject()
+                .field("description", "foo")
+                .endObject())
+                .execute().actionGet();
+        
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        
+        SearchResponse response = client.prepareSearch("test")
+                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("description", "bar")))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 1l);
+        response = client.prepareSearch("test")
+                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("test.description", "bar")))
+                .execute().actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 1l);
+        
+        response = client.prepareSearch("test").setQuery(
+                QueryBuilders.spanNearQuery()
+                    .clause(QueryBuilders.spanTermQuery("description", "foo"))
+                    .clause(QueryBuilders.spanTermQuery("test.description", "other"))
+                .slop(3)).execute().actionGet();
+        assertNoFailures(response);
+        assertHitCount(response, 3l);
     }
 
 }

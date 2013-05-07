@@ -69,7 +69,7 @@ public final class FragmentBuilderHelper {
                 public int compare(SubInfo o1, SubInfo o2) {
                     int startOffset = o1.getTermsOffsets().get(0).getStartOffset();
                     int startOffset2 = o2.getTermsOffsets().get(0).getStartOffset();
-                    return Integer.compare(startOffset, startOffset2);
+                    return FragmentBuilderHelper.compare(startOffset, startOffset2);
                 }
             });
             return new WeightedFragInfo(Math.min(fragInfo.getSubInfos().get(0).getTermsOffsets().get(0).getStartOffset(),
@@ -77,6 +77,10 @@ public final class FragmentBuilderHelper {
         } else {
             return fragInfo;
         }
+    }
+    
+    private static int compare(int x, int y) {
+        return (x < y) ? -1 : ((x == y) ? 0 : 1);
     }
 
     private static boolean containsBrokenAnalysis(Analyzer analyzer) {

@@ -151,8 +151,7 @@ public class HunspellService extends AbstractComponent {
         if (logger.isDebugEnabled()) {
             logger.debug("Loading huspell dictionary [{}]...", locale);
         }
-        File hunspellConfDir = new File(env.configFile(), "hunspell");
-        File dicDir = new File(hunspellConfDir, locale);
+        File dicDir = new File(hunspellDir, locale);
         if (!dicDir.exists() || !dicDir.isDirectory()) {
             throw new ElasticSearchException(String.format("Could not find hunspell dictionary [%s]", locale));
         }

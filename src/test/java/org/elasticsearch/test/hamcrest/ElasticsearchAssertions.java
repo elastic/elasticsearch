@@ -57,13 +57,17 @@ public class ElasticsearchAssertions {
         assertThat(searchResponse.getHits().totalHits(), greaterThanOrEqualTo((long)number));
         assertSearchHit(searchResponse.getHits().getAt(number-1), matcher);
     }
+    
+    public static void assertNoFailures(SearchResponse searchResponse) {
+        assertThat("Unexpectd ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+    }
 
     public static void assertSearchHit(SearchHit searchHit, Matcher<SearchHit> matcher) {
         assertThat(searchHit, matcher);
     }
 
     public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<String> matcher) {
-        assertThat("Unexpectd ShardFailures: " + Arrays.toString(resp.getShardFailures()), resp.getShardFailures().length, equalTo(0));
+        assertNoFailures(resp);
         assertThat("not enough hits", resp.getHits().hits().length, greaterThan(hit));
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field), notNullValue());
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field).fragments().length, greaterThan(fragment));

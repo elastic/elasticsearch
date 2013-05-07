@@ -246,7 +246,14 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                     value = searchLookup.source().extractValue(field);
                                     // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
                                     if (value != null && x != null) {
-                                        value = x.valueForSearch(value);
+                                        if (value instanceof List) {
+                                            List list = (List) value;
+                                            for (int i = 0; i < list.size(); i++) {
+                                                list.set(i, x.valueForSearch(list.get(i)));
+                                            }
+                                        } else {
+                                            value = x.valueForSearch(value);
+                                        }
                                     }
                                 }
                             }
@@ -331,7 +338,14 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         value = searchLookup.source().extractValue(field);
                         // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
                         if (value != null && x != null) {
-                            value = x.mapper().valueForSearch(value);
+                            if (value instanceof List) {
+                                List list = (List) value;
+                                for (int i = 0; i < list.size(); i++) {
+                                    list.set(i, x.mapper().valueForSearch(list.get(i)));
+                                }
+                            } else {
+                                value = x.mapper().valueForSearch(value);
+                            }
                         }
                     }
                 }

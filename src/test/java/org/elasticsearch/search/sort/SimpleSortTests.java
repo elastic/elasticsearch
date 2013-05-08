@@ -262,7 +262,6 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
 
-
     @Test
     public void testScoreSortDirection_withFunctionScore() throws Exception {
         prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1)).execute().actionGet();
@@ -292,6 +291,21 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(2).getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
+    }
+
+    @Test
+    public void testIssue2986() {
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().prepareIndex("test", "post", "1").setSource("{\"field1\":\"value1\"}").execute().actionGet();
+        client().prepareIndex("test", "post", "2").setSource("{\"field1\":\"value2\"}").execute().actionGet();
+        client().prepareIndex("test", "post", "3").setSource("{\"field1\":\"value3\"}").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        SearchResponse result = client().prepareSearch("test").setQuery(matchAllQuery()).setTrackScores(true).addSort("field1", SortOrder.ASC).execute().actionGet();
+
+        for (SearchHit hit : result.getHits()) {
+            assertThat(Float.isNaN(hit.getScore()), equalTo(false));
+        }
     }
 
     @Test

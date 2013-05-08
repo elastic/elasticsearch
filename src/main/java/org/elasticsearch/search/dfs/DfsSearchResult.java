@@ -149,9 +149,9 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
             out.writeString(entry.getKey());
             assert entry.getValue().maxDoc() >= 0;
             out.writeVLong(entry.getValue().maxDoc());
-            out.writeVLong(makePositive(entry.getValue().docCount()));
-            out.writeVLong(makePositive(entry.getValue().sumTotalTermFreq()));
-            out.writeVLong(makePositive(entry.getValue().sumDocFreq()));
+            out.writeVLong(addOne(entry.getValue().docCount()));
+            out.writeVLong(addOne(entry.getValue().sumTotalTermFreq()));
+            out.writeVLong(addOne(entry.getValue().sumDocFreq()));
         }
     }
     
@@ -165,7 +165,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
     public  static void writeSingleTermStats(StreamOutput out, TermStatistics termStatistic) throws IOException {
         assert termStatistic.docFreq() >= 0;
         out.writeVLong(termStatistic.docFreq());
-        out.writeVLong(makePositive(termStatistic.totalTermFreq()));        
+        out.writeVLong(addOne(termStatistic.totalTermFreq()));        
     }
     
     public static Map<String, CollectionStatistics> readFieldStats(StreamInput in) throws IOException {
@@ -181,9 +181,9 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
             final String field = in.readString();
             assert field != null;
             final long maxDoc = in.readVLong();
-            final long docCount = toNotAvailable(in.readVLong());
-            final long sumTotalTermFreq = toNotAvailable(in.readVLong());
-            final long sumDocFreq = toNotAvailable(in.readVLong());
+            final long docCount = subOne(in.readVLong());
+            final long sumTotalTermFreq = subOne(in.readVLong());
+            final long sumDocFreq = subOne(in.readVLong());
             CollectionStatistics stats = new CollectionStatistics(field, maxDoc, docCount, sumTotalTermFreq, sumDocFreq);
             fieldStatistics.put(field, stats);
         }
@@ -202,7 +202,7 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
                 BytesRef term = terms[i].bytes();
                 final long docFreq = in.readVLong();
                 assert docFreq >= 0;
-                final long totalTermFreq = toNotAvailable(in.readVLong());
+                final long totalTermFreq = subOne(in.readVLong());
                 termStatistics[i] = new TermStatistics(term, docFreq, totalTermFreq);
             }
         }
@@ -215,14 +215,19 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
      * Since we are using var longs to encode values we add one to each value
      * to ensure we don't waste space and don't add negative values.
      */
-    public static long makePositive(long value) {
-        assert Math.signum(value+1) >= 0; 
-        return value+1;
+    public static long addOne(long value) {
+        assert value + 1 >= 0;
+        return value + 1;
     }
     
-    public static long toNotAvailable(long value) {
-        assert Math.signum(value) >= 0;
-        return value-1;
+    
+    /*
+     * See #addOne this just subtracting one and asserts that the actual value
+     * is positive.
+     */
+    public static long subOne(long value) {
+        assert value >= 0;
+        return value - 1;
     }
 
 }

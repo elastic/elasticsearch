@@ -58,7 +58,7 @@ public class StartRecoveryRequest extends TransportRequest {
      *
      * @param shardId
      * @param sourceNode      The node to recover from
-     * @param targetNode      Teh node to recover to
+     * @param targetNode      The node to recover to
      * @param markAsRelocated
      * @param existingFiles
      */

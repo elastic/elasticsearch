@@ -89,7 +89,7 @@ public class AggregatedDfs implements Streamable {
             TermStatistics stats = termTermStatisticsEntry.getValue();
             out.writeBytesRef(stats.term());
             out.writeVLong(stats.docFreq());
-            out.writeVLong(DfsSearchResult.makePositive(stats.totalTermFreq()));
+            out.writeVLong(DfsSearchResult.plusOne(stats.totalTermFreq()));
         }
         DfsSearchResult.writeFieldStats(out, fieldStatistics);
         out.writeVLong(maxDoc);

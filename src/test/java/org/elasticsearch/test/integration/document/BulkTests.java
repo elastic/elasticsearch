@@ -125,6 +125,49 @@ public class BulkTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testBulkUpdate_malformedScripts() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 2)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        BulkResponse bulkResponse = client.prepareBulk()
+                .add(client.prepareIndex().setIndex("test").setType("type1").setId("1").setSource("field", 1))
+                .add(client.prepareIndex().setIndex("test").setType("type1").setId("2").setSource("field", 1))
+                .add(client.prepareIndex().setIndex("test").setType("type1").setId("3").setSource("field", 1))
+                .execute().actionGet();
+
+        assertThat(bulkResponse.hasFailures(), equalTo(false));
+        assertThat(bulkResponse.getItems().length, equalTo(3));
+
+        bulkResponse = client.prepareBulk()
+                .add(client.prepareUpdate().setIndex("test").setType("type1").setId("1").setScript("ctx._source.field += a").setFields("field"))
+                .add(client.prepareUpdate().setIndex("test").setType("type1").setId("2").setScript("ctx._source.field += 1").setFields("field"))
+                .add(client.prepareUpdate().setIndex("test").setType("type1").setId("3").setScript("ctx._source.field += a").setFields("field"))
+                .execute().actionGet();
+
+        assertThat(bulkResponse.hasFailures(), equalTo(true));
+        assertThat(bulkResponse.getItems().length, equalTo(3));
+        assertThat(bulkResponse.getItems()[0].getFailure().getId(), equalTo("1"));
+        assertThat(bulkResponse.getItems()[0].getFailure().getMessage(), containsString("failed to execute script"));
+        assertThat(bulkResponse.getItems()[0].getResponse(), nullValue());
+
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getId(), equalTo("2"));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
+        assertThat(((Integer)((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().field("field").getValue()), equalTo(2));
+        assertThat(bulkResponse.getItems()[1].getFailure(), nullValue());
+
+        assertThat(bulkResponse.getItems()[2].getFailure().getId(), equalTo("3"));
+        assertThat(bulkResponse.getItems()[2].getFailure().getMessage(), containsString("failed to execute script"));
+        assertThat(bulkResponse.getItems()[2].getResponse(), nullValue());
+    }
+
+    @Test
     public void testBulkUpdate_largerVolume() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
 

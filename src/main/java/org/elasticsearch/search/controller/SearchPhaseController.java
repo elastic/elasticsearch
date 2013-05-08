@@ -21,19 +21,16 @@ package org.elasticsearch.search.controller;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Ordering;
-import gnu.trove.impl.Constants;
-import gnu.trove.map.TMap;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.XMaps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.ShardFieldDocSortedHitQueue;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.trove.ExtTHashMap;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -49,9 +46,6 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.Suggest.Suggestion;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -90,27 +84,37 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
     public AggregatedDfs aggregateDfs(Iterable<DfsSearchResult> results) {
-        TMap<Term, TermStatistics> termStatistics = new ExtTHashMap<Term, TermStatistics>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR);
-        TMap<String, CollectionStatistics> fieldStatistics = new ExtTHashMap<String, CollectionStatistics>(Constants.DEFAULT_CAPACITY, Constants.DEFAULT_LOAD_FACTOR);
+        Map<Term, TermStatistics> termStatistics = XMaps.newNoNullKeysMap();
+        Map<String, CollectionStatistics> fieldStatistics = XMaps.newNoNullKeysMap();
         long aggMaxDoc = 0;
         for (DfsSearchResult result : results) {
-            for (int i = 0; i < result.termStatistics().length; i++) {
-                TermStatistics existing = termStatistics.get(result.terms()[i]);
+            final Term[] terms = result.terms();
+            final TermStatistics[] stats = result.termStatistics();
+            assert terms.length == stats.length;
+            for (int i = 0; i < terms.length; i++) {
+                assert terms[i] != null;
+                TermStatistics existing = termStatistics.get(terms[i]);
                 if (existing != null) {
-                    termStatistics.put(result.terms()[i], new TermStatistics(existing.term(), existing.docFreq() + result.termStatistics()[i].docFreq(), existing.totalTermFreq() + result.termStatistics()[i].totalTermFreq()));
+                    assert terms[i].bytes().equals(existing.term());
+                    // totalTermFrequency is an optional statistic we need to check if either one or both
+                    // are set to -1 which means not present and then set it globally to -1
+                    termStatistics.put(terms[i], new TermStatistics(existing.term(),
+                        existing.docFreq() + stats[i].docFreq(), 
+                        optionalSum(existing.totalTermFreq(), stats[i].totalTermFreq())));
                 } else {
-                    termStatistics.put(result.terms()[i], result.termStatistics()[i]);
+                    termStatistics.put(terms[i], stats[i]);
                 }
 
             }
             for (Map.Entry<String, CollectionStatistics> entry : result.fieldStatistics().entrySet()) {
+                assert entry.getKey() != null;
                 CollectionStatistics existing = fieldStatistics.get(entry.getKey());
                 if (existing != null) {
                     CollectionStatistics merged = new CollectionStatistics(
                             entry.getKey(), existing.maxDoc() + entry.getValue().maxDoc(),
-                            existing.docCount() + entry.getValue().docCount(),
-                            existing.sumTotalTermFreq() + entry.getValue().sumTotalTermFreq(),
-                            existing.sumDocFreq() + entry.getValue().sumDocFreq()
+                            optionalSum(existing.docCount(), entry.getValue().docCount()),
+                            optionalSum(existing.sumTotalTermFreq(), entry.getValue().sumTotalTermFreq()),
+                            optionalSum(existing.sumDocFreq(), entry.getValue().sumDocFreq())
                     );
                     fieldStatistics.put(entry.getKey(), merged);
                 } else {
@@ -120,6 +124,10 @@ public class SearchPhaseController extends AbstractComponent {
             aggMaxDoc += result.maxDoc();
         }
         return new AggregatedDfs(termStatistics, fieldStatistics, aggMaxDoc);
+    }
+    
+    private static long optionalSum(long left, long right) {
+       return Math.min(left, right) == -1 ? -1 : left + right;
     }
 
     public ShardDoc[] sortDocs(Collection<? extends QuerySearchResultProvider> results1) {
@@ -267,7 +275,7 @@ public class SearchPhaseController extends AbstractComponent {
     }
 
     public Map<SearchShardTarget, ExtTIntArrayList> docIdsToLoad(ShardDoc[] shardDocs) {
-        Map<SearchShardTarget, ExtTIntArrayList> result = Maps.newHashMap();
+        Map<SearchShardTarget, ExtTIntArrayList> result = XMaps.newMap();
         for (ShardDoc shardDoc : shardDocs) {
             ExtTIntArrayList list = result.get(shardDoc.shardTarget());
             if (list == null) {

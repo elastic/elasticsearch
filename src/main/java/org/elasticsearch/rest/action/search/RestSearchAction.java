@@ -226,6 +226,13 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
+        if(request.hasParam("track_scores")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
+        }
+
         String sSorts = request.param("sort");
         if (sSorts != null) {
             if (searchSourceBuilder == null) {

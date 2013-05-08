@@ -60,6 +60,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
     @BeforeClass
     public void createNodes() throws Exception {
         startNode("node1");
+        startNode("node2");
         client = getClient();
     }
 
@@ -1321,6 +1322,107 @@ public class SimpleQueryTests extends AbstractNodesTests {
                 .slop(3)).execute().actionGet();
         assertNoFailures(response);
         assertHitCount(response, 3l);
+    }
+    
+    @Test
+    public void testSimpleDFSQuery() throws ElasticSearchException, IOException {
+        
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(
+                ImmutableSettings.settingsBuilder()
+                        .put("index.number_of_shards", 5)
+                        .put("index.number_of_replicas", 0)
+        ).addMapping("s", jsonBuilder()
+                    .startObject()
+                        .startObject("s")
+                            .startObject("_routing")
+                                .field("required", true)
+                                .field("path", "bs")
+                            .endObject()
+                            .startObject("properties")
+                                .startObject("online")
+                                    .field("type", "boolean")
+                                .endObject()
+                                .startObject("ts")
+                                    .field("type", "date")
+                                    .field("ignore_malformed", false)
+                                    .field("format", "dateOptionalTime")
+                                .endObject()
+                                 .startObject("bs")
+                                    .field("type", "string")
+                                    .field("index", "not_analyzed")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject())
+             .addMapping("bs", jsonBuilder()
+                    .startObject()
+                        .startObject("s")
+                            .startObject("properties")
+                                .startObject("online")
+                                    .field("type", "boolean")
+                                .endObject()
+                                .startObject("ts")
+                                    .field("type", "date")
+                                    .field("ignore_malformed", false)
+                                    .field("format", "dateOptionalTime")
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject())
+
+
+                .execute().actionGet();
+
+        client.prepareIndex("test", "s", "1").setSource(jsonBuilder().startObject()
+                .field("online", false)
+                .field("bs", "Y")
+                .field("ts", System.currentTimeMillis()- 100)
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "s", "2").setSource(jsonBuilder().startObject()
+                .field("online", true)
+                .field("bs", "X")
+                .field("ts", System.currentTimeMillis()- 10000000)
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "bs", "3").setSource(jsonBuilder().startObject()
+                .field("online", false)
+                .field("ts", System.currentTimeMillis()- 100)
+                .endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "bs", "4").setSource(jsonBuilder().startObject()
+                .field("online", true)
+                .field("ts", System.currentTimeMillis() - 123123)
+                .endObject())
+                .execute().actionGet();
+        
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        SearchResponse response = client.prepareSearch("test")
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .must(QueryBuilders.termQuery("online", true))
+                        .must(QueryBuilders.boolQuery()
+                            .should(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
+                                .must(QueryBuilders.termQuery("_type", "bs"))
+                                )
+                            .should(QueryBuilders.boolQuery()
+                                .must(QueryBuilders.rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
+                                .must(QueryBuilders.termQuery("_type", "s"))
+                            )
+                        )
+                )
+                .setVersion(true)
+                .setFrom(0).setSize(100).setExplain(true)
+                .execute()
+                .actionGet();
+        assertNoFailures(response);
+        
     }
 
 }

@@ -20,14 +20,13 @@
 package org.elasticsearch.search.dfs;
 
 import com.google.common.collect.ImmutableMap;
-import gnu.trove.map.TMap;
 import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
-import org.elasticsearch.common.trove.ExtTHashMap;
+import org.elasticsearch.common.collect.XMaps;
 import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
@@ -57,18 +56,21 @@ public class DfsPhase implements SearchPhase {
     }
 
     public void execute(SearchContext context) {
+        THashSet<Term> termsSet = null;
         try {
             if (!context.queryRewritten()) {
                 context.updateRewriteQuery(context.searcher().rewrite(context.query()));
             }
 
-            THashSet<Term> termsSet = cachedTermsSet.get().get();
-            termsSet.clear();
+            termsSet = cachedTermsSet.get().get();
+            if (!termsSet.isEmpty()) {
+                termsSet.clear();
+            }
             context.query().extractTerms(termsSet);
             if (context.rescore() != null) {
                 context.rescore().rescorer().extractTerms(context, context.rescore(), termsSet);
             }
-            
+
             Term[] terms = termsSet.toArray(new Term[termsSet.size()]);
             TermStatistics[] termStatistics = new TermStatistics[terms.length];
             IndexReaderContext indexReaderContext = context.searcher().getTopReaderContext();
@@ -78,10 +80,12 @@ public class DfsPhase implements SearchPhase {
                 termStatistics[i] = context.searcher().termStatistics(terms[i], termContext);
             }
 
-            TMap<String, CollectionStatistics> fieldStatistics = new ExtTHashMap<String, CollectionStatistics>();
+            Map<String, CollectionStatistics> fieldStatistics = XMaps.newNoNullKeysMap();
             for (Term term : terms) {
+                assert term.field() != null : "field is null";
                 if (!fieldStatistics.containsKey(term.field())) {
-                    fieldStatistics.put(term.field(), context.searcher().collectionStatistics(term.field()));
+                    final CollectionStatistics collectionStatistics = context.searcher().collectionStatistics(term.field());
+                    fieldStatistics.put(term.field(), collectionStatistics);
                 }
             }
 
@@ -90,6 +94,10 @@ public class DfsPhase implements SearchPhase {
                     .maxDoc(context.searcher().getIndexReader().maxDoc());
         } catch (Exception e) {
             throw new DfsPhaseExecutionException(context, "Exception during dfs phase", e);
+        } finally {
+            if (termsSet != null) {
+                termsSet.clear(); // don't hold on to terms
+            }
         }
     }
 }

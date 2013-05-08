@@ -46,4 +46,10 @@ public class StrictDistributor extends AbstractDistributor {
         }
         return primary();
     }
+
+    @Override
+    public String name() {
+        return "strict";
+    }
+
 }

@@ -25,6 +25,7 @@ import org.apache.lucene.store.RateLimitedFSDirectory;
 import org.elasticsearch.index.store.DirectoryService;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public abstract class AbstractDistributor implements Distributor {
 
@@ -62,6 +63,13 @@ public abstract class AbstractDistributor implements Distributor {
         }
     }
 
+    @Override
+    public String toString() {
+        return name() + Arrays.toString(delegates);
+    }
+
     protected abstract Directory doAny();
+
+    protected abstract String name();
 
 }

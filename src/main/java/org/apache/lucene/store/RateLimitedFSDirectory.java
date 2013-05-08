@@ -143,7 +143,14 @@ public final class RateLimitedFSDirectory extends Directory {
 
     @Override
     public String toString() {
-        return "RateLimitedDirectoryWrapper(" + delegate.toString() + ")";
+        StoreRateLimiting rateLimiting = rateLimitingProvider.rateLimiting();
+        StoreRateLimiting.Type type = rateLimiting.getType();
+        RateLimiter limiter = rateLimiting.getRateLimiter();
+        if (type == StoreRateLimiting.Type.NONE || limiter == null) {
+            return StoreUtils.toString(delegate);
+        } else {
+            return "rate_limited(" + StoreUtils.toString(delegate) + ", type=" + type.name() + ", rate=" + limiter.getMbPerSec() + ")";
+        }
     }
 
     @Override

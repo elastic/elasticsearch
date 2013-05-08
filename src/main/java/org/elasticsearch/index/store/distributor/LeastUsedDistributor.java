@@ -57,6 +57,11 @@ public class LeastUsedDistributor extends AbstractDistributor {
         }
 
         return directory;
-
     }
+
+    @Override
+    public String name() {
+        return "least_used";
+    }
+
 }

@@ -528,6 +528,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         public void forceSync(String name) throws IOException {
             sync(ImmutableList.of(name));
         }
+
+        @Override
+        public String toString() {
+            return "store(" + distributor.toString() + ")";
+        }
     }
 
     class StoreIndexOutput extends IndexOutput {

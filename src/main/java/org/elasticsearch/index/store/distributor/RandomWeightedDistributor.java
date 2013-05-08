@@ -59,4 +59,10 @@ public class RandomWeightedDistributor extends AbstractDistributor {
         // TODO: size is 0 - should we bail out or fall back on random distribution?
         return delegates[ThreadLocalRandom.current().nextInt(delegates.length)];
     }
+
+    @Override
+    public String name() {
+        return "random";
+    }
+
 }

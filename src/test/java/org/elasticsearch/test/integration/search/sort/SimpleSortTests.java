@@ -167,7 +167,32 @@ public class SimpleSortTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().getAt(1).getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
-    
+
+    @Test
+    public void testIssue2986() {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+
+        client.prepareIndex("test", "post", "1").setSource("{\"field1\":\"value1\"}").execute().actionGet();
+        client.prepareIndex("test", "post", "2").setSource("{\"field1\":\"value2\"}").execute().actionGet();
+        client.prepareIndex("test", "post", "3").setSource("{\"field1\":\"value3\"}").execute().actionGet();
+
+        client.admin().indices().prepareRefresh("test").execute().actionGet();
+
+        SearchResponse result = client.prepareSearch("test").setQuery(matchAllQuery()).setTrackScores(true).addSort("field1", SortOrder.ASC).execute().actionGet();
+
+        for (SearchHit hit : result.getHits()) {
+            assert !Float.isNaN(hit.getScore());
+        }
+
+        client.admin().indices().prepareDelete("test").execute().actionGet();
+    }
+
     @Test
     public void testIssue2991() {
         for (int i = 1; i < 4; i++) {

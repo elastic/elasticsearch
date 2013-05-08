@@ -31,6 +31,7 @@ import org.apache.lucene.search.vectorhighlight.FastVectorHighlighter;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
 import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
 import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
@@ -90,13 +91,21 @@ public final class FragmentBuilderHelper {
         }
         if (analyzer instanceof CustomAnalyzer) {
             final CustomAnalyzer a = (CustomAnalyzer) analyzer;
-            if (a.tokenizerFactory() instanceof EdgeNGramTokenizerFactory) {
+            if (a.tokenizerFactory() instanceof EdgeNGramTokenizerFactory 
+                    || (a.tokenizerFactory() instanceof NGramTokenizerFactory 
+                            && !((NGramTokenizerFactory)a.tokenizerFactory()).version().onOrAfter(Version.LUCENE_42))) {
+                // ngram tokenizer is broken before 4.2
                 return true;
             }
             TokenFilterFactory[] tokenFilters = a.tokenFilters();
             for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
                 if (tokenFilterFactory instanceof WordDelimiterTokenFilterFactory 
                         || tokenFilterFactory instanceof EdgeNGramTokenFilterFactory) {
+                    return true;
+                }
+                if (tokenFilterFactory instanceof NGramTokenFilterFactory 
+                        && !((NGramTokenFilterFactory)tokenFilterFactory).version().onOrAfter(Version.LUCENE_42)) {
+                    // ngram token filter is broken before 4.2
                     return true;
                 }
             }

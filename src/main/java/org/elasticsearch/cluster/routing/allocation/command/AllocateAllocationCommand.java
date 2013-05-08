@@ -117,9 +117,9 @@ public class AllocateAllocationCommand implements AllocationCommand {
 
     /**
      * Create a new {@link AllocateAllocationCommand}
-     * 
-     * @param shardId {@link ShardId} of the shrad to assign
-     * @param node Node to assign the shard to
+     *
+     * @param shardId      {@link ShardId} of the shrad to assign
+     * @param node         Node to assign the shard to
      * @param allowPrimary should the node be allow to allocate the shard as primary
      */
     public AllocateAllocationCommand(ShardId shardId, String node, boolean allowPrimary) {
@@ -134,7 +134,8 @@ public class AllocateAllocationCommand implements AllocationCommand {
     }
 
     /**
-     * Get the shards id 
+     * Get the shards id
+     *
      * @return id of the shard
      */
     public ShardId shardId() {
@@ -143,6 +144,7 @@ public class AllocateAllocationCommand implements AllocationCommand {
 
     /**
      * Get the id of the Node
+     *
      * @return id of the Node
      */
     public String node() {
@@ -150,8 +152,9 @@ public class AllocateAllocationCommand implements AllocationCommand {
     }
 
     /**
-     * Determine if primary allocation is allowed 
-     * @return <code>true</code> if primary allocation is allowed. Otherwise <code>false</code> 
+     * Determine if primary allocation is allowed
+     *
+     * @return <code>true</code> if primary allocation is allowed. Otherwise <code>false</code>
      */
     public boolean allowPrimary() {
         return this.allowPrimary;
@@ -191,6 +194,11 @@ public class AllocateAllocationCommand implements AllocationCommand {
             }
             it.remove();
             routingNode.add(shardRouting);
+            if (shardRouting.primary()) {
+                // we need to clear the post allocation flag, since its an explicit allocation of the primary shard
+                // and we want to force allocate it (and create a new index for it)
+                allocation.routingNodes().addClearPostAllocationFlag(shardRouting.shardId());
+            }
             break;
         }
     }

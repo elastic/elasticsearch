@@ -20,20 +20,25 @@
 package org.elasticsearch.test.integration.cluster.allocation;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
+
+import java.io.File;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -161,5 +166,36 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.routingNodes().unassigned().size(), equalTo(1));
         assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
+
+        client("node1").prepareIndex("test", "type", "1").setSource("field", "value").setRefresh(true).execute().actionGet();
+
+        logger.info("--> closing all nodes");
+        File shardLocation = ((InternalNode) node("node1")).injector().getInstance(NodeEnvironment.class).shardLocations(new ShardId("test", 0))[0];
+        closeAllNodes();
+
+        logger.info("--> deleting the shard data");
+        FileSystemUtils.deleteRecursively(shardLocation);
+
+        logger.info("--> starting the first node back, will not allocate the shard since it has no data, but the index will be there");
+        startNode("node1", commonSettings);
+        // wait a bit for the cluster to realize that the shard is not there...
+        // TODO can we get around this? the cluster is RED, so what do we wait for?
+        Thread.sleep(300);
+        assertThat(client("node1").admin().cluster().prepareHealth().execute().actionGet().getStatus(), equalTo(ClusterHealthStatus.RED));
+        logger.info("--> explicitly allocate primary");
+        state = client("node1").admin().cluster().prepareReroute()
+                .add(new AllocateAllocationCommand(new ShardId("test", 0), "node1", true))
+                .execute().actionGet().getState();
+        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.INITIALIZING));
+
+        healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+
+        logger.info("--> get the state, verify shard 1 primary allocated");
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+        assertThat(state.routingNodes().unassigned().size(), equalTo(1));
+        assertThat(state.routingNodes().node(state.nodes().resolveNode("node1").id()).shards().get(0).state(), equalTo(ShardRoutingState.STARTED));
+
     }
 }

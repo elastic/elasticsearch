@@ -19,12 +19,15 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.*;
 
@@ -48,6 +51,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private final List<MutableShardRouting> unassigned = newArrayList();
 
     private final List<MutableShardRouting> ignoredUnassigned = newArrayList();
+
+    private Set<ShardId> clearPostAllocationFlag;
 
     private final Map<String, TObjectIntHashMap<String>> nodesPerAttributeNames = new HashMap<String, TObjectIntHashMap<String>>();
 
@@ -157,6 +162,25 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     public Map<String, RoutingNode> getNodesToShards() {
         return nodesToShards();
+    }
+
+    /**
+     * Clears the post allocation flag for the provided shard id. NOTE: this should be used cautiously
+     * since it will lead to data loss of the primary shard is not allocated, as it will allocate
+     * the primary shard on a node and *not* expect it to have an existing valid index there.
+     */
+    public void addClearPostAllocationFlag(ShardId shardId) {
+        if (clearPostAllocationFlag == null) {
+            clearPostAllocationFlag = Sets.newHashSet();
+        }
+        clearPostAllocationFlag.add(shardId);
+    }
+
+    public Iterable<ShardId> getShardsToClearPostAllocationFlag() {
+        if (clearPostAllocationFlag == null) {
+            return ImmutableSet.of();
+        }
+        return clearPostAllocationFlag;
     }
 
     public RoutingNode node(String nodeId) {

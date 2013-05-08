@@ -44,4 +44,8 @@ public abstract class AbstractTokenizerFactory extends AbstractIndexComponent im
     public String name() {
         return this.name;
     }
+    
+    public final Version version() {
+        return version;
+    }
 }

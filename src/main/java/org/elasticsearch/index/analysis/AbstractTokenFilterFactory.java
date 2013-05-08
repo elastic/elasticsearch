@@ -44,4 +44,8 @@ public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent 
     public String name() {
         return this.name;
     }
+    
+    public final Version version() {
+        return version;
+    }
 }

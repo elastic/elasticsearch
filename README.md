@@ -35,7 +35,7 @@ In order to install the plugin, simply run: `bin/plugin -install elasticsearch/e
 ICU Normalization
 -----------------
 
-Normalizes characters as explained "here":http://userguide.icu-project.org/transforms/normalization. It registers itself by default under @icu_normalizer@ or @icuNormalizer@ using the default settings. Allows for the name parameter to be provided which can include the following values: @nfc@, @nfkc@, and @nfkc_cf@. Here is a sample settings:
+Normalizes characters as explained "here":http://userguide.icu-project.org/transforms/normalization. It registers itself by default under `icu_normalizer` or `icuNormalizer` using the default settings. Allows for the name parameter to be provided which can include the following values: `nfc`, `nfkc`, and `nfkc_cf`. Here is a sample settings:
 
     {
         "index" : {
@@ -53,7 +53,7 @@ Normalizes characters as explained "here":http://userguide.icu-project.org/trans
 ICU Folding
 -----------
 
-Folding of unicode characters based on @UTR#30@. It registers itself under @icu_folding@ and @icuFolding@ names. Sample setting:
+Folding of unicode characters based on `UTR#30`. It registers itself under `icu_folding` and `icuFolding` names. Sample setting:
 
     {
         "index" : {
@@ -71,7 +71,7 @@ Folding of unicode characters based on @UTR#30@. It registers itself under @icu_
 ICU Collation
 -------------
 
-Uses collation token filter. Allows to either specify the rules for collation (defined "here":http://www.icu-project.org/userguide/Collate_Customization.html) using the @rules@ parameter (can point to a location or expressed in the settings, location can be relative to config location), or using the @language@ parameter (further specialized by country and variant). By default registers under @icu_collation@ or @icuCollation@ and uses the default locale.
+Uses collation token filter. Allows to either specify the rules for collation (defined "here":http://www.icu-project.org/userguide/Collate_Customization.html) using the `rules` parameter (can point to a location or expressed in the settings, location can be relative to config location), or using the `language` parameter (further specialized by country and variant). By default registers under `icu_collation` or `icuCollation` and uses the default locale.
 
 Here is a sample settings:
 

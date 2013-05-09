@@ -94,6 +94,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         if (script == null && doc == null) {
             validationException = addValidationError("script or doc is missing", validationException);
         }
+        if (script != null && doc != null) {
+            validationException = addValidationError("can't provide both script and doc", validationException);
+        }
         return validationException;
     }
 

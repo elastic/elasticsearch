@@ -176,8 +176,9 @@ public class ClusterRerouteTests extends AbstractNodesTests {
         logger.info("--> deleting the shard data");
         FileSystemUtils.deleteRecursively(shardLocation);
 
-        logger.info("--> starting the first node back, will not allocate the shard since it has no data, but the index will be there");
+        logger.info("--> starting nodes back, will not allocate the shard since it has no data, but the index will be there");
         startNode("node1", commonSettings);
+        startNode("node2", commonSettings);
         // wait a bit for the cluster to realize that the shard is not there...
         // TODO can we get around this? the cluster is RED, so what do we wait for?
         Thread.sleep(300);

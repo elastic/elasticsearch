@@ -217,7 +217,7 @@ public class TransportBulkAction extends TransportAction<BulkRequest, BulkRespon
                 if (mappingMd != null && mappingMd.routing().required() && updateRequest.routing() == null) {
                     continue; // What to do?
                 }
-                ShardId shardId = clusterService.operationRouting().deleteShards(clusterState, updateRequest.index(), updateRequest.type(), updateRequest.id(), updateRequest.routing()).shardId();
+                ShardId shardId = clusterService.operationRouting().indexShards(clusterState, updateRequest.index(), updateRequest.type(), updateRequest.id(), updateRequest.routing()).shardId();
                 List<BulkItemRequest> list = requestsByShard.get(shardId);
                 if (list == null) {
                     list = Lists.newArrayList();

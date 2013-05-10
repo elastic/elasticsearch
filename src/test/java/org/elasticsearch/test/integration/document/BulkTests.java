@@ -65,7 +65,7 @@ public class BulkTests extends AbstractNodesTests {
 
         bulkResponse = client.prepareBulk()
                 .add(client.prepareUpdate().setIndex("test").setType("type1").setId("1").setScript("ctx._source.field += 1"))
-                .add(client.prepareUpdate().setIndex("test").setType("type1").setId("2").setScript("ctx._source.field += 1"))
+                .add(client.prepareUpdate().setIndex("test").setType("type1").setId("2").setScript("ctx._source.field += 1").setRetryOnConflict(3))
                 .add(client.prepareUpdate().setIndex("test").setType("type1").setId("3").setDoc(jsonBuilder().startObject().field("field1", "test").endObject()))
                 .execute().actionGet();
 
@@ -200,13 +200,15 @@ public class BulkTests extends AbstractNodesTests {
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getId(), equalTo(Integer.toString(i)));
-            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(1l)); // Current version
+            assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(1l));
             assertThat(((Integer)((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()), equalTo(1));
 
-            GetResponse getResponse = client.prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute().actionGet();
-            assertThat(getResponse.isExists(), equalTo(true));
-            assertThat(getResponse.getVersion(), equalTo(1l));
-            assertThat((Long) getResponse.getField("counter").getValue(), equalTo(1l));
+            for (int j = 0; j < 5; j++) {
+                GetResponse getResponse = client.prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute().actionGet();
+                assertThat(getResponse.isExists(), equalTo(true));
+                assertThat(getResponse.getVersion(), equalTo(1l));
+                assertThat((Long) getResponse.getField("counter").getValue(), equalTo(1l));
+            }
         }
 
         builder = client.prepareBulk();
@@ -217,6 +219,9 @@ public class BulkTests extends AbstractNodesTests {
                 updateBuilder.setScript("ctx._source.counter += 1");
             } else {
                 updateBuilder.setDoc(jsonBuilder().startObject().field("counter", 2).endObject());
+            }
+            if (i % 3 == 0) {
+                updateBuilder.setRetryOnConflict(3);
             }
 
             builder.add(updateBuilder);
@@ -295,8 +300,10 @@ public class BulkTests extends AbstractNodesTests {
             assertThat(response.getItems()[i].getIndex(), equalTo("test"));
             assertThat(response.getItems()[i].getType(), equalTo("type1"));
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
-            GetResponse getResponse = client.prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute().actionGet();
-            assertThat(getResponse.isExists(), equalTo(false));
+            for (int j = 0; j < 5; j++) {
+                GetResponse getResponse = client.prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute().actionGet();
+                assertThat(getResponse.isExists(), equalTo(false));
+            }
         }
     }
 

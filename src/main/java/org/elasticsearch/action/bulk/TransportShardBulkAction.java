@@ -21,7 +21,6 @@ package org.elasticsearch.action.bulk;
 
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -50,7 +49,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -216,9 +217,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 UpdateRequest updateRequest = (UpdateRequest) item.request();
                 int retryCount = 0;
                 do {
-                    UpdateResult updateResult = shardUpdateOperation(clusterState, request, updateRequest, indexShard);
+                    UpdateResult updateResult;
+                    try {
+                        updateResult = shardUpdateOperation(clusterState, request, updateRequest, indexShard);
+                    } catch (Throwable t) {
+                        updateResult = new UpdateResult(null, null, false, t, null);
+                    }
                     if (updateResult.success()) {
-                        switch (updateResult.translate.operation()) {
+                        switch (updateResult.result.operation()) {
                             case UPSERT:
                             case INDEX:
                                 WriteResult result = updateResult.writeResult;
@@ -253,7 +259,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 DeleteResponse response = updateResult.writeResult.response();
                                 DeleteRequest deleteRequest = updateResult.request();
                                 updateResponse = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
-                                updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, response.getVersion(), updateResult.translate.updatedSourceAsMap(), updateResult.translate.updateSourceContentType(), null));
+                                updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, response.getVersion(), updateResult.result.updatedSourceAsMap(), updateResult.result.updateSourceContentType(), null));
                                 responses[i] = new BulkItemResponse(item.id(), "update", updateResponse);
                                 // Replace the update request to the translated delete request to execute on the replica.
                                 request.items()[i] = new BulkItemRequest(request.items()[i].id(), deleteRequest);
@@ -263,6 +269,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 request.items()[i] = null; // No need to go to the replica
                                 break;
                         }
+                        // NOTE: Breaking out of the retry_on_conflict loop!
+                        break;
                     } else if (updateResult.failure()) {
                         Throwable t = updateResult.error;
                         if (!updateResult.retry) {
@@ -274,10 +282,10 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 }
                                 throw (ElasticSearchException) t;
                             }
-                            if (updateResult.translate == null) {
+                            if (updateResult.result == null) {
                                 responses[i] = new BulkItemResponse(item.id(), "update", new BulkItemResponse.Failure(updateRequest.index(), updateRequest.type(), updateRequest.id(), ExceptionsHelper.detailedMessage(t)));
                             } else {
-                                switch (updateResult.translate.operation()) {
+                                switch (updateResult.result.operation()) {
                                     case UPSERT:
                                     case INDEX:
                                         IndexRequest indexRequest = updateResult.request();
@@ -303,6 +311,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             }
                             // nullify the request so it won't execute on the replicas
                             request.items()[i] = null;
+                            // NOTE: Breaking out of the retry_on_conflict loop!
+                            break;
                         }
                     }
                 } while (++retryCount < updateRequest.retryOnConflict());
@@ -408,15 +418,15 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
 
     static class UpdateResult {
 
-        final UpdateHelper.Result translate;
+        final UpdateHelper.Result result;
         final ActionRequest actionRequest;
         final boolean retry;
         final Throwable error;
         final WriteResult writeResult;
         final UpdateResponse noopResult;
 
-        UpdateResult(UpdateHelper.Result translate, ActionRequest actionRequest, boolean retry, Throwable error, WriteResult writeResult) {
-            this.translate = translate;
+        UpdateResult(UpdateHelper.Result result, ActionRequest actionRequest, boolean retry, Throwable error, WriteResult writeResult) {
+            this.result = result;
             this.actionRequest = actionRequest;
             this.retry = retry;
             this.error = error;
@@ -424,8 +434,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             this.noopResult = null;
         }
 
-        UpdateResult(UpdateHelper.Result translate, ActionRequest actionRequest, WriteResult writeResult) {
-            this.translate = translate;
+        UpdateResult(UpdateHelper.Result result, ActionRequest actionRequest, WriteResult writeResult) {
+            this.result = result;
             this.actionRequest = actionRequest;
             this.writeResult = writeResult;
             this.retry = false;
@@ -433,15 +443,14 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             this.noopResult = null;
         }
 
-        public UpdateResult(UpdateHelper.Result translate, UpdateResponse updateResponse) {
-            this.translate = translate;
+        public UpdateResult(UpdateHelper.Result result, UpdateResponse updateResponse) {
+            this.result = result;
             this.noopResult = updateResponse;
             this.actionRequest = null;
             this.writeResult = null;
             this.retry = false;
             this.error = null;
         }
-
 
 
         boolean failure() {
@@ -461,16 +470,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     }
 
     private UpdateResult shardUpdateOperation(ClusterState clusterState, BulkShardRequest bulkShardRequest, UpdateRequest updateRequest, IndexShard indexShard) {
-        UpdateHelper.Result translate;
-        try {
-            translate = updateHelper.prepare(updateRequest, indexShard);
-        } catch (ElasticSearchIllegalArgumentException e) { // Invalid script
-            return new UpdateResult(null, null, false, e, null);
-        } catch (DocumentSourceMissingException e) { // No source available
-            return new UpdateResult(null, null, false, e, null);
-        } catch (DocumentMissingException e) { // Document doesn't exists and upsert is missing
-            return new UpdateResult(null, null, false, e, null);
-        }
+        UpdateHelper.Result translate = updateHelper.prepare(updateRequest, indexShard);
         switch (translate.operation()) {
             case UPSERT:
             case INDEX:

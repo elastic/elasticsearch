@@ -30,21 +30,21 @@ import org.jboss.netty.buffer.ChannelBuffers;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Arrays;
 
 /**
- *
+ * A bytes array reference that caches the hash code.
  */
 public class HashedBytesArray implements BytesReference {
 
     private final byte[] bytes;
 
-    // we pre-compute the hashCode for better performance (especially in IdCache)
-    private final int hashCode;
+    /**
+     * Cache the hash code for the string
+     */
+    private int hash; // Defaults to 0
 
     public HashedBytesArray(byte[] bytes) {
         this.bytes = bytes;
-        this.hashCode = Arrays.hashCode(bytes);
     }
 
     public HashedBytesArray(String str) {
@@ -138,7 +138,10 @@ public class HashedBytesArray implements BytesReference {
 
     @Override
     public int hashCode() {
-        return Helper.bytesHashCode(this);
+        if (hash == 0) {
+            hash = Helper.bytesHashCode(this);
+        }
+        return hash;
     }
 
     @Override

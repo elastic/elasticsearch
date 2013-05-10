@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import java.io.IOException;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.BytesRefFSTEnum;
@@ -34,6 +32,8 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.ordinals.EmptyOrdinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
+
+import java.io.IOException;
 
 /**
  */
@@ -92,14 +92,13 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         return ordinals.isMultiValued() ? new BytesValues.Multi(fst, ordinals.ordinals()) : new BytesValues.Single(fst, ordinals.ordinals());
     }
 
-  
 
     @Override
     public ScriptDocValues.Strings getScriptValues() {
         assert fst != null;
         return new ScriptDocValues.Strings(getBytesValues());
     }
-    
+
     @Override
     public org.elasticsearch.index.fielddata.BytesValues.WithOrdinals getHashedBytesValues() {
         assert fst != null;
@@ -112,8 +111,8 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
             hashes[0] = new BytesRef().hashCode();
             int i = 1;
             try {
-                while((next = fstEnum.next()) != null) {
-                    hashes[i++] =  next.input.hashCode();
+                while ((next = fstEnum.next()) != null) {
+                    hashes[i++] = next.input.hashCode();
                 }
             } catch (IOException ex) {
                 //bogus
@@ -128,9 +127,8 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         protected final FST<Long> fst;
         protected final Ordinals.Docs ordinals;
 
-        protected final BytesRef scratch = new BytesRef();
         // per-thread resources
-        protected final BytesReader in ;
+        protected final BytesReader in;
         protected final Arc<Long> firstArc = new Arc<Long>();
         protected final Arc<Long> scratchArc = new Arc<Long>();
         protected final IntsRef scratchInts = new IntsRef();
@@ -169,7 +167,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
                 assert !ordinals.isMultiValued();
                 this.iter = newSingleIter();
             }
-            
+
             @Override
             public Iter getIter(int docId) {
                 int ord = ordinals.getOrd(docId);
@@ -177,14 +175,15 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
                 return iter.reset(getValueByOrd(ord), ord);
             }
         }
-        
+
         static final class SingleHashed extends Single {
             private final int[] hashes;
+
             SingleHashed(FST<Long> fst, Docs ordinals, int[] hashes) {
                 super(fst, ordinals);
                 this.hashes = hashes;
             }
-            
+
             @Override
             protected Iter.Single newSingleIter() {
                 return new Iter.Single() {
@@ -193,7 +192,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
                     }
                 };
             }
-            
+
             @Override
             public int getValueHashed(int docId, BytesRef ret) {
                 final int ord = ordinals.getOrd(docId);
@@ -211,14 +210,14 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
                 assert ordinals.isMultiValued();
                 this.iter = newMultiIter();
             }
-            
+
             @Override
             public Iter getIter(int docId) {
                 return iter.reset(ordinals.getIter(docId));
             }
         }
-        
-        
+
+
         static final class MultiHashed extends Multi {
             private final int[] hashes;
 
@@ -226,7 +225,7 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
                 super(fst, ordinals);
                 this.hashes = hashes;
             }
-            
+
             @Override
             protected Iter.Multi newMultiIter() {
                 return new Iter.Multi(this) {
@@ -242,11 +241,10 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
                 getValueScratchByOrd(ord, ret);
                 return hashes[ord];
             }
-            
+
         }
     }
-    
-    
+
 
     static class Empty extends FSTBytesAtomicFieldData {
 
@@ -285,8 +283,5 @@ public class FSTBytesAtomicFieldData implements AtomicFieldData.WithOrdinals<Scr
         }
     }
 
-
-
-    
 
 }

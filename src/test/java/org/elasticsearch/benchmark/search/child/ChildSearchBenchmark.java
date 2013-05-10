@@ -69,7 +69,7 @@ public class ChildSearchBenchmark {
         int QUERY_COUNT = 50;
         String indexName = "test";
 
-        Thread.sleep(10000);
+        client.admin().cluster().prepareHealth(indexName).setWaitForGreenStatus().setTimeout("10s").execute().actionGet();
         try {
             client.admin().indices().create(createIndexRequest(indexName)).actionGet();
             client.admin().indices().preparePutMapping(indexName).setType("child").setSource(XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -366,6 +366,7 @@ public class ChildSearchBenchmark {
         System.out.println("--> has_parent query with match_all Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
 
+        System.gc();
         statsResponse = client.admin().cluster().prepareNodesStats()
                 .setJvm(true).setIndices(true).execute().actionGet();
 

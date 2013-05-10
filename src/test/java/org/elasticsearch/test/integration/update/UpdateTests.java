@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.update;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.get.GetResponse;
@@ -45,6 +46,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.testng.AssertJUnit.fail;
 
 public class UpdateTests extends AbstractNodesTests {
 
@@ -379,6 +381,26 @@ public class UpdateTests extends AbstractNodesTests {
             assertThat(map2.containsKey("map1"), equalTo(true));
             assertThat(map2.containsKey("map2"), equalTo(true));
             assertThat(map2.containsKey("commonkey"), equalTo(true));
+        }
+    }
+
+    @Test
+    public void testUpdateRequestWithBothScriptAndDoc() throws Exception {
+        createIndex();
+        ClusterHealthResponse clusterHealth = client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        try {
+            client.prepareUpdate("test", "type1", "1")
+                    .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                    .setScript("ctx._source.field += 1")
+                    .execute().actionGet();
+            fail("Should have thrown ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.validationErrors().size(), equalTo(1));
+            assertThat(e.validationErrors().get(0), containsString("can't provide both script and doc"));
+            assertThat(e.getMessage(), containsString("can't provide both script and doc"));
         }
     }
 

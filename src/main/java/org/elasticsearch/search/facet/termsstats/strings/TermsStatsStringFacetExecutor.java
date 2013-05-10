@@ -19,11 +19,8 @@
 
 package org.elasticsearch.search.facet.termsstats.strings;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
@@ -42,8 +39,10 @@ import org.elasticsearch.search.facet.terms.strings.HashedAggregator;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
 
 public class TermsStatsStringFacetExecutor extends FacetExecutor {
 
@@ -158,7 +157,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
             spare.reset(value, hashCode);
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(spare);
             if (stringEntry == null) {
-                HashedBytesRef theValue = new HashedBytesRef(makesSafe(value, values), hashCode);
+                HashedBytesRef theValue = new HashedBytesRef(values.makeSafe(value), hashCode);
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(theValue, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(theValue, stringEntry);
             }
@@ -198,7 +197,7 @@ public class TermsStatsStringFacetExecutor extends FacetExecutor {
             spare.reset(value, hashCode);
             InternalTermsStatsStringFacet.StringEntry stringEntry = entries.get(spare);
             if (stringEntry == null) {
-                HashedBytesRef theValue = new HashedBytesRef(makesSafe(value, values), hashCode);
+                HashedBytesRef theValue = new HashedBytesRef(values.makeSafe(value), hashCode);
                 stringEntry = new InternalTermsStatsStringFacet.StringEntry(theValue, 1, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY);
                 entries.put(theValue, stringEntry);
             } else {

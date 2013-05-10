@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.search.facet.terms.strings;
 
+import com.google.common.collect.ImmutableList;
 import gnu.trove.map.hash.TObjectIntHashMap;
-
-import java.util.Arrays;
-
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefHash;
@@ -33,7 +31,7 @@ import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.support.EntryPriorityQueue;
 
-import com.google.common.collect.ImmutableList;
+import java.util.Arrays;
 
 public class HashedAggregator {
     private int missing;
@@ -57,13 +55,9 @@ public class HashedAggregator {
         }
     }
 
-    protected BytesRef makesSafe(BytesRef ref, BytesValues values) {
-        return values.makeSafe(ref);
-    }
-    
     public void addValue(BytesRef value, int hashCode, BytesValues values) {
         final boolean added = hash.addNoCount(value, hashCode, values);
-        assert assertHash.addNoCount(value, hashCode, values) == added :  "asserting counter diverged from current counter - value: "
+        assert assertHash.addNoCount(value, hashCode, values) == added : "asserting counter diverged from current counter - value: "
                 + value + " hash: " + hashCode;
     }
 
@@ -107,9 +101,9 @@ public class HashedAggregator {
     }
 
     public static InternalFacet buildFacet(String facetName, int size, long missing, long total, TermsFacet.ComparatorType comparatorType,
-            HashedAggregator aggregator) {
+                                           HashedAggregator aggregator) {
         if (aggregator.isEmpty()) {
-            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry> of(),
+            return new InternalStringTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalStringTermsFacet.TermEntry>of(),
                     missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
@@ -175,7 +169,7 @@ public class HashedAggregator {
             }
             return (counts[key]++) == 0;
         }
-        
+
         public boolean addNoCount(BytesRef value, int hashCode, BytesValues values) {
             int key = hash.add(value, hashCode);
             final boolean added = key >= 0;
@@ -240,9 +234,9 @@ public class HashedAggregator {
     }
 
     private static final class AssertingHashCount implements HashCount { // simple
-                                                                         // implemenation
-                                                                         // for
-                                                                         // assertions
+        // implemenation
+        // for
+        // assertions
         private final TObjectIntHashMap<HashedBytesRef> valuesAndCount = new TObjectIntHashMap<HashedBytesRef>();
         private HashedBytesRef spare = new HashedBytesRef();
 
@@ -251,7 +245,7 @@ public class HashedAggregator {
             int adjustedValue = valuesAndCount.adjustOrPutValue(spare.reset(value, hashCode), 1, 1);
             assert adjustedValue >= 1;
             if (adjustedValue == 1) { // only if we added the spare we create a
-                                      // new instance
+                // new instance
                 spare.bytes = values.makeSafe(spare.bytes);
                 spare = new HashedBytesRef();
                 return true;

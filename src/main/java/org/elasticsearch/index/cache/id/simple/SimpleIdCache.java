@@ -116,6 +116,15 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                 Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
                 Map<Object, IndexReader> cacheToReader = new HashMap<Object, IndexReader>();
 
+                // We don't want to load uid of child documents, this allows us to not load uids of child types.
+                Set<HashedBytesArray> parentTypes = new HashSet<HashedBytesArray>();
+                for (String type : indexService.mapperService().types()) {
+                    ParentFieldMapper parentFieldMapper = indexService.mapperService().documentMapper(type).parentFieldMapper();
+                    if (parentFieldMapper != null) {
+                        parentTypes.add(new HashedBytesArray(parentFieldMapper.type()));
+                    }
+                }
+
                 // first, go over and load all the id->doc map for all types
                 for (AtomicReaderContext context : atomicReaderContexts) {
                     AtomicReader reader = context.reader();
@@ -138,10 +147,16 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                         DocsEnum docsEnum = null;
                         for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                             HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
-                            TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
+                            // TODO: seek!
+                            if (!parentTypes.contains(typeAndId[0])) {
+                                continue;
+                            }
+
+                            String type = typeAndId[0].toUtf8();
+                            TypeBuilder typeBuilder = readerBuilder.get(type);
                             if (typeBuilder == null) {
                                 typeBuilder = new TypeBuilder(reader);
-                                readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
+                                readerBuilder.put(type, typeBuilder);
                             }
 
                             HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);

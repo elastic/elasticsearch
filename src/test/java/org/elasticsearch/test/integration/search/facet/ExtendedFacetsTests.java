@@ -69,13 +69,6 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                 .addMapping("type1", jsonBuilder().startObject()
                         .startObject("type1")
                         .startObject("properties")
-                        .startObject("field1_concrete")
-                        .field("type", "string")
-                        .field("index", "not_analyzed")
-                        .startObject("fielddata")
-                        .field("format", "concrete_bytes")
-                        .endObject()
-                        .endObject()
                         .startObject("field1_paged")
                         .field("type", "string")
                         .field("index", "not_analyzed")
@@ -143,7 +136,6 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                 String queryVal = queryValues[random.nextInt(numOfQueryValues)];
                 client.prepareIndex("test", "type1", Integer.toString(i))
                         .setSource(jsonBuilder().startObject()
-                                .field("field1_concrete", field1Values)
                                 .field("field1_paged", field1Values)
                                 .field("field1_fst", field1Values)
                                 .field("field2", field2Val)
@@ -160,7 +152,7 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
             }
 
             client.admin().indices().prepareRefresh().execute().actionGet();
-            String[] facetFields = new String[]{"field1_concrete", "field1_paged", "field1_fst"};
+            String[] facetFields = new String[]{"field1_paged", "field1_fst"};
             TermsFacet.ComparatorType[] compTypes = TermsFacet.ComparatorType.values();
             for (String facetField : facetFields) {
                 for (String queryVal : queryValToField1FacetEntries.keySet()) {

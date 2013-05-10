@@ -58,7 +58,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .immutableMap();
 
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
-                .put(Tuple.tuple("string", "concrete_bytes"), new ConcreteBytesRefIndexFieldData.Builder())
                 .put(Tuple.tuple("string", "paged_bytes"), new PagedBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", "fst"), new FSTBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("float", "array"), new FloatArrayIndexFieldData.Builder())

@@ -78,23 +78,14 @@ import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 public class IndicesClusterStateService extends AbstractLifecycleComponent<IndicesClusterStateService> implements ClusterStateListener {
 
     private final IndicesService indicesService;
-
     private final ClusterService clusterService;
-
     private final ThreadPool threadPool;
-
     private final RecoveryTarget recoveryTarget;
-
     private final ShardStateAction shardStateAction;
-
     private final NodeIndexCreatedAction nodeIndexCreatedAction;
-
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
-
     private final NodeMappingCreatedAction nodeMappingCreatedAction;
-
     private final NodeMappingRefreshAction nodeMappingRefreshAction;
-
     private final NodeAliasesUpdatedAction nodeAliasesUpdatedAction;
 
     // a map of mappings type we have seen per index due to cluster state
@@ -569,24 +560,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 indexShard.engine().addFailedEngineListener(failedEngineHandler);
             } catch (IndexShardAlreadyExistsException e) {
                 // ignore this, the method call can happen several times
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 logger.warn("[{}][{}] failed to create shard", e, shardRouting.index(), shardRouting.id());
                 try {
                     indexService.removeShard(shardId, "failed to create [" + ExceptionsHelper.detailedMessage(e) + "]");
                 } catch (IndexShardMissingException e1) {
                     // ignore
-                } catch (Exception e1) {
-                    logger.warn("[{}][{}] failed to remove shard after failed creation", e1, shardRouting.index(), shardRouting.id());
-                }
-                shardStateAction.shardFailed(shardRouting, "Failed to create shard, message [" + detailedMessage(e) + "]");
-                return;
-            } catch (OutOfMemoryError e) {
-                logger.warn("[{}][{}] failed to create shard", e, shardRouting.index(), shardRouting.id());
-                try {
-                    indexService.removeShard(shardId, "failed to create [" + ExceptionsHelper.detailedMessage(e) + "]");
-                } catch (IndexShardMissingException e1) {
-                    // ignore
-                } catch (Exception e1) {
+                } catch (Throwable e1) {
                     logger.warn("[{}][{}] failed to remove shard after failed creation", e1, shardRouting.index(), shardRouting.id());
                 }
                 shardStateAction.shardFailed(shardRouting, "Failed to create shard, message [" + detailedMessage(e) + "]");

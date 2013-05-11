@@ -48,17 +48,11 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
 public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
 
     private final ThreadPool threadPool;
-
     private volatile TransportServiceAdapter transportServiceAdapter;
-
     private volatile BoundTransportAddress boundAddress;
-
     private volatile LocalTransportAddress localAddress;
-
     private final static ConcurrentMap<TransportAddress, LocalTransport> transports = newConcurrentMap();
-
     private static final AtomicLong transportAddressIdGenerator = new AtomicLong();
-
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
 
     public LocalTransport(ThreadPool threadPool) {
@@ -241,10 +235,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             final TransportRequest request = handler.newInstance();
             request.readFrom(stream);
             handler.messageReceived(request, transportChannel);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             try {
                 transportChannel.sendResponse(e);
-            } catch (IOException e1) {
+            } catch (Throwable e1) {
                 logger.warn("Failed to send error message back to client for action [" + action + "]", e);
                 logger.warn("Actual Exception", e1);
             }
@@ -278,7 +272,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         try {
             ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer, settings.getClassLoader());
             error = (Throwable) ois.readObject();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
         handleException(handler, error);

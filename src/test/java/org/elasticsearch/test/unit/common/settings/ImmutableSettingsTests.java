@@ -27,7 +27,7 @@ import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -86,5 +86,40 @@ public class ImmutableSettingsTests {
         // this should be nGram in order to really work, but for sure not not throw a NoClassDefFoundError
         Settings settings = settingsBuilder().put("type", "ngram").build();
         settings.getAsClass("type", null, "org.elasticsearch.index.analysis.", "TokenFilterFactory");
+    }
+
+    @Test
+    public void testReplacePropertiesPlaceholderSystemProperty() {
+        System.setProperty("sysProp1", "sysVal1");
+        try {
+            Settings settings = settingsBuilder()
+                    .put("setting1", "${sysProp1}")
+                    .replacePropertyPlaceholders()
+                    .build();
+            assertThat(settings.get("setting1"), equalTo("sysVal1"));
+        } finally {
+            System.clearProperty("sysProp1");
+        }
+
+        Settings settings = settingsBuilder()
+                .put("setting1", "${sysProp1:defaultVal1}")
+                .replacePropertyPlaceholders()
+                .build();
+        assertThat(settings.get("setting1"), equalTo("defaultVal1"));
+
+        settings = settingsBuilder()
+                .put("setting1", "${sysProp1:}")
+                .replacePropertyPlaceholders()
+                .build();
+        assertThat(settings.get("setting1"), is(nullValue()));
+    }
+
+    @Test
+    public void testReplacePropertiesPlaceholderIgnoreEnvUnset() {
+        Settings settings = settingsBuilder()
+                .put("setting1", "${env.UNSET_ENV_VAR}")
+                .replacePropertyPlaceholders()
+                .build();
+        assertThat(settings.get("setting1"), is(nullValue()));
     }
 }

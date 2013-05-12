@@ -261,7 +261,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
             synchronized (this) {
                 if (poolCurrentSize < poolMaxSize) {
                     poolCurrentSize++;
-                    return new ReusableMemoryIndex(false, bytesPerMemoryIndex);
+                    return new ReusableMemoryIndex(true, bytesPerMemoryIndex);
                     
                 } 
             }
@@ -273,7 +273,7 @@ public class PercolatorExecutor extends AbstractIndexComponent {
                 // don't swallow the interrupt
                 Thread.currentThread().interrupt();
             }
-            return poll == null ? new ReusableMemoryIndex(false, bytesPerMemoryIndex) : poll;
+            return poll == null ? new ReusableMemoryIndex(true, bytesPerMemoryIndex) : poll;
         }
         
         public void release(ReusableMemoryIndex index) {

@@ -320,7 +320,33 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
             ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
             if (readerParentDocs != null) {
-                return new ParentScorer(this, readerParentDocs);
+                if (scoreType == ScoreType.MAX) {
+                    return new ParentScorer(this, readerParentDocs) {
+                        @Override
+                        public float score() throws IOException {
+                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
+                            return doc.maxScore;
+                        }
+                    };
+                } else if (scoreType == ScoreType.AVG) {
+                    return new ParentScorer(this, readerParentDocs) {
+                        @Override
+                        public float score() throws IOException {
+                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS; 
+                            return doc.sumScores / doc.count;
+                        }
+                    };
+                } else if (scoreType == ScoreType.SUM) {
+                    return new ParentScorer(this, readerParentDocs) {
+                        @Override
+                        public float score() throws IOException {
+                            assert doc.docId >= 0 || doc.docId < NO_MORE_DOCS;
+                            return doc.sumScores; 
+                        }
+                        
+                    };
+                } 
+                throw new ElasticSearchIllegalStateException("No support for score type [" + scoreType + "]");                   
             }
             return new EmptyScorer(this);
         }
@@ -331,31 +357,26 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         }
     }
 
-    class ParentScorer extends Scorer {
-
-        private final ParentDoc[] docs;
-
+    static abstract class ParentScorer extends Scorer {
+        private final ParentDoc spare = new ParentDoc();
+        protected final ParentDoc[] docs;
+        protected ParentDoc doc = spare;
         private int index = -1;
 
-        private ParentScorer(ParentWeight weight, ParentDoc[] docs) throws IOException {
+        ParentScorer(ParentWeight weight, ParentDoc[] docs) throws IOException {
             super(weight);
             this.docs = docs;
+            spare.docId = -1;
+            spare.count = -1;
         }
 
         @Override
-        public int docID() {
-            if (index == -1) {
-                return -1;
-            }
-
-            if (index >= docs.length) {
-                return NO_MORE_DOCS;
-            }
-            return docs[index].docId;
+        public final int docID() {
+            return doc.docId;
         }
 
         @Override
-        public int advance(int target) throws IOException {
+        public final int advance(int target) throws IOException {
             int doc;
             while ((doc = nextDoc()) < target) {
             }
@@ -363,32 +384,22 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         }
 
         @Override
-        public int nextDoc() throws IOException {
+        public final int nextDoc() throws IOException {
             if (++index >= docs.length) {
-                return NO_MORE_DOCS;
+                doc = spare;
+                doc.count = 0;
+                return (doc.docId = NO_MORE_DOCS);
             }
-            return docs[index].docId;
+            return (doc = docs[index]).docId;
         }
 
         @Override
-        public float score() throws IOException {
-            if (scoreType == ScoreType.MAX) {
-                return docs[index].maxScore;
-            } else if (scoreType == ScoreType.AVG) {
-                return docs[index].sumScores / docs[index].count;
-            } else if (scoreType == ScoreType.SUM) {
-                return docs[index].sumScores;
-            }
-            throw new ElasticSearchIllegalStateException("No support for score type [" + scoreType + "]");
+        public final int freq() throws IOException {
+            return doc.count; // The number of matches in the child doc, which is propagated to parent
         }
 
         @Override
-        public int freq() throws IOException {
-            return docs[index].count; // The number of matches in the child doc, which is propagated to parent
-        }
-
-        @Override
-        public long cost() {
+        public final long cost() {
             return docs.length;
         }
     }

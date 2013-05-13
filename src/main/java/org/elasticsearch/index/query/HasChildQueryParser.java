@@ -89,6 +89,11 @@ public class HasChildQueryParser implements QueryParser {
                     if (!"none".equals(scoreTypeValue)) {
                         scoreType = ScoreType.fromString(scoreTypeValue);
                     }
+                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                    String scoreModeValue = parser.text();
+                    if (!"none".equals(scoreModeValue)) {
+                        scoreType = ScoreType.fromString(scoreModeValue);
+                    }
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {

@@ -48,6 +48,8 @@ public enum ScoreType {
             return AVG;
         } else if ("sum".equals(type)) {
             return SUM;
+        } else if ("total".equals(type)) { // This name is consistent with: ScoreMode.Total
+            return SUM;
         }
         throw new ElasticSearchIllegalArgumentException("No score type for child query [" + type + "] found");
     }

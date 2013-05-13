@@ -92,6 +92,13 @@ public class HasParentQueryParser implements QueryParser {
                     } else if ("none".equals(scoreTypeValue)) {
                         score = false;
                     }
+                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                    String scoreModeValue = parser.text();
+                    if ("score".equals(scoreModeValue)) {
+                        score = true;
+                    } else if ("none".equals(scoreModeValue)) {
+                        score = false;
+                    }
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {

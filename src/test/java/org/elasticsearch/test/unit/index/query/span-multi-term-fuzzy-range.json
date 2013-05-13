@@ -1,5 +1,5 @@
 {
-	"span_multi_term":{
+	"span_multi":{
 		"match":{
 			"fuzzy":{
         		"age":{

@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
  */
 public class SpanMultiTermQueryParser implements QueryParser {
 
-	public static final String NAME = "span_multi_term";
+	public static final String NAME = "span_multi";
 	public static final String MATCH_NAME = "match";
 
 	@Inject

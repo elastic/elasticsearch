@@ -86,6 +86,8 @@ public class TopChildrenQueryParser implements QueryParser {
                     throw new QueryParsingException(parseContext.index(), "the [_scope] support in [top_children] query has been removed, use a filter as a facet_filter in the relevant global facet");
                 } else if ("score".equals(currentFieldName)) {
                     scoreType = ScoreType.fromString(parser.text());
+                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                    scoreType = ScoreType.fromString(parser.text());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if ("factor".equals(currentFieldName)) {

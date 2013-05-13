@@ -19,31 +19,6 @@
 
 package org.elasticsearch.test.integration.search.highlight;
 
-import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
-import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
-import static org.elasticsearch.index.query.QueryBuilders.commonTerms;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.fieldQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.testng.Assert.fail;
-
-import java.io.IOException;
-import java.util.Arrays;
-
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -68,6 +43,22 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.util.Arrays;
+
+import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
+import static org.elasticsearch.client.Requests.searchRequest;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.testng.Assert.fail;
 
 /**
  *
@@ -147,6 +138,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .put("analysis.analyzer.search_autocomplete.tokenizer", "whitespace")
                 .putArray("analysis.analyzer.search_autocomplete.filter", "lowercase", "wordDelimiter"))
         .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         client.prepareIndex("test", "test", "1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
@@ -200,6 +192,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .put("analysis.analyzer.name2_index_analyzer.filter", "my_ngram")
                 .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace"))
         .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         client.prepareIndex("test", "test", "1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
@@ -270,6 +263,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                 .put("analysis.analyzer.name2_index_analyzer.filter", "my_ngram")
                 .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace"))
         .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         client.prepareIndex("test", "test", "1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
@@ -317,7 +311,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("long_term").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1")
                 .setSource(XContentFactory.jsonBuilder().startObject()
@@ -381,6 +375,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("attachments").startObject("properties").startObject("body").field("type", "string").field("store", "no").field("term_vector", "no").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             client.prepareIndex("test", "type1", Integer.toString(i))
@@ -436,6 +431,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("attachments").startObject("properties").startObject("body").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject().endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             client.prepareIndex("test", "type1", Integer.toString(i))
@@ -491,7 +487,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("titleTV").field("type", "string").field("store", "no").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1")
                 .setSource(XContentFactory.jsonBuilder().startObject()
@@ -805,6 +801,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             client.prepareIndex("test", "type1", Integer.toString(i))
@@ -839,6 +836,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             client.prepareIndex("test", "type1", Integer.toString(i))
@@ -875,6 +873,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("title").field("type", "string").field("store", "yes")
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             client.prepareIndex("test", "type1", Integer.toString(i))
@@ -913,6 +912,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             client.prepareIndex("test", "type1", Integer.toString(i))
@@ -1149,6 +1149,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         for (int i = 0; i < 5; i++) {
             client.prepareIndex("test", "type1", Integer.toString(i))
@@ -1219,6 +1220,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("tags").field("type", "string").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("tags",
@@ -1463,6 +1465,7 @@ public class HighlighterSearchTests extends AbstractNodesTests {
                         .startObject("tags").field("type", "string").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("tags",

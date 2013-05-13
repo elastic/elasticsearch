@@ -30,6 +30,7 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.*;
 
 import java.io.File;
+import java.io.IOException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -64,10 +65,10 @@ public class SimpleDistributorTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testDirectoryToString() {
+    public void testDirectoryToString() throws IOException {
         File dataRoot = environment.dataFiles()[0];
-        String dataPath1 = new File(dataRoot, "data1").getAbsolutePath();
-        String dataPath2 = new File(dataRoot, "data2").getAbsolutePath();
+        String dataPath1 = new File(dataRoot, "data1").getCanonicalPath();
+        String dataPath2 = new File(dataRoot, "data2").getCanonicalPath();
         startNode("node1", settingsBuilder().putArray("path.data", dataPath1, dataPath2));
 
         createIndexWithStoreType("node1", "test", "niofs", "least_used");

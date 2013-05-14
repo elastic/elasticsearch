@@ -42,6 +42,12 @@ public class RecoverySettings extends AbstractComponent {
     public static final String INDICES_RECOVERY_TRANSLOG_SIZE = "indices.recovery.translog_size";
     public static final String INDICES_RECOVERY_COMPRESS = "indices.recovery.compress";
     public static final String INDICES_RECOVERY_CONCURRENT_STREAMS = "indices.recovery.concurrent_streams";
+    public static final String INDICES_RECOVERY_MAX_BYTES_PER_SEC = "indices.recovery.max_bytes_per_sec";
+    
+    /**
+     * Use {@link #INDICES_RECOVERY_MAX_BYTES_PER_SEC} instead
+     */
+    @Deprecated 
     public static final String INDICES_RECOVERY_MAX_SIZE_PER_SEC = "indices.recovery.max_size_per_sec";
 
     private volatile ByteSizeValue fileChunkSize;
@@ -53,7 +59,7 @@ public class RecoverySettings extends AbstractComponent {
     private volatile int concurrentStreams;
     private final ThreadPoolExecutor concurrentStreamPool;
 
-    private volatile ByteSizeValue maxSizePerSec;
+    private volatile ByteSizeValue maxBytesPerSec;
     private volatile SimpleRateLimiter rateLimiter;
 
     @Inject
@@ -68,15 +74,15 @@ public class RecoverySettings extends AbstractComponent {
         this.concurrentStreams = componentSettings.getAsInt("concurrent_streams", settings.getAsInt("index.shard.recovery.concurrent_streams", 3));
         this.concurrentStreamPool = EsExecutors.newScalingExecutorService(0, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
 
-        this.maxSizePerSec = componentSettings.getAsBytesSize("max_size_per_sec", new ByteSizeValue(0));
-        if (maxSizePerSec.bytes() <= 0) {
+        this.maxBytesPerSec = componentSettings.getAsBytesSize("max_bytes_per_sec", componentSettings.getAsBytesSize("max_size_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB)));
+        if (maxBytesPerSec.bytes() <= 0) {
             rateLimiter = null;
         } else {
-            rateLimiter = new SimpleRateLimiter(maxSizePerSec.mbFrac());
+            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.mbFrac());
         }
 
-        logger.debug("using max_size_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]",
-                maxSizePerSec, concurrentStreams, fileChunkSize, translogSize, translogOps, compress);
+        logger.debug("using max_bytes_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]",
+                maxBytesPerSec, concurrentStreams, fileChunkSize, translogSize, translogOps, compress);
 
         nodeSettingsService.addListener(new ApplySettings());
     }
@@ -122,10 +128,10 @@ public class RecoverySettings extends AbstractComponent {
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            ByteSizeValue maxSizePerSec = settings.getAsBytesSize(INDICES_RECOVERY_MAX_SIZE_PER_SEC, RecoverySettings.this.maxSizePerSec);
-            if (!Objects.equal(maxSizePerSec, RecoverySettings.this.maxSizePerSec)) {
-                logger.info("updating [indices.recovery.max_size_per_sec] from [{}] to [{}]", RecoverySettings.this.maxSizePerSec, maxSizePerSec);
-                RecoverySettings.this.maxSizePerSec = maxSizePerSec;
+            ByteSizeValue maxSizePerSec = settings.getAsBytesSize(INDICES_RECOVERY_MAX_BYTES_PER_SEC, settings.getAsBytesSize(INDICES_RECOVERY_MAX_SIZE_PER_SEC, RecoverySettings.this.maxBytesPerSec));
+            if (!Objects.equal(maxSizePerSec, RecoverySettings.this.maxBytesPerSec)) {
+                logger.info("updating [{}] from [{}] to [{}]", INDICES_RECOVERY_MAX_BYTES_PER_SEC, RecoverySettings.this.maxBytesPerSec, maxSizePerSec);
+                RecoverySettings.this.maxBytesPerSec = maxSizePerSec;
                 if (maxSizePerSec.bytes() <= 0) {
                     rateLimiter = null;
                 } else if (rateLimiter != null) {

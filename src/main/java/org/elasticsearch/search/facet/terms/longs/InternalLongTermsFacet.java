@@ -163,16 +163,22 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        InternalLongTermsFacet first = (InternalLongTermsFacet) facets.get(0);
+
+        InternalLongTermsFacet first = null;
+
         TLongIntHashMap aggregated = CacheRecycler.popLongIntMap();
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
-            InternalLongTermsFacet mFacet = (InternalLongTermsFacet) facet;
-            missing += mFacet.getMissingCount();
-            total += mFacet.getTotalCount();
-            for (LongEntry entry : mFacet.entries) {
-                aggregated.adjustOrPutValue(entry.term, entry.getCount(), entry.getCount());
+            TermsFacet termsFacet = (TermsFacet) facet;
+            // termsFacet could be of type InternalStringTermsFacet representing unmapped fields
+            if (first == null && termsFacet instanceof InternalLongTermsFacet) {
+                first = (InternalLongTermsFacet) termsFacet;
+            }
+            missing += termsFacet.getMissingCount();
+            total += termsFacet.getTotalCount();
+            for (Entry entry : termsFacet.getEntries()) {
+                aggregated.adjustOrPutValue(((LongEntry) entry).term, entry.getCount(), entry.getCount());
             }
         }
 

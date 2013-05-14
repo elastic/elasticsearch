@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.terms.doubles.TermsDoubleFacetExecutor;
 import org.elasticsearch.search.facet.terms.index.IndexNameFacetExecutor;
 import org.elasticsearch.search.facet.terms.longs.TermsLongFacetExecutor;
@@ -41,9 +40,11 @@ import org.elasticsearch.search.facet.terms.strings.FieldsTermsStringFacetExecut
 import org.elasticsearch.search.facet.terms.strings.ScriptTermsStringFieldFacetExecutor;
 import org.elasticsearch.search.facet.terms.strings.TermsStringFacetExecutor;
 import org.elasticsearch.search.facet.terms.strings.TermsStringOrdinalsFacetExecutor;
+import org.elasticsearch.search.facet.terms.unmapped.UnmappedFieldExecutor;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -119,7 +120,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             } else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
                     field = parser.text();
-                } else if ("script_field".equals(currentFieldName)) {
+                } else if ("script_field".equals(currentFieldName) || "scriptField".equals(currentFieldName)) {
                     script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
@@ -161,7 +162,20 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         }
 
         if (fieldsNames != null) {
-            return new FieldsTermsStringFacetExecutor(facetName, fieldsNames, size, comparatorType, allTerms, context, excluded, pattern, searchScript);
+
+            // in case of multi files, we only collect the fields that are mapped and facet on them.
+            ArrayList<FieldMapper> mappers = new ArrayList<FieldMapper>(fieldsNames.length);
+            for (int i = 0; i < fieldsNames.length; i++) {
+                FieldMapper mapper = context.smartNameFieldMapper(fieldsNames[i]);
+                if (mapper != null) {
+                    mappers.add(mapper);
+                }
+            }
+            if (mappers.isEmpty()) {
+                // non of the fields is mapped
+                return new UnmappedFieldExecutor(size, comparatorType);
+            }
+            return new FieldsTermsStringFacetExecutor(facetName, mappers.toArray(new FieldMapper[mappers.size()]), size, comparatorType, allTerms, context, excluded, pattern, searchScript);
         }
         if (field == null && fieldsNames == null && script != null) {
             return new ScriptTermsStringFieldFacetExecutor(size, comparatorType, context, excluded, pattern, scriptLang, script, params);
@@ -169,7 +183,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
 
         FieldMapper fieldMapper = context.smartNameFieldMapper(field);
         if (fieldMapper == null) {
-            throw new FacetPhaseExecutionException(facetName, "failed to find mapping for [" + field + "]");
+            return new UnmappedFieldExecutor(size, comparatorType);
         }
 
         IndexFieldData indexFieldData = context.fieldData().getForField(fieldMapper);

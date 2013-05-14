@@ -74,42 +74,42 @@ public class SimpleDistributorTests extends AbstractNodesTests {
         createIndexWithStoreType("node1", "test", "niofs", "least_used");
         String storeString = getStoreDirectory("node1", "test", 0).toString();
         logger.info(storeString);
-        assertThat(storeString, startsWith("store(least_used[niofs(" + dataPath1 ));
-        assertThat(storeString, containsString("), niofs(" + dataPath2));
-        assertThat(storeString, endsWith(")])"));
+        assertThat(storeString, startsWith("store(least_used[rate_limited(niofs(" + dataPath1 ));
+        assertThat(storeString, containsString("), rate_limited(niofs(" + dataPath2));
+        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
         createIndexWithStoreType("node1", "test", "niofs", "random");
         storeString = getStoreDirectory("node1", "test", 0).toString();
         logger.info(storeString);
-        assertThat(storeString, startsWith("store(random[niofs(" + dataPath1 ));
-        assertThat(storeString, containsString("), niofs(" + dataPath2));
-        assertThat(storeString, endsWith(")])"));
+        assertThat(storeString, startsWith("store(random[rate_limited(niofs(" + dataPath1 ));
+        assertThat(storeString, containsString("), rate_limited(niofs(" + dataPath2));
+        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
         createIndexWithStoreType("node1", "test", "mmapfs", "least_used");
         storeString = getStoreDirectory("node1", "test", 0).toString();
         logger.info(storeString);
-        assertThat(storeString, startsWith("store(least_used[mmapfs(" + dataPath1));
-        assertThat(storeString, containsString("), mmapfs(" + dataPath2));
-        assertThat(storeString, endsWith(")])"));
+        assertThat(storeString, startsWith("store(least_used[rate_limited(mmapfs(" + dataPath1));
+        assertThat(storeString, containsString("), rate_limited(mmapfs(" + dataPath2));
+        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
         createIndexWithStoreType("node1", "test", "simplefs", "least_used");
         storeString = getStoreDirectory("node1", "test", 0).toString();
         logger.info(storeString);
-        assertThat(storeString, startsWith("store(least_used[simplefs(" + dataPath1));
-        assertThat(storeString, containsString("), simplefs(" + dataPath2));
-        assertThat(storeString, endsWith(")])"));
+        assertThat(storeString, startsWith("store(least_used[rate_limited(simplefs(" + dataPath1));
+        assertThat(storeString, containsString("), rate_limited(simplefs(" + dataPath2));
+        assertThat(storeString, endsWith(", type=MERGE, rate=20.0)])"));
 
         createIndexWithStoreType("node1", "test", "memory", "least_used");
         storeString = getStoreDirectory("node1", "test", 0).toString();
         logger.info(storeString);
         assertThat(storeString, equalTo("store(least_used[byte_buffer])"));
 
-        createIndexWithRateLimitingStoreType("node1", "test", "niofs", "least_used", "5mb");
+        createIndexWithoutRateLimitingStoreType("node1", "test", "niofs", "least_used");
         storeString = getStoreDirectory("node1", "test", 0).toString();
         logger.info(storeString);
-        assertThat(storeString, startsWith("store(least_used[rate_limited(niofs(" + dataPath1 ));
-        assertThat(storeString, containsString("), rate_limited(niofs(" + dataPath2));
-        assertThat(storeString, endsWith(", type=MERGE, rate=5.0)])"));
+        assertThat(storeString, startsWith("store(least_used[niofs(" + dataPath1 ));
+        assertThat(storeString, containsString("), niofs(" + dataPath2));
+        assertThat(storeString, endsWith(")])"));
     }
 
     private void createIndexWithStoreType(String nodeId, String index, String storeType, String distributor) {
@@ -130,7 +130,7 @@ public class SimpleDistributorTests extends AbstractNodesTests {
                 .setTimeout(TimeValue.timeValueSeconds(5)).execute().actionGet().isTimedOut(), equalTo(false));
     }
 
-    private void createIndexWithRateLimitingStoreType(String nodeId, String index, String storeType, String distributor, String limit) {
+    private void createIndexWithoutRateLimitingStoreType(String nodeId, String index, String storeType, String distributor) {
         try {
             client(nodeId).admin().indices().prepareDelete(index).execute().actionGet();
         } catch (IndexMissingException ex) {
@@ -140,8 +140,7 @@ public class SimpleDistributorTests extends AbstractNodesTests {
                 .setSettings(settingsBuilder()
                         .put("index.store.distributor", distributor)
                         .put("index.store.type", storeType)
-                        .put("index.store.throttle.type", "merge")
-                        .put("index.store.throttle.max_bytes_per_sec", limit)
+                        .put("index.store.throttle.type", "none")
                         .put("index.number_of_replicas", 0)
                         .put("index.number_of_shards", 1)
                 )

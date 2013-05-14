@@ -49,9 +49,9 @@ public class FloatNestedSortingTests extends AbstractNumberNestedSortingTests {
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode) {
+    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode, Object missingValue) {
         FloatArrayIndexFieldData fieldData = getForField(fieldName);
-        return new FloatValuesComparatorSource(fieldData, null, sortMode);
+        return new FloatValuesComparatorSource(fieldData, missingValue, sortMode);
     }
 
     @Override

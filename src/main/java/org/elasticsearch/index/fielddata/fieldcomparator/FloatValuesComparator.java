@@ -66,4 +66,9 @@ public final class FloatValuesComparator extends DoubleValuesComparatorBase<Floa
     public void divide(int slot, int divisor) {
         values[slot] /= divisor;
     }
+
+    @Override
+    public void missing(int slot) {
+        values[slot] = (float) missingValue;
+    }
 }

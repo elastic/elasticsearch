@@ -61,6 +61,11 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends NumberCompar
         return this;
     }
 
+    @Override
+    public int compareBottomMissing() {
+        return compare(bottom, missingValue);
+    }
+
     static final int compare(double left, double right) {
         return Double.compare(left, right);
     }

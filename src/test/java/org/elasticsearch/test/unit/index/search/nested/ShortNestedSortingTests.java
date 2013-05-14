@@ -38,9 +38,9 @@ public class ShortNestedSortingTests extends AbstractNumberNestedSortingTests {
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode) {
+    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode, Object missingValue) {
         ShortArrayIndexFieldData fieldData = getForField(fieldName);
-        return new ShortValuesComparatorSource(fieldData, null, sortMode);
+        return new ShortValuesComparatorSource(fieldData, missingValue, sortMode);
     }
 
     @Override

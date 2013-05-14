@@ -66,4 +66,9 @@ public final class ByteValuesComparator extends LongValuesComparatorBase<Byte> {
     public void divide(int slot, int divisor) {
         values[slot] /= divisor;
     }
+
+    @Override
+    public void missing(int slot) {
+        values[slot] = (byte) missingValue;
+    }
 }

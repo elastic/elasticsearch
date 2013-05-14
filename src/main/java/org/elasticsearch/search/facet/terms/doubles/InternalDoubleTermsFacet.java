@@ -162,16 +162,22 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        InternalDoubleTermsFacet first = (InternalDoubleTermsFacet) facets.get(0);
+
+        InternalDoubleTermsFacet first = null;
+
         TDoubleIntHashMap aggregated = CacheRecycler.popDoubleIntMap();
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
-            InternalDoubleTermsFacet mFacet = (InternalDoubleTermsFacet) facet;
-            missing += mFacet.getMissingCount();
-            total += mFacet.getTotalCount();
-            for (DoubleEntry entry : mFacet.entries) {
-                aggregated.adjustOrPutValue(entry.term, entry.getCount(), entry.getCount());
+            TermsFacet termsFacet = (TermsFacet) facet;
+            // termsFacet could be of type InternalStringTermsFacet representing unmapped fields
+            if (first == null && termsFacet instanceof InternalDoubleTermsFacet) {
+                first = (InternalDoubleTermsFacet) termsFacet;
+            }
+            missing += termsFacet.getMissingCount();
+            total += termsFacet.getTotalCount();
+            for (Entry entry : termsFacet.getEntries()) {
+                aggregated.adjustOrPutValue(((DoubleEntry)entry).term, entry.getCount(), entry.getCount());
             }
         }
 

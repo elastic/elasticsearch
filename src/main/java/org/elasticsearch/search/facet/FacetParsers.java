@@ -30,20 +30,20 @@ import java.util.Set;
  */
 public class FacetParsers {
 
-    private final ImmutableMap<String, FacetParser> processors;
+    private final ImmutableMap<String, FacetParser> parsers;
 
     @Inject
-    public FacetParsers(Set<FacetParser> processors) {
+    public FacetParsers(Set<FacetParser> parsers) {
         MapBuilder<String, FacetParser> builder = MapBuilder.newMapBuilder();
-        for (FacetParser processor : processors) {
-            for (String type : processor.types()) {
-                builder.put(type, processor);
+        for (FacetParser parser : parsers) {
+            for (String type : parser.types()) {
+                builder.put(type, parser);
             }
         }
-        this.processors = builder.immutableMap();
+        this.parsers = builder.immutableMap();
     }
 
-    public FacetParser processor(String type) {
-        return processors.get(type);
+    public FacetParser parser(String type) {
+        return parsers.get(type);
     }
 }

@@ -88,7 +88,7 @@ public class HistogramFacetParser extends AbstractComponent implements FacetPars
                     valueField = parser.text();
                 } else if ("interval".equals(fieldName)) {
                     interval = parser.longValue();
-                } else if ("time_interval".equals(fieldName)) {
+                } else if ("time_interval".equals(fieldName) || "timeInterval".equals(fieldName)) {
                     interval = TimeValue.parseTimeValue(parser.text(), null).millis();
                 } else if ("key_script".equals(fieldName) || "keyScript".equals(fieldName)) {
                     keyScript = parser.text();

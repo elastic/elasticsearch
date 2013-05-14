@@ -85,7 +85,7 @@ public class FacetParseElement implements SearchParseElement {
                         if ("facet_filter".equals(fieldName) || "facetFilter".equals(fieldName)) {
                             filter = context.queryParserService().parseInnerFilter(parser);
                         } else {
-                            FacetParser facetParser = facetParsers.processor(fieldName);
+                            FacetParser facetParser = facetParsers.parser(fieldName);
                             if (facetParser == null) {
                                 throw new SearchParseException(context, "No facet type found for [" + fieldName + "]");
                             }
@@ -114,6 +114,7 @@ public class FacetParseElement implements SearchParseElement {
                         }
                     }
                 }
+
                 if (filter != null) {
                     if (cacheFilter) {
                         filter = context.filterCache().cache(filter);

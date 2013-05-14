@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -66,8 +67,8 @@ public class ClusterRerouteTests extends AbstractNodesTests {
     @Test
     public void rerouteWithCommands() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put("cluster.routing.allocation.disable_new_allocation", true)
-                .put("cluster.routing.allocation.disable_allocation", true)
+                .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
+                .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
                 .build();
 
         startNode("node1", commonSettings);
@@ -129,8 +130,8 @@ public class ClusterRerouteTests extends AbstractNodesTests {
     @Test
     public void rerouteWithAllocateLocalGateway() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put("cluster.routing.allocation.disable_new_allocation", true)
-                .put("cluster.routing.allocation.disable_allocation", true)
+                .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
+                .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
                 .put("gateway.type", "local")
                 .build();
 

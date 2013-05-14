@@ -21,6 +21,7 @@ package org.elasticsearch.test.unit.cluster.settings;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
@@ -32,21 +33,21 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ClusterSettingsTests {
-    
+
     @Test
     public void clusterSettingsUpdateResponse() {
         Node node1 = NodeBuilder.nodeBuilder().node();
         Node node2 = NodeBuilder.nodeBuilder().node();
-        
+
         node1.start();
         node2.start();
-        
+
         Client client = node1.client();
-        
-        String key1 = "indices.cache.filter.size"; 
+
+        String key1 = "indices.cache.filter.size";
         int value1 = 10;
 
-        String key2 = "cluster.routing.allocation.disable_allocation"; 
+        String key2 = DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION;
         boolean value2 = true;
 
         Settings transientSettings1 = ImmutableSettings.builder().put(key1, value1).build();
@@ -58,7 +59,7 @@ public class ClusterSettingsTests {
                 .setPersistentSettings(persistentSettings1)
                 .execute()
                 .actionGet();
-        
+
         assertThat(response1.getTransientSettings().get(key1), notNullValue());
         assertThat(response1.getTransientSettings().get(key2), nullValue());
         assertThat(response1.getPersistentSettings().get(key1), nullValue());
@@ -73,7 +74,7 @@ public class ClusterSettingsTests {
                 .setPersistentSettings(persistentSettings2)
                 .execute()
                 .actionGet();
-        
+
         assertThat(response2.getTransientSettings().get(key1), notNullValue());
         assertThat(response2.getTransientSettings().get(key2), notNullValue());
         assertThat(response2.getPersistentSettings().get(key1), nullValue());
@@ -88,7 +89,7 @@ public class ClusterSettingsTests {
                 .setPersistentSettings(persistentSettings3)
                 .execute()
                 .actionGet();
-        
+
         assertThat(response3.getTransientSettings().get(key1), nullValue());
         assertThat(response3.getTransientSettings().get(key2), nullValue());
         assertThat(response3.getPersistentSettings().get(key1), notNullValue());

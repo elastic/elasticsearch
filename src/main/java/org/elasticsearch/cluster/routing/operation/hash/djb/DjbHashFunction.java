@@ -37,6 +37,17 @@ public class DjbHashFunction implements HashFunction {
         return (int) hash;
     }
 
+    public static int DJB_HASH(byte[] value, int offset, int length) {
+        long hash = 5381;
+
+        final int end = offset + length;
+        for (int i = offset; i < end; i++) {
+            hash = ((hash << 5) + hash) + value[i];
+        }
+
+        return (int) hash;
+    }
+
     @Override
     public int hash(String routing) {
         return DJB_HASH(routing);

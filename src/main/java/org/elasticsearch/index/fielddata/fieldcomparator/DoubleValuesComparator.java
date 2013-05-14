@@ -66,4 +66,9 @@ public final class DoubleValuesComparator extends DoubleValuesComparatorBase<Dou
     public void divide(int slot, int divisor) {
         values[slot] /= divisor;
     }
+
+    @Override
+    public void missing(int slot) {
+        values[slot] = missingValue;
+    }
 }

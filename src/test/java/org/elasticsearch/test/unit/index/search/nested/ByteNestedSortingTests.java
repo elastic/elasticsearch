@@ -38,9 +38,9 @@ public class ByteNestedSortingTests extends AbstractNumberNestedSortingTests {
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode) {
+    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode, Object missingValue) {
         ByteArrayIndexFieldData fieldData = getForField(fieldName);
-        return new ByteValuesComparatorSource(fieldData, null, sortMode);
+        return new ByteValuesComparatorSource(fieldData, missingValue, sortMode);
     }
 
     @Override

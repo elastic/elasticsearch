@@ -384,8 +384,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private void innerCreate(Create create, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(create.uid())) {
             UidField uidField = create.uidField();
+            HashedBytesRef versionKey = versionKey(create.uid());
             final long currentVersion;
-            VersionValue versionValue = versionMap.get(versionKey(create.uid()));
+            VersionValue versionValue = versionMap.get(versionKey);
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(create.uid());
             } else {
@@ -471,7 +472,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
             Translog.Location translogLocation = translog.add(new Translog.Create(create));
 
-            versionMap.put(versionKey(create.uid()), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.put(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postCreateUnderLock(create);
         }
@@ -508,8 +509,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private void innerIndex(Index index, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(index.uid())) {
             UidField uidField = index.uidField();
+            HashedBytesRef versionKey = versionKey(index.uid());
             final long currentVersion;
-            VersionValue versionValue = versionMap.get(versionKey(index.uid()));
+            VersionValue versionValue = versionMap.get(versionKey);
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(index.uid());
             } else {
@@ -585,7 +587,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
             Translog.Location translogLocation = translog.add(new Translog.Index(index));
 
-            versionMap.put(versionKey(index.uid()), new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
+            versionMap.put(versionKey, new VersionValue(updatedVersion, false, threadPool.estimatedTimeInMillis(), translogLocation));
 
             indexingService.postIndexUnderLock(index);
         }
@@ -621,7 +623,8 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
     private void innerDelete(Delete delete, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(delete.uid())) {
             final long currentVersion;
-            VersionValue versionValue = versionMap.get(versionKey(delete.uid()));
+            HashedBytesRef versionKey = versionKey(delete.uid());
+            VersionValue versionValue = versionMap.get(versionKey);
             if (versionValue == null) {
                 currentVersion = loadCurrentVersionFromIndex(delete.uid());
             } else {
@@ -678,17 +681,17 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 // doc does not exists and no prior deletes
                 delete.version(updatedVersion).notFound(true);
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                versionMap.put(versionKey(delete.uid()), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+                versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
             } else if (versionValue != null && versionValue.delete()) {
                 // a "delete on delete", in this case, we still increment the version, log it, and return that version
                 delete.version(updatedVersion).notFound(true);
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                versionMap.put(versionKey(delete.uid()), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+                versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
             } else {
                 delete.version(updatedVersion);
                 writer.deleteDocuments(delete.uid());
                 Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-                versionMap.put(versionKey(delete.uid()), new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
+                versionMap.put(versionKey, new VersionValue(updatedVersion, true, threadPool.estimatedTimeInMillis(), translogLocation));
             }
 
             indexingService.postDeleteUnderLock(delete);
@@ -865,7 +868,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     rwl.writeLock().unlock();
                 }
             } else if (flush.type() == Flush.Type.COMMIT_TRANSLOG) {
-                boolean makeTransientCurrent = false;
                 rwl.readLock().lock();
                 try {
                     if (indexWriter == null) {

@@ -683,6 +683,96 @@ public class SimpleNestedTests extends AbstractNodesTests {
     }
 
     @Test
+    public void testSimpleNestedSorting_withNestedFilterMissing() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.referesh_interval", -1)
+                        .build()
+                )
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", 1)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 5)
+                .field("field2", true)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .field("field2", true)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("field1", 2)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 1)
+                .field("field2", true)
+                .endObject()
+                .startObject()
+                .field("field1", 2)
+                .field("field2", true)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        // Doc with missing nested docs if nested filter is used
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("field1", 3)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 3)
+                .field("field2", false)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .field("field2", false)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client.prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("4"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("10"));
+
+        searchResponse = client.prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("10"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("5"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
+    }
+
+    @Test
     public void testSortNestedWithNestedFilter() throws Exception {
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test")

@@ -28,7 +28,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
-import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
@@ -40,7 +39,6 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -148,6 +146,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         document.add(createField("field1", 5, Field.Store.NO));
         docs.add(document);
         writer.addDocuments(docs);
+        writer.commit();
 
         docs.clear();
         document = new Document();
@@ -167,12 +166,14 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         document.add(createField("field1", 6, Field.Store.NO));
         docs.add(document);
         writer.addDocuments(docs);
+        writer.commit();
 
         // This doc will not be included, because it doesn't have nested docs
         document = new Document();
         document.add(new StringField("__type", "parent", Field.Store.NO));
         document.add(createField("field1", 7, Field.Store.NO));
         writer.addDocument(document);
+        writer.commit();
 
         docs.clear();
         document = new Document();
@@ -207,7 +208,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
 
         SortMode sortMode = SortMode.SUM;
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, false));
-        IndexFieldData.XFieldComparatorSource innerFieldComparator = createInnerFieldComparator("field2", sortMode);
+        IndexFieldData.XFieldComparatorSource innerFieldComparator = createInnerFieldComparator("field2", sortMode, null);
         Filter parentFilter = new TermFilter(new Term("__type", "parent"));
         Filter childFilter = new NotFilter(parentFilter);
         NestedFieldComparatorSource nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
@@ -243,7 +244,7 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         assertThat(topDocs.scoreDocs[4].doc, equalTo(3));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(9));
 
-        childFilter = new AndFilter(Arrays.asList(new NotFilter(parentFilter), new TermFilter(new Term("filter_1", "T"))));
+        childFilter = new TermFilter(new Term("filter_1", "T"));
         nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
         query = new ToParentBlockJoinQuery(
                 new XFilteredQuery(new MatchAllDocsQuery(), childFilter),
@@ -280,6 +281,40 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
         assertThat(topDocs.scoreDocs[4].doc, equalTo(3));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(9));
 
+        innerFieldComparator = createInnerFieldComparator("field2", sortMode, 127);
+        nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
+        sort = new Sort(new SortField("field2", nestedComparatorSource, true));
+        topDocs = searcher.search(new TermQuery(new Term("__type", "parent")), 5, sort);
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(5));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(19));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).intValue(), equalTo(127));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(24));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[1]).fields[0]).intValue(), equalTo(127));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(23));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[2]).fields[0]).intValue(), equalTo(12));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(3));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[3]).fields[0]).intValue(), equalTo(9));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(7));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(8));
+
+        innerFieldComparator = createInnerFieldComparator("field2", sortMode, -127);
+        nestedComparatorSource = new NestedFieldComparatorSource(sortMode, innerFieldComparator, parentFilter, childFilter);
+        sort = new Sort(new SortField("field2", nestedComparatorSource));
+        topDocs = searcher.search(new TermQuery(new Term("__type", "parent")), 5, sort);
+        assertThat(topDocs.totalHits, equalTo(8));
+        assertThat(topDocs.scoreDocs.length, equalTo(5));
+        assertThat(topDocs.scoreDocs[0].doc, equalTo(19));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).intValue(), equalTo(-127));
+        assertThat(topDocs.scoreDocs[1].doc, equalTo(24));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[1]).fields[0]).intValue(), equalTo(-127));
+        assertThat(topDocs.scoreDocs[2].doc, equalTo(15));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[2]).fields[0]).intValue(), equalTo(3));
+        assertThat(topDocs.scoreDocs[3].doc, equalTo(28));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[3]).fields[0]).intValue(), equalTo(3));
+        assertThat(topDocs.scoreDocs[4].doc, equalTo(11));
+        assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[4]).fields[0]).intValue(), equalTo(7));
+
         // Moved to method, because floating point based XFieldComparatorSource have different outcome for SortMode avg,
         // than integral number based implementations...
         assertAvgScoreMode(parentFilter, searcher, innerFieldComparator);
@@ -309,6 +344,6 @@ public abstract class AbstractNumberNestedSortingTests extends AbstractFieldData
 
     protected abstract IndexableField createField(String name, int value, Field.Store store);
 
-    protected abstract IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode);
+    protected abstract IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode, Object missingValue);
 
 }

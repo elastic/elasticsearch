@@ -38,9 +38,9 @@ public class LongNestedSortingTests extends AbstractNumberNestedSortingTests {
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode) {
+    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode, Object missingValue) {
         LongArrayIndexFieldData fieldData = getForField(fieldName);
-        return new LongValuesComparatorSource(fieldData, null, sortMode);
+        return new LongValuesComparatorSource(fieldData, missingValue, sortMode);
     }
 
     @Override

@@ -49,9 +49,9 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTests {
     }
 
     @Override
-    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode) {
+    protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode, Object missingValue) {
         DoubleArrayIndexFieldData fieldData = getForField(fieldName);
-        return new DoubleValuesComparatorSource(fieldData, null, sortMode);
+        return new DoubleValuesComparatorSource(fieldData, missingValue, sortMode);
     }
 
     @Override

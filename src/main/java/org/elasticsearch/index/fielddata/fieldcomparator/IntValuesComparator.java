@@ -72,4 +72,9 @@ public final class IntValuesComparator extends LongValuesComparatorBase<Integer>
     public void divide(int slot, int divisor) {
         values[slot] /= divisor;
     }
+
+    @Override
+    public void missing(int slot) {
+        values[slot] = (int) missingValue;
+    }
 }

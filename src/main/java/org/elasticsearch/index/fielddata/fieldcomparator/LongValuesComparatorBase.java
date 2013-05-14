@@ -72,6 +72,11 @@ abstract class LongValuesComparatorBase<T extends Number> extends NumberComparat
         return this;
     }
 
+    @Override
+    public int compareBottomMissing() {
+        return compare(bottom, missingValue);
+    }
+
     private static final class MultiValueWrapper extends LongValues.Filtered {
 
         private final SortMode sortMode;

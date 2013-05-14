@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.admin.indices.status.ShardStatus;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -363,7 +364,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         logger.info("--> shutting down the nodes");
         // Disable allocations while we are closing nodes
-        client("node1").admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.disable_allocation", true)).execute().actionGet();
+        client("node1").admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
         for (int i = 1; i < 5; i++) {
             closeNode("node" + i);
         }
@@ -382,7 +383,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         logger.info("--> shutting down the nodes");
         // Disable allocations while we are closing nodes
-        client("node1").admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("cluster.routing.allocation.disable_allocation", true)).execute().actionGet();
+        client("node1").admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)).execute().actionGet();
         for (int i = 1; i < 5; i++) {
             closeNode("node" + i);
         }

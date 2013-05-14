@@ -30,6 +30,8 @@ import java.net.HttpURLConnection;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Map;
+import java.util.List;
 
 public class HttpClient {
 
@@ -61,6 +63,10 @@ public class HttpClient {
     }
 
     public HttpClientResponse request(String method, String path) {
+        return request(method, path, null);
+    }
+
+    public HttpClientResponse request(String method, String path, Map<String, String> headers) {
         URL url;
         try {
             url = new URL(baseUrl, path);
@@ -72,14 +78,21 @@ public class HttpClient {
         try {
             urlConnection = (HttpURLConnection) url.openConnection();
             urlConnection.setRequestMethod(method);
+            if (headers != null) {
+                for (Map.Entry<String,String> headerEntry : headers.entrySet()) {
+                    urlConnection.setRequestProperty(headerEntry.getKey(), headerEntry.getValue());
+                }
+            }
             urlConnection.connect();
         } catch (IOException e) {
             throw new ElasticSearchException("", e);
         }
 
         int errorCode = -1;
+        Map<String, List<String>> respHeaders = null;
         try {
             errorCode = urlConnection.getResponseCode();
+            respHeaders = urlConnection.getHeaderFields();
             InputStream inputStream = urlConnection.getInputStream();
             String body = null;
             try {
@@ -87,7 +100,7 @@ public class HttpClient {
             } catch (IOException e1) {
                 throw new ElasticSearchException("problem reading error stream", e1);
             }
-            return new HttpClientResponse(body, errorCode, null);
+            return new HttpClientResponse(body, errorCode, respHeaders, null);
         } catch (IOException e) {
             InputStream errStream = urlConnection.getErrorStream();
             String body = null;
@@ -96,8 +109,7 @@ public class HttpClient {
             } catch (IOException e1) {
                 throw new ElasticSearchException("problem reading error stream", e1);
             }
-
-            return new HttpClientResponse(body, errorCode, e);
+            return new HttpClientResponse(body, errorCode, respHeaders, e);
         } finally {
             urlConnection.disconnect();
         }

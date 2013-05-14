@@ -43,11 +43,8 @@ import java.io.IOException;
 public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     private final ESLogger logger;
-
     private final ThreadPool threadPool;
-
     private final TransportServiceAdapter transportServiceAdapter;
-
     private final NettyTransport transport;
 
     public MessageChannelHandler(NettyTransport transport, ESLogger logger) {
@@ -157,7 +154,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             } else {
                 threadPool.executor(handler.executor()).execute(new ResponseHandler(handler, response));
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             handleException(handler, new ResponseHandlerFailureTransportException(e));
         }
     }
@@ -167,7 +164,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         try {
             ThrowableObjectInputStream ois = new ThrowableObjectInputStream(buffer, transport.settings().getClassLoader());
             error = (Throwable) ois.readObject();
-        } catch (Exception e) {
+        } catch (Throwable e) {
             error = new TransportSerializationException("Failed to deserialize exception response from stream", e);
         }
         handleException(handler, error);
@@ -186,7 +183,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 public void run() {
                     try {
                         handler.handleException(rtx);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         logger.error("Failed to handle exception response", e);
                     }
                 }
@@ -211,7 +208,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             } else {
                 threadPool.executor(handler.executor()).execute(new RequestHandler(handler, request, transportChannel, action));
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             try {
                 transportChannel.sendResponse(e);
             } catch (IOException e1) {
@@ -242,7 +239,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
         public void run() {
             try {
                 handler.handleResponse(response);
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 handleException(handler, new ResponseHandlerFailureTransportException(e));
             }
         }
@@ -271,7 +268,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                     // we can only send a response transport is started....
                     try {
                         transportChannel.sendResponse(e);
-                    } catch (IOException e1) {
+                    } catch (Throwable e1) {
                         logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
                         logger.warn("Actual Exception", e);
                     }

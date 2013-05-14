@@ -17,19 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.test.unit.index.fielddata;
+package org.elasticsearch.test.integration.plugin.responseheader;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.testng.annotations.Test;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.rest.RestModule;
 
-/**
- */
-@Test
-public class ConcreteBytesStringFieldDataTests extends StringFieldDataTests {
+public class TestResponseHeaderPlugin extends AbstractPlugin {
 
     @Override
-    protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", ImmutableSettings.builder().put("format", "concrete_bytes"));
+    public String name() {
+        return "test-plugin-custom-header";
+    }
+
+    @Override
+    public String description() {
+        return "test-plugin-custom-header-desc";
+    }
+
+    public void onModule(RestModule restModule) {
+        restModule.addRestAction(TestResponseHeaderRestAction.class);
     }
 }

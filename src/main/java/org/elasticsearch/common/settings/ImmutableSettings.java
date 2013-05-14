@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -861,10 +862,14 @@ public class ImmutableSettings implements Settings {
                     return false;
                 }
             };
-            for (Map.Entry<String, String> entry : map.entrySet()) {
+            for (Map.Entry<String, String> entry : Maps.newHashMap(map).entrySet()) {
                 String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
+                // if the values exists and has length, we should maintain it  in the map
+                // otherwise, the replace process resolved into removing it
                 if (Strings.hasLength(value)) {
                     map.put(entry.getKey(), value);
+                } else {
+                    map.remove(entry.getKey());
                 }
             }
             return this;

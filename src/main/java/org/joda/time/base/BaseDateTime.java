@@ -26,10 +26,6 @@ import org.joda.time.convert.InstantConverter;
 import java.io.Serializable;
 
 /**
- * WE COPIED THIS FILE TO REMOVE THE volatile from it!...
- */
-
-/**
  * BaseDateTime is an abstract implementation of ReadableDateTime that stores
  * data in <code>long</code> and <code>Chronology</code> fields.
  * <p/>
@@ -56,11 +52,12 @@ public abstract class BaseDateTime
     /**
      * The millis from 1970-01-01T00:00:00Z
      */
+    // THIS IS THE ES CHANGE not to have it volatile...
     private long iMillis;
     /**
      * The chronology to use
      */
-    private Chronology iChronology;
+    private volatile Chronology iChronology;
 
     //-----------------------------------------------------------------------
 

@@ -276,9 +276,9 @@ public class GetActionTests extends AbstractNodesTests {
         GetResponse getResponse = client.prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
-        assertThat((List<String>) getResponse.getField("strs").getValue(), contains("A", "B", "C"));
+        assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
         assertThat((Long) getResponse.getField("int").getValue(), equalTo(42l));
-        assertThat((List<Long>) getResponse.getField("ints").getValue(), contains(1L, 2L, 3L, 4L));
+        assertThat(getResponse.getField("ints").getValues(), contains((Object) 1L, 2L, 3L, 4L));
         assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
         assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
@@ -286,9 +286,9 @@ public class GetActionTests extends AbstractNodesTests {
         getResponse = client.prepareGet("test", "type2", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
-        assertThat((List<String>) getResponse.getField("strs").getValue(), contains("A", "B", "C"));
+        assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
         assertThat((Integer) getResponse.getField("int").getValue(), equalTo(42));
-        assertThat((List<Integer>) getResponse.getField("ints").getValue(), contains(1, 2, 3, 4));
+        assertThat(getResponse.getField("ints").getValues(), contains((Object) 1, 2, 3, 4));
         assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
         assertThat((BytesReference) getResponse.getField("binary").getValue(), equalTo((BytesReference) new BytesArray(new byte[]{1, 2, 3})));
 
@@ -299,9 +299,9 @@ public class GetActionTests extends AbstractNodesTests {
         getResponse = client.prepareGet("test", "type1", "1").setFields("str", "strs", "int", "ints", "date", "binary").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat((String) getResponse.getField("str").getValue(), equalTo("test"));
-        assertThat((List<String>) getResponse.getField("strs").getValue(), contains("A", "B", "C"));
+        assertThat(getResponse.getField("strs").getValues(), contains((Object) "A", "B", "C"));
         assertThat((Long) getResponse.getField("int").getValue(), equalTo(42l));
-        assertThat((List<Long>) getResponse.getField("ints").getValue(), contains(1L, 2L, 3L, 4L));
+        assertThat(getResponse.getField("ints").getValues(), contains((Object) 1L, 2L, 3L, 4L));
         assertThat((String) getResponse.getField("date").getValue(), equalTo("2012-11-13T15:26:14.000Z"));
         assertThat(getResponse.getField("binary").getValue(), instanceOf(String.class)); // its a String..., not binary mapped
 
@@ -364,10 +364,9 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getType(), equalTo("type1"));
         assertThat(response.getFields().size(), equalTo(1));
-        assertThat(response.getFields().get("field").getValues().size(), equalTo(1));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).size(), equalTo(2));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).get(0).toString(), equalTo("1"));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).get(1).toString(), equalTo("2"));
+        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
+        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
+        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
 
 
         response = client.prepareGet("test", "type2", "1")
@@ -377,10 +376,9 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getType(), equalTo("type2"));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getFields().size(), equalTo(1));
-        assertThat(response.getFields().get("field").getValues().size(), equalTo(1));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).size(), equalTo(2));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).get(0).toString(), equalTo("1"));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).get(1).toString(), equalTo("2"));
+        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
+        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
+        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
 
         // Now test values being fetched from stored fields.
         client.admin().indices().prepareRefresh("test").execute().actionGet();
@@ -390,10 +388,9 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getFields().size(), equalTo(1));
-        assertThat(response.getFields().get("field").getValues().size(), equalTo(1));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).size(), equalTo(2));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).get(0).toString(), equalTo("1"));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).get(1).toString(), equalTo("2"));
+        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
+        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
+        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
 
 
         response = client.prepareGet("test", "type2", "1")
@@ -402,10 +399,9 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getId(), equalTo("1"));
         assertThat(response.getFields().size(), equalTo(1));
-        assertThat(response.getFields().get("field").getValues().size(), equalTo(1));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).size(), equalTo(2));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).get(0).toString(), equalTo("1"));
-        assertThat(((List) response.getFields().get("field").getValues().get(0)).get(1).toString(), equalTo("2"));
+        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
+        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
+        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
     }
 
     @Test

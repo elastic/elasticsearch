@@ -72,7 +72,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     @Nullable
     private IndexRequest doc;
 
-    UpdateRequest() {
+    public UpdateRequest() {
 
     }
 
@@ -93,6 +93,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         }
         if (script == null && doc == null) {
             validationException = addValidationError("script or doc is missing", validationException);
+        }
+        if (script != null && doc != null) {
+            validationException = addValidationError("can't provide both script and doc", validationException);
         }
         return validationException;
     }
@@ -186,6 +189,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     public UpdateRequest scriptLang(String scriptLang) {
         this.scriptLang = scriptLang;
         return this;
+    }
+
+    public String scriptLang() {
+        return scriptLang;
     }
 
     /**

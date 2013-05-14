@@ -26,16 +26,16 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs;
 
 /**
  */
-public abstract class  BytesValues {
+public abstract class BytesValues {
 
     public static final BytesValues EMPTY = new Empty();
     private boolean multiValued;
     protected final BytesRef scratch = new BytesRef();
-    
+
     protected BytesValues(boolean multiValued) {
         this.multiValued = multiValued;
     }
-    
+
     /**
      * Is one of the documents in this field data values is multi valued?
      */
@@ -49,7 +49,9 @@ public abstract class  BytesValues {
     public abstract boolean hasValue(int docId);
 
     /**
-     * Converts the provided bytes to "safe" ones from a "non" safe call made (if needed).
+     * Converts the provided bytes to "safe" ones from a "non" safe call made (if needed). Note,
+     * this calls makes the bytes safe for *reads*, not writes (into the same BytesRef). For example,
+     * it makes it safe to be placed in a map.
      */
     public BytesRef makeSafe(BytesRef bytes) {
         return BytesRef.deepCopyOf(bytes);
@@ -61,7 +63,7 @@ public abstract class  BytesValues {
     public BytesRef getValue(int docId) {
         if (hasValue(docId)) {
             return getValueScratch(docId, scratch);
-        } 
+        }
         return null;
     }
 
@@ -71,8 +73,8 @@ public abstract class  BytesValues {
      * Note, the bytes are not "safe".
      */
     public abstract BytesRef getValueScratch(int docId, BytesRef ret);
-    
-    
+
+
     /**
      * Fills the given spare for the given doc ID and returns the hashcode of the reference as defined by
      * {@link BytesRef#hashCode()}
@@ -85,14 +87,14 @@ public abstract class  BytesValues {
      * Returns a bytes value iterator for a docId. Note, the content of it might be shared across invocation.
      */
     public abstract Iter getIter(int docId); // TODO: maybe this should return null for no values so we can safe one call?
-    
-    
+
+
     public static interface Iter {
 
         boolean hasNext();
 
         BytesRef next();
-        
+
         int hash();
 
         public static class Empty implements Iter {
@@ -139,12 +141,12 @@ public abstract class  BytesValues {
                 done = true;
                 return value;
             }
-            
+
             public int hash() {
                 return value.hashCode();
             }
         }
-        
+
         static class Multi implements Iter {
 
             protected int innerOrd;
@@ -152,10 +154,11 @@ public abstract class  BytesValues {
             protected BytesValues.WithOrdinals withOrds;
             protected Ordinals.Docs.Iter ordsIter;
             protected final BytesRef scratch = new BytesRef();
+
             public Multi(WithOrdinals withOrds) {
                 this.withOrds = withOrds;
                 assert withOrds.isMultiValued();
-                
+
             }
 
             public Multi reset(Ordinals.Docs.Iter ordsIter) {
@@ -176,7 +179,7 @@ public abstract class  BytesValues {
                 innerOrd = ordsIter.next();
                 return scratch;
             }
-            
+
             public int hash() {
                 return scratch.hashCode();
             }
@@ -184,7 +187,7 @@ public abstract class  BytesValues {
     }
 
     public static class Empty extends BytesValues {
-        
+
         public Empty() {
             super(false);
         }
@@ -211,7 +214,7 @@ public abstract class  BytesValues {
      * Bytes values that are based on ordinals.
      */
     public static abstract class WithOrdinals extends BytesValues {
-        
+
         protected final Docs ordinals;
 
         protected WithOrdinals(Ordinals.Docs ordinals) {
@@ -226,12 +229,12 @@ public abstract class  BytesValues {
         public BytesRef getValueByOrd(int ord) {
             return getValueScratchByOrd(ord, scratch);
         }
-        
+
         protected Iter.Multi newMultiIter() {
             assert this.isMultiValued();
             return new Iter.Multi(this);
         }
-        
+
         protected Iter.Single newSingleIter() {
             assert !this.isMultiValued();
             return new Iter.Single();
@@ -241,21 +244,21 @@ public abstract class  BytesValues {
         public boolean hasValue(int docId) {
             return ordinals.getOrd(docId) != 0;
         }
-        
+
         @Override
         public BytesRef getValue(int docId) {
             final int ord = ordinals.getOrd(docId);
-            if (ord == 0)  {
+            if (ord == 0) {
                 return null;
             }
             return getValueScratchByOrd(ord, scratch);
         }
-        
+
         @Override
         public BytesRef getValueScratch(int docId, BytesRef ret) {
             return getValueScratchByOrd(ordinals.getOrd(docId), ret);
         }
-        
+
         public BytesRef getSafeValueByOrd(int ord) {
             return getValueScratchByOrd(ord, new BytesRef());
         }

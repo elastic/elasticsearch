@@ -35,7 +35,6 @@ import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -50,16 +49,14 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     private final Query originalParentQuery;
     private final String parentType;
     private final Filter childrenFilter;
-    private final List<String> childTypes;
 
     private Query rewrittenParentQuery;
     private TObjectFloatHashMap<HashedBytesArray> uidToScore;
 
-    public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, List<String> childTypes, Filter childrenFilter) {
+    public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, Filter childrenFilter) {
         this.searchContext = searchContext;
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;
-        this.childTypes = childTypes;
         this.childrenFilter = childrenFilter;
     }
 
@@ -68,7 +65,6 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         this.originalParentQuery = unwritten.originalParentQuery;
         this.parentType = unwritten.parentType;
         this.childrenFilter = unwritten.childrenFilter;
-        this.childTypes = unwritten.childTypes;
 
         this.rewrittenParentQuery = rewrittenParentQuery;
         this.uidToScore = unwritten.uidToScore;
@@ -125,8 +121,8 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("ParentQuery[").append(parentType).append("/").append(childTypes)
-                .append("](").append(originalParentQuery.toString(field)).append(')')
+        sb.append("ParentQuery[").append(parentType).append("](")
+                .append(originalParentQuery.toString(field)).append(')')
                 .append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
@@ -235,6 +231,10 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
                 return null;
             }
             IdReaderTypeCache idTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
+            if (idTypeCache == null) {
+                return null;
+            }
+
             return new ChildScorer(this, uidToScore, childrenDocSet.iterator(), idTypeCache);
         }
     }

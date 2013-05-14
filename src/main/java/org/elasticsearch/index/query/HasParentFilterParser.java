@@ -19,20 +19,26 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.NotFilter;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.search.child.HasParentFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -130,9 +136,31 @@ public class HasParentFilterParser implements FilterParser {
             throw new ElasticSearchIllegalStateException("[has_parent] Can't execute, search context not set");
         }
 
-        HasParentFilter parentFilter = HasParentFilter.create(query, parentType, searchContext);
-        searchContext.addRewrite(parentFilter);
-        Filter filter = parentFilter;
+        List<String> parentTypes = new ArrayList<String>(2);
+        for (DocumentMapper documentMapper : parseContext.mapperService()) {
+            ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
+            if (parentFieldMapper != null) {
+                parentTypes.add(parentFieldMapper.type());
+            }
+        }
+
+        Filter parentFilter;
+        if (parentTypes.size() == 1) {
+            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.get(0));
+            parentFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+        } else {
+            XBooleanFilter parentsFilter = new XBooleanFilter();
+            for (String parentTypeStr : parentTypes) {
+                DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
+                Filter filter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+                parentsFilter.add(filter, BooleanClause.Occur.SHOULD);
+            }
+            parentFilter = parentsFilter;
+        }
+        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
+        HasParentFilter hasParentFilter = new HasParentFilter(query, parentType, searchContext, childrenFilter);
+        searchContext.addRewrite(hasParentFilter);
+        Filter filter = hasParentFilter;
 
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

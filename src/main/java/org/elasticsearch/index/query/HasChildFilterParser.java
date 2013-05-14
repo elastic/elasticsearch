@@ -133,7 +133,9 @@ public class HasChildFilterParser implements FilterParser {
             throw new ElasticSearchIllegalStateException("[has_child] Can't execute, search context not set.");
         }
 
-        HasChildFilter childFilter = HasChildFilter.create(query, parentType, childType, searchContext);
+        DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
+        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
+        HasChildFilter childFilter = new HasChildFilter(query, parentType, childType, parentFilter, searchContext);
         searchContext.addRewrite(childFilter);
         Filter filter = childFilter;
 

@@ -86,9 +86,9 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
                     keyField = parser.text();
                 } else if ("value_field".equals(currentFieldName) || "valueField".equals(currentFieldName)) {
                     valueField = parser.text();
-                } else if ("script_field".equals(currentFieldName)) {
+                } else if ("script_field".equals(currentFieldName) || "scriptField".equals(currentFieldName)) {
                     script = parser.text();
-                } else if ("value_script".equals(currentFieldName)) {
+                } else if ("value_script".equals(currentFieldName) || "valueScript".equals(currentFieldName)) {
                     script = parser.text();
                 } else if ("size".equals(currentFieldName)) {
                     size = parser.intValue();
@@ -98,8 +98,6 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
                     }
                 } else if ("order".equals(currentFieldName) || "comparator".equals(currentFieldName)) {
                     comparatorType = TermsStatsFacet.ComparatorType.fromString(parser.text());
-                } else if ("value_script".equals(currentFieldName)) {
-                    script = parser.text();
                 } else if ("lang".equals(currentFieldName)) {
                     scriptLang = parser.text();
                 }

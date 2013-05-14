@@ -28,7 +28,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
-import org.elasticsearch.search.facet.FacetPhaseExecutionException;
 import org.elasticsearch.search.facet.InternalFacet;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -48,17 +47,14 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
     long missing;
     long total;
 
-    public FieldsTermsStringFacetExecutor(String facetName, String[] fieldsNames, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
+    public FieldsTermsStringFacetExecutor(String facetName, FieldMapper[] fieldMappers, int size, InternalStringTermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
                                           ImmutableSet<BytesRef> excluded, Pattern pattern, SearchScript script) {
         this.size = size;
         this.comparatorType = comparatorType;
         this.script = script;
-        this.indexFieldDatas = new IndexFieldData[fieldsNames.length];
-        for (int i = 0; i < fieldsNames.length; i++) {
-            FieldMapper mapper = context.smartNameFieldMapper(fieldsNames[i]);
-            if (mapper == null) {
-                throw new FacetPhaseExecutionException(facetName, "failed to find mapping for [" + fieldsNames[i] + "]");
-            }
+        this.indexFieldDatas = new IndexFieldData[fieldMappers.length];
+        for (int i = 0; i < fieldMappers.length; i++) {
+            FieldMapper mapper = fieldMappers[i];
             indexFieldDatas[i] = context.fieldData().getForField(mapper);
         }
         if (excluded.isEmpty() && pattern == null && script == null) {
@@ -68,7 +64,7 @@ public class FieldsTermsStringFacetExecutor extends FacetExecutor {
         }
 
         if (allTerms) {
-            for (int i = 0; i < fieldsNames.length; i++) {
+            for (int i = 0; i < fieldMappers.length; i++) {
                 TermsStringFacetExecutor.loadAllTerms(context, indexFieldDatas[i], aggregator);
             }
         }

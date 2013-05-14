@@ -172,15 +172,29 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        InternalStringTermsFacet first = (InternalStringTermsFacet) facets.get(0);
+
+        InternalStringTermsFacet first = null;
+
         TObjectIntHashMap<Text> aggregated = CacheRecycler.popObjectIntMap();
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
-            InternalStringTermsFacet mFacet = (InternalStringTermsFacet) facet;
-            missing += mFacet.getMissingCount();
-            total += mFacet.getTotalCount();
-            for (TermEntry entry : mFacet.entries) {
+            InternalTermsFacet termsFacet = (InternalTermsFacet) facet;
+            missing += termsFacet.getMissingCount();
+            total += termsFacet.getTotalCount();
+
+            if (!(termsFacet instanceof InternalStringTermsFacet)) {
+                // the assumption is that if one of the facets is of different type, it should do the
+                // reduction (all the facets we iterated so far most likely represent unmapped fields, if not
+                // class cast exception will be thrown)
+                return termsFacet.reduce(facets);
+            }
+
+            if (first == null) {
+                first = (InternalStringTermsFacet) termsFacet;
+            }
+
+            for (Entry entry : termsFacet.getEntries()) {
                 aggregated.adjustOrPutValue(entry.getTerm(), entry.getCount(), entry.getCount());
             }
         }

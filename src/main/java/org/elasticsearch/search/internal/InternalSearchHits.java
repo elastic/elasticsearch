@@ -23,7 +23,6 @@ import com.google.common.collect.Iterators;
 import gnu.trove.map.hash.TIntObjectHashMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.SearchHit;
@@ -80,15 +79,15 @@ public class InternalSearchHits implements SearchHits {
         }
     }
 
-    private static final ThreadLocal<ThreadLocals.CleanableValue<StreamContext>> cache = new ThreadLocal<ThreadLocals.CleanableValue<StreamContext>>() {
+    private static final ThreadLocal<StreamContext> cache = new ThreadLocal<StreamContext>() {
         @Override
-        protected ThreadLocals.CleanableValue<StreamContext> initialValue() {
-            return new ThreadLocals.CleanableValue<StreamContext>(new StreamContext());
+        protected StreamContext initialValue() {
+            return new StreamContext();
         }
     };
 
     public static StreamContext streamContext() {
-        return cache.get().get().reset();
+        return cache.get().reset();
     }
 
 

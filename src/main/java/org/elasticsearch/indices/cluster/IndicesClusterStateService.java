@@ -492,8 +492,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
             if (!indexService.hasShard(shardId) && shardRouting.started()) {
                 // the master thinks we are started, but we don't have this shard at all, mark it as failed
-                logger.warn("[{}][{}] master [{}] marked shard as started, but shard have not been created, mark shard as failed", shardRouting.index(), shardId, nodes.masterNode());
-                shardStateAction.shardFailed(shardRouting, "master " + nodes.masterNode() + " marked shard as started, but shard have not been created, mark shard as failed");
+                logger.warn("[{}][{}] master [{}] marked shard as started, but shard has not been created, mark shard as failed", shardRouting.index(), shardId, nodes.masterNode());
+                shardStateAction.shardFailed(shardRouting, "master " + nodes.masterNode() + " marked shard as started, but shard has not been created, mark shard as failed");
                 continue;
             }
 

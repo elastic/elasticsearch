@@ -29,11 +29,11 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,18 +42,15 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.suggest.SuggestRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder.SuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
@@ -80,6 +77,60 @@ public class SuggestSearchTests extends AbstractNodesTests {
 
     protected Client getClient() {
         return client("server1");
+    }
+    
+    @Test // see #3037
+    public void testSuggestModes() throws IOException {
+        Builder builder = ImmutableSettings.builder();
+        builder.put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
+        builder.put("index.analysis.analyzer.biword.tokenizer", "standard");
+        builder.putArray("index.analysis.analyzer.biword.filter", "shingler", "lowercase");
+        builder.put("index.analysis.filter.shingler.type", "shingle");
+        builder.put("index.analysis.filter.shingler.min_shingle_size", 2);
+        builder.put("index.analysis.filter.shingler.max_shingle_size", 3);
+        
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+        .startObject("properties")
+        .startObject("name")
+            .field("type", "multi_field")
+            .field("path", "just_name")
+            .startObject("fields")
+                .startObject("name")
+                    .field("type", "string")
+                .endObject()
+                .startObject("name_shingled")
+                    .field("type", "string")
+                    .field("index_analyzer", "biword")
+                    .field("search_analyzer", "standard")
+                .endObject()
+            .endObject()
+        .endObject()
+        .endObject()
+        .endObject().endObject();
+        client.admin().indices().prepareDelete().execute().actionGet();
+        client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client.prepareIndex("test", "type1")
+                .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like iced tea").endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1")
+        .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like tea.").endObject()).execute().actionGet();
+        client.prepareIndex("test", "type1")
+        .setSource(XContentFactory.jsonBuilder().startObject().field("name", "I like ice cream.").endObject()).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        Suggest searchSuggest = searchSuggest(
+                client,
+                "ice tea",
+                phraseSuggestion("did_you_mean").field("name_shingled")
+                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).suggestMode("always").maxEdits(2))
+                        .gramSize(3));
+        ElasticsearchAssertions.assertSuggestion(searchSuggest, 0, 0, "did_you_mean", "iced tea");
+        searchSuggest = searchSuggest(
+                client,
+                "ice tea",
+                phraseSuggestion("did_you_mean").field("name_shingled")
+                        .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("name").prefixLength(0).minWordLength(0).maxEdits(2))
+                        .gramSize(3));
+        assertSuggestionSize(searchSuggest, 0, 0, "did_you_mean");
     }
     
     @Test // see #2729

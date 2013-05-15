@@ -25,6 +25,7 @@ import java.util.Arrays;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.suggest.Suggest;
 import org.hamcrest.Matcher;
 
 /**
@@ -72,6 +73,24 @@ public class ElasticsearchAssertions {
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field), notNullValue());
         assertThat(resp.getHits().hits()[hit].getHighlightFields().get(field).fragments().length, greaterThan(fragment));
         assertThat(resp.getHits().hits()[hit].highlightFields().get(field).fragments()[fragment].string(), matcher);
+    }
+    
+    public static void assertSuggestionSize(Suggest searchSuggest, int entry, int size, String key) {
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(),greaterThanOrEqualTo(1));
+        assertThat(searchSuggest.getSuggestion(key).getName(), equalTo(key));
+        assertThat(searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
+        assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), equalTo(size));
+
+    }
+    
+    public static void assertSuggestion(Suggest searchSuggest, int entry, int ord, String key, String text) {
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), greaterThanOrEqualTo(1));
+        assertThat(searchSuggest.getSuggestion(key).getName(), equalTo(key));
+        assertThat(searchSuggest.getSuggestion(key).getEntries().size(), greaterThanOrEqualTo(entry));
+        assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().size(), greaterThan(ord));
+        assertThat(searchSuggest.getSuggestion(key).getEntries().get(entry).getOptions().get(ord).getText().string(), equalTo(text));
     }
 
     /*

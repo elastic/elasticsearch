@@ -27,7 +27,6 @@ import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.collect.XMaps;
-import org.elasticsearch.common.util.concurrent.ThreadLocals;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,10 +38,10 @@ import java.util.Map;
  */
 public class DfsPhase implements SearchPhase {
 
-    private static ThreadLocal<ThreadLocals.CleanableValue<THashSet<Term>>> cachedTermsSet = new ThreadLocal<ThreadLocals.CleanableValue<THashSet<Term>>>() {
+    private static ThreadLocal<THashSet<Term>> cachedTermsSet = new ThreadLocal<THashSet<Term>>() {
         @Override
-        protected ThreadLocals.CleanableValue<THashSet<Term>> initialValue() {
-            return new ThreadLocals.CleanableValue<THashSet<Term>>(new THashSet<Term>());
+        protected THashSet<Term> initialValue() {
+            return new THashSet<Term>();
         }
     };
 
@@ -62,7 +61,7 @@ public class DfsPhase implements SearchPhase {
                 context.updateRewriteQuery(context.searcher().rewrite(context.query()));
             }
 
-            termsSet = cachedTermsSet.get().get();
+            termsSet = cachedTermsSet.get();
             if (!termsSet.isEmpty()) {
                 termsSet.clear();
             }

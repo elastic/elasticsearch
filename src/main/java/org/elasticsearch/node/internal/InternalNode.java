@@ -339,16 +339,16 @@ public final class InternalNode implements Node {
         }
         stopWatch.stop();
 
-        CacheRecycler.clear();
-        CachedStreams.clear();
-        ThreadLocals.clearReferencesThreadLocals();
-
         if (logger.isTraceEnabled()) {
             logger.trace("Close times for each service:\n{}", stopWatch.prettyPrint());
         }
 
         injector.getInstance(NodeEnvironment.class).close();
         Injectors.close(injector);
+
+        CacheRecycler.clear();
+        CachedStreams.clear();
+        ThreadLocals.clearReferencesThreadLocals();
 
         logger.info("{{}}[{}]: closed", Version.CURRENT, JvmInfo.jvmInfo().pid());
     }

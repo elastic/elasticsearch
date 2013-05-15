@@ -33,6 +33,7 @@ import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersFetchSubPhase
 import org.elasticsearch.search.fetch.partial.PartialFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
+import org.elasticsearch.search.highlight.HighlightModule;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.query.QueryPhase;
 
@@ -43,7 +44,7 @@ public class SearchModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new TransportSearchModule(), new FacetModule());
+        return ImmutableList.of(new TransportSearchModule(), new FacetModule(), new HighlightModule());
     }
 
     @Override

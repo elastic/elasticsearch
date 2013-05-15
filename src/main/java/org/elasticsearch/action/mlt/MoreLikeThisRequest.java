@@ -21,6 +21,7 @@ package org.elasticsearch.action.mlt;
 
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -533,7 +534,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         index = in.readString();
         type = in.readString();
         id = in.readString();
-        routing = in.readOptionalString();
         // no need to pass threading over the network, they are always false when coming throw a thread pool
         int size = in.readVInt();
         if (size == 0) {
@@ -595,6 +595,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
         searchSize = in.readVInt();
         searchFrom = in.readVInt();
+        if (Version.V_0_90_1.onOrAfter(in.getVersion())) {
+            routing = in.readOptionalString();
+        }
     }
 
     @Override
@@ -603,7 +606,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         out.writeString(index);
         out.writeString(type);
         out.writeString(id);
-        out.writeOptionalString(routing);
         if (fields == null) {
             out.writeVInt(0);
         } else {
@@ -663,5 +665,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
         out.writeVInt(searchSize);
         out.writeVInt(searchFrom);
+        if (Version.V_0_90_1.onOrAfter(out.getVersion())) {
+            out.writeOptionalString(routing);
+        }
     }
 }

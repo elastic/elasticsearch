@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
@@ -131,7 +132,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (!getResponse.isExists()) {
-                    listener.onFailure(new ElasticSearchException("document missing"));
+                    listener.onFailure(new DocumentMissingException(null, request.type(), request.id()));
                     return;
                 }
                 final BoolQueryBuilder boolBuilder = boolQuery();
@@ -234,7 +235,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
     // Redirects the request to a data node, that has the index meta data locally available.
     private void redirect(MoreLikeThisRequest request, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
-        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.index(), request.type(), request.id(), null, null);
+        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.index(), request.type(), request.id(), request.routing(), null);
         ShardRouting shardRouting = shardIterator.firstOrNull();
         if (shardRouting == null) {
             throw new ElasticSearchException("No shards for index " + request.index());

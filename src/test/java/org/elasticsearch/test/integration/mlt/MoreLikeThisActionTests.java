@@ -185,4 +185,27 @@ public class MoreLikeThisActionTests extends AbstractNodesTests {
         assertThat(searchResponse, notNullValue());
     }
 
+    @Test
+    // See issue: https://github.com/elasticsearch/elasticsearch/issues/3039
+    public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
+        startNode("server3");
+
+        client1.admin().indices().prepareDelete().execute().actionGet();
+        client1.admin().indices().prepareCreate("foo")
+                .setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", 2)
+                        .put("index.routing.allocation.exclude.name", "server1")
+                        .put("index.routing.allocation.include.name", "server2,server3"))
+                .execute().actionGet();
+        client1.admin().cluster().prepareHealth("foo").setWaitForGreenStatus().execute().actionGet();
+
+        client1.prepareIndex("foo", "bar", "1")
+                .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
+                .setRouting("4000")
+                .execute().actionGet();
+        client1.admin().indices().prepareRefresh("foo").execute().actionGet();
+        SearchResponse searchResponse = client1.prepareMoreLikeThis("foo", "bar", "1").setRouting("4000").execute().actionGet();
+        assertThat(searchResponse, notNullValue());
+    }
+
 }

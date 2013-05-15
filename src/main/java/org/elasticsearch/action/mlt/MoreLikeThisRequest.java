@@ -533,6 +533,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         index = in.readString();
         type = in.readString();
         id = in.readString();
+        routing = in.readOptionalString();
         // no need to pass threading over the network, they are always false when coming throw a thread pool
         int size = in.readVInt();
         if (size == 0) {
@@ -602,6 +603,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
         out.writeString(index);
         out.writeString(type);
         out.writeString(id);
+        out.writeOptionalString(routing);
         if (fields == null) {
             out.writeVInt(0);
         } else {

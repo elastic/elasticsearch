@@ -556,7 +556,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
                         // check to see that we monitor the correct master of the cluster
                         if (masterFD.masterNode() == null || !masterFD.masterNode().equals(latestDiscoNodes.masterNode())) {
-                            masterFD.restart(latestDiscoNodes.masterNode(), "new cluster stare received and we monitor the wrong master [" + masterFD.masterNode() + "]");
+                            masterFD.restart(latestDiscoNodes.masterNode(), "new cluster state received and we are monitoring the wrong master [" + masterFD.masterNode() + "]");
                         }
 
                         ClusterState.Builder builder = ClusterState.builder().state(newState);

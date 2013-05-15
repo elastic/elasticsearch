@@ -20,6 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -64,6 +65,8 @@ public class SearchContextHighlight {
 
         private int boundaryMaxScan = -1;
         private char[] boundaryChars = null;
+
+        private Map<String, Object> options;
 
         public Field(String field) {
             this.field = field;
@@ -175,6 +178,14 @@ public class SearchContextHighlight {
 
         public void boundaryChars(char[] boundaryChars) {
             this.boundaryChars = boundaryChars;
+        }
+
+        public Map<String, Object> options() {
+            return options;
+        }
+
+        public void options(Map<String, Object> options) {
+            this.options = options;
         }
     }
 }

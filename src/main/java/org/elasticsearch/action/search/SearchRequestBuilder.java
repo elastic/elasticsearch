@@ -648,6 +648,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder setHighlighterOptions(Map<String, Object> options) {
+        highlightBuilder().options(options);
+        return this;
+    }
+
     /**
      * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#setText(String)}.
      */

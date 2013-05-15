@@ -98,7 +98,7 @@ public class ThreadLocals {
                             }
                             if (actualValue != null) {
                                 String actualValueClassName = actualValue.getClass().getName();
-                                if (actualValueClassName.startsWith("org.elasticsearch") || actualValueClassName.startsWith("org.lucene")) {
+                                if (actualValueClassName.startsWith("org.elasticsearch") || actualValueClassName.startsWith("org.apache.lucene")) {
                                     remove = true;
                                 }
                             }

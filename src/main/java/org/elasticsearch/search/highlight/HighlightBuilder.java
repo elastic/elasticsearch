@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -51,6 +52,8 @@ public class HighlightBuilder implements ToXContent {
     private String highlighterType;
 
     private String fragmenter;
+
+    private Map<String, Object> options;
 
     /**
      * Adds a field to be highlighted with default fragment size of 100 characters, and
@@ -198,6 +201,14 @@ public class HighlightBuilder implements ToXContent {
         return this;
     }
 
+    /**
+     * Allows to set custom options for custom highlighters
+     */
+    public HighlightBuilder options(Map<String, Object> options) {
+        this.options = options;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
@@ -225,6 +236,9 @@ public class HighlightBuilder implements ToXContent {
         if (fragmenter != null) {
             builder.field("fragmenter", fragmenter);
         }
+        if (options != null && options.size() > 0) {
+            builder.field("options", options);
+        }
         if (fields != null) {
             builder.startObject("fields");
             for (Field field : fields) {
@@ -247,6 +261,9 @@ public class HighlightBuilder implements ToXContent {
                 if (field.fragmenter != null) {
                     builder.field("fragmenter", field.fragmenter);
                 }
+                if (field.options != null && field.options.size() > 0) {
+                    builder.field("options", field.options);
+                }
 
                 builder.endObject();
             }
@@ -265,6 +282,7 @@ public class HighlightBuilder implements ToXContent {
         Boolean requireFieldMatch;
         String highlighterType;
         String fragmenter;
+        Map<String, Object> options;
 
         public Field(String name) {
             this.name = name;
@@ -301,6 +319,11 @@ public class HighlightBuilder implements ToXContent {
 
         public Field fragmenter(String fragmenter) {
             this.fragmenter = fragmenter;
+            return this;
+        }
+
+        public Field options(Map<String, Object> options) {
+            this.options = options;
             return this;
         }
     }

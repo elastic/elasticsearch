@@ -32,7 +32,7 @@ import java.io.IOException;
  *
  */
 // LUCENE MONITOR: Monitor against FieldComparator.Double
-public class DoubleScriptDataComparator extends FieldComparator<Double> {
+public class DoubleScriptDataComparator extends NumberComparatorBase<Double> {
 
     public static IndexFieldData.XFieldComparatorSource comparatorSource(SearchScript script) {
         return new InnerSource(script);
@@ -125,5 +125,26 @@ public class DoubleScriptDataComparator extends FieldComparator<Double> {
     @Override
     public Double value(int slot) {
         return values[slot];
+    }
+
+    @Override
+    public void add(int slot, int doc) {
+        script.setNextDocId(doc);
+        values[slot] += script.runAsDouble();
+    }
+
+    @Override
+    public void divide(int slot, int divisor) {
+        values[slot] /= divisor;
+    }
+
+    @Override
+    public void missing(int slot) {
+        values[slot] = Double.MAX_VALUE;
+    }
+
+    @Override
+    public int compareBottomMissing() {
+        return Double.compare(bottom, Double.MAX_VALUE);
     }
 }

@@ -64,7 +64,7 @@ public class NestedFieldComparatorSource extends IndexFieldData.XFieldComparator
                 return new NestedFieldComparator.Avg((NumberComparatorBase) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
             default:
                 throw new ElasticSearchIllegalArgumentException(
-                        String.format("Unsupported sort_mode[%s] for nested type", sortMode)
+                    String.format("Unsupported sort_mode[%s] for nested type", sortMode)
                 );
         }
     }

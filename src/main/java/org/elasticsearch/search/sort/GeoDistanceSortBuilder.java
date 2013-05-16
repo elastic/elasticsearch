@@ -22,6 +22,7 @@ package org.elasticsearch.search.sort;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
 
@@ -40,6 +41,8 @@ public class GeoDistanceSortBuilder extends SortBuilder {
     private DistanceUnit unit;
     private SortOrder order;
     private String sortMode;
+    private FilterBuilder nestedFilter;
+    private String nestedPath;
 
     /**
      * Constructs a new distance based sort on a geo point like field.
@@ -107,8 +110,26 @@ public class GeoDistanceSortBuilder extends SortBuilder {
      * Defines which distance to use for sorting in the case a document contains multiple geo points.
      * Possible values: min and max
      */
-    public SortBuilder sortMode(String sortMode) {
+    public GeoDistanceSortBuilder sortMode(String sortMode) {
         this.sortMode = sortMode;
+        return this;
+    }
+
+    /**
+     * Sets the nested filter that the nested objects should match with in order to be taken into account
+     * for sorting.
+     */
+    public GeoDistanceSortBuilder setNestedFilter(FilterBuilder nestedFilter) {
+        this.nestedFilter = nestedFilter;
+        return this;
+    }
+
+    /**
+     * Sets the nested path if sorting occurs on a field that is inside a nested object. By default when sorting on a
+     * field inside a nested object, the nearest upper nested object is selected as nested path.
+     */
+    public GeoDistanceSortBuilder setNestedPath(String nestedPath) {
+        this.nestedPath = nestedPath;
         return this;
     }
 
@@ -133,6 +154,13 @@ public class GeoDistanceSortBuilder extends SortBuilder {
         }
         if (sortMode != null) {
             builder.field("mode", sortMode);
+        }
+
+        if (nestedPath != null) {
+            builder.field("nested_path", nestedPath);
+        }
+        if (nestedFilter != null) {
+            builder.field("nested_filter", nestedFilter, params);
         }
 
         builder.endObject();

@@ -37,8 +37,7 @@ import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.geoDistanceFilter;
-import static org.elasticsearch.index.query.FilterBuilders.geoDistanceRangeFilter;
+import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -508,4 +507,207 @@ public class GeoDistanceTests extends AbstractNodesTests {
         Double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance6, equalTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS)));
     }
+
+    @Test
+    public void testDistanceSortingNestedFields() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("company")
+                .startObject("properties")
+                .startObject("name").field("type", "string").endObject()
+                .startObject("branches")
+                    .field("type", "nested")
+                    .startObject("properties")
+                        .startObject("name").field("type", "string").endObject()
+                        .startObject("location").field("type", "geo_point").field("lat_lon", true).endObject()
+                    .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        client.admin().indices().prepareCreate("companies")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .addMapping("company", mapping)
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth("companies").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("companies", "company", "1").setSource(jsonBuilder().startObject()
+                .field("name", "company 1")
+                .startArray("branches")
+                    .startObject()
+                        .field("name", "New York")
+                        .startObject("location").field("lat", 40.7143528).field("lon", -74.0059731).endObject()
+                    .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("companies", "company", "2").setSource(jsonBuilder().startObject()
+                .field("name", "company 2")
+                .startArray("branches")
+                    .startObject()
+                        .field("name", "Times Square")
+                        .startObject("location").field("lat", 40.759011).field("lon", -73.9844722).endObject() // to NY: 5.286 km
+                    .endObject()
+                    .startObject()
+                        .field("name", "Tribeca")
+                        .startObject("location").field("lat", 40.718266).field("lon", -74.007819).endObject() // to NY: 0.4621 km
+                    .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+        client.prepareIndex("companies", "company", "3").setSource(jsonBuilder().startObject()
+                .field("name", "company 3")
+                .startArray("branches")
+                    .startObject()
+                        .field("name", "Wall Street")
+                        .startObject("location").field("lat", 40.7051157).field("lon", -74.0088305).endObject() // to NY: 1.055 km
+                    .endObject()
+                    .startObject()
+                        .field("name", "Soho")
+                        .startObject("location").field("lat", 40.7247222).field("lon", -74).endObject() // to NY: 1.258 km
+                    .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+
+        client.prepareIndex("companies", "company", "4").setSource(jsonBuilder().startObject()
+                .field("name", "company 4")
+                .startArray("branches")
+                    .startObject()
+                        .field("name", "Greenwich Village")
+                        .startObject("location").field("lat", 40.731033).field("lon", -73.9962255).endObject() // to NY: 2.029 km
+                    .endObject()
+                    .startObject()
+                        .field("name", "Brooklyn")
+                        .startObject("location").field("lat", 40.65).field("lon", -73.95).endObject() // to NY: 8.572 km
+                    .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        // Order: Asc
+        SearchResponse searchResponse = client.prepareSearch("companies").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
+
+        // Order: Asc, Mode: max
+        searchResponse = client.prepareSearch("companies").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).order(SortOrder.ASC).sortMode("max"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
+
+        // Order: Desc
+        searchResponse = client.prepareSearch("companies").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(5.286d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.258d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+
+        // Order: Desc, Mode: min
+        searchResponse = client.prepareSearch("companies").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).order(SortOrder.DESC).sortMode("min"))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(2.029d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.055d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(0.4621d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+
+        searchResponse = client.prepareSearch("companies").setQuery(matchAllQuery())
+                .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), equalTo(0d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("3"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("4"));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
+
+        searchResponse = client.prepareSearch("companies").setQuery(matchAllQuery())
+                .addSort(
+                    SortBuilders.geoDistanceSort("branches.location").setNestedPath("branches")
+                            .point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.DESC)
+                )
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(5.301d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), closeTo(2.874d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), closeTo(1.157d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(0d));
+
+        searchResponse = client.prepareSearch("companies").setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.geoDistanceSort("branches.location").setNestedFilter(termFilter("branches.name", "brooklyn"))
+                                .point(40.7143528, -74.0059731).sortMode("avg").order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(4l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(4));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
+        assertThat(((Number) searchResponse.getHits().getAt(0).sortValues()[0]).doubleValue(), closeTo(8.572d, 0.01d));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(((Number) searchResponse.getHits().getAt(1).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
+        assertThat(searchResponse.getHits().getAt(2).id(), equalTo("2"));
+        assertThat(((Number) searchResponse.getHits().getAt(2).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
+        assertThat(searchResponse.getHits().getAt(3).id(), equalTo("3"));
+        assertThat(((Number) searchResponse.getHits().getAt(3).sortValues()[0]).doubleValue(), equalTo(Double.MAX_VALUE));
+
+        try {
+            client.prepareSearch("companies").setQuery(matchAllQuery())
+                    .addSort(SortBuilders.geoDistanceSort("branches.location").point(40.7143528, -74.0059731).sortMode("sum"))
+                    .execute().actionGet();
+            fail("Expected error");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.shardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
+        }
+    }
+
 }

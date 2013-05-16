@@ -19,11 +19,18 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleScriptDataComparator;
+import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.fielddata.fieldcomparator.StringScriptDataComparator;
+import org.elasticsearch.index.mapper.ObjectMappers;
+import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.search.nested.NestedFieldComparatorSource;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -47,6 +54,9 @@ public class ScriptSortParser implements SortParser {
         String type = null;
         Map<String, Object> params = null;
         boolean reverse = false;
+        SortMode sortMode = null;
+        String nestedPath = null;
+        Filter nestedFilter = null;
 
         XContentParser.Token token;
         String currentName = parser.currentName();
@@ -56,6 +66,8 @@ public class ScriptSortParser implements SortParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("params".equals(currentName)) {
                     params = parser.map();
+                } else if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
+                    nestedFilter = context.queryParserService().parseInnerFilter(parser);
                 }
             } else if (token.isValue()) {
                 if ("reverse".equals(currentName)) {
@@ -68,6 +80,10 @@ public class ScriptSortParser implements SortParser {
                     type = parser.text();
                 } else if ("lang".equals(currentName)) {
                     scriptLang = parser.text();
+                } else if ("mode".equals(currentName)) {
+                    sortMode = SortMode.fromString(parser.text());
+                } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
+                    nestedPath = parser.text();
                 }
             }
         }
@@ -79,7 +95,7 @@ public class ScriptSortParser implements SortParser {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script");
         }
         SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, params);
-        FieldComparatorSource fieldComparatorSource;
+        IndexFieldData.XFieldComparatorSource fieldComparatorSource;
         if ("string".equals(type)) {
             fieldComparatorSource = StringScriptDataComparator.comparatorSource(searchScript);
         } else if ("number".equals(type)) {
@@ -87,6 +103,37 @@ public class ScriptSortParser implements SortParser {
         } else {
             throw new SearchParseException(context, "custom script sort type [" + type + "] not supported");
         }
+
+        if ("string".equals(type) && (sortMode == SortMode.SUM || sortMode == SortMode.AVG)) {
+            throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]");
+        }
+
+        if (sortMode == null) {
+            sortMode = reverse ? SortMode.MAX : SortMode.MIN;
+        }
+
+        // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`
+        ObjectMapper objectMapper;
+        if (nestedPath != null) {
+            ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
+            if (objectMappers == null) {
+                throw new ElasticSearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
+            }
+            objectMapper = objectMappers.mapper();
+            if (!objectMapper.nested().isNested()) {
+                throw new ElasticSearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
+            }
+
+            Filter rootDocumentsFilter = context.filterCache().cache(NonNestedDocsFilter.INSTANCE);
+            Filter innerDocumentsFilter;
+            if (nestedFilter != null) {
+                innerDocumentsFilter = context.filterCache().cache(nestedFilter);
+            } else {
+                innerDocumentsFilter = context.filterCache().cache(objectMapper.nestedTypeFilter());
+            }
+            fieldComparatorSource = new NestedFieldComparatorSource(sortMode, fieldComparatorSource, rootDocumentsFilter, innerDocumentsFilter);
+        }
+
         return new SortField("_script", fieldComparatorSource, reverse);
     }
 }

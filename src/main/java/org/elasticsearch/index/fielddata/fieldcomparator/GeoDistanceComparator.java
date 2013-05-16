@@ -31,7 +31,7 @@ import java.io.IOException;
 
 /**
  */
-public class GeoDistanceComparator extends FieldComparator<Double> {
+public class GeoDistanceComparator extends NumberComparatorBase<Double> {
 
     protected final IndexGeoPointFieldData<?> indexFieldData;
 
@@ -119,6 +119,26 @@ public class GeoDistanceComparator extends FieldComparator<Double> {
     @Override
     public Double value(int slot) {
         return values[slot];
+    }
+
+    @Override
+    public void add(int slot, int doc) {
+        values[slot] += geoDistanceValues.computeDistance(doc);
+    }
+
+    @Override
+    public void divide(int slot, int divisor) {
+        values[slot] /= divisor;
+    }
+
+    @Override
+    public void missing(int slot) {
+        values[slot] = Double.MAX_VALUE;
+    }
+
+    @Override
+    public int compareBottomMissing() {
+        return Double.compare(bottom, Double.MAX_VALUE);
     }
 
     // Computes the distance based on geo points.

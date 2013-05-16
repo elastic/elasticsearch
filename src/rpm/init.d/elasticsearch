@@ -3,7 +3,7 @@
 # elasticsearch <summary>
 #
 # chkconfig:   2345 80 20
-# description: Starts and stops a single elasticsearch instance on this system 
+# description: Starts and stops a single elasticsearch instance on this system
 #
 
 ### BEGIN INIT INFO
@@ -63,7 +63,7 @@ start() {
     fi
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user $USER --pidfile $pidfile $exec -p $pidfile -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
+    daemon --user $ES_USER --pidfile $pidfile $exec -p $pidfile -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile

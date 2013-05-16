@@ -38,6 +38,8 @@ public class QuerySearchRequest extends TransportRequest {
 
     private AggregatedDfs dfs;
 
+    private SearchRequest request;
+
     public QuerySearchRequest() {
     }
 
@@ -45,6 +47,7 @@ public class QuerySearchRequest extends TransportRequest {
         super(request);
         this.id = id;
         this.dfs = dfs;
+        this.request = request;
     }
 
     public long id() {
@@ -55,11 +58,16 @@ public class QuerySearchRequest extends TransportRequest {
         return dfs;
     }
 
+    public SearchRequest searchRequest() {
+        return request;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         id = in.readLong();
         dfs = readAggregatedDfs(in);
+
     }
 
     @Override

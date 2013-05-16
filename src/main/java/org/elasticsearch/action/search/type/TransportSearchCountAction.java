@@ -80,6 +80,9 @@ public class TransportSearchCountAction extends TransportSearchTypeAction {
 
         @Override
         protected void processFirstPhaseResult(ShardRouting shard, QuerySearchResult result) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] processFirstPhaseResult: result for request {}", result.id(), request);
+            }
             queryFetchResults.put(result.shardTarget(), result);
         }
 

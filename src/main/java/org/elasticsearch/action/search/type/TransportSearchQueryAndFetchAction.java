@@ -77,6 +77,9 @@ public class TransportSearchQueryAndFetchAction extends TransportSearchTypeActio
 
         @Override
         protected void processFirstPhaseResult(ShardRouting shard, QueryFetchSearchResult result) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] processFirstPhaseResult: result for request {}", result.id(), request);
+            }
             queryFetchResults.put(result.shardTarget(), result);
         }
 

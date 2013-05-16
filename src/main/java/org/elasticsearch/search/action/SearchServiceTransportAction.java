@@ -105,6 +105,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 DfsSearchResult result = searchService.executeDfsPhase(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteDfs: handling response for shard search request {}", result.id(), request);
+                }
                 listener.onResult(result);
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -119,6 +122,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(DfsSearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for shard search request {}", response.id(), request);
+                    }
                     listener.onResult(response);
                 }
 
@@ -139,6 +145,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QuerySearchResult result = searchService.executeQueryPhase(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteQuery: handling response for shard search request {}", result.id(), request);
+                }
                 listener.onResult(result);
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -153,6 +162,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(QuerySearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for shard search request {}", response.id(), request);
+                    }
                     listener.onResult(response);
                 }
 
@@ -173,6 +185,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QuerySearchResult result = searchService.executeQueryPhase(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteQuery: handling response for query search request {}", result.id(), request.searchRequest());
+                }
                 listener.onResult(result);
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -187,6 +202,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(QuerySearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for query search request {}", response.id(), request.searchRequest());
+                    }
                     listener.onResult(response);
                 }
 
@@ -207,6 +225,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 ScrollQuerySearchResult result = searchService.executeQueryPhase(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteQuery: handling response for scroll search request {}", result.queryResult().id(), request.id());
+                }
                 listener.onResult(result.queryResult());
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -221,6 +242,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(ScrollQuerySearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for scroll search request {}", response.queryResult().id(), request.id());
+                    }
                     listener.onResult(response.queryResult());
                 }
 
@@ -241,6 +265,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QueryFetchSearchResult result = searchService.executeFetchPhase(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteFetch: handling response for shard search request {}", result.id(), request);
+                }
                 listener.onResult(result);
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -255,6 +282,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(QueryFetchSearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for shard search request {}", response.id(), request);
+                    }
                     listener.onResult(response);
                 }
 
@@ -275,6 +305,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QueryFetchSearchResult result = searchService.executeFetchPhase(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteFetch: handling response for query search request {}", result.id(), request.searchRequest());
+                }
                 listener.onResult(result);
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -289,6 +322,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(QueryFetchSearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for query search request {}", response.id(), request.searchRequest());
+                    }
                     listener.onResult(response);
                 }
 
@@ -309,6 +345,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 ScrollQueryFetchSearchResult result = searchService.executeFetchPhase(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteFetch: handling response for scroll search request {}", result.result().id(), request.id());
+                }
                 listener.onResult(result.result());
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -323,6 +362,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(ScrollQueryFetchSearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for scroll search request {}", response.result().id(), request.id());
+                    }
                     listener.onResult(response.result());
                 }
 
@@ -343,6 +385,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 FetchSearchResult result = searchService.executeFetchPhase(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteFetch: handling response for fetch search request {}", result.id(), request.id());
+                }
                 listener.onResult(result);
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -357,6 +402,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(FetchSearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for fetch search request {}", response.id(), request.id());
+                    }
                     listener.onResult(response);
                 }
 
@@ -377,6 +425,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 QuerySearchResult result = searchService.executeScan(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteScan: handling response for shard search request {}", result.id(), request);
+                }
                 listener.onResult(result);
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -391,6 +442,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(QuerySearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for shard search request {}", response.id(), request);
+                    }
                     listener.onResult(response);
                 }
 
@@ -411,6 +465,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             try {
                 ScrollQueryFetchSearchResult result = searchService.executeScan(request);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}] sendExecuteScan: handling response for scroll search request {}", result.result().id(), request);
+                }
                 listener.onResult(result.result());
             } catch (Throwable e) {
                 listener.onFailure(e);
@@ -425,6 +482,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
                 @Override
                 public void handleResponse(ScrollQueryFetchSearchResult response) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendRequest: handling response for scroll search request {}", response.result().id(), request);
+                    }
                     listener.onResult(response.result());
                 }
 

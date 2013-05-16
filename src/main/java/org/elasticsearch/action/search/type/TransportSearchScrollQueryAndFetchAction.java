@@ -199,6 +199,9 @@ public class TransportSearchScrollQueryAndFetchAction extends AbstractComponent 
             searchService.sendExecuteFetch(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override
                 public void onResult(QueryFetchSearchResult result) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendExecuteFetch: result received for request {}", result.id(), request);
+                    }
                     queryFetchResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

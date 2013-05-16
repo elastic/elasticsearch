@@ -191,6 +191,9 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             searchService.sendExecuteQuery(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QuerySearchResult>() {
                 @Override
                 public void onResult(QuerySearchResult result) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendExecuteQuery: result received for request {}", result.id(), request);
+                    }
                     queryResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {
                         executeFetchPhase();
@@ -224,11 +227,14 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             for (final Map.Entry<SearchShardTarget, ExtTIntArrayList> entry : docIdsToLoad.entrySet()) {
                 SearchShardTarget shardTarget = entry.getKey();
                 ExtTIntArrayList docIds = entry.getValue();
-                FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResults.get(shardTarget).id(), docIds);
+                final FetchSearchRequest fetchSearchRequest = new FetchSearchRequest(request, queryResults.get(shardTarget).id(), docIds);
                 DiscoveryNode node = nodes.get(shardTarget.nodeId());
                 searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                     @Override
                     public void onResult(FetchSearchResult result) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("[{}] result received for fetch", fetchSearchRequest.id());
+                        }
                         result.shardTarget(entry.getKey());
                         fetchResults.put(result.shardTarget(), result);
                         if (counter.decrementAndGet() == 0) {

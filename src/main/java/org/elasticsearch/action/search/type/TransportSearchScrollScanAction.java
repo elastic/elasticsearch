@@ -205,6 +205,9 @@ public class TransportSearchScrollScanAction extends AbstractComponent {
             searchService.sendExecuteScan(node, internalScrollSearchRequest(searchId, request), new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override
                 public void onResult(QueryFetchSearchResult result) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] sendExecuteScan: result received for scan {}", result.id(), request);
+                    }
                     queryFetchResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {
                         finishHim();

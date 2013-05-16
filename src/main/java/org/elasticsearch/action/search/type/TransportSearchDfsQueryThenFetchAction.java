@@ -88,6 +88,9 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
 
         @Override
         protected void processFirstPhaseResult(ShardRouting shard, DfsSearchResult result) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] processFirstPhaseResult: result for request {}", result.id(), request);
+            }
             dfsResults.add(result);
         }
 
@@ -148,6 +151,10 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             searchService.sendExecuteQuery(node, querySearchRequest, new SearchServiceListener<QuerySearchResult>() {
                 @Override
                 public void onResult(QuerySearchResult result) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] result received for query {}", querySearchRequest.id(),
+                                querySearchRequest.searchRequest() );
+                    }
                     result.shardTarget(dfsResult.shardTarget());
                     queryResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {
@@ -239,6 +246,9 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
             searchService.sendExecuteFetch(node, fetchSearchRequest, new SearchServiceListener<FetchSearchResult>() {
                 @Override
                 public void onResult(FetchSearchResult result) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] result received for fetch", fetchSearchRequest.id());
+                    }
                     result.shardTarget(shardTarget);
                     fetchResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {

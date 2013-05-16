@@ -169,6 +169,24 @@ public class ShardSearchRequest extends TransportRequest {
     }
 
     @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[index=").append(index).append(",types=");
+        if (types != null) {
+            for (String s : types) {
+                sb.append(s).append(",");
+            }
+        } else {
+            sb.append(types).append(",");
+        }
+        sb.append("shardId=").append(shardId)
+            .append(",source=").append(source != null ? source.toUtf8() : null)
+            .append(",extraSource=").append(extraSource != null ? extraSource.toUtf8() : null)
+            .append("]");
+        return sb.toString();
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readString();

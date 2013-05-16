@@ -83,6 +83,9 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
 
         @Override
         protected void processFirstPhaseResult(ShardRouting shard, DfsSearchResult result) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] processFirstPhaseResult: result for request {}", result.id(), request);
+            }
             dfsResults.add(result);
         }
 
@@ -141,6 +144,10 @@ public class TransportSearchDfsQueryAndFetchAction extends TransportSearchTypeAc
             searchService.sendExecuteFetch(node, querySearchRequest, new SearchServiceListener<QueryFetchSearchResult>() {
                 @Override
                 public void onResult(QueryFetchSearchResult result) {
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("[{}] result for query {}", querySearchRequest.id(),
+                                querySearchRequest.searchRequest());
+                    }
                     result.shardTarget(dfsResult.shardTarget());
                     queryFetchResults.put(result.shardTarget(), result);
                     if (counter.decrementAndGet() == 0) {

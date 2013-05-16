@@ -446,6 +446,31 @@ public class SearchRequest extends ActionRequest<SearchRequest> {
     }
 
     @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[index=");
+        if (indices != null) {
+            for (String s : indices) {
+                sb.append(s).append(",");
+            }
+        } else {
+            sb.append(indices).append(",");
+        }
+        sb.append(",types=");
+        if (types != null) {
+            for (String s : types) {
+                sb.append(s).append(",");
+            }
+        } else {
+            sb.append(types).append(",");
+        }
+        sb.append(",source=").append(source != null ? source.toUtf8() : null)
+                .append(",extraSource=").append(extraSource != null ? extraSource.toUtf8() : null)
+                .append("]");
+        return sb.toString();
+    }
+
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         operationThreading = SearchOperationThreading.fromId(in.readByte());

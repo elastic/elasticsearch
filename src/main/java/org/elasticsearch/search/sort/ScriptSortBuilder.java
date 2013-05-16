@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,6 +40,12 @@ public class ScriptSortBuilder extends SortBuilder {
     private SortOrder order;
 
     private Map<String, Object> params;
+
+    private String sortMode;
+
+    private FilterBuilder nestedFilter;
+
+    private String nestedPath;
 
     /**
      * Constructs a script sort builder with the script and the type.
@@ -100,6 +107,33 @@ public class ScriptSortBuilder extends SortBuilder {
         return this;
     }
 
+    /**
+     * Defines which distance to use for sorting in the case a document contains multiple geo points.
+     * Possible values: min and max
+     */
+    public ScriptSortBuilder sortMode(String sortMode) {
+        this.sortMode = sortMode;
+        return this;
+    }
+
+    /**
+     * Sets the nested filter that the nested objects should match with in order to be taken into account
+     * for sorting.
+     */
+    public ScriptSortBuilder setNestedFilter(FilterBuilder nestedFilter) {
+        this.nestedFilter = nestedFilter;
+        return this;
+    }
+
+    /**
+     * Sets the nested path if sorting occurs on a field that is inside a nested object. For sorting by script this
+     * needs to be specified.
+     */
+    public ScriptSortBuilder setNestedPath(String nestedPath) {
+        this.nestedPath = nestedPath;
+        return this;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("_script");
@@ -113,6 +147,15 @@ public class ScriptSortBuilder extends SortBuilder {
         }
         if (this.params != null) {
             builder.field("params", this.params);
+        }
+        if (sortMode != null) {
+            builder.field("mode", sortMode);
+        }
+        if (nestedPath != null) {
+            builder.field("nested_path", nestedPath);
+        }
+        if (nestedFilter != null) {
+            builder.field("nested_filter", nestedFilter, params);
         }
         builder.endObject();
         return builder;

@@ -19,8 +19,6 @@
 package org.elasticsearch.test.integration.search.highlight;
 
 import com.beust.jcommander.internal.Maps;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
@@ -36,7 +34,6 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,17 +47,15 @@ public class CustomHighlighterSearchTests extends AbstractNodesTests {
     @BeforeClass
     public void createNodes() throws Exception {
         ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", CustomHighlighterPlugin.class.getName());
-
         startNode("server1", settings);
-        startNode("server2", settings);
         client = getClient();
 
-        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         client.prepareIndex("test", "test", "1").setSource(XContentFactory.jsonBuilder()
                 .startObject()
                 .field("name", "arbitrary content")
                 .endObject())
-            .setRefresh(true).execute().actionGet();
+                .setRefresh(true).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
     }
 
     @AfterClass

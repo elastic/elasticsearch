@@ -35,6 +35,9 @@ import org.elasticsearch.rest.action.admin.cluster.shards.RestClusterSearchShard
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestGetIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
+import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
+import org.elasticsearch.rest.action.admin.indices.alias.get.RestIndicesGetAliasesAction;
+import org.elasticsearch.rest.action.admin.indices.alias.put.RestIndexPutAliasAction;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.cache.clear.RestClearIndicesCacheAction;
 import org.elasticsearch.rest.action.admin.indices.close.RestCloseIndexAction;
@@ -119,6 +122,9 @@ public class RestActionModule extends AbstractModule {
         bind(RestIndicesStatusAction.class).asEagerSingleton();
         bind(RestIndicesSegmentsAction.class).asEagerSingleton();
         bind(RestGetIndicesAliasesAction.class).asEagerSingleton();
+        bind(RestIndicesGetAliasesAction.class).asEagerSingleton();
+        bind(RestIndexDeleteAliasesAction.class).asEagerSingleton();
+        bind(RestIndexPutAliasAction.class).asEagerSingleton();
         bind(RestIndicesAliasesAction.class).asEagerSingleton();
         bind(RestCreateIndexAction.class).asEagerSingleton();
         bind(RestDeleteIndexAction.class).asEagerSingleton();

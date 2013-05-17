@@ -42,6 +42,8 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.TransportIndicesGetAliasesAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
@@ -201,6 +203,7 @@ public class ActionModule extends AbstractModule {
         registerAction(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         registerAction(PutWarmerAction.INSTANCE, TransportPutWarmerAction.class);
         registerAction(DeleteWarmerAction.INSTANCE, TransportDeleteWarmerAction.class);
+        registerAction(IndicesGetAliasesAction.INSTANCE, TransportIndicesGetAliasesAction.class);
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);

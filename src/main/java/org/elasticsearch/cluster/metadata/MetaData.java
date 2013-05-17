@@ -19,10 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.UnmodifiableIterator;
+import com.google.common.base.Predicate;
+import com.google.common.collect.*;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.support.IgnoreIndices;
@@ -271,6 +269,39 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public ImmutableMap<String, ImmutableMap<String, AliasMetaData>> getAliases() {
         return aliases();
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
+     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     *
+     * @param aliases The names of the index aliases to find
+     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
+     *
+     * @return the found index aliases grouped by index
+     */
+    public ImmutableMap<String, ImmutableList<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
+        assert aliases != null;
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return ImmutableMap.of();
+        }
+
+        ImmutableMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableMap.builder();
+        Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indices.keySet());
+        for (String index : intersection) {
+            IndexMetaData indexMetaData = indices.get(index);
+            Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
+                public boolean apply(String alias) {
+                    // Simon says: we could build and FST out of the alias key and then run a regexp query against it ;)
+                    return Regex.simpleMatch(aliases, alias);
+                }
+            }).values();
+            if (!filteredValues.isEmpty()) {
+                mapBuilder.put(index, ImmutableList.copyOf(filteredValues));
+            }
+        }
+        return mapBuilder.build();
     }
 
     /**

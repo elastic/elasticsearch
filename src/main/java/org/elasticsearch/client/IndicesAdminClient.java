@@ -24,6 +24,9 @@ import org.elasticsearch.action.admin.indices.IndicesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
@@ -475,6 +478,26 @@ public interface IndicesAdminClient {
      * Allows to add/remove aliases from indices.
      */
     IndicesAliasesRequestBuilder prepareAliases();
+
+    /**
+     * Get specific index aliases.
+     *
+     * @param request The result future
+     */
+    ActionFuture<IndicesGetAliasesResponse> getAliases(IndicesGetAliasesRequest request);
+
+    /**
+     * Get specific index aliases.
+     *
+     * @param request  The index aliases request
+     * @param listener A listener to be notified with a result
+     */
+    void getAliases(IndicesGetAliasesRequest request, ActionListener<IndicesGetAliasesResponse> listener);
+
+    /**
+     * Adds specific index aliases.
+     */
+    IndicesGetAliasesRequestBuilder prepareGetAliases(String... aliases);
 
     /**
      * Clear indices cache.

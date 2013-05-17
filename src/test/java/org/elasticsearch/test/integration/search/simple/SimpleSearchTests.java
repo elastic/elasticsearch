@@ -30,6 +30,7 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -159,5 +160,42 @@ public class SimpleSearchTests extends AbstractNodesTests {
 
         searchResponse = client.prepareSearch("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+    }
+    
+    @Test
+    public void localDependentDateTests() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+        
+        client.admin().indices().prepareCreate("test")
+            .addMapping("type1",
+                    jsonBuilder().startObject()
+                                    .startObject("type1")
+                                        .startObject("properties")
+                                            .startObject("date_field")
+                                                .field("type", "date")
+                                                .field("format", "E, d MMM yyyy HH:mm:ss Z")
+                                                .field("locale", "de")
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                .endObject())
+        .setSettings(ImmutableSettings.settingsBuilder()).execute().actionGet();
+        for (int i = 0; i < 10; i++) {
+            client.prepareIndex("test", "type1", ""+i).setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800").execute().actionGet();
+            client.prepareIndex("test", "type1", ""+(10+i)).setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800").execute().actionGet();
+        }
+        
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        for (int i = 0; i < 10; i++) {
+            SearchResponse searchResponse = client.prepareSearch("test")
+                    .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Do, 07 Dez 2000 00:00:00 -0800"))
+                        .execute().actionGet();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(10l));
+    
+            searchResponse = client.prepareSearch("test")
+                    .setQuery(QueryBuilders.rangeQuery("date_field").gte( "Di, 05 Dez 2000 02:55:00 -0800").lte("Fr, 08 Dez 2000 00:00:00 -0800"))
+                        .execute().actionGet();
+            assertThat(searchResponse.getHits().totalHits(), equalTo(20l));
+        }
     }
 }

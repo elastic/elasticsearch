@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.joda;
 
+import java.util.Locale;
+
 import org.joda.time.format.DateTimeFormatter;
 
 /**
@@ -32,17 +34,20 @@ public class FormatDateTimeFormatter {
     private final DateTimeFormatter parser;
 
     private final DateTimeFormatter printer;
+    
+    private final Locale locale;
 
-    public FormatDateTimeFormatter(String format, DateTimeFormatter parser) {
-        this(format, parser, parser);
+    public FormatDateTimeFormatter(String format, DateTimeFormatter parser, Locale locale) {
+        this(format, parser, parser, locale);
     }
 
-    public FormatDateTimeFormatter(String format, DateTimeFormatter parser, DateTimeFormatter printer) {
+    public FormatDateTimeFormatter(String format, DateTimeFormatter parser, DateTimeFormatter printer, Locale locale) {
         this.format = format;
-        this.parser = parser;
-        this.printer = printer;
+        this.locale = locale;
+        this.printer = locale == null ? printer : printer.withLocale(locale);
+        this.parser = locale == null ? parser : parser.withLocale(locale);
     }
-
+    
     public String format() {
         return format;
     }
@@ -53,5 +58,9 @@ public class FormatDateTimeFormatter {
 
     public DateTimeFormatter printer() {
         return this.printer;
+    }
+    
+    public Locale locale() {
+        return locale;
     }
 }

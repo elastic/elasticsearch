@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.joda;
 
+import java.util.Locale;
+
 import org.elasticsearch.common.Strings;
 import org.joda.time.*;
 import org.joda.time.field.DividedDateTimeField;
@@ -31,10 +33,14 @@ import org.joda.time.format.*;
  */
 public class Joda {
 
+    public static FormatDateTimeFormatter forPattern(String input) {
+        return forPattern(input, Locale.ROOT);
+    }
+
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */
-    public static FormatDateTimeFormatter forPattern(String input) {
+    public static FormatDateTimeFormatter forPattern(String input, Locale locale) {
         DateTimeFormatter formatter;
         if ("basicDate".equals(input) || "basic_date".equals(input)) {
             formatter = ISODateTimeFormat.basicDate();
@@ -76,9 +82,10 @@ public class Joda {
             formatter = ISODateTimeFormat.dateHourMinuteSecondMillis();
         } else if ("dateOptionalTime".equals(input) || "date_optional_time".equals(input)) {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
+            // this sucks we should use the root local by default and not be dependent on the node
             return new FormatDateTimeFormatter(input,
                     ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC),
-                    ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC));
+                    ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC), locale);
         } else if ("dateTime".equals(input) || "date_time".equals(input)) {
             formatter = ISODateTimeFormat.dateTime();
         } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
@@ -133,7 +140,7 @@ public class Joda {
                 formatter = builder.toFormatter();
             }
         }
-        return new FormatDateTimeFormatter(input, formatter.withZone(DateTimeZone.UTC));
+        return new FormatDateTimeFormatter(input, formatter.withZone(DateTimeZone.UTC), locale);
     }
 
 

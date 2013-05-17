@@ -117,6 +117,7 @@ public abstract class ScriptDocValues {
                 Iter iter = values.getIter(docId);
                 while(iter.hasNext()) {
                     BytesRef next = iter.next();
+                    list.grow(list.length+1);
                     UnicodeUtil.UTF8toUTF16(next, spare);
                     list.values[list.length++] = spare.toString();
                 }

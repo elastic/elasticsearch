@@ -21,11 +21,14 @@ package org.elasticsearch.test.integration.aliases;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.StopWatch;
@@ -34,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.AliasMissingException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.SearchHit;
@@ -58,6 +62,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.testng.AssertJUnit.fail;
 
 /**
  *
@@ -605,6 +610,199 @@ public class IndexAliasesTests extends AbstractNodesTests {
         stopWatch.start();
         assertThat(client2.admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout).execute().actionGet().isAcknowledged(), equalTo(true));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
+    }
+
+    @Test
+    public void testIndicesGetAliases() throws Exception {
+        // delete all indices
+        client1.admin().indices().prepareDelete().execute().actionGet();
+
+        Settings indexSettings = ImmutableSettings.settingsBuilder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .build();
+        logger.info("--> creating indices [foobar, test, test123, foobarbaz, bazbar]");
+        client1.admin().indices().prepareCreate("foobar")
+                .setSettings(indexSettings)
+                .execute().actionGet();
+        client1.admin().indices().prepareCreate("test")
+                .setSettings(indexSettings)
+                .execute().actionGet();
+        client1.admin().indices().prepareCreate("test123")
+                .setSettings(indexSettings)
+                .execute().actionGet();
+        client1.admin().indices().prepareCreate("foobarbaz")
+                .setSettings(indexSettings)
+                .execute().actionGet();
+        client1.admin().indices().prepareCreate("bazbar")
+                .setSettings(indexSettings)
+                .execute().actionGet();
+
+        logger.info("--> running cluster_health");
+        ClusterHealthResponse clusterHealth = client1.admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        logger.info("--> creating aliases [alias1, alias2]");
+        client1.admin().indices().prepareAliases()
+                .addAlias("foobar", "alias1")
+                .execute().actionGet();
+
+        IndicesAliasesResponse indicesAliasesResponse = client2.admin().indices().prepareAliases()
+                .addAlias("foobar", "alias2")
+                .execute().actionGet();
+        assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
+
+        logger.info("--> getting alias1");
+        IndicesGetAliasesResponse response = client2.admin().indices().prepareGetAliases("alias1").execute().actionGet();
+        assertThat(response, notNullValue());
+        assertThat(response.getAliases().size(), equalTo(1));
+        assertThat(response.getAliases().get("foobar").size(), equalTo(1));
+        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("alias1"));
+        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+
+        logger.info("--> getting all aliases that start with alias*");
+        response = client2.admin().indices().prepareGetAliases("alias*").execute().actionGet();
+        assertThat(response, notNullValue());
+        assertThat(response.getAliases().size(), equalTo(1));
+        assertThat(response.getAliases().get("foobar").size(), equalTo(2));
+        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("alias2"));
+        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(1), notNullValue());
+        assertThat(response.getAliases().get("foobar").get(1).alias(), equalTo("alias1"));
+        assertThat(response.getAliases().get("foobar").get(1).getFilter(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(1).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(1).getSearchRouting(), nullValue());
+
+        logger.info("--> creating aliases [bar, baz, foo]");
+        client1.admin().indices().prepareAliases()
+                .addAlias("bazbar", "bar")
+                .addAlias("bazbar", "bac", termFilter("field", "value"))
+                .addAlias("foobar", "foo")
+                .execute().actionGet();
+
+        indicesAliasesResponse = client2.admin().indices().prepareAliases()
+                .addAliasAction(new AliasAction(AliasAction.Type.ADD, "foobar", "bac").routing("bla"))
+                .execute().actionGet();
+        assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
+
+        logger.info("--> getting bar and baz for index bazbar");
+        response = client2.admin().indices().prepareGetAliases("bar", "bac").addIndices("bazbar").execute().actionGet();
+        assertThat(response, notNullValue());
+        assertThat(response.getAliases().size(), equalTo(1));
+        assertThat(response.getAliases().get("bazbar").size(), equalTo(2));
+        assertThat(response.getAliases().get("bazbar").get(0), notNullValue());
+        assertThat(response.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
+        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
+        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
+        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
+        assertThat(response.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(1), notNullValue());
+        assertThat(response.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
+        assertThat(response.getAliases().get("bazbar").get(1).getFilter(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+
+        logger.info("--> getting *b* for index baz*");
+        response = client2.admin().indices().prepareGetAliases("*b*").addIndices("baz*").execute().actionGet();
+        assertThat(response, notNullValue());
+        assertThat(response.getAliases().size(), equalTo(1));
+        assertThat(response.getAliases().get("bazbar").size(), equalTo(2));
+        assertThat(response.getAliases().get("bazbar").get(0), notNullValue());
+        assertThat(response.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
+        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
+        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
+        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
+        assertThat(response.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(1), notNullValue());
+        assertThat(response.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
+        assertThat(response.getAliases().get("bazbar").get(1).getFilter(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+
+        logger.info("--> getting *b* for index *bar");
+        response = client2.admin().indices().prepareGetAliases("b*").addIndices("*bar").execute().actionGet();
+        assertThat(response, notNullValue());
+        assertThat(response.getAliases().size(), equalTo(2));
+        assertThat(response.getAliases().get("bazbar").size(), equalTo(2));
+        assertThat(response.getAliases().get("bazbar").get(0), notNullValue());
+        assertThat(response.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
+        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
+        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
+        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
+        assertThat(response.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(1), notNullValue());
+        assertThat(response.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
+        assertThat(response.getAliases().get("bazbar").get(1).getFilter(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("bac"));
+        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), equalTo("bla"));
+        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), equalTo("bla"));
+
+        logger.info("--> getting f* for index *bar");
+        response = client2.admin().indices().prepareGetAliases("f*").addIndices("*bar").execute().actionGet();
+        assertThat(response, notNullValue());
+        assertThat(response.getAliases().size(), equalTo(1));
+        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
+        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+
+        // alias at work
+        logger.info("--> getting f* for index *bac");
+        response = client2.admin().indices().prepareGetAliases("foo").addIndices("*bac").execute().actionGet();
+        assertThat(response, notNullValue());
+        assertThat(response.getAliases().size(), equalTo(1));
+        assertThat(response.getAliases().get("foobar").size(), equalTo(1));
+        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
+        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+
+        logger.info("--> getting foo for index foobar");
+        response = client2.admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
+        assertThat(response, notNullValue());
+        assertThat(response.getAliases().size(), equalTo(1));
+        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
+        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+
+        // alias at work again
+        logger.info("--> getting * for index *bac");
+        response = client2.admin().indices().prepareGetAliases("*").addIndices("*bac").execute().actionGet();
+        assertThat(response, notNullValue());
+        assertThat(response.getAliases().size(), equalTo(2));
+        assertThat(response.getAliases().get("foobar").size(), equalTo(4));
+        assertThat(response.getAliases().get("bazbar").size(), equalTo(2));
+
+        indicesAliasesResponse = client2.admin().indices().prepareAliases()
+                .removeAlias("foobar", "foo")
+                .execute().actionGet();
+        assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
+
+        try {
+            client2.admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
+            fail("Exception should have been thrown");
+        } catch (AliasMissingException e) {
+            assertThat(e.getMessage(), equalTo("alias [foo] missing"));
+        }
     }
 
     private void assertHits(SearchHits hits, String... ids) {

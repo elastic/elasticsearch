@@ -51,6 +51,7 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -88,6 +89,8 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
         protected FormatDateTimeFormatter dateTimeFormatter = Defaults.DATE_TIME_FORMATTER;
 
+        private Locale locale;
+
         public Builder(String name) {
             super(name, new FieldType(Defaults.FIELD_TYPE));
             builder = this;
@@ -115,17 +118,26 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 parseUpperInclusive = context.indexSettings().getAsBoolean("index.mapping.date.parse_upper_inclusive", Defaults.PARSE_UPPER_INCLUSIVE);
             }
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
+            if (locale != null && !locale.equals(dateTimeFormatter.locale())) {
+                // this sucks we should use the root local by default and not be dependent on the node if it is null?
+                dateTimeFormatter = new FormatDateTimeFormatter(dateTimeFormatter.format(), dateTimeFormatter.parser(), dateTimeFormatter.printer(), locale);
+            }
             DateFieldMapper fieldMapper = new DateFieldMapper(buildNames(context), dateTimeFormatter,
                     precisionStep, boost, fieldType, nullValue,
                     timeUnit, parseUpperInclusive, ignoreMalformed(context), provider, similarity, fieldDataSettings);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
+
+        public Builder locale(Locale locale) {
+            this.locale = locale;
+            return this;
+        }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             DateFieldMapper.Builder builder = dateField(name);
             parseNumberField(builder, name, node, parserContext);
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -137,9 +149,32 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propName, propNode));
                 } else if (propName.equals("numeric_resolution")) {
                     builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase()));
+                } else if (propName.equals("locale")) {
+                    builder.locale(parseLocal(propNode.toString()));
                 }
             }
             return builder;
+        }
+    }
+    
+    // public for test
+    public static Locale parseLocal(String locale) {
+        final String[] parts = locale.split("_", -1);
+        switch (parts.length) {
+        case 3:
+            // lang_country_variant
+            return new Locale(parts[0], parts[1], parts[2]);
+        case 2:
+            // lang_country
+            return new Locale(parts[0], parts[1]);
+        case 1:
+            if ("ROOT".equalsIgnoreCase(parts[0])) {
+                return Locale.ROOT;
+            }
+            // lang
+            return new Locale(parts[0]);
+        default:
+            throw new ElasticSearchIllegalArgumentException("Can't parse locale: [" + locale + "]");
         }
     }
 
@@ -413,6 +448,9 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         if (timeUnit != Defaults.TIME_UNIT) {
             builder.field("numeric_resolution", timeUnit.name().toLowerCase());
         }
+        if (dateTimeFormatter.locale() != null) {
+            builder.field("locale", dateTimeFormatter.format());
+        }
     }
 
     private long parseStringValue(String value) {
@@ -423,7 +461,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 long time = Long.parseLong(value);
                 return timeUnit.toMillis(time);
             } catch (NumberFormatException e1) {
-                throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number", e);
+                throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number with locale [" + dateTimeFormatter.locale() +"]", e);
             }
         }
     }

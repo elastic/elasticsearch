@@ -121,7 +121,7 @@ public interface Mapper extends ToXContent {
             }
         }
 
-        Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
+        Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException;
     }
 
     String name();

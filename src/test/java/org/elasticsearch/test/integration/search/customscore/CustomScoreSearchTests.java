@@ -20,16 +20,19 @@
 package org.elasticsearch.test.integration.search.customscore;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.util.Arrays;
 
 import static org.elasticsearch.client.Requests.*;
@@ -141,6 +144,106 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         assertThat(explanation.getDetails()[1].getDetails()[2].getDescription(), equalTo("queryBoost"));
         assertThat(explanation.getDetails()[1].getDetails()[2].getValue(), equalTo(2f));
     }
+    
+    @Test
+    public void testMultiValueCustomScriptBoost() throws ElasticSearchException, IOException {
+            client.admin().indices().prepareDelete().execute().actionGet();
+            
+            client.admin().indices().prepareCreate("test")
+            .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("snum").field("type", "string").endObject()
+                    .startObject("dnum").field("type", "double").endObject()
+                    .startObject("slnum").field("type", "long").endObject()
+                    .startObject("gp").field("type", "geo_point").endObject()
+                    .endObject().endObject().endObject())
+            .execute().actionGet();
+            client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+            
+            String[] values = new String[100];
+            String[] gp = new String[100];
+
+            long[] lValues = new long[100];
+            double[] dValues = new double[100];
+            int offset = 1;
+            for (int i = 0; i < values.length; i++) {
+                values[i] = ""+ (i + offset);
+                gp[i] = ""+ (i + offset) + ","+ (i + offset);
+                lValues[i] = (i + offset);
+                dValues[i] = (i + offset);
+            }
+            client.index(indexRequest("test").type("type1").id("1")
+                    .source(jsonBuilder().startObject().field("test", "value check")     
+                            .field("snum", values)
+                            .field("dnum", dValues)
+                            .field("lnum", lValues)
+                            .field("gp", gp)
+                         .endObject())).actionGet();
+            offset++;
+            for (int i = 0; i < values.length; i++) {
+                values[i] = ""+ (i + offset);
+                gp[i] = ""+ (i + offset) + ","+ (i + offset);
+                lValues[i] = (i + offset);
+                dValues[i] = (i + offset);
+            }
+            client.index(indexRequest("test").type("type1").id("2")
+                    .source(jsonBuilder().startObject().field("test", "value check")
+                            .field("snum", values)
+                            .field("dnum", dValues)
+                            .field("lnum", lValues)
+                            .field("gp", gp)
+                         .endObject())).actionGet();
+            client.admin().indices().refresh(refreshRequest()).actionGet();
+
+            logger.info("running min(doc['num1'].value)");
+            SearchResponse response = client.search(searchRequest()
+                    .searchType(SearchType.QUERY_THEN_FETCH)
+                    .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value"))
+                            .script("c_min = 1000; foreach (x : doc['snum'].values) { c_min = min(Integer.parseInt(x), c_min) } return c_min")))
+            ).actionGet();
+
+            assertThat(response.getHits().totalHits(), equalTo(2l));
+            logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
+            logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
+            assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+            assertThat(response.getHits().getAt(1).id(), equalTo("1"));
+            
+            response = client.search(searchRequest()
+                    .searchType(SearchType.QUERY_THEN_FETCH)
+                    .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value"))
+                            .script("c_min = 1000; foreach (x : doc['lnum'].values) { c_min = min(x, c_min) } return c_min")))
+            ).actionGet();
+
+            assertThat(response.getHits().totalHits(), equalTo(2l));
+            logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
+            logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
+            assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+            assertThat(response.getHits().getAt(1).id(), equalTo("1"));
+            
+            response = client.search(searchRequest()
+                    .searchType(SearchType.QUERY_THEN_FETCH)
+                    .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value"))
+                            .script("c_min = 1000; foreach (x : doc['dnum'].values) { c_min = min(x, c_min) } return c_min")))
+            ).actionGet();
+
+            assertThat(response.getHits().totalHits(), equalTo(2l));
+            logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
+            logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
+            assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+            assertThat(response.getHits().getAt(1).id(), equalTo("1"));
+            
+            response = client.search(searchRequest()
+                    .searchType(SearchType.QUERY_THEN_FETCH)
+                    .source(searchSource().explain(true).query(customScoreQuery(termQuery("test", "value"))
+                            .script("c_min = 1000; foreach (x : doc['gp'].values) { c_min = min(x.lat, c_min) } return c_min")))
+            ).actionGet();
+
+            assertThat(response.getHits().totalHits(), equalTo(2l));
+            logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
+            logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
+            assertThat(response.getHits().getAt(0).id(), equalTo("2"));
+            assertThat(response.getHits().getAt(1).id(), equalTo("1"));
+    }
 
     @Test
     public void testCustomScriptBoost() throws Exception {
@@ -154,7 +257,7 @@ public class CustomScoreSearchTests extends AbstractNodesTests {
         client.admin().indices().refresh(refreshRequest()).actionGet();
 
         logger.info("--- QUERY_THEN_FETCH");
-
+        
         logger.info("running doc['num1'].value");
         SearchResponse response = client.search(searchRequest()
                 .searchType(SearchType.QUERY_THEN_FETCH)

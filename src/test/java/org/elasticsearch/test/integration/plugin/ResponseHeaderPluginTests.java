@@ -30,14 +30,13 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.integration.AbstractNodesTests;
+import org.elasticsearch.test.integration.plugin.responseheader.TestResponseHeaderPlugin;
 import org.elasticsearch.test.integration.rest.helper.HttpClient;
 import org.elasticsearch.test.integration.rest.helper.HttpClientResponse;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.io.File;
-import java.net.URL;
 import java.util.Map;
 
 /**
@@ -49,12 +48,7 @@ public class ResponseHeaderPluginTests extends AbstractNodesTests {
 
     @BeforeMethod
     public void startNode() throws Exception {
-        URL resource = ResponseHeaderPluginTests.class.getResource("/org/elasticsearch/test/integration/responseheader/");
-        ImmutableSettings.Builder settings = settingsBuilder();
-        if (resource != null) {
-            settings.put("path.plugins", new File(resource.toURI()).getAbsolutePath());
-        }
-
+        ImmutableSettings.Builder settings = settingsBuilder().put("plugin.types", TestResponseHeaderPlugin.class.getName());
         startNode(NODE_ID, settings);
         client(NODE_ID).admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
     }

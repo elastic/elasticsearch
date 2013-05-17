@@ -11,8 +11,8 @@
 #
 ### BEGIN INIT INFO
 # Provides:          elasticsearch
-# Required-Start:    $all
-# Required-Stop:     $all
+# Required-Start:    $network $named
+# Required-Stop:     $network $named
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Starts elasticsearch

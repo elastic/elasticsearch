@@ -19,8 +19,23 @@
 
 package org.elasticsearch.test.unit.index.mapper.date;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+import org.apache.lucene.analysis.NumericTokenStream.NumericTermAttribute;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,10 +51,6 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.testng.annotations.Test;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
-
 @Test
 public class SimpleDateMappingTests {
 
@@ -51,7 +62,7 @@ public class SimpleDateMappingTests {
 
         DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
 
-        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+        defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("date_field1", "2011/01/22")
                 .field("date_field2", "2011/01/22 00:00:00")
@@ -61,7 +72,7 @@ public class SimpleDateMappingTests {
                 .endObject()
                 .bytes());
 
-        FieldMapper fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
+        FieldMapper<?> fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field1");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("date_field2");
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
@@ -72,6 +83,77 @@ public class SimpleDateMappingTests {
         assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date3");
         assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+    }
+    
+    @Test
+    public void testParseLocal() {
+        assertThat(Locale.GERMAN, equalTo(DateFieldMapper.parseLocal("de")));
+        assertThat(Locale.GERMANY, equalTo(DateFieldMapper.parseLocal("de_DE")));
+        assertThat(new Locale("de","DE","DE"), equalTo(DateFieldMapper.parseLocal("de_DE_DE")));
+        
+        try {
+            DateFieldMapper.parseLocal("de_DE_DE_DE");
+            assert false;
+        } catch(ElasticSearchIllegalArgumentException ex) {
+            // expected
+        }
+        assertThat(Locale.ROOT,  equalTo(DateFieldMapper.parseLocal("")));
+        assertThat(Locale.ROOT,  equalTo(DateFieldMapper.parseLocal("ROOT")));
+    }
+    
+    @Test
+    public void testLocale() throws IOException {
+        String mapping = XContentFactory.jsonBuilder()
+                    .startObject()
+                        .startObject("type")
+                            .startObject("properties")
+                                .startObject("date_field_default")
+                                    .field("type", "date")
+                                    .field("format", "E, d MMM yyyy HH:mm:ss Z")
+                                .endObject()
+                                .startObject("date_field_en")
+                                    .field("type", "date")
+                                    .field("format", "E, d MMM yyyy HH:mm:ss Z")
+                                    .field("locale", "EN")
+                                .endObject()
+                                 .startObject("date_field_de")
+                                    .field("type", "date")
+                                    .field("format", "E, d MMM yyyy HH:mm:ss Z")
+                                    .field("locale", "DE_de")
+                                .endObject()
+                            .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                  .field("date_field_en", "Wed, 06 Dec 2000 02:55:00 -0800")
+                  .field("date_field_de", "Mi, 06 Dez 2000 02:55:00 -0800")
+                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - root?
+                .endObject()
+                .bytes());
+        assertThat(doc.rootDoc().getField("date_field_en").tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField("date_field_de").tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
+        
+        TokenStream tokenStream = doc.rootDoc().getField("date_field_en").tokenStream(defaultMapper.indexAnalyzer());
+        tokenStream.reset();
+        NumericTermAttribute nta = tokenStream.addAttribute(NumericTermAttribute.class);
+        List<Long> values = new ArrayList<Long>();
+        while(tokenStream.incrementToken()) {
+            values.add(nta.getRawValue());
+        }
+        
+        tokenStream = doc.rootDoc().getField("date_field_de").tokenStream(defaultMapper.indexAnalyzer());
+        tokenStream.reset();
+        nta = tokenStream.addAttribute(NumericTermAttribute.class);
+        int pos = 0;
+        while(tokenStream.incrementToken()) {
+            assertThat(values.get(pos++), equalTo(nta.getRawValue()));
+        }
+        assertThat(pos, equalTo(values.size()));
+
+
     }
 
     @Test

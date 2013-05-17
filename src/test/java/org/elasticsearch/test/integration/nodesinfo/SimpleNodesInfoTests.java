@@ -60,7 +60,6 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         static final String SITE_PLUGIN = "dummy";
         static final String SITE_PLUGIN_DESCRIPTION = "This is a description for a dummy test site plugin.";
         static final String SITE_PLUGIN_NO_DESCRIPTION = "No description found for dummy.";
-        static final String JVM_PLUGIN_NO_DESCRIPTION = "No description found for test-no-version-plugin.";
     }
 
     @AfterMethod
@@ -126,9 +125,9 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         // The second has one site plugin with a es-plugin.properties file (description and version)
         String server2NodeId = startNodeWithPlugins("node2");
         // The third has one java plugin
-        String server3NodeId = startNodeWithPlugins("node3");
+        String server3NodeId = startNodeWithPlugins("node3", TestPlugin.class.getName());
         // The fourth has one java plugin and one site plugin
-        String server4NodeId = startNodeWithPlugins("node4");
+        String server4NodeId = startNodeWithPlugins("node4", TestNoVersionPlugin.class.getName());
 
         ClusterHealthResponse clusterHealth = client("node4").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
@@ -147,10 +146,9 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
                 Lists.newArrayList(TestPlugin.Fields.DESCRIPTION),
                 Collections.EMPTY_LIST, Collections.EMPTY_LIST);
 
-        // Note that we have now 2 JVM plugins as we have already loaded one with node3
         assertNodeContainsPlugins(response, server4NodeId,
-                Lists.newArrayList(TestPlugin.Fields.NAME, TestNoVersionPlugin.Fields.NAME),
-                Lists.newArrayList(TestPlugin.Fields.DESCRIPTION, TestNoVersionPlugin.Fields.DESCRIPTION),
+                Lists.newArrayList(TestNoVersionPlugin.Fields.NAME),
+                Lists.newArrayList(TestNoVersionPlugin.Fields.DESCRIPTION),
                 Lists.newArrayList(Fields.SITE_PLUGIN, TestNoVersionPlugin.Fields.NAME),
                 Lists.newArrayList(Fields.SITE_PLUGIN_NO_DESCRIPTION, TestNoVersionPlugin.Fields.DESCRIPTION));
     }
@@ -196,11 +194,15 @@ public class SimpleNodesInfoTests extends AbstractNodesTests {
         assertThat(sitePluginUrls, not(contains(nullValue())));
     }
 
-    private String startNodeWithPlugins(String name) throws URISyntaxException {
+    private String startNodeWithPlugins(String name, String ... pluginClassNames) throws URISyntaxException {
         URL resource = SimpleNodesInfoTests.class.getResource("/org/elasticsearch/test/integration/nodesinfo/" + name + "/");
         ImmutableSettings.Builder settings = settingsBuilder();
         if (resource != null) {
             settings.put("path.plugins", new File(resource.toURI()).getAbsolutePath());
+        }
+
+        if (pluginClassNames.length > 0) {
+            settings.putArray("plugin.types", pluginClassNames);
         }
 
         startNode(name, settings);

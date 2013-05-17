@@ -37,4 +37,4 @@ CONF_FILE=/etc/elasticsearch/elasticsearch.yml
 # User to run as, change this to a specific elasticsearch user if possible
 # Also make sure, this user can write into the log directories in case you change them
 # This setting only works for the init script, but has to be configured separately for systemd startup
-USER=elasticsearch
+ES_USER=elasticsearch

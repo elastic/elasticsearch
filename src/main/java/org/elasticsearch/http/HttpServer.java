@@ -32,6 +32,7 @@ import org.elasticsearch.rest.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestStatus.*;
@@ -198,7 +199,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         if (lastDot == -1) {
             return "";
         }
-        String extension = path.substring(lastDot + 1).toLowerCase();
+        String extension = path.substring(lastDot + 1).toLowerCase(Locale.ROOT);
         String mimeType = DEFAULT_MIME_TYPES.get(extension);
         if (mimeType == null) {
             return "";

@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * A geo distance based sorting on a geo point like field.
@@ -147,7 +148,7 @@ public class GeoDistanceSortBuilder extends SortBuilder {
             builder.field("unit", unit);
         }
         if (geoDistance != null) {
-            builder.field("distance_type", geoDistance.name().toLowerCase());
+            builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
         }
         if (order == SortOrder.DESC) {
             builder.field("reverse", true);

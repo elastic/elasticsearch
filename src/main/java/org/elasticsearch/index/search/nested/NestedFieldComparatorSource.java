@@ -32,6 +32,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.NumberComparatorBase;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  */
@@ -64,7 +65,7 @@ public class NestedFieldComparatorSource extends IndexFieldData.XFieldComparator
                 return new NestedFieldComparator.Avg((NumberComparatorBase) wrappedComparator, rootDocumentsFilter, innerDocumentsFilter, numHits);
             default:
                 throw new ElasticSearchIllegalArgumentException(
-                    String.format("Unsupported sort_mode[%s] for nested type", sortMode)
+                    String.format(Locale.ROOT, "Unsupported sort_mode[%s] for nested type", sortMode)
                 );
         }
     }

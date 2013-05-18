@@ -108,7 +108,6 @@ public abstract class TransportIndicesReplicationOperationAction<Request extends
     
                     @Override
                     public void onFailure(Throwable e) {
-                        e.printStackTrace();
                         int index = indexCounter.getAndIncrement();
                         if (accumulateExceptions()) {
                             indexResponses.set(index, e);

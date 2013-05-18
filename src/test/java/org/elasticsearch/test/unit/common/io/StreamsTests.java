@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.common.io;
 
+import org.elasticsearch.common.io.Streams;
 import org.testng.annotations.Test;
 
 import java.io.*;
@@ -37,7 +38,7 @@ public class StreamsTests {
 
     @Test
     public void testCopyFromInputStream() throws IOException {
-        byte[] content = "content".getBytes();
+        byte[] content = "content".getBytes(Streams.UTF8);
         ByteArrayInputStream in = new ByteArrayInputStream(content);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
         long count = copy(in, out);
@@ -48,7 +49,7 @@ public class StreamsTests {
 
     @Test
     public void testCopyFromByteArray() throws IOException {
-        byte[] content = "content".getBytes();
+        byte[] content = "content".getBytes(Streams.UTF8);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
         copy(content, out);
         assertThat(Arrays.equals(content, out.toByteArray()), equalTo(true));
@@ -56,7 +57,7 @@ public class StreamsTests {
 
     @Test
     public void testCopyToByteArray() throws IOException {
-        byte[] content = "content".getBytes();
+        byte[] content = "content".getBytes(Streams.UTF8);
         ByteArrayInputStream in = new ByteArrayInputStream(content);
         byte[] result = copyToByteArray(in);
         assertThat(Arrays.equals(content, result), equalTo(true));

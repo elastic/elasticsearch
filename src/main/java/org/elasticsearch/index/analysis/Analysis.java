@@ -244,7 +244,7 @@ public class Analysis {
         try {
             return loadWordList(new InputStreamReader(wordListFile.openStream(), Charsets.UTF_8), "#");
         } catch (IOException ioe) {
-            String message = String.format("IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
+            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
             throw new ElasticSearchIllegalArgumentException(message);
         }
     }
@@ -292,7 +292,7 @@ public class Analysis {
         try {
             reader = new InputStreamReader(fileUrl.openStream(), Charsets.UTF_8);
         } catch (IOException ioe) {
-            String message = String.format("IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
+            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, ioe.getMessage());
             throw new ElasticSearchIllegalArgumentException(message);
         }
 

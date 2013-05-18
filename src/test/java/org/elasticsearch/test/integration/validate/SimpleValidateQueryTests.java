@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -79,7 +80,7 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
 
         client.admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes()).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client.admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes(Streams.UTF8)).execute().actionGet().isValid(), equalTo(false));
         assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().isValid(), equalTo(true));
         assertThat(client.admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
@@ -119,7 +120,7 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
 
         ValidateQueryResponse response;
         response = client.admin().indices().prepareValidateQuery("test")
-                .setQuery("foo".getBytes())
+                .setQuery("foo".getBytes(Streams.UTF8))
                 .setExplain(true)
                 .execute().actionGet();
         assertThat(response.isValid(), equalTo(false));
@@ -225,7 +226,7 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
 
         ValidateQueryResponse response;
         response = client("node1").admin().indices().prepareValidateQuery("test")
-                .setQuery("foo".getBytes())
+                .setQuery("foo".getBytes(Streams.UTF8))
                 .setExplain(true)
                 .execute().actionGet();
         assertThat(response.isValid(), equalTo(false));
@@ -234,7 +235,7 @@ public class SimpleValidateQueryTests extends AbstractNodesTests {
         assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
         response = client("node2").admin().indices().prepareValidateQuery("test")
-                .setQuery("foo".getBytes())
+                .setQuery("foo".getBytes(Streams.UTF8))
                 .setExplain(true)
                 .execute().actionGet();
         assertThat(response.isValid(), equalTo(false));

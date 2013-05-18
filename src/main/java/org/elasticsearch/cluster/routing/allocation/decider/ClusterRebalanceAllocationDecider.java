@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * This {@link AllocationDecider} controls re-balancing operations based on the
@@ -81,7 +82,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             logger.warn("[cluster.routing.allocation.allow_rebalance] has a wrong value {}, defaulting to 'indices_all_active'", allowRebalance);
             type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
         }
-        logger.debug("using [cluster.routing.allocation.allow_rebalance] with [{}]", type.toString().toLowerCase());
+        logger.debug("using [cluster.routing.allocation.allow_rebalance] with [{}]", type.toString().toLowerCase(Locale.ROOT));
     }
 
     @Override

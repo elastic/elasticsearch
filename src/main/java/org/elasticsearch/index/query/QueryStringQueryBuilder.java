@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import static com.google.common.collect.Lists.newArrayList;
 
@@ -330,7 +331,7 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
             builder.field("tie_breaker", tieBreaker);
         }
         if (defaultOperator != null) {
-            builder.field("default_operator", defaultOperator.name().toLowerCase());
+            builder.field("default_operator", defaultOperator.name().toLowerCase(Locale.ROOT));
         }
         if (analyzer != null) {
             builder.field("analyzer", analyzer);

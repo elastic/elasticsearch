@@ -38,6 +38,7 @@ import org.elasticsearch.node.internal.InternalSettingsPerparer;
 
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
@@ -186,7 +187,7 @@ public class Bootstrap {
         }
 
         // warn if running using the client VM
-        if (JvmInfo.jvmInfo().vmName().toLowerCase().contains("client")) {
+        if (JvmInfo.jvmInfo().vmName().toLowerCase(Locale.ROOT).contains("client")) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line");
         }

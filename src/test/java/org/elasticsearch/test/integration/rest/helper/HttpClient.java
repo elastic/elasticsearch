@@ -96,7 +96,7 @@ public class HttpClient {
             InputStream inputStream = urlConnection.getInputStream();
             String body = null;
             try {
-                body = Streams.copyToString(new InputStreamReader(inputStream));
+                body = Streams.copyToString(new InputStreamReader(inputStream, Streams.UTF8));
             } catch (IOException e1) {
                 throw new ElasticSearchException("problem reading error stream", e1);
             }
@@ -105,7 +105,7 @@ public class HttpClient {
             InputStream errStream = urlConnection.getErrorStream();
             String body = null;
             try {
-                body = Streams.copyToString(new InputStreamReader(errStream));
+                body = Streams.copyToString(new InputStreamReader(errStream, Streams.UTF8));
             } catch (IOException e1) {
                 throw new ElasticSearchException("problem reading error stream", e1);
             }

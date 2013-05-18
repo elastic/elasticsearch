@@ -121,7 +121,7 @@ public class ScriptService extends AbstractComponent {
                             if (s.equals(ext)) {
                                 found = true;
                                 try {
-                                    String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+                                    String script = Streams.copyToString(new InputStreamReader(new FileInputStream(file), Streams.UTF8));
                                     staticCache.put(scriptName, new CompiledScript(engineService.types()[0], engineService.compile(script)));
                                 } catch (Exception e) {
                                     logger.warn("failed to load/compile script [{}]", e, scriptName);

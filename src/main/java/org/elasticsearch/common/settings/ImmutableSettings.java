@@ -341,7 +341,7 @@ public class ImmutableSettings implements Settings {
     }
 
     private <T> Class<? extends T> loadClass(String prefixValue, String sValue, String suffixClassName, String setting) {
-        String fullClassName = prefixValue + toCamelCase(sValue).toLowerCase() + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
+        String fullClassName = prefixValue + toCamelCase(sValue).toLowerCase(Locale.ROOT) + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
         try {
             return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
         } catch (ClassNotFoundException e2) {
@@ -747,7 +747,7 @@ public class ImmutableSettings implements Settings {
         public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
             try {
-                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, "UTF-8")));
+                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, Streams.UTF8)));
                 put(loadedSettings);
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);

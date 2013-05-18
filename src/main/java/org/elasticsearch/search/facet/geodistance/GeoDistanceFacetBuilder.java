@@ -30,6 +30,7 @@ import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -266,7 +267,7 @@ public class GeoDistanceFacetBuilder extends FacetBuilder {
             builder.field("unit", unit);
         }
         if (geoDistance != null) {
-            builder.field("distance_type", geoDistance.name().toLowerCase());
+            builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
         }
 
         builder.endObject();

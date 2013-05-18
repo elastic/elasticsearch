@@ -27,6 +27,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilderException;
 import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -226,7 +227,7 @@ public class TermsFacetBuilder extends FacetBuilder {
             }
         }
         if (comparatorType != null) {
-            builder.field("order", comparatorType.name().toLowerCase());
+            builder.field("order", comparatorType.name().toLowerCase(Locale.ROOT));
         }
         if (allTerms != null) {
             builder.field("all_terms", allTerms);

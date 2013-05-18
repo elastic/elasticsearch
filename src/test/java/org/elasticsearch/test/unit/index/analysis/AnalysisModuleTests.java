@@ -28,6 +28,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -46,7 +47,9 @@ import org.testng.annotations.Test;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.util.Set;
 
@@ -169,7 +172,7 @@ public class AnalysisModuleTests {
 
         BufferedWriter writer = null;
         try {
-            writer = new BufferedWriter(new FileWriter(wordListFile));
+            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(wordListFile), Streams.UTF8));
             for (String word : words) {
                 writer.write(word);
                 writer.write('\n');

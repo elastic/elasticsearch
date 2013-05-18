@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 
 import java.io.*;
+import java.nio.charset.Charset;
 
 /**
  * Simple utility methods for file and stream copying.
@@ -34,6 +35,8 @@ import java.io.*;
  * but also useful for application code.
  */
 public abstract class Streams {
+    
+    public static final Charset UTF8 = Charset.forName("UTF-8");
 
     public static final int BUFFER_SIZE = 1024 * 8;
 
@@ -252,7 +255,7 @@ public abstract class Streams {
         if (is == null) {
             throw new FileNotFoundException("Resource [" + path + "] not found in classpath with class loader [" + classLoader + "]");
         }
-        return copyToString(new InputStreamReader(is, "UTF-8"));
+        return copyToString(new InputStreamReader(is, UTF8));
     }
 
     public static String copyToStringFromClasspath(String path) throws IOException {
@@ -260,7 +263,7 @@ public abstract class Streams {
         if (is == null) {
             throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
         }
-        return copyToString(new InputStreamReader(is));
+        return copyToString(new InputStreamReader(is, UTF8));
     }
 
     public static byte[] copyToBytesFromClasspath(String path) throws IOException {

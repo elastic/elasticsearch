@@ -1180,7 +1180,7 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             try {
                 for (AtomicReaderContext reader : searcher.reader().leaves()) {
                     assert reader.reader() instanceof SegmentReader;
-                    SegmentInfoPerCommit info = Lucene.getSegmentInfo((SegmentReader) reader.reader());
+                    SegmentInfoPerCommit info = ((SegmentReader) reader.reader()).getSegmentInfo();
                     assert !segments.containsKey(info.info.name);
                     Segment segment = new Segment(info.info.name);
                     segment.search = true;

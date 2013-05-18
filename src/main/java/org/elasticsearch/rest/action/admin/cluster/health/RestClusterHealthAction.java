@@ -31,6 +31,7 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
@@ -59,7 +60,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
             clusterHealthRequest.timeout(request.paramAsTime("timeout", clusterHealthRequest.timeout()));
             String waitForStatus = request.param("wait_for_status");
             if (waitForStatus != null) {
-                clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase()));
+                clusterHealthRequest.waitForStatus(ClusterHealthStatus.valueOf(waitForStatus.toUpperCase(Locale.ROOT)));
             }
             clusterHealthRequest.waitForRelocatingShards(request.paramAsInt("wait_for_relocating_shards", clusterHealthRequest.waitForRelocatingShards()));
             clusterHealthRequest.waitForActiveShards(request.paramAsInt("wait_for_active_shards", clusterHealthRequest.waitForActiveShards()));
@@ -98,7 +99,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                     builder.startObject();
 
                     builder.field(Fields.CLUSTER_NAME, response.getClusterName());
-                    builder.field(Fields.STATUS, response.getStatus().name().toLowerCase());
+                    builder.field(Fields.STATUS, response.getStatus().name().toLowerCase(Locale.ROOT));
                     builder.field(Fields.TIMED_OUT, response.isTimedOut());
                     builder.field(Fields.NUMBER_OF_NODES, response.getNumberOfNodes());
                     builder.field(Fields.NUMBER_OF_DATA_NODES, response.getNumberOfDataNodes());
@@ -138,7 +139,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                         for (ClusterIndexHealth indexHealth : response) {
                             builder.startObject(indexHealth.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-                            builder.field(Fields.STATUS, indexHealth.getStatus().name().toLowerCase());
+                            builder.field(Fields.STATUS, indexHealth.getStatus().name().toLowerCase(Locale.ROOT));
                             builder.field(Fields.NUMBER_OF_SHARDS, indexHealth.getNumberOfShards());
                             builder.field(Fields.NUMBER_OF_REPLICAS, indexHealth.getNumberOfReplicas());
                             builder.field(Fields.ACTIVE_PRIMARY_SHARDS, indexHealth.getActivePrimaryShards());
@@ -161,7 +162,7 @@ public class RestClusterHealthAction extends BaseRestHandler {
                                 for (ClusterShardHealth shardHealth : indexHealth) {
                                     builder.startObject(Integer.toString(shardHealth.getId()));
 
-                                    builder.field(Fields.STATUS, shardHealth.getStatus().name().toLowerCase());
+                                    builder.field(Fields.STATUS, shardHealth.getStatus().name().toLowerCase(Locale.ROOT));
                                     builder.field(Fields.PRIMARY_ACTIVE, shardHealth.isPrimaryActive());
                                     builder.field(Fields.ACTIVE_SHARDS, shardHealth.getActiveShards());
                                     builder.field(Fields.RELOCATING_SHARDS, shardHealth.getRelocatingShards());

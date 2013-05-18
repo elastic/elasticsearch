@@ -24,6 +24,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.text.NumberFormat;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -228,10 +229,10 @@ public class StopWatch {
             sb.append("-----------------------------------------\n");
             sb.append("ms     %     Task name\n");
             sb.append("-----------------------------------------\n");
-            NumberFormat nf = NumberFormat.getNumberInstance();
+            NumberFormat nf = NumberFormat.getNumberInstance(Locale.ROOT);
             nf.setMinimumIntegerDigits(5);
             nf.setGroupingUsed(false);
-            NumberFormat pf = NumberFormat.getPercentInstance();
+            NumberFormat pf = NumberFormat.getPercentInstance(Locale.ROOT);
             pf.setMinimumIntegerDigits(3);
             pf.setGroupingUsed(false);
             for (TaskInfo task : taskInfo()) {

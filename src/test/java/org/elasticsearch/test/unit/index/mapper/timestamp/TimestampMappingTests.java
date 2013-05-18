@@ -19,6 +19,8 @@
 
 package org.elasticsearch.test.unit.index.mapper.timestamp;
 
+import java.util.Locale;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -128,6 +130,6 @@ public class TimestampMappingTests {
         mapper.timestampFieldMapper().toXContent(builder, null);
         builder.endObject();
 
-        assertThat(builder.string(), is(String.format("{\"%s\":{}}", TimestampFieldMapper.NAME)));
+        assertThat(builder.string(), is(String.format(Locale.ROOT, "{\"%s\":{}}", TimestampFieldMapper.NAME)));
     }
 }

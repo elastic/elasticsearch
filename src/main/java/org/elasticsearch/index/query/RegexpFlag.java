@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import java.util.Locale;
+
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
@@ -118,7 +120,7 @@ public enum RegexpFlag {
                 continue;
             }
             try {
-                RegexpFlag flag = RegexpFlag.valueOf(s.toUpperCase());
+                RegexpFlag flag = RegexpFlag.valueOf(s.toUpperCase(Locale.ROOT));
                 if (flag == RegexpFlag.NONE) {
                     continue;
                 }

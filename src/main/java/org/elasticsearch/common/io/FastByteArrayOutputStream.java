@@ -171,7 +171,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
      * @since JDK1.1
      */
     public String toString() {
-        return new String(buf, 0, count);
+        return new String(buf, 0, count, Streams.UTF8);
     }
 
     /**

@@ -164,7 +164,7 @@ public class Environment {
     }
 
     public String resolveConfigAndLoadToString(String path) throws FailedToResolveConfigException, IOException {
-        return Streams.copyToString(new InputStreamReader(resolveConfig(path).openStream(), "UTF-8"));
+        return Streams.copyToString(new InputStreamReader(resolveConfig(path).openStream(), Streams.UTF8));
     }
 
     public URL resolveConfig(String path) throws FailedToResolveConfigException {

@@ -43,6 +43,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -569,7 +570,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         
         client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt")));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Streams.UTF8));
         String line = null;
         while ((line = reader.readLine()) != null) {
             client.prepareIndex("test", "type1")
@@ -904,7 +905,7 @@ public class SuggestSearchTests extends AbstractNodesTests {
         
         client.admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
         client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt")));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Streams.UTF8));
         String line = null;
         while ((line = reader.readLine()) != null) {
             client.prepareIndex("test", "type1")

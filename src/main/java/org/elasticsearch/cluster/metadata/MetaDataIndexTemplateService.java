@@ -35,6 +35,7 @@ import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -149,7 +150,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         if (request.name.startsWith("_")) {
             throw new InvalidIndexTemplateException(request.name, "name must not start with '_'");
         }
-        if (!request.name.toLowerCase().equals(request.name)) {
+        if (!request.name.toLowerCase(Locale.ROOT).equals(request.name)) {
             throw new InvalidIndexTemplateException(request.name, "name must be lower cased");
         }
         if (request.template.contains(" ")) {

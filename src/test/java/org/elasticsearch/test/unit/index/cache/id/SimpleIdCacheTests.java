@@ -64,6 +64,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -221,14 +222,14 @@ public class SimpleIdCacheTests {
 
     private Document doc(String type, String id) {
         Document parent = new Document();
-        parent.add(new StringField(UidFieldMapper.NAME, String.format("%s#%s", type, id), Field.Store.NO));
+        parent.add(new StringField(UidFieldMapper.NAME, String.format(Locale.ROOT, "%s#%s", type, id), Field.Store.NO));
         return parent;
     }
 
     private Document childDoc(String type, String id, String parentType, String parentId) {
         Document parent = new Document();
-        parent.add(new StringField(UidFieldMapper.NAME, String.format("%s#%s", type, id), Field.Store.NO));
-        parent.add(new StringField(ParentFieldMapper.NAME, String.format("%s#%s", parentType, parentId), Field.Store.NO));
+        parent.add(new StringField(UidFieldMapper.NAME, String.format(Locale.ROOT, "%s#%s", type, id), Field.Store.NO));
+        parent.add(new StringField(ParentFieldMapper.NAME, String.format(Locale.ROOT, "%s#%s", parentType, parentId), Field.Store.NO));
         return parent;
     }
 

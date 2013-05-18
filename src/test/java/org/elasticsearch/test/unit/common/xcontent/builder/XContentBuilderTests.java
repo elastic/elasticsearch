@@ -113,7 +113,7 @@ public class XContentBuilderTests {
     public void testDateTypesConversion() throws Exception {
         Date date = new Date();
         String expectedDate = XContentBuilder.defaultDatePrinter.print(date.getTime());
-        Calendar calendar = new GregorianCalendar();
+        Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
         String expectedCalendar = XContentBuilder.defaultDatePrinter.print(calendar.getTimeInMillis());
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject().field("date", date).endObject();

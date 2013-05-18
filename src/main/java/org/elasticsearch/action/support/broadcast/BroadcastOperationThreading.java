@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.support.broadcast;
 
+import java.util.Locale;
+
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 
 /**
@@ -69,6 +71,6 @@ public enum BroadcastOperationThreading {
         if (value == null) {
             return defaultValue;
         }
-        return BroadcastOperationThreading.valueOf(value.toUpperCase());
+        return BroadcastOperationThreading.valueOf(value.toUpperCase(Locale.ROOT));
     }
 }

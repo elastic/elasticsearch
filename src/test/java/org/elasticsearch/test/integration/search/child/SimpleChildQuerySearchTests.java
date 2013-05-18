@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -787,13 +788,13 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         int numberOfParents = 4;
         int numberOfChildrenPerParent = 123;
         for (int i = 1; i <= numberOfParents; i++) {
-            String parentId = String.format("p%d", i);
+            String parentId = String.format(Locale.ROOT, "p%d", i);
             client.prepareIndex("test", "parent", parentId)
-                    .setSource("p_field", String.format("p_value%d", i))
+                    .setSource("p_field", String.format(Locale.ROOT, "p_value%d", i))
                     .execute()
                     .actionGet();
             for (int j = 1; j <= numberOfChildrenPerParent; j++) {
-                client.prepareIndex("test", "child", String.format("%s_c%d", parentId, j))
+                client.prepareIndex("test", "child", String.format(Locale.ROOT, "%s_c%d", parentId, j))
                         .setSource(
                                 "c_field1", parentId,
                                 "c_field2", i % 2 == 0 ? "even" : "not_even"
@@ -1233,13 +1234,13 @@ public class SimpleChildQuerySearchTests extends AbstractNodesTests {
         // index simple data
         int childId = 0;
         for (int i = 0; i < 10; i++) {
-            String parentId = String.format("p%03d", i);
+            String parentId = String.format(Locale.ROOT, "p%03d", i);
             client.prepareIndex("test", "parent", parentId)
                     .setSource("p_field", parentId)
                     .execute().actionGet();
             int j = childId;
             for (; j < childId + 50; j++) {
-                String childUid = String.format("c%03d", j);
+                String childUid = String.format(Locale.ROOT, "c%03d", j);
                 client.prepareIndex("test", "child", childUid)
                         .setSource("c_field", childUid)
                         .setParent(parentId)

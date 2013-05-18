@@ -424,8 +424,8 @@ public class Strings {
         if (str.length() < prefix.length()) {
             return false;
         }
-        String lcStr = str.substring(0, prefix.length()).toLowerCase();
-        String lcPrefix = prefix.toLowerCase();
+        String lcStr = str.substring(0, prefix.length()).toLowerCase(Locale.ROOT);
+        String lcPrefix = prefix.toLowerCase(Locale.ROOT);
         return lcStr.equals(lcPrefix);
     }
 
@@ -448,8 +448,8 @@ public class Strings {
             return false;
         }
 
-        String lcStr = str.substring(str.length() - suffix.length()).toLowerCase();
-        String lcSuffix = suffix.toLowerCase();
+        String lcStr = str.substring(str.length() - suffix.length()).toLowerCase(Locale.ROOT);
+        String lcSuffix = suffix.toLowerCase(Locale.ROOT);
         return lcStr.equals(lcSuffix);
     }
 

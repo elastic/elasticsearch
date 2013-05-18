@@ -42,6 +42,7 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
@@ -495,7 +496,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         builder.startObject(name);
         builder.field("type", CONTENT_TYPE);
         if (pathType != Defaults.PATH_TYPE) {
-            builder.field("path", pathType.name().toLowerCase());
+            builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
         }
         if (enableLatLon != Defaults.ENABLE_LATLON) {
             builder.field("lat_lon", enableLatLon);

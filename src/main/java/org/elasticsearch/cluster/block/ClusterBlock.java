@@ -28,6 +28,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.Locale;
 
 /**
  *
@@ -108,7 +109,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         }
         builder.startArray("levels");
         for (ClusterBlockLevel level : levels) {
-            builder.value(level.name().toLowerCase());
+            builder.value(level.name().toLowerCase(Locale.ROOT));
         }
         builder.endArray();
         builder.endObject();

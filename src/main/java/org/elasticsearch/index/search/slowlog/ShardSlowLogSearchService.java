@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -106,8 +107,8 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
 
             String level = settings.get(INDEX_SEARCH_SLOWLOG_LEVEL, ShardSlowLogSearchService.this.level);
             if (!level.equals(ShardSlowLogSearchService.this.level)) {
-                ShardSlowLogSearchService.this.queryLogger.setLevel(level.toUpperCase());
-                ShardSlowLogSearchService.this.fetchLogger.setLevel(level.toUpperCase());
+                ShardSlowLogSearchService.this.queryLogger.setLevel(level.toUpperCase(Locale.ROOT));
+                ShardSlowLogSearchService.this.fetchLogger.setLevel(level.toUpperCase(Locale.ROOT));
                 ShardSlowLogSearchService.this.level = level;
             }
 
@@ -134,7 +135,7 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
         this.fetchDebugThreshold = componentSettings.getAsTime("threshold.fetch.debug", TimeValue.timeValueNanos(-1)).nanos();
         this.fetchTraceThreshold = componentSettings.getAsTime("threshold.fetch.trace", TimeValue.timeValueNanos(-1)).nanos();
 
-        this.level = componentSettings.get("level", "TRACE").toUpperCase();
+        this.level = componentSettings.get("level", "TRACE").toUpperCase(Locale.ROOT);
 
         this.queryLogger = Loggers.getLogger(logger, ".query");
         this.fetchLogger = Loggers.getLogger(logger, ".fetch");

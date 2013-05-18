@@ -23,6 +23,7 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  *
@@ -164,7 +165,7 @@ public class GeoDistanceRangeFilterBuilder extends BaseFilterBuilder {
         builder.field("include_lower", includeLower);
         builder.field("include_upper", includeUpper);
         if (geoDistance != null) {
-            builder.field("distance_type", geoDistance.name().toLowerCase());
+            builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
         }
         if (optimizeBbox != null) {
             builder.field("optimize_bbox", optimizeBbox);

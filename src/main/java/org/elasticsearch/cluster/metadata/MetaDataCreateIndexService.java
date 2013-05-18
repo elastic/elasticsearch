@@ -23,6 +23,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.Closeables;
+
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -36,6 +38,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -61,8 +64,11 @@ import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -433,7 +439,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             int lastDotIndex = mappingFile.getName().lastIndexOf('.');
             String mappingType = lastDotIndex != -1 ? mappingFile.getName().substring(0, lastDotIndex) : mappingFile.getName();
             try {
-                String mappingSource = Streams.copyToString(new FileReader(mappingFile));
+                String mappingSource = Streams.copyToString(new InputStreamReader(new FileInputStream(mappingFile), Streams.UTF8));
                 if (mappings.containsKey(mappingType)) {
                     XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
                 } else {
@@ -504,7 +510,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (!request.index.equals(riverIndexName) && !request.index.equals(PercolatorService.INDEX_NAME) && request.index.charAt(0) == '_') {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "must not start with '_'");
         }
-        if (!request.index.toLowerCase().equals(request.index)) {
+        if (!request.index.toLowerCase(Locale.ROOT).equals(request.index)) {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "must be lowercase");
         }
         if (!Strings.validFileName(request.index)) {

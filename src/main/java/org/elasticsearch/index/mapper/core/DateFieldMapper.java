@@ -148,7 +148,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 } else if (propName.equals("format")) {
                     builder.dateTimeFormatter(parseDateTimeFormatter(propName, propNode));
                 } else if (propName.equals("numeric_resolution")) {
-                    builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase()));
+                    builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase(Locale.ROOT)));
                 } else if (propName.equals("locale")) {
                     builder.locale(parseLocal(propNode.toString()));
                 }
@@ -446,7 +446,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             builder.field("include_in_all", includeInAll);
         }
         if (timeUnit != Defaults.TIME_UNIT) {
-            builder.field("numeric_resolution", timeUnit.name().toLowerCase());
+            builder.field("numeric_resolution", timeUnit.name().toLowerCase(Locale.ROOT));
         }
         if (dateTimeFormatter.locale() != null) {
             builder.field("locale", dateTimeFormatter.format());

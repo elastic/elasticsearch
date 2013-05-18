@@ -21,6 +21,7 @@ import org.elasticsearch.common.inject.internal.InternalFactory;
 import org.elasticsearch.common.inject.internal.Scoping;
 
 import java.lang.annotation.Annotation;
+import java.util.Locale;
 
 /**
  * Built-in scope implementations.
@@ -61,7 +62,7 @@ public class Scopes {
                 }
 
                 public String toString() {
-                    return String.format("%s[%s]", creator, SINGLETON);
+                    return String.format(Locale.ROOT, "%s[%s]", creator, SINGLETON);
                 }
             };
         }

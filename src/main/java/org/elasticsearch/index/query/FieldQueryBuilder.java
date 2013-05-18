@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * A query that executes the query string against a field. It is a simplified
@@ -302,7 +303,7 @@ public class FieldQueryBuilder extends BaseQueryBuilder implements BoostableQuer
             builder.startObject(name);
             builder.field("query", query);
             if (defaultOperator != null) {
-                builder.field("default_operator", defaultOperator.name().toLowerCase());
+                builder.field("default_operator", defaultOperator.name().toLowerCase(Locale.ROOT));
             }
             if (analyzer != null) {
                 builder.field("analyzer", analyzer);

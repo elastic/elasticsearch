@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.util;
 
+import java.util.Locale;
+
 /**
  * A GC friendly long[].
  * Allocating large arrays (that are not short-lived) generate fragmentation
@@ -57,7 +59,7 @@ public class BigLongArray {
 
     public void set(int idx, long value) {
         if (idx < 0 || idx > size)
-            throw new IndexOutOfBoundsException(String.format("%d is not whithin [0, %d)", idx, size));
+            throw new IndexOutOfBoundsException(String.format(Locale.ROOT, "%d is not whithin [0, %d)", idx, size));
 
         int page = idx / pageSize;
         int pageIdx = idx % pageSize;
@@ -66,7 +68,7 @@ public class BigLongArray {
 
     public long get(int idx) {
         if (idx < 0 || idx > size)
-            throw new IndexOutOfBoundsException(String.format("%d is not whithin [0, %d)", idx, size));
+            throw new IndexOutOfBoundsException(String.format(Locale.ROOT, "%d is not whithin [0, %d)", idx, size));
 
         int page = idx / pageSize;
         int pageIdx = idx % pageSize;

@@ -35,6 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -188,7 +189,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
 
                     if (!removedSettings.isEmpty() && !openIndices.isEmpty()) {
-                        listener.onFailure(new ElasticSearchIllegalArgumentException(String.format(
+                        listener.onFailure(new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT, 
                                 "Can't update non dynamic settings[%s] for open indices[%s]",
                                 removedSettings,
                                 openIndices

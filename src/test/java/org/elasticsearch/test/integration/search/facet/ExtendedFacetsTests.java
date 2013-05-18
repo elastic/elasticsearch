@@ -211,7 +211,7 @@ public class ExtendedFacetsTests extends AbstractNodesTests {
                     TermsFacet actualFacetEntries = response.getFacets().facet("facet1");
 
                     List<Tuple<Text, Integer>> expectedFacetEntries = getExpectedFacetEntries(allFieldValues, queryControlFacets, size, compType, excludes, regex, allTerms);
-                    String reason = String.format("query: [%s] field: [%s] size: [%d] order: [%s] all_terms: [%s] fields: [%s] regex: [%s] excludes: [%s]", queryVal, facetField, size, compType, allTerms, useFields, regex, excludes);
+                    String reason = String.format(Locale.ROOT, "query: [%s] field: [%s] size: [%d] order: [%s] all_terms: [%s] fields: [%s] regex: [%s] excludes: [%s]", queryVal, facetField, size, compType, allTerms, useFields, regex, excludes);
                     assertThat(reason, actualFacetEntries.getEntries().size(), equalTo(expectedFacetEntries.size()));
                     for (int i = 0; i < expectedFacetEntries.size(); i++) {
                         assertThat(reason, actualFacetEntries.getEntries().get(i).getTerm(), equalTo(expectedFacetEntries.get(i).v1()));

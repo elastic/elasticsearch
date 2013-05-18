@@ -870,18 +870,18 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // inherit the root behavior
         if (this instanceof RootObjectMapper) {
             if (dynamic != Dynamic.TRUE) {
-                builder.field("dynamic", dynamic.name().toLowerCase());
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
             }
         } else {
             if (dynamic != Defaults.DYNAMIC) {
-                builder.field("dynamic", dynamic.name().toLowerCase());
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
             }
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
         if (pathType != Defaults.PATH_TYPE) {
-            builder.field("path", pathType.name().toLowerCase());
+            builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

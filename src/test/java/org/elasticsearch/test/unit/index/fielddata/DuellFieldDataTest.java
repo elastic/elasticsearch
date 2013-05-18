@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.nullValue;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
@@ -113,10 +114,10 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
                 right = left = list.remove(0);
             }
             ifdService.clear();
-            IndexFieldData leftFieldData = ifdService.getForField(new FieldMapper.Names(left.getValue().name().toLowerCase()),
+            IndexFieldData leftFieldData = ifdService.getForField(new FieldMapper.Names(left.getValue().name().toLowerCase(Locale.ROOT)),
                     left.getKey());
             ifdService.clear();
-            IndexFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase()),
+            IndexFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase(Locale.ROOT)),
                     right.getKey());
             duellFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
             duellFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);
@@ -169,10 +170,10 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
                 right = left = list.remove(0);
             }
             ifdService.clear();
-            IndexNumericFieldData leftFieldData = ifdService.getForField(new FieldMapper.Names(left.getValue().name().toLowerCase()),
+            IndexNumericFieldData leftFieldData = ifdService.getForField(new FieldMapper.Names(left.getValue().name().toLowerCase(Locale.ROOT)),
                     left.getKey());
             ifdService.clear();
-            IndexNumericFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase()),
+            IndexNumericFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase(Locale.ROOT)),
                     right.getKey());
             duellFieldDataLong(random, context, leftFieldData, rightFieldData);
             duellFieldDataLong(random, context, rightFieldData, leftFieldData);
@@ -223,10 +224,10 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
                 right = left = list.remove(0);
             }
             ifdService.clear();
-            IndexNumericFieldData leftFieldData = ifdService.getForField(new FieldMapper.Names(left.getValue().name().toLowerCase()),
+            IndexNumericFieldData leftFieldData = ifdService.getForField(new FieldMapper.Names(left.getValue().name().toLowerCase(Locale.ROOT)),
                     left.getKey());
             ifdService.clear();
-            IndexNumericFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase()),
+            IndexNumericFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase(Locale.ROOT)),
                     right.getKey());
             duellFieldDataDouble(random, context, leftFieldData, rightFieldData);
             duellFieldDataDouble(random, context, rightFieldData, leftFieldData);
@@ -283,10 +284,10 @@ public class DuellFieldDataTest extends AbstractFieldDataTests {
                 right = left = list.remove(0);
             }
             ifdService.clear();
-            IndexFieldData leftFieldData = ifdService.getForField(new FieldMapper.Names(left.getValue().name().toLowerCase()),
+            IndexFieldData leftFieldData = ifdService.getForField(new FieldMapper.Names(left.getValue().name().toLowerCase(Locale.ROOT)),
                     left.getKey());
             ifdService.clear();
-            IndexFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase()),
+            IndexFieldData rightFieldData = ifdService.getForField(new FieldMapper.Names(right.getValue().name().toLowerCase(Locale.ROOT)),
                     right.getKey());
             duellFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
             duellFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);

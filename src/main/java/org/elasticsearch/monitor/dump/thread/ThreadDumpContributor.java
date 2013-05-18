@@ -31,6 +31,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.MonitorInfo;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
+import java.util.Locale;
 
 /**
  *
@@ -103,11 +104,11 @@ public class ThreadDumpContributor implements DumpContributor {
     }
 
     private void write(ThreadInfo threadInfo, PrintWriter writer) {
-        writer.print(String.format("\"%s\" Id=%s %s", threadInfo.getThreadName(), threadInfo.getThreadId(), threadInfo.getThreadState()));
+        writer.print(String.format(Locale.ROOT, "\"%s\" Id=%s %s", threadInfo.getThreadName(), threadInfo.getThreadId(), threadInfo.getThreadState()));
         if (threadInfo.getLockName() != null) {
-            writer.print(String.format(" on %s", threadInfo.getLockName()));
+            writer.print(String.format(Locale.ROOT, " on %s", threadInfo.getLockName()));
             if (threadInfo.getLockOwnerName() != null)
-                writer.print(String.format(" owned by \"%s\" Id=%s", threadInfo.getLockOwnerName(), threadInfo.getLockOwnerId()));
+                writer.print(String.format(Locale.ROOT, " owned by \"%s\" Id=%s", threadInfo.getLockOwnerName(), threadInfo.getLockOwnerId()));
         }
         if (threadInfo.isInNative())
             writer.println(" (in native)");

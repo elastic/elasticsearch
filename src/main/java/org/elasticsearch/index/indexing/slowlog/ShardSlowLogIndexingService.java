@@ -33,6 +33,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -80,8 +81,8 @@ public class ShardSlowLogIndexingService extends AbstractIndexShardComponent {
 
             String level = settings.get(INDEX_INDEXING_SLOWLOG_LEVEL, ShardSlowLogIndexingService.this.level);
             if (!level.equals(ShardSlowLogIndexingService.this.level)) {
-                ShardSlowLogIndexingService.this.indexLogger.setLevel(level.toUpperCase());
-                ShardSlowLogIndexingService.this.deleteLogger.setLevel(level.toUpperCase());
+                ShardSlowLogIndexingService.this.indexLogger.setLevel(level.toUpperCase(Locale.ROOT));
+                ShardSlowLogIndexingService.this.deleteLogger.setLevel(level.toUpperCase(Locale.ROOT));
                 ShardSlowLogIndexingService.this.level = level;
             }
 
@@ -103,7 +104,7 @@ public class ShardSlowLogIndexingService extends AbstractIndexShardComponent {
         this.indexDebugThreshold = componentSettings.getAsTime("threshold.index.debug", TimeValue.timeValueNanos(-1)).nanos();
         this.indexTraceThreshold = componentSettings.getAsTime("threshold.index.trace", TimeValue.timeValueNanos(-1)).nanos();
 
-        this.level = componentSettings.get("level", "TRACE").toUpperCase();
+        this.level = componentSettings.get("level", "TRACE").toUpperCase(Locale.ROOT);
 
         this.indexLogger = Loggers.getLogger(logger, ".index");
         this.deleteLogger = Loggers.getLogger(logger, ".delete");

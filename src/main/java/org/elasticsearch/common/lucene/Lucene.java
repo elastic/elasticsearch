@@ -322,27 +322,6 @@ public class Lucene {
         }
     }
 
-    private static final Field segmentReaderSegmentInfoField;
-
-    static {
-        Field segmentReaderSegmentInfoFieldX = null;
-        try {
-            segmentReaderSegmentInfoFieldX = SegmentReader.class.getDeclaredField("si");
-            segmentReaderSegmentInfoFieldX.setAccessible(true);
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
-        }
-        segmentReaderSegmentInfoField = segmentReaderSegmentInfoFieldX;
-    }
-
-    public static SegmentInfoPerCommit getSegmentInfo(SegmentReader reader) {
-        try {
-            return (SegmentInfoPerCommit) segmentReaderSegmentInfoField.get(reader);
-        } catch (IllegalAccessException e) {
-            return null;
-        }
-    }
-
     public static class ExistsCollector extends Collector {
 
         private boolean exists;

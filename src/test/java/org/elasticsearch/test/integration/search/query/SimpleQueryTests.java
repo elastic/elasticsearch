@@ -43,7 +43,8 @@ import java.util.Arrays;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -506,7 +507,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
-    
+
     @Test
     public void testMatchQueryNumeric() throws Exception {
         try {
@@ -518,13 +519,13 @@ public class SimpleQueryTests extends AbstractNodesTests {
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource("long", 1l, "double", 1.0d).execute().actionGet();
-        client.prepareIndex("test", "type1", "2").setSource("long", 2l,  "double", 2.0d).execute().actionGet();
+        client.prepareIndex("test", "type1", "2").setSource("long", 2l, "double", 2.0d).execute().actionGet();
         client.prepareIndex("test", "type1", "3").setSource("long", 3l, "double", 3.0d).execute().actionGet();
         client.admin().indices().prepareRefresh("test").execute().actionGet();
         SearchResponse searchResponse = client.prepareSearch().setQuery(matchQuery("long", "1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
-        
+
         searchResponse = client.prepareSearch().setQuery(matchQuery("double", "2")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
@@ -702,14 +703,14 @@ public class SimpleQueryTests extends AbstractNodesTests {
         }
 
         client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
-        client.prepareIndex("test", "type1", "1").setSource("field1", new String[]{"value1","value2","value3"}).execute().actionGet();
+        client.prepareIndex("test", "type1", "1").setSource("field1", new String[]{"value1", "value2", "value3"}).execute().actionGet();
         client.prepareIndex("test", "type1", "2").setSource("field2", "value1").execute().actionGet();
         client.admin().indices().prepareRefresh("test").execute().actionGet();
 
-    	MultiMatchQueryBuilder multiMatchQuery = multiMatchQuery("value1 value2 foo", "field1","field2");
+        MultiMatchQueryBuilder multiMatchQuery = multiMatchQuery("value1 value2 foo", "field1", "field2");
 
-    	multiMatchQuery.useDisMax(true);
-    	multiMatchQuery.minimumShouldMatch("70%");
+        multiMatchQuery.useDisMax(true);
+        multiMatchQuery.minimumShouldMatch("70%");
         SearchResponse searchResponse = client.prepareSearch()
                 .setQuery(multiMatchQuery)
                 .execute().actionGet();
@@ -754,6 +755,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getHits()[0].id(), equalTo("1"));
     }
+
     @Test
     public void testFuzzyQueryString() {
         client.admin().indices().prepareDelete().execute().actionGet();
@@ -896,6 +898,15 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         SearchResponse searchResponse = client.prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("1"), equalTo("3")));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), anyOf(equalTo("1"), equalTo("3")));
+
+        // same as above, just on the _id...
+        searchResponse = client.prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("_id").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
                 ).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
@@ -1253,7 +1264,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
     }
-    
+
     @Test // see #2926
     public void testMustNot() throws ElasticSearchException, IOException {
         client.admin().indices().prepareDelete().execute().actionGet();
@@ -1283,16 +1294,16 @@ public class SimpleQueryTests extends AbstractNodesTests {
                 .field("description", "foo")
                 .endObject())
                 .execute().actionGet();
-        
+
         client.admin().indices().prepareRefresh().execute().actionGet();
-        
+
         SearchResponse response = client.prepareSearch("test")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .execute().actionGet();
         assertThat(response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(4l));
-        
+
         response = client.prepareSearch("test").setQuery(
                 QueryBuilders.boolQuery()
                         .mustNot(QueryBuilders.matchQuery("description", "anything").type(Type.BOOLEAN))
@@ -1300,7 +1311,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
         assertThat(response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().totalHits(), equalTo(2l));
     }
-    
+
     @Test // see #2994
     public void testSimpleSpan() throws ElasticSearchException, IOException {
         client.admin().indices().prepareDelete().execute().actionGet();
@@ -1330,9 +1341,9 @@ public class SimpleQueryTests extends AbstractNodesTests {
                 .field("description", "foo")
                 .endObject())
                 .execute().actionGet();
-        
+
         client.admin().indices().prepareRefresh().execute().actionGet();
-        
+
         SearchResponse response = client.prepareSearch("test")
                 .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("description", "bar")))
                 .execute().actionGet();
@@ -1343,62 +1354,62 @@ public class SimpleQueryTests extends AbstractNodesTests {
                 .execute().actionGet();
         assertNoFailures(response);
         assertHitCount(response, 1l);
-        
+
         response = client.prepareSearch("test").setQuery(
                 QueryBuilders.spanNearQuery()
-                    .clause(QueryBuilders.spanTermQuery("description", "foo"))
-                    .clause(QueryBuilders.spanTermQuery("test.description", "other"))
-                .slop(3)).execute().actionGet();
+                        .clause(QueryBuilders.spanTermQuery("description", "foo"))
+                        .clause(QueryBuilders.spanTermQuery("test.description", "other"))
+                        .slop(3)).execute().actionGet();
         assertNoFailures(response);
         assertHitCount(response, 3l);
     }
-    
+
     @Test
     public void testSimpleDFSQuery() throws ElasticSearchException, IOException {
-        
+
         client.admin().indices().prepareDelete().execute().actionGet();
         client.admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 5)
                         .put("index.number_of_replicas", 0)
         ).addMapping("s", jsonBuilder()
-                    .startObject()
+                .startObject()
+                .startObject("s")
+                .startObject("_routing")
+                .field("required", true)
+                .field("path", "bs")
+                .endObject()
+                .startObject("properties")
+                .startObject("online")
+                .field("type", "boolean")
+                .endObject()
+                .startObject("ts")
+                .field("type", "date")
+                .field("ignore_malformed", false)
+                .field("format", "dateOptionalTime")
+                .endObject()
+                .startObject("bs")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject())
+                .addMapping("bs", jsonBuilder()
+                        .startObject()
                         .startObject("s")
-                            .startObject("_routing")
-                                .field("required", true)
-                                .field("path", "bs")
-                            .endObject()
-                            .startObject("properties")
-                                .startObject("online")
-                                    .field("type", "boolean")
-                                .endObject()
-                                .startObject("ts")
-                                    .field("type", "date")
-                                    .field("ignore_malformed", false)
-                                    .field("format", "dateOptionalTime")
-                                .endObject()
-                                 .startObject("bs")
-                                    .field("type", "string")
-                                    .field("index", "not_analyzed")
-                                .endObject()
-                            .endObject()
+                        .startObject("properties")
+                        .startObject("online")
+                        .field("type", "boolean")
                         .endObject()
-                    .endObject())
-             .addMapping("bs", jsonBuilder()
-                    .startObject()
-                        .startObject("s")
-                            .startObject("properties")
-                                .startObject("online")
-                                    .field("type", "boolean")
-                                .endObject()
-                                .startObject("ts")
-                                    .field("type", "date")
-                                    .field("ignore_malformed", false)
-                                    .field("format", "dateOptionalTime")
-                                .endObject()
-                            .endObject()
+                        .startObject("ts")
+                        .field("type", "date")
+                        .field("ignore_malformed", false)
+                        .field("format", "dateOptionalTime")
                         .endObject()
-                    .endObject())
+                        .endObject()
+                        .endObject()
+                        .endObject())
 
 
                 .execute().actionGet();
@@ -1406,20 +1417,20 @@ public class SimpleQueryTests extends AbstractNodesTests {
         client.prepareIndex("test", "s", "1").setSource(jsonBuilder().startObject()
                 .field("online", false)
                 .field("bs", "Y")
-                .field("ts", System.currentTimeMillis()- 100)
+                .field("ts", System.currentTimeMillis() - 100)
                 .endObject())
                 .execute().actionGet();
 
         client.prepareIndex("test", "s", "2").setSource(jsonBuilder().startObject()
                 .field("online", true)
                 .field("bs", "X")
-                .field("ts", System.currentTimeMillis()- 10000000)
+                .field("ts", System.currentTimeMillis() - 10000000)
                 .endObject())
                 .execute().actionGet();
 
         client.prepareIndex("test", "bs", "3").setSource(jsonBuilder().startObject()
                 .field("online", false)
-                .field("ts", System.currentTimeMillis()- 100)
+                .field("ts", System.currentTimeMillis() - 100)
                 .endObject())
                 .execute().actionGet();
 
@@ -1428,30 +1439,30 @@ public class SimpleQueryTests extends AbstractNodesTests {
                 .field("ts", System.currentTimeMillis() - 123123)
                 .endObject())
                 .execute().actionGet();
-        
+
         client.admin().indices().prepareRefresh().execute().actionGet();
         SearchResponse response = client.prepareSearch("test")
                 .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(
-                    QueryBuilders.boolQuery()
-                        .must(QueryBuilders.termQuery("online", true))
-                        .must(QueryBuilders.boolQuery()
-                            .should(QueryBuilders.boolQuery()
-                                .must(QueryBuilders.rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
-                                .must(QueryBuilders.termQuery("_type", "bs"))
+                        QueryBuilders.boolQuery()
+                                .must(QueryBuilders.termQuery("online", true))
+                                .must(QueryBuilders.boolQuery()
+                                        .should(QueryBuilders.boolQuery()
+                                                .must(QueryBuilders.rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
+                                                .must(QueryBuilders.termQuery("_type", "bs"))
+                                        )
+                                        .should(QueryBuilders.boolQuery()
+                                                .must(QueryBuilders.rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
+                                                .must(QueryBuilders.termQuery("_type", "s"))
+                                        )
                                 )
-                            .should(QueryBuilders.boolQuery()
-                                .must(QueryBuilders.rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
-                                .must(QueryBuilders.termQuery("_type", "s"))
-                            )
-                        )
                 )
                 .setVersion(true)
                 .setFrom(0).setSize(100).setExplain(true)
                 .execute()
                 .actionGet();
         assertNoFailures(response);
-        
+
     }
 
 }

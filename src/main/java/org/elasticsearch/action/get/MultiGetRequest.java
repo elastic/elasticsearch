@@ -173,7 +173,12 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
         return this;
     }
 
-    @Override
+    
+    public Iterable<Item> items() {
+		return items;
+	}
+
+	@Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (items.isEmpty()) {

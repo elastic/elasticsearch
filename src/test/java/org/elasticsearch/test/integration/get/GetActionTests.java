@@ -37,8 +37,6 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import java.util.List;
-
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -201,6 +199,17 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getResponses().length, equalTo(2));
         assertThat(response.getResponses()[0].getResponse().getSourceAsBytes(), nullValue());
         assertThat(response.getResponses()[0].getResponse().getField("field").getValues().get(0).toString(), equalTo("value1"));
+
+        // multi get with "no" fields, nothing should return, exists indication should still be around
+        response = client.prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "type1", "1").fields(Strings.EMPTY_ARRAY))
+                .add(new MultiGetRequest.Item("test", "type1", "3").fields(Strings.EMPTY_ARRAY))
+                .execute().actionGet();
+
+        assertThat(response.getResponses().length, equalTo(2));
+        assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
+        assertThat(response.getResponses()[0].getResponse().getSourceAsBytes(), nullValue());
+        assertThat(response.getResponses()[0].getResponse().getFields().size(), equalTo(0));
     }
 
     @Test
@@ -412,13 +421,13 @@ public class GetActionTests extends AbstractNodesTests {
 
         String mapping = jsonBuilder()
                 .startObject()
-                    .startObject("source_excludes")
-                        .startObject("_source")
-                            .array("excludes", "excluded")
-                        .endObject()
-                    .endObject()
+                .startObject("source_excludes")
+                .startObject("_source")
+                .array("excludes", "excluded")
                 .endObject()
-            .string();
+                .endObject()
+                .endObject()
+                .string();
 
         client.admin().indices().prepareCreate(index)
                 .addMapping(type, mapping)
@@ -447,14 +456,14 @@ public class GetActionTests extends AbstractNodesTests {
         String type = "type1";
 
         String mapping = jsonBuilder()
-            .startObject()
+                .startObject()
                 .startObject("source_excludes")
-                    .startObject("_source")
-                        .array("includes", "included")
-                    .endObject()
+                .startObject("_source")
+                .array("includes", "included")
                 .endObject()
-            .endObject()
-            .string();
+                .endObject()
+                .endObject()
+                .string();
 
         client.admin().indices().prepareCreate(index)
                 .addMapping(type, mapping)
@@ -483,15 +492,15 @@ public class GetActionTests extends AbstractNodesTests {
         String type = "type1";
 
         String mapping = jsonBuilder()
-            .startObject()
+                .startObject()
                 .startObject("source_excludes")
-                    .startObject("_source")
-                        .array("includes", "included")
-                        .array("exlcudes", "excluded")
-                    .endObject()
+                .startObject("_source")
+                .array("includes", "included")
+                .array("exlcudes", "excluded")
                 .endObject()
-            .endObject()
-            .string();
+                .endObject()
+                .endObject()
+                .string();
 
         client.admin().indices().prepareCreate(index)
                 .addMapping(type, mapping)
@@ -503,7 +512,7 @@ public class GetActionTests extends AbstractNodesTests {
                         .field("field", "1", "2")
                         .field("included", "should be seen")
                         .field("excluded", "should not be seen")
-                    .endObject())
+                        .endObject())
                 .execute().actionGet();
 
         GetResponse responseBeforeFlush = client.prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();

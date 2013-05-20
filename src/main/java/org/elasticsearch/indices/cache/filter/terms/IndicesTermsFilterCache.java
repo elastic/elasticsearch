@@ -102,7 +102,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
                     if (values.isEmpty()) {
                         return NO_TERMS;
                     }
-                    Filter filter = lookup.getFieldMapper().termsFilter(values, null);
+                    Filter filter = lookup.getFieldMapper().termsFilter(values, lookup.getQueryParseContext());
                     return new TermsFilterValue(estimateSizeInBytes(values), filter);
                 }
             }).filter;

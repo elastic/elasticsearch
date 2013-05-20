@@ -199,17 +199,6 @@ public class GetActionTests extends AbstractNodesTests {
         assertThat(response.getResponses().length, equalTo(2));
         assertThat(response.getResponses()[0].getResponse().getSourceAsBytes(), nullValue());
         assertThat(response.getResponses()[0].getResponse().getField("field").getValues().get(0).toString(), equalTo("value1"));
-
-        // multi get with "no" fields, nothing should return, exists indication should still be around
-        response = client.prepareMultiGet()
-                .add(new MultiGetRequest.Item("test", "type1", "1").fields(Strings.EMPTY_ARRAY))
-                .add(new MultiGetRequest.Item("test", "type1", "3").fields(Strings.EMPTY_ARRAY))
-                .execute().actionGet();
-
-        assertThat(response.getResponses().length, equalTo(2));
-        assertThat(response.getResponses()[0].getResponse().isExists(), equalTo(true));
-        assertThat(response.getResponses()[0].getResponse().getSourceAsBytes(), nullValue());
-        assertThat(response.getResponses()[0].getResponse().getFields().size(), equalTo(0));
     }
 
     @Test

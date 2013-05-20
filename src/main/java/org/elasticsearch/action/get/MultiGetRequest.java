@@ -20,7 +20,6 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
@@ -35,10 +34,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
-public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements Iterable<MultiGetRequest.Item> {
+public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
 
     /**
      * A single get item.
@@ -114,26 +112,18 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         @Override
         public void readFrom(StreamInput in) throws IOException {
             index = in.readString();
-            type = in.readOptionalString();
+            if (in.readBoolean()) {
+                type = in.readString();
+            }
             id = in.readString();
-            routing = in.readOptionalString();
-            if (in.getVersion().before(Version.V_0_90_1)) {
-                int size = in.readVInt();
-                if (size > 0) {
-                    fields = new String[size];
-                    for (int i = 0; i < size; i++) {
-                        fields[i] = in.readString();
-                    }
-                }
-            } else {
-                // post 0.90.1, we maintain the semantic difference between not setting fields (default to _source)
-                // and setting fields to empty array (no data to return)
-                int size = in.readInt();
-                if (size >= 0) {
-                    fields = new String[size];
-                    for (int i = 0; i < size; i++) {
-                        fields[i] = in.readString();
-                    }
+            if (in.readBoolean()) {
+                routing = in.readString();
+            }
+            int size = in.readVInt();
+            if (size > 0) {
+                fields = new String[size];
+                for (int i = 0; i < size; i++) {
+                    fields[i] = in.readString();
                 }
             }
         }
@@ -141,26 +131,25 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(index);
-            out.writeOptionalString(type);
-            out.writeString(id);
-            out.writeOptionalString(routing);
-            if (out.getVersion().before(Version.V_0_90_1)) {
-                if (fields == null) {
-                    out.writeVInt(0);
-                } else {
-                    out.writeVInt(fields.length);
-                    for (String field : fields) {
-                        out.writeString(field);
-                    }
-                }
+            if (type == null) {
+                out.writeBoolean(false);
             } else {
-                if (fields == null) {
-                    out.writeInt(-1);
-                } else {
-                    out.writeInt(fields.length);
-                    for (String field : fields) {
-                        out.writeString(field);
-                    }
+                out.writeBoolean(true);
+                out.writeString(type);
+            }
+            out.writeString(id);
+            if (routing == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeString(routing);
+            }
+            if (fields == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(fields.length);
+                for (String field : fields) {
+                    out.writeString(field);
                 }
             }
         }
@@ -173,11 +162,6 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> implements I
     boolean refresh;
 
     List<Item> items = new ArrayList<Item>();
-
-    @Override
-    public Iterator<Item> iterator() {
-        return items.iterator();
-    }
 
     public MultiGetRequest add(Item item) {
         items.add(item);

@@ -22,6 +22,7 @@ package org.elasticsearch.test.unit.index.engine;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexDeletionPolicy;
 import org.apache.lucene.index.Term;
@@ -29,7 +30,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
@@ -38,6 +38,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
@@ -125,9 +126,10 @@ public abstract class AbstractSimpleEngineTests {
 
 
     private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, Document document, Analyzer analyzer, BytesReference source, boolean mappingsModified) {
-        UidField uidField = new UidField("_uid", uid, 0);
+        Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
+        Field versionField = new NumericDocValuesField("_version", 0);
         document.add(uidField);
-        return new ParsedDocument(uidField, id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, mappingsModified);
+        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), analyzer, source, mappingsModified);
     }
 
     protected Store createStore() throws IOException {

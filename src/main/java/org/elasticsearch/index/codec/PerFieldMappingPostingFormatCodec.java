@@ -19,12 +19,15 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.codecs.diskdv.DiskDocValuesFormat;
 import org.apache.lucene.codecs.lucene42.Lucene42Codec;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -39,11 +42,13 @@ public class PerFieldMappingPostingFormatCodec extends Lucene42Codec {
     private final ESLogger logger;
     private final MapperService mapperService;
     private final PostingsFormat defaultPostingFormat;
+    private final DocValuesFormat diskDocValuesFormat;
 
     public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat, ESLogger logger) {
         this.mapperService = mapperService;
         this.logger = logger;
         this.defaultPostingFormat = defaultPostingFormat;
+        this.diskDocValuesFormat = new DiskDocValuesFormat();
     }
 
     @Override
@@ -55,5 +60,15 @@ public class PerFieldMappingPostingFormatCodec extends Lucene42Codec {
         }
         PostingsFormatProvider postingsFormat = indexName.mapper().postingsFormatProvider();
         return postingsFormat != null ? postingsFormat.get() : defaultPostingFormat;
+    }
+
+    @Override
+    public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (UidFieldMapper.VERSION.equals(field)) {
+            // Use DiskDVF for version by default
+            // TODO: Make it configurable
+            return diskDocValuesFormat;
+        }
+        return super.getDocValuesFormatForField(field);
     }
 }

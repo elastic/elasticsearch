@@ -31,7 +31,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
@@ -392,6 +392,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             this.doc = doc;
         }
 
+        @Override
         public DocumentMapper docMapper() {
             return this.docMapper;
         }
@@ -411,6 +412,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.origin;
         }
 
+        @Override
         public ParsedDocument parsedDoc() {
             return this.doc;
         }
@@ -445,6 +447,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public Create version(long version) {
             this.version = version;
+            this.doc.version().setLongValue(version);
             return this;
         }
 
@@ -461,6 +464,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc.parent();
         }
 
+        @Override
         public List<Document> docs() {
             return this.doc.docs();
         }
@@ -472,11 +476,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public BytesReference source() {
             return this.doc.source();
         }
-
-        public UidField uidField() {
-            return doc.uid();
-        }
-
 
         public Create startTime(long startTime) {
             this.startTime = startTime;
@@ -520,6 +519,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             this.doc = doc;
         }
 
+        @Override
         public DocumentMapper docMapper() {
             return this.docMapper;
         }
@@ -543,12 +543,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.uid;
         }
 
+        @Override
         public ParsedDocument parsedDoc() {
             return this.doc;
         }
 
         public Index version(long version) {
             this.version = version;
+            doc.version().setLongValue(version);
             return this;
         }
 
@@ -565,6 +567,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.versionType;
         }
 
+        @Override
         public List<Document> docs() {
             return this.doc.docs();
         }
@@ -599,10 +602,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
 
         public BytesReference source() {
             return this.doc.source();
-        }
-
-        public UidField uidField() {
-            return doc.uid();
         }
 
         public Index startTime(long startTime) {
@@ -834,7 +833,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final boolean exists;
         private final long version;
         private final Translog.Source source;
-        private final UidField.DocIdAndVersion docIdAndVersion;
+        private final Versions.DocIdAndVersion docIdAndVersion;
         private final Searcher searcher;
 
         public static final GetResult NOT_EXISTS = new GetResult(false, -1, null);
@@ -847,7 +846,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             this.searcher = null;
         }
 
-        public GetResult(Searcher searcher, UidField.DocIdAndVersion docIdAndVersion) {
+        public GetResult(Searcher searcher, Versions.DocIdAndVersion docIdAndVersion) {
             this.exists = true;
             this.source = null;
             this.version = docIdAndVersion.version;
@@ -872,7 +871,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.searcher;
         }
 
-        public UidField.DocIdAndVersion docIdAndVersion() {
+        public Versions.DocIdAndVersion docIdAndVersion() {
             return docIdAndVersion;
         }
 

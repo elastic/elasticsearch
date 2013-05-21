@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.lucene.search.TermFilter;
-import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -426,11 +425,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // we also rely on this for UidField#loadVersion
 
                 // this is a deeply nested field
-                if (uidField.stringValue() != null) {
-                    nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                } else {
-                    nestedDoc.add(new Field(UidFieldMapper.NAME, ((UidField) uidField).uid(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                }
+                nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
             }
             // the type of the nested doc starts with __, so we can identify that its a nested one in filters
             // note, we don't prefix it with the type of the doc since it allows us to execute a nested query

@@ -26,7 +26,7 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -311,7 +311,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
     private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, Engine.GetResult get, DocumentMapper docMapper) {
         Map<String, GetField> fields = null;
         BytesReference source = null;
-        UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
+        Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields);
         if (fieldVisitor != null) {
             try {

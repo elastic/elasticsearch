@@ -23,6 +23,8 @@ import static org.hamcrest.Matchers.*;
 
 import java.util.Arrays;
 
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
@@ -106,6 +108,14 @@ public class ElasticsearchAssertions {
 
     public static Matcher<SearchHit> hasIndex(final String index) {
         return new ElasticsearchMatchers.SearchHitHasIndexMatcher(index);
+    }
+    
+    public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {
+        assertThat(query, instanceOf(BooleanQuery.class));
+        BooleanQuery q = (BooleanQuery) query;
+        assertThat(q.getClauses().length, greaterThan(i));
+        assertThat(q.getClauses()[i].getQuery(), instanceOf(subqueryType));
+        return  (T)q.getClauses()[i].getQuery();
     }
 
 }

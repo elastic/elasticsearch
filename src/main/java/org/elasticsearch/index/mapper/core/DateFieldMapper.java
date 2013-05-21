@@ -150,7 +150,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
                 } else if (propName.equals("numeric_resolution")) {
                     builder.timeUnit(TimeUnit.valueOf(propNode.toString().toUpperCase(Locale.ROOT)));
                 } else if (propName.equals("locale")) {
-                    builder.locale(parseLocal(propNode.toString()));
+                    builder.locale(parseLocale(propNode.toString()));
                 }
             }
             return builder;
@@ -158,7 +158,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
     }
     
     // public for test
-    public static Locale parseLocal(String locale) {
+    public static Locale parseLocale(String locale) {
         final String[] parts = locale.split("_", -1);
         switch (parts.length) {
         case 3:

@@ -87,18 +87,18 @@ public class SimpleDateMappingTests {
     
     @Test
     public void testParseLocal() {
-        assertThat(Locale.GERMAN, equalTo(DateFieldMapper.parseLocal("de")));
-        assertThat(Locale.GERMANY, equalTo(DateFieldMapper.parseLocal("de_DE")));
-        assertThat(new Locale("de","DE","DE"), equalTo(DateFieldMapper.parseLocal("de_DE_DE")));
+        assertThat(Locale.GERMAN, equalTo(DateFieldMapper.parseLocale("de")));
+        assertThat(Locale.GERMANY, equalTo(DateFieldMapper.parseLocale("de_DE")));
+        assertThat(new Locale("de","DE","DE"), equalTo(DateFieldMapper.parseLocale("de_DE_DE")));
         
         try {
-            DateFieldMapper.parseLocal("de_DE_DE_DE");
+            DateFieldMapper.parseLocale("de_DE_DE_DE");
             assert false;
         } catch(ElasticSearchIllegalArgumentException ex) {
             // expected
         }
-        assertThat(Locale.ROOT,  equalTo(DateFieldMapper.parseLocal("")));
-        assertThat(Locale.ROOT,  equalTo(DateFieldMapper.parseLocal("ROOT")));
+        assertThat(Locale.ROOT,  equalTo(DateFieldMapper.parseLocale("")));
+        assertThat(Locale.ROOT,  equalTo(DateFieldMapper.parseLocale("ROOT")));
     }
     
     @Test
@@ -130,13 +130,18 @@ public class SimpleDateMappingTests {
                 .startObject()
                   .field("date_field_en", "Wed, 06 Dec 2000 02:55:00 -0800")
                   .field("date_field_de", "Mi, 06 Dez 2000 02:55:00 -0800")
-                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - root?
+                  .field("date_field_default", "Wed, 06 Dec 2000 02:55:00 -0800") // check default - no exception is a successs!
                 .endObject()
                 .bytes());
-        assertThat(doc.rootDoc().getField("date_field_en").tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
-        assertThat(doc.rootDoc().getField("date_field_de").tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
+        assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_de");
+        assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_default");
+    }
+    
+    private void assertNumericTokensEqual(ParsedDocument doc, DocumentMapper defaultMapper, String fieldA, String fieldB) throws IOException {
+        assertThat(doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
+        assertThat(doc.rootDoc().getField(fieldB).tokenStream(defaultMapper.indexAnalyzer()), notNullValue());
         
-        TokenStream tokenStream = doc.rootDoc().getField("date_field_en").tokenStream(defaultMapper.indexAnalyzer());
+        TokenStream tokenStream = doc.rootDoc().getField(fieldA).tokenStream(defaultMapper.indexAnalyzer());
         tokenStream.reset();
         NumericTermAttribute nta = tokenStream.addAttribute(NumericTermAttribute.class);
         List<Long> values = new ArrayList<Long>();
@@ -144,7 +149,7 @@ public class SimpleDateMappingTests {
             values.add(nta.getRawValue());
         }
         
-        tokenStream = doc.rootDoc().getField("date_field_de").tokenStream(defaultMapper.indexAnalyzer());
+        tokenStream = doc.rootDoc().getField(fieldB).tokenStream(defaultMapper.indexAnalyzer());
         tokenStream.reset();
         nta = tokenStream.addAttribute(NumericTermAttribute.class);
         int pos = 0;
@@ -152,8 +157,6 @@ public class SimpleDateMappingTests {
             assertThat(values.get(pos++), equalTo(nta.getRawValue()));
         }
         assertThat(pos, equalTo(values.size()));
-
-
     }
 
     @Test

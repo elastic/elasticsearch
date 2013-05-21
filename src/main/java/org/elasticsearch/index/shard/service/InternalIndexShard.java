@@ -304,7 +304,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Create(docMapper, docMapper.uidMapper().term(doc.uid().uid()), doc).startTime(startTime);
+        return new Engine.Create(docMapper, docMapper.uidMapper().term(doc.uid().stringValue()), doc).startTime(startTime);
     }
 
     @Override
@@ -325,7 +325,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Index(docMapper, docMapper.uidMapper().term(doc.uid().uid()), doc).startTime(startTime);
+        return new Engine.Index(docMapper, docMapper.uidMapper().term(doc.uid().stringValue()), doc).startTime(startTime);
     }
 
     @Override

@@ -37,7 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
-import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -50,6 +50,7 @@ import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.indexing.ShardIndexingService;
+import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
@@ -332,20 +333,15 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             // no version, get the version from the index, we know that we refresh on flush
             Searcher searcher = searcher();
             try {
-                List<AtomicReaderContext> readers = searcher.reader().leaves();
-                for (int i = 0; i < readers.size(); i++) {
-                    AtomicReaderContext readerContext = readers.get(i);
-                    UidField.DocIdAndVersion docIdAndVersion = UidField.loadDocIdAndVersion(readerContext, get.uid());
-                    if (docIdAndVersion != null && docIdAndVersion.docId != Lucene.NO_DOC) {
-                        // note, we don't release the searcher here, since it will be released as part of the external
-                        // API usage, since it still needs it to load data...
-                        return new GetResult(searcher, docIdAndVersion);
-                    }
+                final Versions.DocIdAndVersion docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
+                if (docIdAndVersion != null) {
+                    return new GetResult(searcher, docIdAndVersion);
                 }
+                // don't release the searcher on this path, it is the responsability of the caller to call GetResult.release
             } catch (Exception e) {
                 searcher.release();
                 //TODO: A better exception goes here
-                throw new EngineException(shardId(), "failed to load document", e);
+                throw new EngineException(shardId(), "Couldn't resolve version", e);
             }
             searcher.release();
             return GetResult.NOT_EXISTS;
@@ -383,7 +379,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private void innerCreate(Create create, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(create.uid())) {
-            UidField uidField = create.uidField();
             HashedBytesRef versionKey = versionKey(create.uid());
             final long currentVersion;
             VersionValue versionValue = versionMap.get(versionKey);
@@ -462,7 +457,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 }
             }
 
-            uidField.version(updatedVersion);
             create.version(updatedVersion);
 
             if (create.docs().size() > 1) {
@@ -508,7 +502,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
     private void innerIndex(Index index, IndexWriter writer) throws IOException {
         synchronized (dirtyLock(index.uid())) {
-            UidField uidField = index.uidField();
             HashedBytesRef versionKey = versionKey(index.uid());
             final long currentVersion;
             VersionValue versionValue = versionMap.get(versionKey);
@@ -568,7 +561,6 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                 updatedVersion = index.version();
             }
 
-            uidField.version(updatedVersion);
             index.version(updatedVersion);
 
             if (currentVersion == -1) {
@@ -1313,19 +1305,10 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
         return dirtyLock(uid.bytes());
     }
 
-    private long loadCurrentVersionFromIndex(Term uid) {
+    private long loadCurrentVersionFromIndex(Term uid) throws IOException {
         Searcher searcher = searcher();
         try {
-            List<AtomicReaderContext> readers = searcher.reader().leaves();
-            for (int i = 0; i < readers.size(); i++) {
-                AtomicReaderContext readerContext = readers.get(i);
-                long version = UidField.loadVersion(readerContext, uid);
-                // either -2 (its there, but no version associated), or an actual version
-                if (version != -1) {
-                    return version;
-                }
-            }
-            return -1;
+            return Versions.loadVersion(searcher.reader(), uid);
         } finally {
             searcher.release();
         }
@@ -1344,7 +1327,11 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             config.setOpenMode(create ? IndexWriterConfig.OpenMode.CREATE : IndexWriterConfig.OpenMode.APPEND);
             config.setIndexDeletionPolicy(deletionPolicy);
             config.setMergeScheduler(mergeScheduler.newMergeScheduler());
-            config.setMergePolicy(mergePolicyProvider.newMergePolicy());
+            MergePolicy mergePolicy = mergePolicyProvider.newMergePolicy();
+            // Give us the opportunity to upgrade old segments while performing
+            // background merges
+            mergePolicy = new IndexUpgraderMergePolicy(mergePolicy);
+            config.setMergePolicy(mergePolicy);
             config.setSimilarity(similarityService.similarity());
             config.setRAMBufferSizeMB(indexingBufferSize.mbFrac());
             config.setTermIndexInterval(termIndexInterval);

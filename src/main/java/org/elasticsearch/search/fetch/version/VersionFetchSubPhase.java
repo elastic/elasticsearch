@@ -22,13 +22,14 @@ package org.elasticsearch.search.fetch.version;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -60,10 +61,16 @@ public class VersionFetchSubPhase implements FetchSubPhase {
         // it might make sense to cache the TermDocs on a shared fetch context and just skip here)
         // it is going to mean we work on the high level multi reader and not the lower level reader as is
         // the case below...
-        long version = UidField.loadVersion(
-                hitContext.readerContext(),
-                new Term(UidFieldMapper.NAME, hitContext.fieldVisitor().uid().toBytesRef())
-        );
+        long version;
+        try {
+            version = Versions.loadVersion(
+                    hitContext.readerContext().reader(),
+                    new Term(UidFieldMapper.NAME, hitContext.fieldVisitor().uid().toBytesRef())
+            );
+        } catch (IOException e) {
+            throw new ElasticSearchException("Could not query index for _version", e);
+        }
+
         if (version < 0) {
             version = -1;
         }

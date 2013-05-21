@@ -486,4 +486,47 @@ public class SimplePercolatorTests extends AbstractNodesTests {
         assertThat(percolate.getMatches(), hasItem("kuku"));
     }
 
+    @Test
+    public void testThatPercolatingWithTimeToLiveWorks() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        try {
+            client.admin().indices().prepareDelete("_percolator").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("_ttl").field("enabled", true).field("default", "60d").endObject()
+                .startObject("_timestamp").field("enabled", true).endObject()
+                .endObject().endObject().string();
+
+        client.admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
+                .addMapping("type1", mapping)
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("_percolator", "test", "kuku").setSource(jsonBuilder()
+                .startObject()
+                    .startObject("query")
+                        .startObject("term")
+                            .field("field1", "value1")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            ).execute().actionGet();
+
+        PercolateResponse percolateResponse = client.preparePercolate("test", "type1").setSource(jsonBuilder()
+                .startObject()
+                    .startObject("doc")
+                        .field("field1", "value1")
+                    .endObject()
+                .endObject()
+        ).execute().actionGet();
+        assertThat(percolateResponse.getMatches(), hasItem("kuku"));
+    }
 }

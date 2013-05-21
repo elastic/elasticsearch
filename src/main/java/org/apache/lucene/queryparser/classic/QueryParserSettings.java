@@ -34,10 +34,11 @@ public class QueryParserSettings {
 
     public static final boolean DEFAULT_ALLOW_LEADING_WILDCARD = true;
     public static final boolean DEFAULT_ANALYZE_WILDCARD = false;
+    public static final float DEFAULT_BOOST = 1.f;
 
     private String queryString;
     private String defaultField;
-    private float boost = 1.0f;
+    private float boost = DEFAULT_BOOST;
     private MapperQueryParser.Operator defaultOperator = QueryParser.Operator.OR;
     private boolean autoGeneratePhraseQueries = false;
     private boolean allowLeadingWildcard = DEFAULT_ALLOW_LEADING_WILDCARD;

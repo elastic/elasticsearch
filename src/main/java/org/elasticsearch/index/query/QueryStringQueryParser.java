@@ -214,7 +214,7 @@ public class QueryStringQueryParser implements QueryParser {
             if (query == null) {
                 return null;
             }
-            query.setBoost(qpSettings.boost());
+            query.setBoost(query.getBoost() * qpSettings.boost());
             query = optimizeQuery(fixNegativeQueryIfNeeded(query));
             if (query instanceof BooleanQuery) {
                 Queries.applyMinimumShouldMatch((BooleanQuery) query, qpSettings.minimumShouldMatch());

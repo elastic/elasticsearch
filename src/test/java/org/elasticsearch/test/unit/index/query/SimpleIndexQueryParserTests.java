@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
@@ -160,6 +161,19 @@ public class SimpleIndexQueryParserTests {
         assertThat(termQuery.getTerm(), equalTo(new Term("content", "test")));
     }
 
+    @Test
+    public void testQueryStringBoostsBuilder() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        QueryStringQueryBuilder builder = queryString("field:boosted^2");
+        Query parsedQuery = queryParser.parse(builder).query();
+        assertThat(parsedQuery, instanceOf(TermQuery.class));
+        assertThat(((TermQuery) parsedQuery).getTerm(), equalTo(new Term("field", "boosted")));
+        assertThat(parsedQuery.getBoost(), equalTo(2.0f));
+        builder.boost(2.0f);
+        parsedQuery = queryParser.parse(builder).query();
+        assertThat(parsedQuery.getBoost(), equalTo(4.0f));
+    }
+    
     @Test
     public void testQueryStringFields1Builder() throws Exception {
         IndexQueryParserService queryParser = queryParser();

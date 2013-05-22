@@ -449,7 +449,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             builder.field("numeric_resolution", timeUnit.name().toLowerCase(Locale.ROOT));
         }
         if (dateTimeFormatter.locale() != null) {
-            builder.field("locale", dateTimeFormatter.format());
+            builder.field("locale", dateTimeFormatter.locale());
         }
     }
 

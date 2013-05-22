@@ -68,50 +68,7 @@ public class NodesStatsResponse extends NodesOperationResponse<NodeStats> implem
         for (NodeStats nodeStats : this) {
             builder.startObject(nodeStats.getNode().id(), XContentBuilder.FieldCaseConversion.NONE);
 
-            builder.field("timestamp", nodeStats.getTimestamp());
-            builder.field("name", nodeStats.getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("transport_address", nodeStats.getNode().address().toString());
-
-            if (nodeStats.getHostname() != null) {
-                builder.field("hostname", nodeStats.getHostname(), XContentBuilder.FieldCaseConversion.NONE);
-            }
-
-            if (!nodeStats.getNode().attributes().isEmpty()) {
-                builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : nodeStats.getNode().attributes().entrySet()) {
-                    builder.field(attr.getKey(), attr.getValue());
-                }
-                builder.endObject();
-            }
-
-            if (nodeStats.getIndices() != null) {
-                nodeStats.getIndices().toXContent(builder, params);
-            }
-
-            if (nodeStats.getOs() != null) {
-                nodeStats.getOs().toXContent(builder, params);
-            }
-            if (nodeStats.getProcess() != null) {
-                nodeStats.getProcess().toXContent(builder, params);
-            }
-            if (nodeStats.getJvm() != null) {
-                nodeStats.getJvm().toXContent(builder, params);
-            }
-            if (nodeStats.getThreadPool() != null) {
-                nodeStats.getThreadPool().toXContent(builder, params);
-            }
-            if (nodeStats.getNetwork() != null) {
-                nodeStats.getNetwork().toXContent(builder, params);
-            }
-            if (nodeStats.getFs() != null) {
-                nodeStats.getFs().toXContent(builder, params);
-            }
-            if (nodeStats.getTransport() != null) {
-                nodeStats.getTransport().toXContent(builder, params);
-            }
-            if (nodeStats.getHttp() != null) {
-                nodeStats.getHttp().toXContent(builder, params);
-            }
+            nodeStats.toXContent(builder, params);
 
             builder.endObject();
         }

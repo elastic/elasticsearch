@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.monitor.fs.FsStats;
@@ -35,11 +37,12 @@ import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Node statistics (dynamic, changes depending on when created).
  */
-public class NodeStats extends NodeOperationResponse {
+public class NodeStats extends NodeOperationResponse implements ToXContent {
 
     private long timestamp;
 
@@ -274,5 +277,55 @@ public class NodeStats extends NodeOperationResponse {
             out.writeBoolean(true);
             http.writeTo(out);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("timestamp", getTimestamp());
+        builder.field("name", getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
+        builder.field("transport_address", getNode().address().toString());
+
+        if (getHostname() != null) {
+            builder.field("hostname", getHostname(), XContentBuilder.FieldCaseConversion.NONE);
+        }
+
+        if (!getNode().attributes().isEmpty()) {
+            builder.startObject("attributes");
+            for (Map.Entry<String, String> attr : getNode().attributes().entrySet()) {
+                builder.field(attr.getKey(), attr.getValue());
+            }
+            builder.endObject();
+        }
+
+        if (getIndices() != null) {
+            getIndices().toXContent(builder, params);
+        }
+
+        if (getOs() != null) {
+            getOs().toXContent(builder, params);
+        }
+        if (getProcess() != null) {
+            getProcess().toXContent(builder, params);
+        }
+        if (getJvm() != null) {
+            getJvm().toXContent(builder, params);
+        }
+        if (getThreadPool() != null) {
+            getThreadPool().toXContent(builder, params);
+        }
+        if (getNetwork() != null) {
+            getNetwork().toXContent(builder, params);
+        }
+        if (getFs() != null) {
+            getFs().toXContent(builder, params);
+        }
+        if (getTransport() != null) {
+            getTransport().toXContent(builder, params);
+        }
+        if (getHttp() != null) {
+            getHttp().toXContent(builder, params);
+        }
+
+        return builder;
     }
 }

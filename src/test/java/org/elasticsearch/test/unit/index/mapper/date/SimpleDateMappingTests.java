@@ -38,7 +38,10 @@ import org.apache.lucene.search.NumericRangeFilter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -60,7 +63,7 @@ public class SimpleDateMappingTests {
                 .startObject("properties").endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = mapper(mapping);
 
         defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -124,8 +127,7 @@ public class SimpleDateMappingTests {
                             .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
-
+        DocumentMapper defaultMapper = mapper(mapping);
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                   .field("date_field_en", "Wed, 06 Dec 2000 02:55:00 -0800")
@@ -135,6 +137,17 @@ public class SimpleDateMappingTests {
                 .bytes());
         assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_de");
         assertNumericTokensEqual(doc, defaultMapper, "date_field_en", "date_field_default");
+    }
+    
+    private DocumentMapper mapper(String mapping) throws IOException {
+        // we serialize and deserialize the mapping to make sure serialization works just fine
+        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject();
+        defaultMapper.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String rebuildMapping = builder.string();
+        return MapperTests.newParser().parse(rebuildMapping);
     }
     
     private void assertNumericTokensEqual(ParsedDocument doc, DocumentMapper defaultMapper, String fieldA, String fieldB) throws IOException {
@@ -165,7 +178,7 @@ public class SimpleDateMappingTests {
                 .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = mapper(mapping);
 
         long value = System.currentTimeMillis();
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
@@ -184,7 +197,7 @@ public class SimpleDateMappingTests {
                 .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = mapper(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -204,7 +217,7 @@ public class SimpleDateMappingTests {
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "HH:mm:ss").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = mapper(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -230,7 +243,7 @@ public class SimpleDateMappingTests {
                 .endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = MapperTests.newParser().parse(mapping);
+        DocumentMapper defaultMapper = mapper(mapping);
 
         ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()

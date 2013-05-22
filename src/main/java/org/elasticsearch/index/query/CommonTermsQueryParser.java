@@ -48,15 +48,15 @@ import org.elasticsearch.index.mapper.MapperService;
 public class CommonTermsQueryParser implements QueryParser {
 
     public static final String NAME = "common";
-    
+
     static final float DEFAULT_MAX_TERM_DOC_FREQ = 0.01f;
-    
+
     static final Occur DEFAULT_HIGH_FREQ_OCCUR = Occur.MUST;
-    
+
     static final Occur DEFAULT_LOW_FREQ_OCCUR = Occur.MUST;
 
     static final boolean DEFAULT_DISABLE_COORDS = true;
-    
+
 
     @Inject
     public CommonTermsQueryParser() {
@@ -98,11 +98,11 @@ public class CommonTermsQueryParser implements QueryParser {
                             throw new QueryParsingException(parseContext.index(), "[common] analyzer [" + parser.text() + "] not found");
                         }
                         queryAnalyzer = analyzer;
-                    } else if ("disable_coords".equals(currentFieldName)) {
+                    } else if ("disable_coord".equals(currentFieldName) || "disableCoord".equals(currentFieldName)) {
                         disableCoords = parser.booleanValue();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
-                    } else if ("high_freq_operator".equals(currentFieldName)) {
+                    } else if ("high_freq_operator".equals(currentFieldName) || "highFreqOperator".equals(currentFieldName)) {
                         String op = parser.text();
                         if ("or".equalsIgnoreCase(op)) {
                             highFreqOccur = BooleanClause.Occur.SHOULD;
@@ -112,7 +112,7 @@ public class CommonTermsQueryParser implements QueryParser {
                             throw new QueryParsingException(parseContext.index(),
                                     "[common] query requires operator to be either 'and' or 'or', not [" + op + "]");
                         }
-                    } else if ("low_freq_operator".equals(currentFieldName)) {
+                    } else if ("low_freq_operator".equals(currentFieldName) || "lowFreqOperator".equals(currentFieldName)) {
                         String op = parser.text();
                         if ("or".equalsIgnoreCase(op)) {
                             lowFreqOccur = BooleanClause.Occur.SHOULD;
@@ -150,11 +150,11 @@ public class CommonTermsQueryParser implements QueryParser {
         query.setBoost(boost);
         return parseQueryString(query, value.toString(), fieldName, parseContext, queryAnalyzer, minimumShouldMatch);
     }
-        
+
 
     private final Query parseQueryString(ExtendedCommonTermsQuery query, String queryString, String fieldName, QueryParseContext parseContext,
             String queryAnalyzer, String minimumShouldMatch) throws IOException {
-    
+
         FieldMapper<?> mapper = null;
         String field;
         MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
@@ -195,7 +195,7 @@ public class CommonTermsQueryParser implements QueryParser {
             query.add(new Term(field, ref));
             count++;
         }
-        
+
         if (count == 0) {
             return null;
         }

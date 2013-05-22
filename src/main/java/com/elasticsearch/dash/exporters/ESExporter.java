@@ -5,6 +5,7 @@
  */
 package com.elasticsearch.dash.exporters;
 import com.elasticsearch.dash.Exporter;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -25,7 +26,7 @@ import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLEncoder;
-import java.util.Date;
+import java.util.*;
 
 public class ESExporter extends AbstractLifecycleComponent<ESExporter> implements Exporter<ESExporter> {
 
@@ -36,6 +37,9 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
     final ClusterName clusterName;
 
     final ESLogger logger = ESLoggerFactory.getLogger(ESExporter.class.getName());
+
+    final ToXContent.Params xContentParams;
+
 
     public ESExporter(Settings settings, ClusterName clusterName) {
         super(settings);
@@ -55,6 +59,9 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         } catch (UnsupportedEncodingException e) {
             throw new ElasticSearchException("Can't encode target url", e);
         }
+
+
+        xContentParams = new ToXContent.MapParams(ImmutableMap.of("human_readable","false"));
 
 
         logger.info("ESExporter initialized. Target: {}:{} Index prefix set to {}", targetHost, targetPort, targetIndexPrefix );
@@ -77,6 +84,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
         return "ESExporter";
     }
 
+
     @Override
     public void exportNodeStats(NodeStats nodeStats) {
         URL url = getTargetURL("nodestats");
@@ -91,7 +99,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             XContentBuilder builder = XContentFactory.smileBuilder(os);
 
             builder.startObject();
-            nodeStats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            nodeStats.toXContent(builder, xContentParams);
             builder.endObject();
 
             builder.close();

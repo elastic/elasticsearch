@@ -20,14 +20,17 @@
 package org.elasticsearch.test.integration.timestamp;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -105,5 +108,30 @@ public class SimpleTimestampTests extends AbstractNodesTests {
         // verify its the same timestamp when going the replica
         getResponse = client.prepareGet("test", "type1", "1").setFields("_timestamp").setRealtime(false).execute().actionGet();
         assertThat(((Number) getResponse.getField("_timestamp").getValue()).longValue(), equalTo(timestamp));
+    }
+
+    @Test
+    public void testThatDateFormatsAreNotMistakenlyParsedAsLong() throws Exception {
+        client.admin().indices().prepareDelete().execute().actionGet();
+
+        client.admin().indices().prepareCreate("test")
+                .addMapping("type1", XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("type1")
+                        .startObject("_timestamp")
+                        .field("enabled", true)
+                        .field("format", "YYYYMMdd")
+                        .field("path", "myDate")
+                        .endObject()
+                        .endObject()
+                        .endObject())
+                .execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1").setSource("myDate", "20130416").setRefresh(true).execute().actionGet();
+
+        // check for _timestamp field with query, if the above is parsed as long, then query will not match
+        SearchResponse searchResponse = client.prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.rangeQuery("_timestamp").from("20130415").to("20130417")).execute().actionGet();
+        assertHitCount(searchResponse, 1);
     }
 }

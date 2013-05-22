@@ -161,17 +161,24 @@ public class MappingMetaData {
         public static String parseStringTimestamp(String timestampAsString, FormatDateTimeFormatter dateTimeFormatter) throws TimestampParsingException {
             long ts;
             try {
-                // if we manage to parse it, its a millisecond timestamp, just return the string as is
-                ts = Long.parseLong(timestampAsString);
-                return timestampAsString;
-            } catch (NumberFormatException e) {
-                try {
-                    ts = dateTimeFormatter.parser().parseMillis(timestampAsString);
-                } catch (RuntimeException e1) {
-                    throw new TimestampParsingException(timestampAsString);
+                ts = dateTimeFormatter.parser().parseMillis(timestampAsString);
+                // ugly workaround in order to not create negative timestamps, but rather treat it as unix timestamp
+                if (ts < 0) {
+                    ts = parseLong(timestampAsString);
                 }
+            } catch (RuntimeException e) {
+                ts = parseLong(timestampAsString);
             }
             return Long.toString(ts);
+        }
+
+        private static Long parseLong(String timestampAsString) {
+            try {
+                // if we manage to parse it, its a millisecond timestamp, just return the string as is
+                return Long.parseLong(timestampAsString);
+            } catch (NumberFormatException e1) {
+                throw new TimestampParsingException(timestampAsString);
+            }
         }
 
 

@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.Shape;
-import org.elasticsearch.common.Nullable;
-
 import java.util.Collection;
+
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 
 /**
  * A static factory for simple "import static" usage.
@@ -693,7 +693,7 @@ public abstract class QueryBuilders {
      * @param name   The field name
      * @param values The terms
      */
-    public static TermsQueryBuilder termsQuery(String name, Collection values) {
+    public static TermsQueryBuilder termsQuery(String name, Collection<?> values) {
         return new TermsQueryBuilder(name, values);
     }
 
@@ -763,7 +763,7 @@ public abstract class QueryBuilders {
      * @param name   The field name
      * @param values The terms
      */
-    public static TermsQueryBuilder inQuery(String name, Collection values) {
+    public static TermsQueryBuilder inQuery(String name, Collection<?> values) {
         return new TermsQueryBuilder(name, values);
     }
 
@@ -796,7 +796,7 @@ public abstract class QueryBuilders {
      * @param name The shape field name
      * @param shape Shape to use in the Query
      */
-    public static GeoShapeQueryBuilder geoShapeQuery(String name, Shape shape) {
+    public static GeoShapeQueryBuilder geoShapeQuery(String name, ShapeBuilder shape) {
         return new GeoShapeQueryBuilder(name, shape);
     }
 

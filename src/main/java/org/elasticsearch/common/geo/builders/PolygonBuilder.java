@@ -17,14 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.common.geo;
+package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.context.jts.JtsSpatialContext;
+import java.util.ArrayList;
 
-/**
- * Common constants through the GeoShape codebase
- */
-public interface GeoShapeConstants {
+import com.vividsolutions.jts.geom.Coordinate;
 
-    public static final JtsSpatialContext SPATIAL_CONTEXT = new JtsSpatialContext(true);
+public class PolygonBuilder extends BasePolygonBuilder<PolygonBuilder> {
+
+    public PolygonBuilder() {
+        this(new ArrayList<Coordinate>());
+    }
+
+    protected PolygonBuilder(ArrayList<Coordinate> points) {
+        super();
+        this.shell = new Ring<PolygonBuilder>(this, points);
+    }
+
+    @Override
+    public PolygonBuilder close() {
+        super.close();
+        return this;
+    }
 }

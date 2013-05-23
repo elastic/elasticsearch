@@ -22,8 +22,8 @@ package org.elasticsearch.index.query;
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
-import org.elasticsearch.common.geo.GeoJSONShapeParser;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -80,7 +80,7 @@ public class GeoShapeFilterParser implements FilterParser {
         String fieldName = null;
         ShapeRelation shapeRelation = ShapeRelation.INTERSECTS;
         String strategyName = null;
-        Shape shape = null;
+        ShapeBuilder shape = null;
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
         String filterName = null;
@@ -105,7 +105,7 @@ public class GeoShapeFilterParser implements FilterParser {
 
                         token = parser.nextToken();
                         if ("shape".equals(currentFieldName)) {
-                            shape = GeoJSONShapeParser.parse(parser);
+                            shape = ShapeBuilder.parse(parser);
                         } else if ("relation".equals(currentFieldName)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {

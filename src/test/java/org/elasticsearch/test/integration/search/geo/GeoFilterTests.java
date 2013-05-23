@@ -37,9 +37,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.ShapeBuilder;
-import org.elasticsearch.common.geo.ShapeBuilder.MultiPolygonBuilder;
-import org.elasticsearch.common.geo.ShapeBuilder.PolygonBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
@@ -105,27 +105,27 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         try {
             // self intersection polygon
             ShapeBuilder.newPolygon()
-                    .point(-10, -10)
-                    .point(10, 10)
-                    .point(-10, 10)
-                    .point(10, -10)
-                    .close().build();
+                .point(-10, -10)
+                .point(10, 10)
+                .point(-10, 10)
+                .point(10, -10)
+                .close().build();
             assert false : "Self intersection not detected";
         } catch (InvalidShapeException e) {
         }
 
         // polygon with hole
         ShapeBuilder.newPolygon()
-                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                .hole()
+            .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+            .hole()
                 .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
                 .close().close().build();
 
         try {
             // polygon with overlapping hole
             ShapeBuilder.newPolygon()
-                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                    .hole()
+                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                .hole()
                     .point(-5, -5).point(-5, 11).point(5, 11).point(5, -5)
                     .close().close().build();
 
@@ -136,8 +136,8 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         try {
             // polygon with intersection holes
             ShapeBuilder.newPolygon()
-                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                    .hole()
+                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                .hole()
                     .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
                     .close()
                     .hole()
@@ -151,14 +151,14 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         try {
             // Common line in polygon
             ShapeBuilder.newPolygon()
-                    .point(-10, -10)
-                    .point(-10, 10)
-                    .point(-5, 10)
-                    .point(-5, -5)
-                    .point(-5, 20)
-                    .point(10, 20)
-                    .point(10, -10)
-                    .close().build();
+                .point(-10, -10)
+                .point(-10, 10)
+                .point(-5, 10)
+                .point(-5, -5)
+                .point(-5, 20)
+                .point(10, 20)
+                .point(10, -10)
+                .close().build();
             assert false : "Self intersection not detected";
         } catch (InvalidShapeException e) {
         }
@@ -181,7 +181,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
 
         // Multipolygon: polygon with hole and polygon within the whole
         ShapeBuilder.newMultiPolygon()
-                .polygon()
+            .polygon()
                 .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
                 .hole()
                 .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
@@ -240,9 +240,9 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
         // the second polygon of size 4x4 equidistant from all sites
         MultiPolygonBuilder polygon = ShapeBuilder.newMultiPolygon()
-                .polygon()
-                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                .hole()
+        .polygon()
+            .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+            .hole()
                 .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
                 .close()
                 .close()
@@ -250,7 +250,8 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
                 .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4)
                 .close();
 
-        BytesReference data = polygon.toXContent("area", jsonBuilder().startObject()).endObject().bytes();
+        BytesReference data = jsonBuilder().startObject().field("area", polygon).endObject().bytes();
+        
         client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -308,13 +309,13 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
 
         // Create a polygon that fills the empty area of the polygon defined above
         PolygonBuilder inverse = ShapeBuilder.newPolygon()
-                .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-                .hole()
+            .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
+            .hole()
                 .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4)
                 .close()
                 .close();
 
-        data = inverse.toXContent("area", jsonBuilder().startObject()).endObject().bytes();
+        data = jsonBuilder().startObject().field("area", inverse).endObject().bytes();
         client().prepareIndex("shapes", "polygon", "2").setSource(data).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -341,28 +342,53 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
 
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
-                    .setFilter(FilterBuilders.geoWithinFilter("area", builder.build()))
+                    .setFilter(FilterBuilders.geoWithinFilter("area", builder))
                     .execute().actionGet();
             assertHitCount(result, 2);
         }
 
-/* TODO: fix Polygon builder! It is not possible to cross the lats -180 and 180.
- *       A simple solution is following the path that is currently set up. When
- *       it's crossing the 180° lat set the new point to the intersection of line-
- *       segment and longitude and start building a new Polygon on the other side
- *       of the latitude. When crossing the latitude again continue drawing the
- *       first polygon. This approach can also applied to the holes because the
- *       commonline of hole and polygon will not be recognized as intersection.
- */
+        // Create a polygon crossing longitude 180.
+        builder = ShapeBuilder.newPolygon()
+            .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
+            .close();
 
-//        // Create a polygon crossing longitude 180.
-//        builder = ShapeBuilder.newPolygon()
-//            .point(170, -10).point(180, 10).point(170, -10).point(10, -10)
-//            .close();
-//
-//        data = builder.toXContent("area", jsonBuilder().startObject()).endObject().bytes();
-//        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
-//        client().admin().indices().prepareRefresh().execute().actionGet();
+        data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        // Create a polygon crossing longitude 180 with hole.
+        builder = ShapeBuilder.newPolygon()
+                .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
+                .hole().point(175, -5).point(185,-5).point(185,5).point(175,5).close()
+                .close();
+
+        data = jsonBuilder().startObject().field("area", builder).endObject().bytes();
+        client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        result = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(174, -4)))
+                .execute().actionGet();
+        assertHitCount(result, 1);
+
+        result = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(-174, -4)))
+                .execute().actionGet();
+        assertHitCount(result, 1);
+
+        result = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(180, -4)))
+                .execute().actionGet();
+        assertHitCount(result, 0);
+
+        result = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setFilter(FilterBuilders.geoIntersectionFilter("area", ShapeBuilder.newPoint(180, -6)))
+                .execute().actionGet();
+        assertHitCount(result, 1);
     }
 
     @Test

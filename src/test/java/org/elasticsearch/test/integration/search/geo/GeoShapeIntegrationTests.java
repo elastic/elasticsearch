@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.integration.search.geo;
 
-import static org.elasticsearch.common.geo.ShapeBuilder.newRectangle;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.geoIntersectionFilter;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
@@ -35,14 +34,12 @@ import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
-
-import com.spatial4j.core.shape.Shape;
 
 public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
 
@@ -74,7 +71,9 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
                 .endObject()).execute().actionGet();
 
         refresh();
-        Shape shape = newRectangle().topLeft(-45, 45).bottomRight(45, -45).build();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        ShapeBuilder shape = ShapeBuilder.newEnvelope().topLeft(-45, 45).bottomRight(45, -45);
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(filteredQuery(matchAllQuery(),
@@ -121,7 +120,7 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        Shape query = newRectangle().topLeft(-122.88, 48.62).bottomRight(-122.82, 48.54).build();
+        ShapeBuilder query = ShapeBuilder.newEnvelope().topLeft(-122.88, 48.62).bottomRight(-122.82, 48.54);
 
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
@@ -156,10 +155,9 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
 
         refresh();
 
-        Shape shape = newRectangle().topLeft(-45, 45).bottomRight(45, -45).build();
+        ShapeBuilder shape = ShapeBuilder.newEnvelope().topLeft(-45, 45).bottomRight(45, -45);
         XContentBuilder shapeContent = jsonBuilder().startObject()
-                .startObject("shape");
-        GeoJSONShapeSerializer.serialize(shape, shapeContent);
+                .field("shape", shape);
         shapeContent.endObject();
         createIndex("shapes");
         ensureGreen();
@@ -184,6 +182,26 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
+    @Test
+    public void testReusableBuilder() throws IOException {
+        ShapeBuilder polygon = ShapeBuilder.newPolygon()
+                .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
+                .hole().point(175, -5).point(185,-5).point(185,5).point(175,5).close()
+                .close();
+        assertUnmodified(polygon);
+
+        ShapeBuilder linestring = ShapeBuilder.newLineString()
+                .point(170, -10).point(190, -10).point(190, 10).point(170, 10);
+        assertUnmodified(linestring);
+    }
+    
+    private void assertUnmodified(ShapeBuilder builder) throws IOException {
+        String before = jsonBuilder().startObject().field("area", builder).endObject().string();
+        builder.build();
+        String after = jsonBuilder().startObject().field("area", builder).endObject().string();
+        assertThat(before, equalTo(after));
+    }
+    
     @Test
     public void testParsingMultipleShapes() throws IOException {
         String mapping = XContentFactory.jsonBuilder()

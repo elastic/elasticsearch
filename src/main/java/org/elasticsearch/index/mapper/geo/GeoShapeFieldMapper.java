@@ -29,10 +29,9 @@ import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.GeoJSONShapeParser;
-import org.elasticsearch.common.geo.GeoShapeConstants;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
@@ -42,8 +41,6 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
-
-import com.spatial4j.core.shape.Shape;
 
 import java.io.IOException;
 import java.util.Map;
@@ -143,9 +140,9 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
             final FieldMapper.Names names = buildNames(context);
             if (Names.TREE_GEOHASH.equals(tree)) {
-                prefixTree = new GeohashPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.GEOHASH_LEVELS, true));
+                prefixTree = new GeohashPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.GEOHASH_LEVELS, true));
             } else if (Names.TREE_QUADTREE.equals(tree)) {
-                prefixTree = new QuadPrefixTree(GeoShapeConstants.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
+                prefixTree = new QuadPrefixTree(ShapeBuilder.SPATIAL_CONTEXT, getLevels(treeLevels, precisionInMeters, Defaults.QUADTREE_LEVELS, false));
             } else {
                 throw new ElasticSearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
@@ -215,8 +212,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     @Override
     public void parse(ParseContext context) throws IOException {
         try {
-            Shape shape = GeoJSONShapeParser.parse(context.parser());
-            Field[] fields = defaultStrategy.createIndexableFields(shape);
+            ShapeBuilder shape = ShapeBuilder.parse(context.parser());
+            Field[] fields = defaultStrategy.createIndexableFields(shape.build());
             if (fields == null || fields.length == 0) {
                 return;
             }

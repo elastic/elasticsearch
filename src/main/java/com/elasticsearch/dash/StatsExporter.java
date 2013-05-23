@@ -5,12 +5,15 @@
  */
 package com.elasticsearch.dash;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 
-public interface Exporter<T> extends LifecycleComponent<T> {
+public interface StatsExporter<T> extends LifecycleComponent<T> {
 
     String name();
 
     void exportNodeStats(NodeStats nodeStats);
+
+    void exportShardStats(ShardStats shardStats);
 }

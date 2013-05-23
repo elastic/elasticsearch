@@ -4,11 +4,12 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 package com.elasticsearch.dash.exporters;
-import com.elasticsearch.dash.Exporter;
+import com.elasticsearch.dash.StatsExporter;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.ESLogger;
@@ -28,7 +29,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.*;
 
-public class ESExporter extends AbstractLifecycleComponent<ESExporter> implements Exporter<ESExporter> {
+public class ESExporter extends AbstractLifecycleComponent<ESExporter> implements StatsExporter<ESExporter> {
 
     final String targetHost;
     final int targetPort;
@@ -87,8 +88,17 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
 
     @Override
     public void exportNodeStats(NodeStats nodeStats) {
-        URL url = getTargetURL("nodestats");
-        logger.debug("Exporting node stats to {}", url);
+        exportXContent("nodestats", nodeStats);
+    }
+
+    @Override
+    public void exportShardStats(ShardStats shardStats) {
+        exportXContent("shardstats", shardStats);
+    }
+
+    private void exportXContent(String type,ToXContent xContent) {
+        URL url = getTargetURL(type);
+        logger.debug("Exporting {} to {}", type, url);
         HttpURLConnection conn;
         try {
             conn = (HttpURLConnection) url.openConnection();
@@ -99,7 +109,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             XContentBuilder builder = XContentFactory.smileBuilder(os);
 
             builder.startObject();
-            nodeStats.toXContent(builder, xContentParams);
+            xContent.toXContent(builder, xContentParams);
             builder.endObject();
 
             builder.close();
@@ -113,9 +123,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             return;
         }
 
-
     }
-
 
     @Override
     protected void doStart() throws ElasticSearchException {

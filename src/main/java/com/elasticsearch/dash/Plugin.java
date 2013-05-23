@@ -9,8 +9,6 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.AbstractPlugin;
 
@@ -38,7 +36,7 @@ public class Plugin extends AbstractPlugin {
 
             @Override
             protected void configure() {
-                bind(ExportersService.class).asEagerSingleton();
+                bind(StatsExportersService.class).asEagerSingleton();
             }
         };
         return ImmutableList.of(m);
@@ -47,7 +45,7 @@ public class Plugin extends AbstractPlugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> services() {
         Collection<Class<? extends LifecycleComponent>> l = new ArrayList<Class<? extends LifecycleComponent>>();
-        l.add(ExportersService.class);
+        l.add(StatsExportersService.class);
         return l;
     }
 }

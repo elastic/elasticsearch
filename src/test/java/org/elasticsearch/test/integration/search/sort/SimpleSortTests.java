@@ -131,6 +131,59 @@ public class SimpleSortTests extends AbstractNodesTests {
             assertThat(hit.getScore(), not(equalTo(Float.NaN)));
         }
     }
+    
+    @Test
+    public void test3078() {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client.admin().indices().prepareCreate("test").execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        for (int i = 1; i < 101; i++) {
+            client.prepareIndex("test", "type", Integer.toString(i)).setSource("field", Integer.toString(i)).execute().actionGet();
+        }
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
+        
+        // reindex and refresh
+        client.prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
+        
+        // reindex - no refresh
+        client.prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
+
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
+        
+        // optimize
+        client.admin().indices().prepareOptimize().execute().actionGet();
+        client.admin().indices().prepareRefresh().execute().actionGet();
+
+        client.prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
+        
+        client.admin().indices().prepareRefresh().execute().actionGet();
+        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("field").order(SortOrder.ASC)).execute().actionGet();
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
+        assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
+    }
 
     @Test
     public void testScoreSortDirection() throws Exception {

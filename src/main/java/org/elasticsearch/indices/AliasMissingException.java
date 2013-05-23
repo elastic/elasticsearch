@@ -18,6 +18,8 @@
 
 package org.elasticsearch.indices;
 
+import java.util.Locale;
+
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.rest.RestStatus;
 
@@ -28,7 +30,7 @@ public class AliasMissingException extends ElasticSearchException {
     private final String[] names;
 
     public AliasMissingException(String... names) {
-        super(String.format("alias [%s] missing", toNamesString(names)));
+        super(String.format(Locale.ROOT, "alias [%s] missing", toNamesString(names)));
         this.names = names;
     }
 

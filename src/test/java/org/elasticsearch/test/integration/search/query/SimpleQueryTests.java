@@ -1079,6 +1079,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
                         .startObject("num_double").field("type", "double").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("num_byte", 1)
@@ -1212,6 +1213,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
                         .startObject("num_double").field("type", "double").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "test1")
@@ -1274,6 +1276,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
                         .put("index.number_of_replicas", 0)
         )
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
                 .field("description", "foo other anything bar")
@@ -1321,6 +1324,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
                         .put("index.number_of_replicas", 0)
         )
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
                 .field("description", "foo other anything bar")
@@ -1413,6 +1417,7 @@ public class SimpleQueryTests extends AbstractNodesTests {
 
 
                 .execute().actionGet();
+        client.admin().cluster().prepareHealth("test").setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         client.prepareIndex("test", "s", "1").setSource(jsonBuilder().startObject()
                 .field("online", false)

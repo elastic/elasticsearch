@@ -28,6 +28,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.testng.AssertJUnit.assertFalse;
+import static org.testng.AssertJUnit.assertTrue;
 import static org.testng.AssertJUnit.fail;
 
 import java.util.HashMap;
@@ -46,7 +48,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 public class UpdateTests extends AbstractSharedClusterTest {
@@ -54,6 +55,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
 
     protected void createIndex() throws Exception {
         logger.info("--> creating index test");
+
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder()
                         .startObject()
@@ -145,20 +147,23 @@ public class UpdateTests extends AbstractSharedClusterTest {
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        client().prepareUpdate("test", "type1", "1")
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
+        assertTrue(updateResponse.isCreated());
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
         }
 
-        client().prepareUpdate("test", "type1", "1")
+        updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
+        assertFalse(updateResponse.isCreated());
+
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -231,6 +236,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
 
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(2L));
+        assertFalse(updateResponse.isCreated());
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -239,6 +245,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
 
         updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field += count").addScriptParam("count", 3).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
+        assertFalse(updateResponse.isCreated());
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -248,6 +255,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         // check noop
         updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx.op = 'none'").execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
+        assertFalse(updateResponse.isCreated());
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -257,6 +265,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         // check delete
         updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx.op = 'delete'").execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(4L));
+        assertFalse(updateResponse.isCreated());
 
         for (int i = 0; i < 5; i++) {
             GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();

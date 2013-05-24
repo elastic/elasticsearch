@@ -40,17 +40,19 @@ public class IndexResponse extends ActionResponse {
     private String id;
     private String type;
     private long version;
+    private long previousVersion;
     private List<String> matches;
 
     public IndexResponse() {
 
     }
 
-    public IndexResponse(String index, String type, String id, long version) {
+    public IndexResponse(String index, String type, String id, long version, long previousVersion) {
         this.index = index;
         this.id = id;
         this.type = type;
         this.version = version;
+        this.previousVersion = previousVersion;
     }
 
     /**
@@ -75,10 +77,17 @@ public class IndexResponse extends ActionResponse {
     }
 
     /**
-     * Returns the version of the doc indexed.
+     * Returns the current version of the doc indexed.
      */
     public long getVersion() {
         return this.version;
+    }
+
+    /**
+     * Returns the previous version of the doc, if found
+     */
+    public long getPreviousVersion() {
+        return this.previousVersion;
     }
 
     /**
@@ -102,6 +111,7 @@ public class IndexResponse extends ActionResponse {
         id = in.readString();
         type = in.readString();
         version = in.readLong();
+        previousVersion = in.readLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
             if (size == 0) {
@@ -132,6 +142,7 @@ public class IndexResponse extends ActionResponse {
         out.writeString(id);
         out.writeString(type);
         out.writeLong(version);
+        out.writeLong(previousVersion);
         if (matches == null) {
             out.writeBoolean(false);
         } else {

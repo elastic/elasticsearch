@@ -50,6 +50,9 @@ import java.util.List;
 public interface Engine extends IndexShardComponent, CloseableComponent {
 
     static ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");
+    long VERSION_MATCH_ANY = 0L; // Version was not specified by the user
+    long VERSION_NOT_FOUND = -1L; // no version found in the index.
+    long VERSION_NOT_AVAILABLE = -2L; // (for backward comp.)
 
     /**
      * The default suggested refresh interval, -1 to disable it.
@@ -373,13 +376,14 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         List<Document> docs();
 
         DocumentMapper docMapper();
+
     }
 
     static class Create implements IndexingOperation {
         private final DocumentMapper docMapper;
         private final Term uid;
         private final ParsedDocument doc;
-        private long version;
+        private long version = VERSION_MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
 
@@ -507,7 +511,8 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final DocumentMapper docMapper;
         private final Term uid;
         private final ParsedDocument doc;
-        private long version;
+        private long version = VERSION_MATCH_ANY;
+        private long previousVersion = VERSION_NOT_FOUND;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
 
@@ -547,11 +552,26 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.doc;
         }
 
+        public Index previousVersion(long version){
+            this.previousVersion = version;
+            return this;
+        }
+
+        /**
+         * upon successful indexing operation holds the version found in index (and replaced)
+         */
+        public long previousVersion() {
+            return this.previousVersion;
+        }
+
         public Index version(long version) {
             this.version = version;
             return this;
         }
 
+        /**
+         * before indexing holds the version request, after indexing holds the new version of the document.
+         */
         public long version() {
             return this.version;
         }
@@ -634,10 +654,11 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final String type;
         private final String id;
         private final Term uid;
-        private long version;
+        private long version = VERSION_MATCH_ANY;
+        private long previousVersion = VERSION_NOT_FOUND;
+        private boolean notFound = false;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
-        private boolean notFound;
 
         private long startTime;
         private long endTime;
@@ -675,13 +696,29 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this.uid;
         }
 
+
         public Delete version(long version) {
             this.version = version;
             return this;
         }
 
+        /**
+         * before delete execution this is the version to be deleted. After this is the version of the "delete" transaction record.
+         */
         public long version() {
             return this.version;
+        }
+
+        public Delete previousVersion(long version) {
+            this.previousVersion = version;
+            return this;
+        }
+
+        /**
+         * version of the document that was deleted, if found.
+         */
+        public long previousVersion() {
+            return previousVersion;
         }
 
         public Delete versionType(VersionType versionType) {
@@ -701,7 +738,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             this.notFound = notFound;
             return this;
         }
-
 
         public Delete startTime(long startTime) {
             this.startTime = startTime;
@@ -837,7 +873,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final UidField.DocIdAndVersion docIdAndVersion;
         private final Searcher searcher;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, -1, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, VERSION_NOT_FOUND, null);
 
         public GetResult(boolean exists, long version, @Nullable Translog.Source source) {
             this.source = source;

@@ -110,16 +110,19 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                         @Override
                         public void onResponse(IndexDeleteResponse indexDeleteResponse) {
                             // go over the response, see if we have found one, and the version if found
-                            long version = 0;
+                            long version = Engine.VERSION_MATCH_ANY;
+                            long previousVersion= Engine.VERSION_NOT_FOUND;
                             boolean found = false;
                             for (ShardDeleteResponse deleteResponse : indexDeleteResponse.getResponses()) {
                                 if (!deleteResponse.isNotFound()) {
-                                    found = true;
+                                    previousVersion = deleteResponse.getPreviousVersion();
                                     version = deleteResponse.getVersion();
+                                    found = true;
                                     break;
                                 }
                             }
-                            listener.onResponse(new DeleteResponse(request.index(), request.type(), request.id(), version, !found));
+                            listener.onResponse(new DeleteResponse(request.index(), request.type(), request.id(),
+                                    version, previousVersion, !found));
                         }
 
                         @Override
@@ -192,7 +195,8 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
             }
         }
 
-        DeleteResponse response = new DeleteResponse(request.index(), request.type(), request.id(), delete.version(), delete.notFound());
+        DeleteResponse response = new DeleteResponse(request.index(), request.type(), request.id(),
+                delete.version(), delete.previousVersion(), delete.notFound());
         return new PrimaryResponse<DeleteResponse, DeleteRequest>(shardRequest.request, response, null);
     }
 

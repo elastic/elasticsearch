@@ -22,6 +22,7 @@ package org.elasticsearch.action.delete;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
 
@@ -37,17 +38,19 @@ public class DeleteResponse extends ActionResponse {
     private String id;
     private String type;
     private long version;
+    private long previousVersion = Engine.VERSION_NOT_FOUND;
     private boolean notFound;
 
     public DeleteResponse() {
 
     }
 
-    public DeleteResponse(String index, String type, String id, long version, boolean notFound) {
+    public DeleteResponse(String index, String type, String id, long version, long previousVersion, boolean notFound) {
         this.index = index;
         this.id = id;
         this.type = type;
         this.version = version;
+        this.previousVersion = previousVersion;
         this.notFound = notFound;
     }
 
@@ -80,6 +83,14 @@ public class DeleteResponse extends ActionResponse {
     }
 
     /**
+     * The version of the document that was deleted, {@link Engine.VERSION_NOT_FOUND} if not found.
+     */
+    public long getPreviousVersion() {
+        return previousVersion;
+    }
+
+
+    /**
      * Returns <tt>true</tt> if there was no doc found to delete.
      */
     public boolean isNotFound() {
@@ -93,6 +104,7 @@ public class DeleteResponse extends ActionResponse {
         id = in.readString();
         type = in.readString();
         version = in.readLong();
+        previousVersion = in.readLong();
         notFound = in.readBoolean();
     }
 
@@ -103,6 +115,8 @@ public class DeleteResponse extends ActionResponse {
         out.writeString(id);
         out.writeString(type);
         out.writeLong(version);
+        out.writeLong(previousVersion);
         out.writeBoolean(notFound);
     }
+
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.action.delete.index;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;
 
@@ -31,18 +32,24 @@ import java.io.IOException;
 public class ShardDeleteResponse extends ActionResponse {
 
     private long version;
+    private long previousVersion = Engine.VERSION_NOT_FOUND;
     private boolean notFound;
 
     public ShardDeleteResponse() {
     }
 
-    public ShardDeleteResponse(long version, boolean notFound) {
+    public ShardDeleteResponse(long version, long previousVersion, boolean notFound) {
         this.version = version;
+        this.previousVersion = previousVersion;
         this.notFound = notFound;
     }
 
     public long getVersion() {
         return version;
+    }
+
+    public long getPreviousVersion() {
+        return previousVersion;
     }
 
     public boolean isNotFound() {
@@ -53,6 +60,7 @@ public class ShardDeleteResponse extends ActionResponse {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         version = in.readLong();
+        previousVersion = in.readLong();
         notFound = in.readBoolean();
     }
 
@@ -60,6 +68,7 @@ public class ShardDeleteResponse extends ActionResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(version);
+        out.writeLong(previousVersion);
         out.writeBoolean(notFound);
     }
 }

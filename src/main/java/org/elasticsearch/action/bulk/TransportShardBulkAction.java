@@ -232,7 +232,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 BytesReference indexSourceAsBytes = indexRequest.source();
                                 // add the response
                                 IndexResponse indexResponse = result.response();
-                                UpdateResponse updateResponse = new UpdateResponse(indexResponse.getIndex(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion());
+                                UpdateResponse updateResponse = new UpdateResponse(indexResponse.getIndex(), indexResponse.getType(), indexResponse.getId(),
+                                                                                   indexResponse.getVersion(), indexResponse.getPreviousVersion());
                                 updateResponse.setMatches(indexResponse.getMatches());
                                 if (updateRequest.fields() != null && updateRequest.fields().length > 0) {
                                     Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
@@ -258,7 +259,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             case DELETE:
                                 DeleteResponse response = updateResult.writeResult.response();
                                 DeleteRequest deleteRequest = updateResult.request();
-                                updateResponse = new UpdateResponse(response.getIndex(), response.getType(), response.getId(), response.getVersion());
+                                updateResponse = new UpdateResponse(response.getIndex(), response.getType(), response.getId(),
+                                                                    response.getVersion(), response.getPreviousVersion());
                                 updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, response.getVersion(), updateResult.result.updatedSourceAsMap(), updateResult.result.updateSourceContentType(), null));
                                 responses[i] = new BulkItemResponse(item.id(), "update", updateResponse);
                                 // Replace the update request to the translated delete request to execute on the replica.
@@ -376,16 +378,19 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                 .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
         long version;
+        long previousVersion=Engine.VERSION_NOT_FOUND;
         Engine.IndexingOperation op;
         if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
             indexShard.index(index);
             version = index.version();
+            previousVersion = index.previousVersion();
             op = index;
         } else {
             Engine.Create create = indexShard.prepareCreate(sourceToParse).version(indexRequest.version()).versionType(indexRequest.versionType()).origin(Engine.Operation.Origin.PRIMARY);
             indexShard.create(create);
             version = create.version();
+            previousVersion = Engine.VERSION_NOT_FOUND;
             op = create;
         }
         long preVersion = indexRequest.version();
@@ -403,7 +408,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             op = null;
         }
 
-        IndexResponse indexResponse = new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version);
+        IndexResponse indexResponse = new IndexResponse(indexRequest.index(), indexRequest.type(), indexRequest.id(), version, previousVersion);
         return new WriteResult(indexResponse, preVersion, mappingsToUpdate, op);
     }
 
@@ -412,7 +417,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         indexShard.delete(delete);
         // update the request with the version so it will go to the replicas
         deleteRequest.version(delete.version());
-        DeleteResponse deleteResponse = new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.notFound());
+        DeleteResponse deleteResponse = new DeleteResponse(deleteRequest.index(), deleteRequest.type(), deleteRequest.id(),
+                delete.version(), delete.previousVersion(), delete.notFound());
         return new WriteResult(deleteResponse, deleteRequest.version(), null, null);
     }
 

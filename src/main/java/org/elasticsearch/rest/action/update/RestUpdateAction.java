@@ -126,13 +126,17 @@ public class RestUpdateAction extends BaseRestHandler {
             @Override
             public void onResponse(UpdateResponse response) {
                 try {
+
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
                             .field(Fields._INDEX, response.getIndex())
                             .field(Fields._TYPE, response.getType())
                             .field(Fields._ID, response.getId())
-                            .field(Fields._VERSION, response.getVersion());
+                            .field(Fields._VERSION, response.getVersion())
+                            .field(Fields._PREVIOUS_VERSION, response.getPreviousVersion());
+
+
 
                     if (response.getGetResult() != null) {
                         builder.startObject(Fields.GET);
@@ -149,7 +153,7 @@ public class RestUpdateAction extends BaseRestHandler {
                     }
                     builder.endObject();
                     RestStatus status = OK;
-                    if (response.getVersion() == 1) {
+                    if (response.getPreviousVersion() == -1) {
                         status = CREATED;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));
@@ -175,6 +179,7 @@ public class RestUpdateAction extends BaseRestHandler {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString _PREVIOUS_VERSION = new XContentBuilderString("_previous_version");
         static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
         static final XContentBuilderString GET = new XContentBuilderString("get");
     }

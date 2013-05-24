@@ -359,6 +359,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
+     * Sets the doc for a simple single field / value update.
+     */
+    public UpdateRequest doc(String field, Object value) {
+        safeDoc().source(field,value);
+        return this;
+    }
+
+    /**
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(Map source, XContentType contentType) {

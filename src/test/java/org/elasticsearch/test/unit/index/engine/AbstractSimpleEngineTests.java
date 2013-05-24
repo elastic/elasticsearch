@@ -640,6 +640,7 @@ public abstract class AbstractSimpleEngineTests {
         Engine.Index index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
+        assertThat(index.previousVersion(), equalTo(Engine.VERSION_NOT_FOUND));
 
         index = new Engine.Index(null, newUid("1"), doc).version(index.version()).origin(REPLICA);
         replicaEngine.index(index);
@@ -681,10 +682,12 @@ public abstract class AbstractSimpleEngineTests {
         Engine.Index index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(12);
         engine.index(index);
         assertThat(index.version(), equalTo(12l));
+        assertThat(index.previousVersion(), equalTo(Engine.VERSION_NOT_FOUND));
 
         index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(14);
         engine.index(index);
         assertThat(index.version(), equalTo(14l));
+        assertThat(index.previousVersion(), equalTo(12l));
 
         index = new Engine.Index(null, newUid("1"), doc).versionType(VersionType.EXTERNAL).version(13l);
         try {

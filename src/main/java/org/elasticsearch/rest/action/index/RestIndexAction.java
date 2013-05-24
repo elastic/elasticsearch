@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
@@ -114,7 +115,8 @@ public class RestIndexAction extends BaseRestHandler {
                             .field(Fields._INDEX, response.getIndex())
                             .field(Fields._TYPE, response.getType())
                             .field(Fields._ID, response.getId())
-                            .field(Fields._VERSION, response.getVersion());
+                            .field(Fields._VERSION, response.getVersion())
+                            .field(Fields._PREVIOUS_VERSION, response.getPreviousVersion());
                     if (response.getMatches() != null) {
                         builder.startArray(Fields.MATCHES);
                         for (String match : response.getMatches()) {
@@ -124,7 +126,7 @@ public class RestIndexAction extends BaseRestHandler {
                     }
                     builder.endObject();
                     RestStatus status = OK;
-                    if (response.getVersion() == 1) {
+                    if (response.getPreviousVersion() == Engine.VERSION_NOT_FOUND) {
                         status = CREATED;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));
@@ -150,6 +152,7 @@ public class RestIndexAction extends BaseRestHandler {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString _PREVIOUS_VERSION = new XContentBuilderString("_previous_version");
         static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
     }
 

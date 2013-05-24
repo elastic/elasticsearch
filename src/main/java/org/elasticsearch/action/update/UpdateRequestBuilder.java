@@ -177,6 +177,14 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
+     * Sets the doc for a simple single field / value update.
+     */
+    public UpdateRequestBuilder setDoc(String field, Object value) {
+        request.doc(field,value);
+        return this;
+    }
+
+    /**
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequestBuilder setDoc(Map source) {

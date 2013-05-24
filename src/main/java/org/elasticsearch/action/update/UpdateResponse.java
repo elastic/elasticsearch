@@ -37,6 +37,7 @@ public class UpdateResponse extends ActionResponse {
     private String id;
     private String type;
     private long version;
+    private long previousVersion;
     private List<String> matches;
     private GetResult getResult;
 
@@ -44,11 +45,12 @@ public class UpdateResponse extends ActionResponse {
 
     }
 
-    public UpdateResponse(String index, String type, String id, long version) {
+    public UpdateResponse(String index, String type, String id, long version, long previousVersion) {
         this.index = index;
         this.id = id;
         this.type = type;
         this.version = version;
+        this.previousVersion = previousVersion;
     }
 
     /**
@@ -73,10 +75,18 @@ public class UpdateResponse extends ActionResponse {
     }
 
     /**
-     * Returns the version of the doc indexed.
+     * Returns the current version of the doc indexed.
      */
     public long getVersion() {
         return this.version;
+
+    }
+
+    /**
+     * Returns the previous version of the doc found in index.
+     */
+    public long getPreviousVersion() {
+        return this.previousVersion;
     }
 
     /**
@@ -108,6 +118,7 @@ public class UpdateResponse extends ActionResponse {
         id = in.readString();
         type = in.readString();
         version = in.readLong();
+        previousVersion = in.readLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
             if (size == 0) {
@@ -141,6 +152,7 @@ public class UpdateResponse extends ActionResponse {
         out.writeString(id);
         out.writeString(type);
         out.writeLong(version);
+        out.writeLong(previousVersion);
         if (matches == null) {
             out.writeBoolean(false);
         } else {

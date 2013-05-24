@@ -22,10 +22,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 import java.util.Arrays;
+import java.util.concurrent.Callable;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.hamcrest.Matcher;
@@ -116,6 +120,24 @@ public class ElasticsearchAssertions {
         assertThat(q.getClauses().length, greaterThan(i));
         assertThat(q.getClauses()[i].getQuery(), instanceOf(subqueryType));
         return  (T)q.getClauses()[i].getQuery();
+    }
+
+    public static <E extends Throwable> void assertThrows(ActionFuture future, Class<E> exceptionClass)  {
+        boolean fail=false;
+        try {
+            future.actionGet();
+            fail=true;
+
+        }
+        catch (ElasticSearchException esException) {
+            assertThat(esException.unwrapCause(), instanceOf(exceptionClass));
+        }
+        catch (Throwable e) {
+            assertThat(e, instanceOf(exceptionClass));
+        }
+        // has to be outside catch clause to get a proper message
+        if (fail)
+            throw new AssertionError("Expected a " + exceptionClass + " exception to be thrown");
     }
 
 }

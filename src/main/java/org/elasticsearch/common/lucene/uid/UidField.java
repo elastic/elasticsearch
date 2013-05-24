@@ -29,6 +29,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
@@ -41,6 +42,7 @@ import java.io.Reader;
 public class UidField extends Field {
 
     public static class DocIdAndVersion {
+
         public final int docId;
         public final long version;
         public final AtomicReaderContext reader;
@@ -87,32 +89,32 @@ public class UidField extends Field {
                 System.arraycopy(uid.getPayload().bytes, uid.getPayload().offset, payload, 0, uid.getPayload().length);
                 return new DocIdAndVersion(docId, Numbers.bytesToLong(payload), context);
             } while (uid.nextDoc() != DocIdSetIterator.NO_MORE_DOCS);
-            return new DocIdAndVersion(docId, -2, context);
+            return new DocIdAndVersion(docId, Engine.VERSION_NOT_AVAILABLE, context);
         } catch (Exception e) {
-            return new DocIdAndVersion(docId, -2, context);
+            return new DocIdAndVersion(docId, Engine.VERSION_NOT_AVAILABLE, context);
         }
     }
 
     /**
-     * Load the version for the uid from the reader, returning -1 if no doc exists, or -2 if
-     * no version is available (for backward comp.)
+     * Load the version for the uid from the reader, returning {@link Engine.VERSION_NOT_FOUND} if no doc exists,
+     * or {@link Engine.VERSION_NOT_AVAILABLE} if no version is available (for backward comp.)
      */
     public static long loadVersion(AtomicReaderContext context, Term term) {
         try {
             Terms terms = context.reader().terms(term.field());
             if (terms == null) {
-                return -1;
+                return Engine.VERSION_NOT_FOUND;
             }
             final TermsEnum termsEnum = terms.iterator(null);
             if (termsEnum == null) {
-                return -1;
+                return Engine.VERSION_NOT_FOUND;
             }
             if (!termsEnum.seekExact(term.bytes(), true)) {
-                return -1;
+                return Engine.VERSION_NOT_FOUND;
             }
             DocsAndPositionsEnum uid = termsEnum.docsAndPositions(context.reader().getLiveDocs(), null, DocsAndPositionsEnum.FLAG_PAYLOADS);
             if (uid == null || uid.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
-                return -1;
+                return Engine.VERSION_NOT_FOUND;
             }
             // Note, only master docs uid have version payload, so we can use that info to not
             // take them into account
@@ -128,9 +130,9 @@ public class UidField extends Field {
                 System.arraycopy(uid.getPayload().bytes, uid.getPayload().offset, payload, 0, uid.getPayload().length);
                 return Numbers.bytesToLong(payload);
             } while (uid.nextDoc() != DocIdSetIterator.NO_MORE_DOCS);
-            return -2;
+            return Engine.VERSION_NOT_AVAILABLE;
         } catch (Exception e) {
-            return -2;
+            return Engine.VERSION_NOT_AVAILABLE;
         }
     }
 

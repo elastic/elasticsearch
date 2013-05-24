@@ -198,6 +198,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         long version;
+        long previousVersion = Engine.VERSION_NOT_FOUND;
         Engine.IndexingOperation op;
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
@@ -206,6 +207,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .origin(Engine.Operation.Origin.PRIMARY);
             indexShard.index(index);
             version = index.version();
+            previousVersion = index.previousVersion();
             op = index;
         } else {
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
@@ -214,6 +216,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                     .origin(Engine.Operation.Origin.PRIMARY);
             indexShard.create(create);
             version = create.version();
+            previousVersion = Engine.VERSION_NOT_FOUND;
             op = create;
         }
         if (request.refresh()) {
@@ -229,7 +232,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         // update the version on the request, so it will be used for the replicas
         request.version(version);
 
-        IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version);
+        IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version, previousVersion);
         return new PrimaryResponse<IndexResponse, IndexRequest>(shardRequest.request, response, op);
     }
 

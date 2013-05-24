@@ -64,7 +64,7 @@ public class CodecService extends AbstractIndexComponent {
         if (mapperService == null) {
             codecs.put("default", Codec.getDefault());
         } else {
-            codecs.put("default", new PerFieldMappingPostingFormatCodec(mapperService, postingsFormatService.get("default").get()));
+            codecs.put("default", new PerFieldMappingPostingFormatCodec(mapperService, postingsFormatService.get("default").get(), logger));
         }
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));

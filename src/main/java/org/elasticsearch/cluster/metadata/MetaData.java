@@ -293,8 +293,8 @@ public class MetaData implements Iterable<IndexMetaData> {
             IndexMetaData indexMetaData = indices.get(index);
             Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
                 public boolean apply(String alias) {
-                    // Simon says: we could build and FST out of the alias key and then run a regexp query against it ;)
-                    return Regex.simpleMatch(aliases, alias);
+                // Simon says: we could build and FST out of the alias key and then run a regexp query against it ;)
+                return Regex.simpleMatch(aliases, alias);
                 }
             }).values();
             if (!filteredValues.isEmpty()) {
@@ -302,6 +302,37 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
         }
         return mapBuilder.build();
+    }
+
+    /**
+     * Checks if at least one of the specified aliases exists in the specified concrete indices. Wildcards are supported in the
+     * alias names for partial matches.
+     *
+     * @param aliases The names of the index aliases to find
+     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
+     *
+     * @return whether at least one of the specified aliases exists in one of the specified concrete indices.
+     */
+    public boolean hasAliases(final String[] aliases, String[] concreteIndices) {
+        assert aliases != null;
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return false;
+        }
+
+        Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indices.keySet());
+        for (String index : intersection) {
+            IndexMetaData indexMetaData = indices.get(index);
+            Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
+                public boolean apply(String alias) {
+                return Regex.simpleMatch(aliases, alias);
+                }
+            }).values();
+            if (!filteredValues.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -17,22 +17,30 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.alias.get;
+package org.elasticsearch.action.admin.indices.alias.exists;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.IndicesAction;
+import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
 import org.elasticsearch.client.IndicesAdminClient;
 
 /**
  */
-public class IndicesGetAliasesRequestBuilder extends BaseIndicesAliasesRequestBuilder<IndicesGetAliasesResponse, IndicesGetAliasesRequestBuilder> {
+public class IndicesExistsAliasesAction extends IndicesAction<IndicesGetAliasesRequest, IndicesExistsAliasesResponse, IndicesExistsAliasesRequestBuilder> {
 
-    public IndicesGetAliasesRequestBuilder(IndicesAdminClient client, String... aliases) {
-        super(client, aliases);
+    public static final IndicesExistsAliasesAction INSTANCE = new IndicesExistsAliasesAction();
+    public static final String NAME = "indices/exists/aliases";
+
+    private IndicesExistsAliasesAction() {
+        super(NAME);
     }
 
     @Override
-    protected void doExecute(ActionListener<IndicesGetAliasesResponse> listener) {
-        ((IndicesAdminClient) client).getAliases(request, listener);
+    public IndicesExistsAliasesRequestBuilder newRequestBuilder(IndicesAdminClient client) {
+        return new IndicesExistsAliasesRequestBuilder(client);
     }
 
+    @Override
+    public IndicesExistsAliasesResponse newResponse() {
+        return new IndicesExistsAliasesResponse();
+    }
 }

@@ -149,7 +149,7 @@ public class RestUpdateAction extends BaseRestHandler {
                     }
                     builder.endObject();
                     RestStatus status = OK;
-                    if (response.getVersion() == 1) {
+                    if (response.isCreated()) {
                         status = CREATED;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));

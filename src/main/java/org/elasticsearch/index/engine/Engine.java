@@ -379,7 +379,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final DocumentMapper docMapper;
         private final Term uid;
         private final ParsedDocument doc;
-        private long version;
+        private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
 
@@ -506,9 +506,10 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final DocumentMapper docMapper;
         private final Term uid;
         private final ParsedDocument doc;
-        private long version;
+        private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
+        private boolean created;
 
         private long startTime;
         private long endTime;
@@ -554,6 +555,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
+        /**
+         * before indexing holds the version requested, after indexing holds the new version of the document.
+         */
         public long version() {
             return this.version;
         }
@@ -627,13 +631,24 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         public long endTime() {
             return this.endTime;
         }
+
+        /**
+         * @return true if object was created
+         */
+        public boolean created() {
+            return created;
+        }
+
+        public void created(boolean created) {
+            this.created = created;
+        }
     }
 
     static class Delete implements Operation {
         private final String type;
         private final String id;
         private final Term uid;
-        private long version;
+        private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private Origin origin = Origin.PRIMARY;
         private boolean notFound;
@@ -679,6 +694,9 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             return this;
         }
 
+        /**
+         * before delete execution this is the version to be deleted. After this is the version of the "delete" transaction record.
+         */
         public long version() {
             return this.version;
         }
@@ -700,7 +718,6 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
             this.notFound = notFound;
             return this;
         }
-
 
         public Delete startTime(long startTime) {
             this.startTime = startTime;
@@ -836,7 +853,7 @@ public interface Engine extends IndexShardComponent, CloseableComponent {
         private final Versions.DocIdAndVersion docIdAndVersion;
         private final Searcher searcher;
 
-        public static final GetResult NOT_EXISTS = new GetResult(false, -1, null);
+        public static final GetResult NOT_EXISTS = new GetResult(false, Versions.NOT_FOUND, null);
 
         public GetResult(boolean exists, long version, @Nullable Translog.Source source) {
             this.source = source;

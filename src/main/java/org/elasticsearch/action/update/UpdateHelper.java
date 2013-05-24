@@ -149,6 +149,7 @@ public class UpdateHelper extends AbstractComponent {
         }
 
         // TODO: external version type, does it make sense here? does not seem like it...
+        // TODO: because we use  getResult.getVersion we loose the doc.version. The question is where is the right place?
         if (operation == null || "index".equals(operation)) {
             final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(updatedSourceAsMap, updateSourceContentType)
@@ -164,12 +165,12 @@ public class UpdateHelper extends AbstractComponent {
             deleteRequest.operationThreaded(false);
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
-            UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion());
+            UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             update.setGetResult(extractGetResult(request, getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, null));
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         } else {
             logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script);
-            UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion());
+            UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         }
     }

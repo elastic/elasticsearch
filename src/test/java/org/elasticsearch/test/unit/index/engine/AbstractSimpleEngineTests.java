@@ -30,6 +30,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
@@ -72,6 +73,8 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 
 /**
  *
@@ -972,6 +975,41 @@ public abstract class AbstractSimpleEngineTests {
         } catch (VersionConflictEngineException e) {
             // all is well
         }
+    }
+
+
+    @Test
+    public void testBasicCreatedFlag() {
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        engine.index(index);
+        assertTrue(index.created());
+
+        index = new Engine.Index(null, newUid("1"), doc);
+        engine.index(index);
+        assertFalse(index.created());
+
+        engine.delete(new Engine.Delete(null, "1", newUid("1")));
+
+        index = new Engine.Index(null, newUid("1"), doc);
+        engine.index(index);
+        assertTrue(index.created());
+    }
+
+    @Test
+    public void testCreatedFlagAfterFlush() {
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
+        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+        engine.index(index);
+        assertTrue(index.created());
+
+        engine.delete(new Engine.Delete(null, "1", newUid("1")));
+
+        engine.flush(new Engine.Flush());
+
+        index = new Engine.Index(null, newUid("1"), doc);
+        engine.index(index);
+        assertTrue(index.created());
     }
 
     protected Term newUid(String id) {

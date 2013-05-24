@@ -32,6 +32,7 @@ import java.util.List;
 /** Utility class to resolve the Lucene doc ID and version for a given uid. */
 public class Versions {
 
+    public static final long MATCH_ANY = 0L; // Version was not specified by the user
     public static final long NOT_FOUND = -1L;
     public static final long NOT_SET = -2L;
 

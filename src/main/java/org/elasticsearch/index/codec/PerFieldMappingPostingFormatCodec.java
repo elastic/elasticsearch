@@ -21,7 +21,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene42.Lucene42Codec;
-import org.elasticsearch.ElasticSearchIllegalStateException;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
@@ -36,12 +36,13 @@ import org.elasticsearch.index.mapper.MapperService;
  */
 // LUCENE UPGRADE: make sure to move to a new codec depending on the lucene version
 public class PerFieldMappingPostingFormatCodec extends Lucene42Codec {
-
+    private final ESLogger logger;
     private final MapperService mapperService;
     private final PostingsFormat defaultPostingFormat;
 
-    public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat) {
+    public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat, ESLogger logger) {
         this.mapperService = mapperService;
+        this.logger = logger;
         this.defaultPostingFormat = defaultPostingFormat;
     }
 
@@ -49,7 +50,8 @@ public class PerFieldMappingPostingFormatCodec extends Lucene42Codec {
     public PostingsFormat getPostingsFormatForField(String field) {
         final FieldMappers indexName = mapperService.indexName(field);
         if (indexName == null) {
-            throw new ElasticSearchIllegalStateException("no index mapper found for field: [" + field + "]");
+            logger.warn("no index mapper found for field: [{}] returning default postings format", field);
+            return defaultPostingFormat;
         }
         PostingsFormatProvider postingsFormat = indexName.mapper().postingsFormatProvider();
         return postingsFormat != null ? postingsFormat.get() : defaultPostingFormat;

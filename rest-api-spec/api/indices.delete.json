@@ -1,0 +1,21 @@
+{
+  "indices.delete": {
+    "documentation": "",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/",
+      "paths": ["/", "/{index}"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "timeout": {
+        }
+      }
+    },
+    "body": null
+  }
+}

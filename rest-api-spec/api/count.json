@@ -1,0 +1,36 @@
+{
+  "count": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/count/",
+    "methods": ["POST", "GET"],
+    "url": {
+      "path": "/_count",
+      "paths": ["/_count", "/{index}/_count", "/{index}/{type}/_count"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        },
+        "operation_threading": {
+        },
+        "source": {
+        },
+        "routing": {
+        },
+        "min_score": {
+        },
+        "type": {
+        },
+        "preference": {
+        }
+      }
+    },
+    "body": {
+    }
+  }
+}

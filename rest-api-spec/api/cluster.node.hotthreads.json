@@ -1,0 +1,25 @@
+{
+  "cluster.node.hotthreads": {
+    "documentation": "",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cluster/nodes/hotthreads",
+      "paths": ["/_cluster/nodes/hotthreads", "/_cluster/nodes/hot_threads", "/_cluster/nodes/{nodeId}/hotthreads", "/_cluster/nodes/{nodeId}/hot_threads", "/_nodes/hotthreads", "/_nodes/hot_threads", "/_nodes/{nodeId}/hotthreads", "/_nodes/{nodeId}/hot_threads"],
+      "parts": {
+        "nodeId": {
+        }
+      },
+      "params": {
+        "threads": {
+        },
+        "type": {
+        },
+        "interval": {
+        },
+        "snapshots": {
+        }
+      }
+    },
+    "body": null
+  }
+}

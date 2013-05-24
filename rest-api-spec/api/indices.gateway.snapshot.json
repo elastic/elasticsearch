@@ -1,0 +1,21 @@
+{
+  "indices.gateway.snapshot": {
+    "documentation": "",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_gateway/snapshot",
+      "paths": ["/_gateway/snapshot", "/{index}/_gateway/snapshot"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        }
+      }
+    },
+    "body": null
+  }
+}

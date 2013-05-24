@@ -1,0 +1,27 @@
+{
+  "indices.warmer.put": {
+    "documentation": "",
+    "methods": ["PUT"],
+    "url": {
+      "path": "/{index}/_warmer/{name}",
+      "paths": ["/{index}/_warmer/{name}", "/{index}/{type}/_warmer/{name}"],
+      "parts": {
+        "index": {
+        },
+        "name": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "name": {
+        },
+        "index": {
+        },
+        "type": {
+        }
+      }
+    },
+    "body": null
+  }
+}

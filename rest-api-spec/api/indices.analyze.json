@@ -1,0 +1,32 @@
+{
+  "indices.analyze": {
+    "documentation": "",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_analyze",
+      "paths": ["/_analyze", "/{index}/_analyze"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "text": {
+        },
+        "index": {
+        },
+        "prefer_local": {
+        },
+        "analyzer": {
+        },
+        "field": {
+        },
+        "tokenizer": {
+        },
+        "filters": {
+        }
+      }
+    },
+    "body": {
+    }
+  }
+}

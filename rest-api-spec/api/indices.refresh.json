@@ -1,0 +1,23 @@
+{
+  "indices.refresh": {
+    "documentation": "",
+    "methods": ["POST", "GET"],
+    "url": {
+      "path": "/_refresh",
+      "paths": ["/_refresh", "/{index}/_refresh"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        },
+        "operation_threading": {
+        }
+      }
+    },
+    "body": null
+  }
+}

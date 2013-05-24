@@ -1,0 +1,21 @@
+{
+  "indices.alias": {
+    "documentation": "",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_aliases",
+      "paths": ["/_aliases", "/{index}/_aliases"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "timeout": {
+        }
+      }
+    },
+    "body": null
+  }
+}

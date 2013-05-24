@@ -1,0 +1,21 @@
+{
+  "indices.open": {
+    "documentation": "",
+    "methods": ["POST"],
+    "url": {
+      "path": "/{index}/_open",
+      "paths": ["/{index}/_open"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "timeout": {
+        }
+      }
+    },
+    "body": null
+  }
+}

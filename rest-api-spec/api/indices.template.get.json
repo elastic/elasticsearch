@@ -1,0 +1,19 @@
+{
+  "indices.template.get": {
+    "documentation": "",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_template/{name}",
+      "paths": ["/_template/{name}"],
+      "parts": {
+        "name": {
+        }
+      },
+      "params": {
+        "name": {
+        }
+      }
+    },
+    "body": null
+  }
+}

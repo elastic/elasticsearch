@@ -1,0 +1,19 @@
+{
+  "indices.exists.indices": {
+    "documentation": "",
+    "methods": ["HEAD"],
+    "url": {
+      "path": "/{index}",
+      "paths": ["/{index}"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        }
+      }
+    },
+    "body": null
+  }
+}

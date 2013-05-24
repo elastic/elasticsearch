@@ -1,0 +1,21 @@
+{
+  "cluster.node.shutdown": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-nodes-shutdown/",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_shutdown",
+      "paths": ["/_shutdown", "/_cluster/nodes/_shutdown", "/_cluster/nodes/{nodeId}/_shutdown"],
+      "parts": {
+        "nodeId": {
+        }
+      },
+      "params": {
+        "delay": {
+        },
+        "exit": {
+        }
+      }
+    },
+    "body": null
+  }
+}

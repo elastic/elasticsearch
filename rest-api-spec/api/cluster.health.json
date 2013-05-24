@@ -1,0 +1,35 @@
+{
+  "cluster.health": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-health/",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cluster/health",
+      "paths": ["/_cluster/health", "/_cluster/health/{index}"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "local": {
+        },
+        "master_timeout": {
+        },
+        "timeout": {
+        },
+        "wait_for_status": {
+        },
+        "wait_for_relocating_shards": {
+        },
+        "wait_for_active_shards": {
+        },
+        "wait_for_nodes": {
+        },
+        "level": {
+        }
+      }
+    },
+    "body": null
+  }
+}

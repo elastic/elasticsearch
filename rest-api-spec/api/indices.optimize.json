@@ -1,0 +1,33 @@
+{
+  "indices.optimize": {
+    "documentation": "",
+    "methods": ["POST", "GET"],
+    "url": {
+      "path": "/_optimize",
+      "paths": ["/_optimize", "/{index}/_optimize"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        },
+        "wait_for_merge": {
+        },
+        "max_num_segments": {
+        },
+        "only_expunge_deletes": {
+        },
+        "flush": {
+        },
+        "refresh": {
+        },
+        "operation_threading": {
+        }
+      }
+    },
+    "body": null
+  }
+}

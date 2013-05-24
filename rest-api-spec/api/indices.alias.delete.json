@@ -1,0 +1,25 @@
+{
+  "indices.alias.delete": {
+    "documentation": "",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/{index}/_alias/{name}",
+      "paths": ["/{index}/_alias/{name}"],
+      "parts": {
+        "index": {
+        },
+        "name": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "name": {
+        },
+        "timeout": {
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "indices.close": {
+    "documentation": "",
+    "methods": ["POST"],
+    "url": {
+      "path": "/{index}/_close",
+      "paths": ["/{index}/_close"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "timeout": {
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "cluster.shards": {
+    "documentation": "",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_search_shards",
+      "paths": ["/_search_shards", "/{index}/_search_shards", "/{index}/{type}/_search_shards"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "local": {
+        },
+        "type": {
+        },
+        "routing": {
+        },
+        "preference": {
+        },
+        "ignore_indices": {
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -518,7 +518,8 @@ public class SimplePercolatorTests extends AbstractNodesTests {
                         .endObject()
                     .endObject()
                 .endObject()
-            ).execute().actionGet();
+            ).setRefresh(true).execute().actionGet();
+        client.admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForActiveShards(4).execute().actionGet();
 
         PercolateResponse percolateResponse = client.preparePercolate("test", "type1").setSource(jsonBuilder()
                 .startObject()

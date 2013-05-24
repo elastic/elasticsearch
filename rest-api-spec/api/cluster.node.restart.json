@@ -1,0 +1,19 @@
+{
+  "cluster.node.restart": {
+    "documentation": "",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_cluster/nodes/_restart",
+      "paths": ["/_cluster/nodes/_restart", "/_cluster/nodes/{nodeId}/_restart"],
+      "parts": {
+        "nodeId": {
+        }
+      },
+      "params": {
+        "delay": {
+        }
+      }
+    },
+    "body": null
+  }
+}

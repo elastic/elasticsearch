@@ -1,0 +1,23 @@
+{
+  "indices.segments": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/admin-indices-segments/",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_segments",
+      "paths": ["/_segments", "/{index}/_segments"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        },
+        "operation_threading": {
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "get": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/get/",
+    "methods": ["GET", "HEAD", "POST"],
+    "url": {
+      "path": "/{index}/{type}/{id}",
+      "paths": ["/{index}/{type}/{id}", "/{index}/{type}/{id}/_source", "/_mget", "/{index}/_mget", "/{index}/{type}/_mget"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        },
+        "id": {
+        }
+      },
+      "params": {
+        "id": {
+        },
+        "refresh": {
+        },
+        "routing": {
+        },
+        "parent": {
+        },
+        "preference": {
+        },
+        "realtime": {
+        },
+        "fields": {
+        },
+        "type": {
+        }
+      }
+    },
+    "body": null
+  }
+}

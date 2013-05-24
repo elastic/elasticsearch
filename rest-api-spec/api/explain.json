@@ -1,0 +1,48 @@
+{
+  "explain": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/explain/",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/{index}/{type}/{id}/_explain",
+      "paths": ["/{index}/{type}/{id}/_explain"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        },
+        "id": {
+        }
+      },
+      "params": {
+        "id": {
+        },
+        "parent": {
+        },
+        "routing": {
+        },
+        "preference": {
+        },
+        "source": {
+        },
+        "q": {
+        },
+        "df": {
+        },
+        "analyzer": {
+        },
+        "analyze_wildcard": {
+        },
+        "lowercase_expanded_terms": {
+        },
+        "lenient": {
+        },
+        "default_operator": {
+        },
+        "fields": {
+        }
+      }
+    },
+    "body": {
+    }
+  }
+}

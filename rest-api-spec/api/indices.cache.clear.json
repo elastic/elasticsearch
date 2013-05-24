@@ -1,0 +1,39 @@
+{
+  "indices.cache.clear": {
+    "documentation": "",
+    "methods": ["POST", "GET"],
+    "url": {
+      "path": "/_cache/clear",
+      "paths": ["/_cache/clear", "/{index}/_cache/clear"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        },
+        "filter": {
+        },
+        "filter_cache": {
+        },
+        "field_data": {
+        },
+        "fielddata": {
+        },
+        "id": {
+        },
+        "id_cache": {
+        },
+        "recycler": {
+        },
+        "fields": {
+        },
+        "filter_keys": {
+        }
+      }
+    },
+    "body": null
+  }
+}

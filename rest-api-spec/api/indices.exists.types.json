@@ -1,0 +1,23 @@
+{
+  "indices.exists.types": {
+    "documentation": "",
+    "methods": ["HEAD"],
+    "url": {
+      "path": "/{index}/{type}",
+      "paths": ["/{index}/{type}"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "type": {
+        },
+        "ignore_indices": {
+        }
+      }
+    },
+    "body": null
+  }
+}

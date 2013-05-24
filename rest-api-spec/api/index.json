@@ -1,0 +1,45 @@
+{
+  "index": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/index_/",
+    "methods": ["POST", "PUT"],
+    "url": {
+      "path": "/{index}/{type}",
+      "paths": ["/{index}/{type}", "/{index}/{type}/{id}", "/{index}/{type}/{id}/_create"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        },
+        "id": {
+        }
+      },
+      "params": {
+        "op_type": {
+        },
+        "id": {
+        },
+        "routing": {
+        },
+        "parent": {
+        },
+        "timestamp": {
+        },
+        "ttl": {
+        },
+        "timeout": {
+        },
+        "refresh": {
+        },
+        "version_type": {
+        },
+        "percolate": {
+        },
+        "replication": {
+        },
+        "consistency": {
+        }
+      }
+    },
+    "body": null
+  }
+}

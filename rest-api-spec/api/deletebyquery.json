@@ -1,0 +1,36 @@
+{
+  "deletebyquery": {
+    "documentation": "",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/{index}/_query",
+      "paths": ["/{index}/_query", "/{index}/{type}/_query"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "source": {
+        },
+        "type": {
+        },
+        "timeout": {
+        },
+        "routing": {
+        },
+        "replication": {
+        },
+        "consistency": {
+        },
+        "ignore_indices": {
+        }
+      }
+    },
+    "body": {
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "indices.mapping.get": {
+    "documentation": "",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_mapping",
+      "paths": ["/_mapping", "/{index}/_mapping", "/{index}/{type}/_mapping"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "type": {
+        }
+      }
+    },
+    "body": null
+  }
+}

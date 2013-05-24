@@ -1,0 +1,23 @@
+{
+  "indices.mapping.delete": {
+    "documentation": "",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/{index}/{type}/_mapping",
+      "paths": ["/{index}/{type}/_mapping", "/{index}/{type}"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "type": {
+        }
+      }
+    },
+    "body": null
+  }
+}

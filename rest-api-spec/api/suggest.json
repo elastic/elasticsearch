@@ -1,0 +1,30 @@
+{
+  "suggest": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/search/suggest/",
+    "methods": ["POST", "GET"],
+    "url": {
+      "path": "/_suggest",
+      "paths": ["/_suggest", "/{index}/_suggest"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        },
+        "operation_threading": {
+        },
+        "source": {
+        },
+        "routing": {
+        },
+        "preference": {
+        }
+      }
+    },
+    "body": {
+    }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "update": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/update/",
+    "methods": ["POST"],
+    "url": {
+      "path": "/{index}/{type}/{id}/_update",
+      "paths": ["/{index}/{type}/{id}/_update"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        },
+        "id": {
+        }
+      },
+      "params": {
+        "id": {
+        },
+        "routing": {
+        },
+        "parent": {
+        },
+        "timeout": {
+        },
+        "refresh": {
+        },
+        "replication": {
+        },
+        "consistency": {
+        },
+        "percolate": {
+        },
+        "script": {
+        },
+        "lang": {
+        },
+        "fields": {
+        },
+        "retry_on_conflict": {
+        },
+        "timestamp": {
+        },
+        "ttl": {
+        },
+        "version_type": {
+        }
+      }
+    },
+    "body": {
+    }
+  }
+}

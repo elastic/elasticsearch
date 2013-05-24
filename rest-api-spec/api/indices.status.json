@@ -1,0 +1,27 @@
+{
+  "indices.status": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/admin-indices-status/",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_status",
+      "paths": ["/_status", "/{index}/_status"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        },
+        "recovery": {
+        },
+        "snapshot": {
+        },
+        "operation_threading": {
+        }
+      }
+    },
+    "body": null
+  }
+}

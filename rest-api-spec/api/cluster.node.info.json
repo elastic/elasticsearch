@@ -1,0 +1,39 @@
+{
+  "cluster.node.info": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-nodes-info/",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cluster/nodes",
+      "paths": ["/_cluster/nodes", "/_cluster/nodes/{nodeId}", "/_nodes", "/_nodes/{nodeId}", "/_nodes/settings", "/_nodes/{nodeId}/settings", "/_nodes/os", "/_nodes/{nodeId}/os", "/_nodes/process", "/_nodes/{nodeId}/process", "/_nodes/jvm", "/_nodes/{nodeId}/jvm", "/_nodes/thread_pool", "/_nodes/{nodeId}/thread_pool", "/_nodes/network", "/_nodes/{nodeId}/network", "/_nodes/transport", "/_nodes/{nodeId}/transport", "/_nodes/http", "/_nodes/{nodeId}/http", "/_nodes/plugin", "/_nodes/{nodeId}/plugin"],
+      "parts": {
+        "nodeId": {
+        }
+      },
+      "params": {
+        "clear": {
+        },
+        "all": {
+        },
+        "settings": {
+        },
+        "os": {
+        },
+        "process": {
+        },
+        "jvm": {
+        },
+        "thread_pool": {
+        },
+        "network": {
+        },
+        "transport": {
+        },
+        "http": {
+        },
+        "plugin": {
+        }
+      }
+    },
+    "body": null
+  }
+}

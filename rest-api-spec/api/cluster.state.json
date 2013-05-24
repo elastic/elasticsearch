@@ -1,0 +1,31 @@
+{
+  "cluster.state": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-state/",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cluster/state",
+      "paths": ["/_cluster/state"],
+      "parts": {
+      },
+      "params": {
+        "master_timeout": {
+        },
+        "filter_nodes": {
+        },
+        "filter_routing_table": {
+        },
+        "filter_metadata": {
+        },
+        "filter_blocks": {
+        },
+        "filter_indices": {
+        },
+        "filter_index_templates": {
+        },
+        "local": {
+        }
+      }
+    },
+    "body": null
+  }
+}

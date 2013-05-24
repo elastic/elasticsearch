@@ -1,0 +1,27 @@
+{
+  "indices.mapping.put": {
+    "documentation": "",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/{index}/_mapping",
+      "paths": ["/{index}/_mapping", "/{index}/{type}/_mapping"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "type": {
+        },
+        "timeout": {
+        },
+        "ignore_conflicts": {
+        }
+      }
+    },
+    "body": null
+  }
+}

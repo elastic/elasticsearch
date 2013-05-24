@@ -1,0 +1,32 @@
+{
+  "indices.validate.query": {
+    "documentation": "",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_validate/query",
+      "paths": ["/_validate/query", "/{index}/_validate/query", "/{index}/{type}/_validate/query"],
+      "parts": {
+        "index": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        },
+        "operation_threading": {
+        },
+        "source": {
+        },
+        "type": {
+        },
+        "explain": {
+        }
+      }
+    },
+    "body": {
+    }
+  }
+}

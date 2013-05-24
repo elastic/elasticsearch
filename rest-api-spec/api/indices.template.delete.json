@@ -1,0 +1,21 @@
+{
+  "indices.template.delete": {
+    "documentation": "",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/_template/{name}",
+      "paths": ["/_template/{name}"],
+      "parts": {
+        "name": {
+        }
+      },
+      "params": {
+        "name": {
+        },
+        "timeout": {
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "indices.create": {
+    "documentation": "http://elasticsearch.org/guide/reference/mapping/",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/{index}",
+      "paths": ["/{index}"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "timeout": {
+        }
+      }
+    },
+    "body": {
+    }
+  }
+}

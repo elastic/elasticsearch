@@ -1,0 +1,20 @@
+{
+  "cluster.reroute": {
+    "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-reroute/",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_cluster/reroute",
+      "paths": ["/_cluster/reroute"],
+      "parts": {
+      },
+      "params": {
+        "dry_run": {
+        },
+        "filter_metadata": {
+        }
+      }
+    },
+    "body": {
+    }
+  }
+}

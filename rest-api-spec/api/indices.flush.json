@@ -1,0 +1,27 @@
+{
+  "indices.flush": {
+    "documentation": "",
+    "methods": ["POST", "GET"],
+    "url": {
+      "path": "/_flush",
+      "paths": ["/_flush", "/{index}/_flush"],
+      "parts": {
+        "index": {
+        }
+      },
+      "params": {
+        "index": {
+        },
+        "ignore_indices": {
+        },
+        "refresh": {
+        },
+        "full": {
+        },
+        "force": {
+        }
+      }
+    },
+    "body": null
+  }
+}

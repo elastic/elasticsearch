@@ -1,0 +1,25 @@
+{
+  "indices.warmer.delete": {
+    "documentation": "",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/{index}/_warmer",
+      "paths": ["/{index}/_warmer", "/{index}/_warmer/{name}", "/{index}/{type}/_warmer/{name}"],
+      "parts": {
+        "index": {
+        },
+        "name": {
+        },
+        "type": {
+        }
+      },
+      "params": {
+        "name": {
+        },
+        "index": {
+        }
+      }
+    },
+    "body": null
+  }
+}

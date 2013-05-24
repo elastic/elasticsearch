@@ -37,6 +37,7 @@ import org.elasticsearch.rest.action.admin.indices.alias.RestGetIndicesAliasesAc
 import org.elasticsearch.rest.action.admin.indices.alias.RestIndicesAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.delete.RestIndexDeleteAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.get.RestIndicesGetAliasesAction;
+import org.elasticsearch.rest.action.admin.indices.alias.head.RestIndicesHeadAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.alias.put.RestIndexPutAliasAction;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
 import org.elasticsearch.rest.action.admin.indices.cache.clear.RestClearIndicesCacheAction;
@@ -123,6 +124,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestIndicesSegmentsAction.class).asEagerSingleton();
         bind(RestGetIndicesAliasesAction.class).asEagerSingleton();
         bind(RestIndicesGetAliasesAction.class).asEagerSingleton();
+        bind(RestIndicesHeadAliasesAction.class).asEagerSingleton();
         bind(RestIndexDeleteAliasesAction.class).asEagerSingleton();
         bind(RestIndexPutAliasAction.class).asEagerSingleton();
         bind(RestIndicesAliasesAction.class).asEagerSingleton();

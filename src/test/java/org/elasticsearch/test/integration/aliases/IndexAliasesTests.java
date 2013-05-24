@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.aliases;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.exists.IndicesExistsAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -655,31 +656,35 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> getting alias1");
-        IndicesGetAliasesResponse response = client2.admin().indices().prepareGetAliases("alias1").execute().actionGet();
-        assertThat(response, notNullValue());
-        assertThat(response.getAliases().size(), equalTo(1));
-        assertThat(response.getAliases().get("foobar").size(), equalTo(1));
-        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("alias1"));
-        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        IndicesGetAliasesResponse getResponse = client2.admin().indices().prepareGetAliases("alias1").execute().actionGet();
+        assertThat(getResponse, notNullValue());
+        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
+        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("alias1"));
+        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        IndicesExistsAliasesResponse existsResponse = client2.admin().indices().prepareExistsAliases("alias1").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting all aliases that start with alias*");
-        response = client2.admin().indices().prepareGetAliases("alias*").execute().actionGet();
-        assertThat(response, notNullValue());
-        assertThat(response.getAliases().size(), equalTo(1));
-        assertThat(response.getAliases().get("foobar").size(), equalTo(2));
-        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("alias2"));
-        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(1), notNullValue());
-        assertThat(response.getAliases().get("foobar").get(1).alias(), equalTo("alias1"));
-        assertThat(response.getAliases().get("foobar").get(1).getFilter(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(1).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(1).getSearchRouting(), nullValue());
+        getResponse = client2.admin().indices().prepareGetAliases("alias*").execute().actionGet();
+        assertThat(getResponse, notNullValue());
+        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().get("foobar").size(), equalTo(2));
+        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("alias2"));
+        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(1), notNullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(1).alias(), equalTo("alias1"));
+        assertThat(getResponse.getAliases().get("foobar").get(1).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(1).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(1).getSearchRouting(), nullValue());
+        existsResponse = client2.admin().indices().prepareExistsAliases("alias*").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> creating aliases [bar, baz, foo]");
         client1.admin().indices().prepareAliases()
@@ -694,103 +699,124 @@ public class IndexAliasesTests extends AbstractNodesTests {
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(true));
 
         logger.info("--> getting bar and baz for index bazbar");
-        response = client2.admin().indices().prepareGetAliases("bar", "bac").addIndices("bazbar").execute().actionGet();
-        assertThat(response, notNullValue());
-        assertThat(response.getAliases().size(), equalTo(1));
-        assertThat(response.getAliases().get("bazbar").size(), equalTo(2));
-        assertThat(response.getAliases().get("bazbar").get(0), notNullValue());
-        assertThat(response.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
-        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
-        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
-        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
-        assertThat(response.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(1), notNullValue());
-        assertThat(response.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
-        assertThat(response.getAliases().get("bazbar").get(1).getFilter(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+        getResponse = client2.admin().indices().prepareGetAliases("bar", "bac").addIndices("bazbar").execute().actionGet();
+        assertThat(getResponse, notNullValue());
+        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
+        assertThat(getResponse.getAliases().get("bazbar").get(0), notNullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1), notNullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
+        assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+        existsResponse = client2.admin().indices().prepareExistsAliases("bar", "bac")
+                .addIndices("bazbar").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting *b* for index baz*");
-        response = client2.admin().indices().prepareGetAliases("*b*").addIndices("baz*").execute().actionGet();
-        assertThat(response, notNullValue());
-        assertThat(response.getAliases().size(), equalTo(1));
-        assertThat(response.getAliases().get("bazbar").size(), equalTo(2));
-        assertThat(response.getAliases().get("bazbar").get(0), notNullValue());
-        assertThat(response.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
-        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
-        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
-        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
-        assertThat(response.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(1), notNullValue());
-        assertThat(response.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
-        assertThat(response.getAliases().get("bazbar").get(1).getFilter(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+        getResponse = client2.admin().indices().prepareGetAliases("*b*").addIndices("baz*").execute().actionGet();
+        assertThat(getResponse, notNullValue());
+        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
+        assertThat(getResponse.getAliases().get("bazbar").get(0), notNullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1), notNullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
+        assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+        existsResponse = client2.admin().indices().prepareExistsAliases("*b*")
+                .addIndices("baz*").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting *b* for index *bar");
-        response = client2.admin().indices().prepareGetAliases("b*").addIndices("*bar").execute().actionGet();
-        assertThat(response, notNullValue());
-        assertThat(response.getAliases().size(), equalTo(2));
-        assertThat(response.getAliases().get("bazbar").size(), equalTo(2));
-        assertThat(response.getAliases().get("bazbar").get(0), notNullValue());
-        assertThat(response.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
-        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
-        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
-        assertThat(response.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
-        assertThat(response.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(1), notNullValue());
-        assertThat(response.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
-        assertThat(response.getAliases().get("bazbar").get(1).getFilter(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("bac"));
-        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), equalTo("bla"));
-        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), equalTo("bla"));
+        getResponse = client2.admin().indices().prepareGetAliases("b*").addIndices("*bar").execute().actionGet();
+        assertThat(getResponse, notNullValue());
+        assertThat(getResponse.getAliases().size(), equalTo(2));
+        assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
+        assertThat(getResponse.getAliases().get("bazbar").get(0), notNullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(0).alias(), equalTo("bac"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("term"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("field"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getFilter().string(), containsString("value"));
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(0).getSearchRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1), notNullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1).alias(), equalTo("bar"));
+        assertThat(getResponse.getAliases().get("bazbar").get(1).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("bazbar").get(1).getSearchRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("bac"));
+        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), equalTo("bla"));
+        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), equalTo("bla"));
+        existsResponse = client2.admin().indices().prepareExistsAliases("b*")
+                .addIndices("*bar").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting f* for index *bar");
-        response = client2.admin().indices().prepareGetAliases("f*").addIndices("*bar").execute().actionGet();
-        assertThat(response, notNullValue());
-        assertThat(response.getAliases().size(), equalTo(1));
-        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
-        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        getResponse = client2.admin().indices().prepareGetAliases("f*").addIndices("*bar").execute().actionGet();
+        assertThat(getResponse, notNullValue());
+        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
+        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        existsResponse = client2.admin().indices().prepareExistsAliases("f*")
+                .addIndices("*bar").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(true));
 
         // alias at work
         logger.info("--> getting f* for index *bac");
-        response = client2.admin().indices().prepareGetAliases("foo").addIndices("*bac").execute().actionGet();
-        assertThat(response, notNullValue());
-        assertThat(response.getAliases().size(), equalTo(1));
-        assertThat(response.getAliases().get("foobar").size(), equalTo(1));
-        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
-        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        getResponse = client2.admin().indices().prepareGetAliases("foo").addIndices("*bac").execute().actionGet();
+        assertThat(getResponse, notNullValue());
+        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().get("foobar").size(), equalTo(1));
+        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
+        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        existsResponse = client2.admin().indices().prepareExistsAliases("foo")
+                .addIndices("*bac").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(true));
 
         logger.info("--> getting foo for index foobar");
-        response = client2.admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
-        assertThat(response, notNullValue());
-        assertThat(response.getAliases().size(), equalTo(1));
-        assertThat(response.getAliases().get("foobar").get(0), notNullValue());
-        assertThat(response.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
-        assertThat(response.getAliases().get("foobar").get(0).getFilter(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
-        assertThat(response.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        getResponse = client2.admin().indices().prepareGetAliases("foo").addIndices("foobar").execute().actionGet();
+        assertThat(getResponse, notNullValue());
+        assertThat(getResponse.getAliases().size(), equalTo(1));
+        assertThat(getResponse.getAliases().get("foobar").get(0), notNullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).alias(), equalTo("foo"));
+        assertThat(getResponse.getAliases().get("foobar").get(0).getFilter(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getIndexRouting(), nullValue());
+        assertThat(getResponse.getAliases().get("foobar").get(0).getSearchRouting(), nullValue());
+        existsResponse = client2.admin().indices().prepareExistsAliases("foo")
+                .addIndices("foobar").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(true));
 
         // alias at work again
         logger.info("--> getting * for index *bac");
-        response = client2.admin().indices().prepareGetAliases("*").addIndices("*bac").execute().actionGet();
-        assertThat(response, notNullValue());
-        assertThat(response.getAliases().size(), equalTo(2));
-        assertThat(response.getAliases().get("foobar").size(), equalTo(4));
-        assertThat(response.getAliases().get("bazbar").size(), equalTo(2));
+        getResponse = client2.admin().indices().prepareGetAliases("*").addIndices("*bac").execute().actionGet();
+        assertThat(getResponse, notNullValue());
+        assertThat(getResponse.getAliases().size(), equalTo(2));
+        assertThat(getResponse.getAliases().get("foobar").size(), equalTo(4));
+        assertThat(getResponse.getAliases().get("bazbar").size(), equalTo(2));
+        existsResponse = client2.admin().indices().prepareExistsAliases("*")
+                .addIndices("*bac").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(true));
 
         indicesAliasesResponse = client2.admin().indices().prepareAliases()
                 .removeAlias("foobar", "foo")
@@ -803,6 +829,9 @@ public class IndexAliasesTests extends AbstractNodesTests {
         } catch (AliasMissingException e) {
             assertThat(e.getMessage(), equalTo("alias [foo] missing"));
         }
+        existsResponse = client2.admin().indices().prepareExistsAliases("foo")
+                .addIndices("foobar").execute().actionGet();
+        assertThat(existsResponse.exists(), equalTo(false));
     }
 
     private void assertHits(SearchHits hits, String... ids) {

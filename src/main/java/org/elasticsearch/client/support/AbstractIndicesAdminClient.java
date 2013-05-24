@@ -25,6 +25,9 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+import org.elasticsearch.action.admin.indices.alias.exists.IndicesExistsAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.exists.IndicesExistsAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.exists.IndicesExistsAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesRequestBuilder;
@@ -197,6 +200,21 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public ActionFuture<ClearIndicesCacheResponse> clearCache(final ClearIndicesCacheRequest request) {
         return execute(ClearIndicesCacheAction.INSTANCE, request);
+    }
+
+    @Override
+    public void existsAliases(IndicesGetAliasesRequest request, ActionListener<IndicesExistsAliasesResponse> listener) {
+        execute(IndicesExistsAliasesAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<IndicesExistsAliasesResponse> existsAliases(IndicesGetAliasesRequest request) {
+        return execute(IndicesExistsAliasesAction.INSTANCE, request);
+    }
+
+    @Override
+    public IndicesExistsAliasesRequestBuilder prepareExistsAliases(String... aliases) {
+        return new IndicesExistsAliasesRequestBuilder(this, aliases);
     }
 
     @Override

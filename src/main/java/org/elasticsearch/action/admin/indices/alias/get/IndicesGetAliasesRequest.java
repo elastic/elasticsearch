@@ -46,7 +46,7 @@ public class IndicesGetAliasesRequest extends MasterNodeOperationRequest<Indices
         this.aliases = new String[]{alias};
     }
 
-    IndicesGetAliasesRequest() {
+    public IndicesGetAliasesRequest() {
     }
 
     public IndicesGetAliasesRequest indices(String... indices) {

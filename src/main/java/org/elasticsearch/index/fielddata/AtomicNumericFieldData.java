@@ -24,7 +24,7 @@ import org.apache.lucene.util.BytesRef;
 /**
  */
 public abstract class AtomicNumericFieldData implements AtomicFieldData<ScriptDocValues> {
-    
+
     private boolean isFloat;
 
     public AtomicNumericFieldData(boolean isFloat) {
@@ -39,59 +39,59 @@ public abstract class AtomicNumericFieldData implements AtomicFieldData<ScriptDo
     @Override
     public ScriptDocValues getScriptValues() {
         if (isFloat) {
-            return new ScriptDocValues.NumericDouble(getDoubleValues());
+            return new ScriptDocValues.Doubles(getDoubleValues());
         } else {
-            return new ScriptDocValues.NumericLong(getLongValues());
+            return new ScriptDocValues.Longs(getLongValues());
         }
     }
 
     @Override
     public BytesValues getBytesValues() {
-       if (isFloat) {
-          final DoubleValues values = getDoubleValues();
-          return new BytesValues(values.isMultiValued()) {
+        if (isFloat) {
+            final DoubleValues values = getDoubleValues();
+            return new BytesValues(values.isMultiValued()) {
 
-               @Override
-               public boolean hasValue(int docId) {
-                   return values.hasValue(docId);
-               }
+                @Override
+                public boolean hasValue(int docId) {
+                    return values.hasValue(docId);
+                }
 
-               @Override
-               public BytesRef getValueScratch(int docId, BytesRef ret) {
-                   if (values.hasValue(docId)) {
-                       ret.copyChars(Double.toString(values.getValue(docId)));
-                   } else {
-                       ret.length = 0;
-                   }
-                   return ret;
-               }
+                @Override
+                public BytesRef getValueScratch(int docId, BytesRef ret) {
+                    if (values.hasValue(docId)) {
+                        ret.copyChars(Double.toString(values.getValue(docId)));
+                    } else {
+                        ret.length = 0;
+                    }
+                    return ret;
+                }
 
-               @Override
-               public Iter getIter(int docId) {
-                   final DoubleValues.Iter iter = values.getIter(docId);
-                   return new BytesValues.Iter() {
-                       private final BytesRef spare = new BytesRef();
+                @Override
+                public Iter getIter(int docId) {
+                    final DoubleValues.Iter iter = values.getIter(docId);
+                    return new BytesValues.Iter() {
+                        private final BytesRef spare = new BytesRef();
 
-                       @Override
-                       public boolean hasNext() {
-                           return iter.hasNext();
-                       }
+                        @Override
+                        public boolean hasNext() {
+                            return iter.hasNext();
+                        }
 
-                       @Override
-                       public BytesRef next() {
-                           spare.copyChars(Double.toString(iter.next()));
-                           return spare;
-                       }
+                        @Override
+                        public BytesRef next() {
+                            spare.copyChars(Double.toString(iter.next()));
+                            return spare;
+                        }
 
-                       @Override
-                       public int hash() {
-                           return spare.hashCode();
-                       }
+                        @Override
+                        public int hash() {
+                            return spare.hashCode();
+                        }
 
-                   };
-               }
-           };
-       } else {
+                    };
+                }
+            };
+        } else {
             final LongValues values = getLongValues();
             return new BytesValues(values.isMultiValued()) {
 
@@ -135,7 +135,7 @@ public abstract class AtomicNumericFieldData implements AtomicFieldData<ScriptDo
                     };
                 }
             };
-       }
+        }
     }
 
     @Override

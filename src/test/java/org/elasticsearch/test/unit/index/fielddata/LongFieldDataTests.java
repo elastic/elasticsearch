@@ -27,11 +27,13 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ByteArrayAtomicFieldData;
 import org.elasticsearch.index.fielddata.plain.IntArrayAtomicFieldData;
 import org.elasticsearch.index.fielddata.plain.LongArrayAtomicFieldData;
 import org.elasticsearch.index.fielddata.plain.ShortArrayAtomicFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.joda.time.DateTimeZone;
 import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -122,6 +124,19 @@ public class LongFieldDataTests extends NumericFieldDataTests {
         assertThat(fieldData, instanceOf(LongArrayAtomicFieldData.class));
         assertThat(fieldData.getLongValues().getValue(0), equalTo((long) Integer.MAX_VALUE + 1l));
         assertThat(fieldData.getLongValues().getValue(1), equalTo((long) Integer.MIN_VALUE - 1l));
+    }
+
+    @Test
+    public void testDateScripts() throws Exception {
+        fillSingleValueAllSet();
+        IndexNumericFieldData indexFieldData = getForField("value");
+        AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
+
+        ScriptDocValues.Longs scriptValues = (ScriptDocValues.Longs) fieldData.getScriptValues();
+        scriptValues.setNextDocId(0);
+        assertThat(scriptValues.getValue(), equalTo(2l));
+        assertThat(scriptValues.getDate().getMillis(), equalTo(2l));
+        assertThat(scriptValues.getDate().getZone(), equalTo(DateTimeZone.UTC));
     }
 
     @Override

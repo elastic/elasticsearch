@@ -11,5 +11,13 @@
         "obj4":{
             "prop1":"prop1_value"
         }
+    },
+    "obj5":{
+        "title":"obj5_title",
+        "title2":"obj5_title2",
+        "obj6":{
+            "title":"obj6_title",
+            "title2":"obj6_title2"
+        }
     }
 }

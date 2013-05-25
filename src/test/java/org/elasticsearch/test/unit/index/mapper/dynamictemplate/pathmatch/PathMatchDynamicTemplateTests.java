@@ -31,6 +31,7 @@ import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -73,5 +74,54 @@ public class PathMatchDynamicTemplateTests {
 
         fieldMappers = docMapper.mappers().fullName("obj3.obj4.prop1");
         assertThat(fieldMappers.mappers().size(), equalTo(1));
+    }
+
+    @Test
+    public void testTopLevelCatchAll() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
+        DocumentMapper docMapper = MapperTests.newParser().parse(mapping);
+        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/test/unit/index/mapper/dynamictemplate/pathmatch/test-data.json");
+        Document doc = docMapper.parse(new BytesArray(json)).rootDoc();
+
+        IndexableField[] fields = doc.getFields("title");
+        assertThat(fields, notNullValue());
+        assertThat(fields.length, equalTo(2));
+        assertThat(fields[0].name(), equalTo("title"));
+        assertThat(fields[0].stringValue(), equalTo("obj5_title"));
+        assertThat(fields[0].fieldType().stored(), equalTo(false));
+        assertThat(fields[1].name(), equalTo("title"));
+        assertThat(fields[1].stringValue(), equalTo("obj6_title"));
+        assertThat(fields[1].fieldType().stored(), equalTo(false));
+
+        IndexableField f = doc.getField("obj5.title");
+        assertThat(f.name(), equalTo("obj5.title"));
+        assertThat(f.stringValue(), equalTo("obj5_title"));
+        assertThat(f.fieldType().stored(), equalTo(true));
+
+        f = doc.getField("obj5.obj6.title");
+        assertThat(f.name(), equalTo("obj5.obj6.title"));
+        assertThat(f.stringValue(), equalTo("obj6_title"));
+        assertThat(f.fieldType().stored(), equalTo(true));
+
+
+        fields = doc.getFields("title2");
+        assertThat(fields, notNullValue());
+        assertThat(fields.length, equalTo(2));
+        assertThat(fields[0].name(), equalTo("title2"));
+        assertThat(fields[0].stringValue(), equalTo("obj5_title2"));
+        assertThat(fields[0].fieldType().stored(), equalTo(false));
+        assertThat(fields[1].name(), equalTo("title2"));
+        assertThat(fields[1].stringValue(), equalTo("obj6_title2"));
+        assertThat(fields[1].fieldType().stored(), equalTo(false));
+
+        f = doc.getField("obj5.title2");
+        assertThat(f.name(), equalTo("obj5.title2"));
+        assertThat(f.stringValue(), equalTo("obj5_title2"));
+        assertThat(f.fieldType().stored(), equalTo(true));
+
+        f = doc.getField("obj5.obj6.title2");
+        assertThat(f.name(), equalTo("obj5.obj6.title2"));
+        assertThat(f.stringValue(), equalTo("obj6_title2"));
+        assertThat(f.fieldType().stored(), equalTo(true));
     }
 }

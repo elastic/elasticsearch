@@ -24,6 +24,19 @@
                         "type":"string"
                     }
                 }
+            },
+            {
+                "template_4":{
+                    "path_match":"*.title*",
+                    "mapping":{
+                        "type": "multi_field",
+                        "path":"just_name",
+                        "fields":{
+                            "{name}": {"type": "{dynamic_type}", "store":"no"},
+                            "{path}": {"type": "{dynamic_type}", "store":"yes"}
+                        }
+                    }
+                }
             }
         ]
     }

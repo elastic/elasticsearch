@@ -164,40 +164,47 @@ public class DynamicTemplate {
         return str.matches(pattern);
     }
 
-    public Map<String, Object> mappingForName(String name, String dynamicType) {
-        return processMap(mapping, name, dynamicType);
+    public Map<String, Object> mappingForName(String name, String fullPath, String dynamicType) {
+        return processMap(mapping, name, fullPath, dynamicType);
     }
 
-    private Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType) {
+    private Map<String, Object> processMap(Map<String, Object> map, String name, String fullPath, String dynamicType) {
         Map<String, Object> processedMap = Maps.newHashMap();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            String key = entry.getKey().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+            String key = replacePlaceHolders(entry.getKey(), name, fullPath, dynamicType);
             Object value = entry.getValue();
             if (value instanceof Map) {
-                value = processMap((Map<String, Object>) value, name, dynamicType);
+                value = processMap((Map<String, Object>) value, name, fullPath, dynamicType);
             } else if (value instanceof List) {
-                value = processList((List) value, name, dynamicType);
+                value = processList((List) value, name, fullPath, dynamicType);
             } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+                value = replacePlaceHolders(value.toString(), name, fullPath, dynamicType);
             }
             processedMap.put(key, value);
         }
         return processedMap;
     }
 
-    private List processList(List list, String name, String dynamicType) {
+    private List processList(List list, String name, String fullPath, String dynamicType) {
         List processedList = new ArrayList();
         for (Object value : list) {
             if (value instanceof Map) {
-                value = processMap((Map<String, Object>) value, name, dynamicType);
+                value = processMap((Map<String, Object>) value, name, fullPath, dynamicType);
             } else if (value instanceof List) {
-                value = processList((List) value, name, dynamicType);
+                value = processList((List) value, name, fullPath,  dynamicType);
             } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType);
+                value = replacePlaceHolders(value.toString(), name, fullPath, dynamicType);
             }
             processedList.add(value);
         }
         return processedList;
+    }
+
+    private String replacePlaceHolders(String value, String fieldName, String fullPath, String dynamicType) {
+        return value.replace("{name}", fieldName)
+                .replace("{path}", fullPath)
+                .replace("{dynamic_type}", dynamicType)
+                .replace("{dynamicType}", dynamicType);
     }
 
     @Override

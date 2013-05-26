@@ -7,12 +7,18 @@
       "paths": ["/_shutdown", "/_cluster/nodes/_shutdown", "/_cluster/nodes/{nodeId}/_shutdown"],
       "parts": {
         "nodeId": {
+          "type" : "list",
+          "description" : "A comma-separated list of nodes to limit the returned information"
         }
       },
       "params": {
         "delay": {
+          "type" : "time",
+          "description" : "Set the delay for the operation (default: 1s)"
         },
         "exit": {
+          "type" : "boolean",
+          "description" : "Exit the JVM as well (default: true)"
         }
       }
     },

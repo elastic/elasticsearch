@@ -4,37 +4,88 @@
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/nodes/stats",
-      "paths": ["/_cluster/nodes/stats", "/_cluster/nodes/{nodeId}/stats", "/_nodes/stats", "/_nodes/{nodeId}/stats", "/_nodes/stats/indices", "/_nodes/{nodeId}/stats/indices", "/_nodes/indices/stats", "/_nodes/{nodeId}/indices/stats", "/_nodes/indices/\" + flag.getRestName() + \"/stats", "/_nodes/{nodeId}/indices/\" + flag.getRestName() + \"/stats", "/_nodes/stats/indices/\" + flag.getRestName() + \"/{fields}", "/_nodes/{nodeId}/stats/indices/\" + flag.getRestName() + \"/{fields}", "/_nodes/indices/\" + flag.getRestName() + \"/{fields}/stats", "/_nodes/{nodeId}/indices/\" + flag.getRestName() + \"/{fields}/stats", "/_nodes/stats/os", "/_nodes/{nodeId}/stats/os", "/_nodes/os/stats", "/_nodes/{nodeId}/os/stats", "/_nodes/stats/process", "/_nodes/{nodeId}/stats/process", "/_nodes/process/stats", "/_nodes/{nodeId}/process/stats", "/_nodes/stats/jvm", "/_nodes/{nodeId}/stats/jvm", "/_nodes/jvm/stats", "/_nodes/{nodeId}/jvm/stats", "/_nodes/stats/thread_pool", "/_nodes/{nodeId}/stats/thread_pool", "/_nodes/thread_pool/stats", "/_nodes/{nodeId}/thread_pool/stats", "/_nodes/stats/network", "/_nodes/{nodeId}/stats/network", "/_nodes/network/stats", "/_nodes/{nodeId}/network/stats", "/_nodes/stats/fs", "/_nodes/{nodeId}/stats/fs", "/_nodes/fs/stats", "/_nodes/{nodeId}/fs/stats", "/_nodes/stats/transport", "/_nodes/{nodeId}/stats/transport", "/_nodes/transport/stats", "/_nodes/{nodeId}/transport/stats", "/_nodes/stats/http", "/_nodes/{nodeId}/stats/http", "/_nodes/http/stats", "/_nodes/{nodeId}/http/stats"],
+      "paths": [
+        "/_cluster/nodes/stats",
+        "/_cluster/nodes/{nodeId}/stats",
+        "/_nodes/stats",
+        "/_nodes/{nodeId}/stats",
+        "/_nodes/stats/{metric_family}",
+        "/_nodes/{nodeId}/stats/{metric_family}",
+        "/_nodes/{metric_family}/stats",
+        "/_nodes/{nodeId}/{metric_family}/stats",
+        "/_nodes/stats/indices/{metric}/{fields}",
+        "/_nodes/{nodeId}/stats/indices/{metric}/{fields}",
+        "/_nodes/indices/{metric}/{fields}/stats",
+        "/_nodes/{nodeId}/indices/{metric}/{fields}/stats"
+      ],
       "parts": {
-        "fields": {
+        "fields" : {
+          "type" : "list",
+          "description" : "A comma-separated list of fields to return detailed information for, when returning the `indices` metric family (supports wildcards)"
+        },
+        "metric_family" : {
+          "type" : "enum",
+          "values" : ["all","fs","http","indices","jvm","network","os","process","thread_pool","transport"],
+          "description" : "Limit the information returned to certain metric family"
+        },
+        "metric" : {
+          "type" : "enum",
+          "values" : ["docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merges", "refresh", "search", "store", "warmer"],
+          "description" : "Limit the information returned for `indices` family to a specifi metric"
         },
         "nodeId": {
+          "type" : "list",
+          "description" : "A comma-separated list of nodes to limit the returned information"
         }
       },
       "params": {
         "all": {
+          "type" : "boolean",
+          "description" : "Return all available information"
         },
         "clear": {
+          "type" : "boolean",
+          "description" : "Reset the default level of detail"
         },
         "fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `fielddata` metric (supports wildcards)"
         },
         "fs": {
+          "type" : "boolean",
+          "description" : "Return information about the filesystem"
         },
         "http": {
+          "type" : "boolean",
+          "description" : "Return information about HTTP"
         },
         "indices": {
+          "type" : "boolean",
+          "description" : "Return information about indices"
         },
         "jvm": {
+          "type" : "boolean",
+          "description" : "Return information about the JVM"
         },
         "network": {
+          "type" : "boolean",
+          "description" : "Return information about network"
         },
         "os": {
+          "type" : "boolean",
+          "description" : "Return information about the operating system"
         },
         "process": {
+          "type" : "boolean",
+          "description" : "Return information about the Elasticsearch process"
         },
         "thread_pool": {
+          "type" : "boolean",
+          "description" : "Return information about the thread pool"
         },
         "transport": {
+          "type" : "boolean",
+          "description" : "Return information about transport"
         }
       }
     },

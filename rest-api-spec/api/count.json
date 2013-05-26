@@ -7,30 +7,52 @@
       "paths": ["/_count", "/{index}/_count", "/{index}/{type}/_count"],
       "parts": {
         "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of indices to restrict the results"
         },
         "type": {
+          "type" : "list",
+          "description" : "A comma-separated list of types to restrict the results"
         }
       },
       "params": {
         "ignore_indices": {
+          "type" : "enum",
+          "options" : ["none","missing"],
+          "default" : "none",
+          "description" : "When performed on multiple indices, allows to ignore `missing` ones"
         },
         "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of indices to restrict the results"
         },
         "min_score": {
+          "type" : "number",
+          "description" : "Include only documents with a specific `_score` value in the result"
         },
         "operation_threading": {
+          "description" : "TODO: ?"
         },
         "preference": {
+          "type" : "string",
+          "description" : "Specify the shards the operation should be performed on (default: random shard)"
         },
         "routing": {
+          "type" : "string",
+          "description" : "Specific routing value"
         },
         "source": {
+          "type" : "string",
+          "description" : "The URL-encoded query definition (instead of using the request body)"
         },
         "type": {
+          "type" : "list",
+          "description" : "A comma-separated list of document types to restrict the results"
         }
       }
     },
     "body": {
+      "description" : "A query to restrict the results (optional)"
     }
   }
 }

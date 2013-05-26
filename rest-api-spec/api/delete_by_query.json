@@ -1,0 +1,62 @@
+{
+  "delete_by_query": {
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/delete-by-query/",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/{index}/_query",
+      "paths": ["/{index}/_query", "/{index}/{type}/_query"],
+      "parts": {
+        "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of indices to restrict the operation"
+        },
+        "type": {
+          "type" : "list",
+          "description" : "A comma-separated list of types to restrict the operation"
+        }
+      },
+      "params": {
+        "consistency": {
+          "type" : "enum",
+          "options" : ["one", "quorum", "all"],
+          "description" : "Specific write consistency setting for the operation"
+        },
+        "ignore_indices": {
+          "type" : "enum",
+          "options" : ["none","missing"],
+          "default" : "none",
+          "description" : "When performed on multiple indices, allows to ignore `missing` ones"
+        },
+        "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of indices to restrict the operation"
+        },
+        "replication": {
+          "type" : "enum",
+          "options" : ["sync","async"],
+          "default" : "sync",
+          "description" : "Specific replication type"
+        },
+        "routing": {
+          "type" : "string",
+          "description" : "Specific routing value"
+        },
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded query definition (instead of using the request body)"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        },
+        "type": {
+          "type" : "list",
+          "description" : "A comma-separated list of document types to restrict the operation"
+        }
+      }
+    },
+    "body": {
+      "description" : "A query to restrict the operation"
+    }
+  }
+}

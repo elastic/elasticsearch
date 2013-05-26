@@ -10,9 +10,9 @@
         }
       },
       "params": {
-        "index": {
-        },
         "ignore_indices": {
+        },
+        "index": {
         }
       }
     },

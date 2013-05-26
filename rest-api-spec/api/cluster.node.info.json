@@ -10,27 +10,27 @@
         }
       },
       "params": {
-        "clear": {
-        },
         "all": {
         },
-        "settings": {
-        },
-        "os": {
-        },
-        "process": {
-        },
-        "jvm": {
-        },
-        "thread_pool": {
-        },
-        "network": {
-        },
-        "transport": {
+        "clear": {
         },
         "http": {
         },
+        "jvm": {
+        },
+        "network": {
+        },
+        "os": {
+        },
         "plugin": {
+        },
+        "process": {
+        },
+        "settings": {
+        },
+        "thread_pool": {
+        },
+        "transport": {
         }
       }
     },

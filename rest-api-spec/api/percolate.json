@@ -12,9 +12,9 @@
         }
       },
       "params": {
-        "type": {
-        },
         "prefer_local": {
+        },
+        "type": {
         }
       }
     },

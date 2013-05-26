@@ -12,15 +12,15 @@
         }
       },
       "params": {
+        "consistency": {
+        },
         "index": {
         },
-        "type": {
+        "refresh": {
         },
         "replication": {
         },
-        "consistency": {
-        },
-        "refresh": {
+        "type": {
         }
       }
     },

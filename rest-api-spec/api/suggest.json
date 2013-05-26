@@ -10,17 +10,17 @@
         }
       },
       "params": {
-        "index": {
-        },
         "ignore_indices": {
+        },
+        "index": {
         },
         "operation_threading": {
         },
-        "source": {
+        "preference": {
         },
         "routing": {
         },
-        "preference": {
+        "source": {
         }
       }
     },

@@ -12,17 +12,17 @@
         }
       },
       "params": {
+        "ignore_indices": {
+        },
         "index": {
         },
         "local": {
         },
-        "type": {
+        "preference": {
         },
         "routing": {
         },
-        "preference": {
-        },
-        "ignore_indices": {
+        "type": {
         }
       }
     },

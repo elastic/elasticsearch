@@ -12,13 +12,13 @@
         }
       },
       "params": {
-        "index": {
+        "ignore_conflicts": {
         },
-        "type": {
+        "index": {
         },
         "timeout": {
         },
-        "ignore_conflicts": {
+        "type": {
         }
       }
     },

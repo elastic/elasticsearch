@@ -12,21 +12,21 @@
       "params": {
         "index": {
         },
+        "level": {
+        },
         "local": {
         },
         "master_timeout": {
         },
         "timeout": {
         },
-        "wait_for_status": {
-        },
-        "wait_for_relocating_shards": {
-        },
         "wait_for_active_shards": {
         },
         "wait_for_nodes": {
         },
-        "level": {
+        "wait_for_relocating_shards": {
+        },
+        "wait_for_status": {
         }
       }
     },

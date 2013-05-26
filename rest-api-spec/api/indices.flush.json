@@ -10,15 +10,15 @@
         }
       },
       "params": {
-        "index": {
-        },
-        "ignore_indices": {
-        },
-        "refresh": {
+        "force": {
         },
         "full": {
         },
-        "force": {
+        "ignore_indices": {
+        },
+        "index": {
+        },
+        "refresh": {
         }
       }
     },

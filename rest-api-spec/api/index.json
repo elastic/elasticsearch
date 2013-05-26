@@ -6,37 +6,37 @@
       "path": "/{index}/{type}",
       "paths": ["/{index}/{type}", "/{index}/{type}/{id}", "/{index}/{type}/{id}/_create"],
       "parts": {
+        "id": {
+        },
         "index": {
         },
         "type": {
-        },
-        "id": {
         }
       },
       "params": {
-        "op_type": {
+        "consistency": {
         },
         "id": {
         },
-        "routing": {
+        "op_type": {
         },
         "parent": {
+        },
+        "percolate": {
+        },
+        "refresh": {
+        },
+        "replication": {
+        },
+        "routing": {
+        },
+        "timeout": {
         },
         "timestamp": {
         },
         "ttl": {
         },
-        "timeout": {
-        },
-        "refresh": {
-        },
         "version_type": {
-        },
-        "percolate": {
-        },
-        "replication": {
-        },
-        "consistency": {
         }
       }
     },

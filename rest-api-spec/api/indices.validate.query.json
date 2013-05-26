@@ -12,17 +12,17 @@
         }
       },
       "params": {
-        "index": {
+        "explain": {
         },
         "ignore_indices": {
+        },
+        "index": {
         },
         "operation_threading": {
         },
         "source": {
         },
         "type": {
-        },
-        "explain": {
         }
       }
     },

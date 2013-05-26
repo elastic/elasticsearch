@@ -6,17 +6,17 @@
       "path": "/_alias/{name}",
       "paths": ["/_alias/{name}", "/{index}/_alias/{name}"],
       "parts": {
-        "name": {
-        },
         "index": {
+        },
+        "name": {
         }
       },
       "params": {
-        "name": {
+        "ignore_indices": {
         },
         "index": {
         },
-        "ignore_indices": {
+        "name": {
         }
       }
     },

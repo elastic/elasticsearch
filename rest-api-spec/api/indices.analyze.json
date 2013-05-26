@@ -10,19 +10,19 @@
         }
       },
       "params": {
-        "text": {
+        "analyzer": {
+        },
+        "field": {
+        },
+        "filters": {
         },
         "index": {
         },
         "prefer_local": {
         },
-        "analyzer": {
-        },
-        "field": {
+        "text": {
         },
         "tokenizer": {
-        },
-        "filters": {
         }
       }
     },

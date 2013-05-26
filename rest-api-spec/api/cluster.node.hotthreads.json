@@ -10,13 +10,13 @@
         }
       },
       "params": {
-        "threads": {
-        },
-        "type": {
-        },
         "interval": {
         },
         "snapshots": {
+        },
+        "threads": {
+        },
+        "type": {
         }
       }
     },

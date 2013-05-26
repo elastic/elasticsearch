@@ -12,21 +12,21 @@
         }
       },
       "params": {
-        "index": {
-        },
         "ignore_indices": {
         },
-        "operation_threading": {
-        },
-        "source": {
-        },
-        "routing": {
+        "index": {
         },
         "min_score": {
         },
-        "type": {
+        "operation_threading": {
         },
         "preference": {
+        },
+        "routing": {
+        },
+        "source": {
+        },
+        "type": {
         }
       }
     },

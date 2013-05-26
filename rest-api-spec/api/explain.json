@@ -6,39 +6,39 @@
       "path": "/{index}/{type}/{id}/_explain",
       "paths": ["/{index}/{type}/{id}/_explain"],
       "parts": {
+        "id": {
+        },
         "index": {
         },
         "type": {
-        },
-        "id": {
         }
       },
       "params": {
-        "id": {
-        },
-        "parent": {
-        },
-        "routing": {
-        },
-        "preference": {
-        },
-        "source": {
-        },
-        "q": {
-        },
-        "df": {
+        "analyze_wildcard": {
         },
         "analyzer": {
         },
-        "analyze_wildcard": {
+        "default_operator": {
         },
-        "lowercase_expanded_terms": {
+        "df": {
+        },
+        "fields": {
+        },
+        "id": {
         },
         "lenient": {
         },
-        "default_operator": {
+        "lowercase_expanded_terms": {
         },
-        "fields": {
+        "parent": {
+        },
+        "preference": {
+        },
+        "q": {
+        },
+        "routing": {
+        },
+        "source": {
         }
       }
     },

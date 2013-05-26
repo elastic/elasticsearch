@@ -10,15 +10,15 @@
         }
       },
       "params": {
+        "ignore_indices": {
+        },
         "index": {
         },
-        "ignore_indices": {
+        "operation_threading": {
         },
         "recovery": {
         },
         "snapshot": {
-        },
-        "operation_threading": {
         }
       }
     },

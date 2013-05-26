@@ -10,21 +10,21 @@
         }
       },
       "params": {
-        "index": {
+        "flush": {
         },
         "ignore_indices": {
         },
-        "wait_for_merge": {
+        "index": {
         },
         "max_num_segments": {
         },
         "only_expunge_deletes": {
         },
-        "flush": {
+        "operation_threading": {
         },
         "refresh": {
         },
-        "operation_threading": {
+        "wait_for_merge": {
         }
       }
     },

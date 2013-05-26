@@ -6,37 +6,37 @@
       "path": "/{index}/{type}/{id}/_update",
       "paths": ["/{index}/{type}/{id}/_update"],
       "parts": {
+        "id": {
+        },
         "index": {
         },
         "type": {
-        },
-        "id": {
         }
       },
       "params": {
+        "consistency": {
+        },
+        "fields": {
+        },
         "id": {
         },
-        "routing": {
+        "lang": {
         },
         "parent": {
         },
-        "timeout": {
+        "percolate": {
         },
         "refresh": {
         },
         "replication": {
         },
-        "consistency": {
+        "retry_on_conflict": {
         },
-        "percolate": {
+        "routing": {
         },
         "script": {
         },
-        "lang": {
-        },
-        "fields": {
-        },
-        "retry_on_conflict": {
+        "timeout": {
         },
         "timestamp": {
         },

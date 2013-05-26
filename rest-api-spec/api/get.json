@@ -6,19 +6,17 @@
       "path": "/{index}/{type}/{id}",
       "paths": ["/{index}/{type}/{id}", "/{index}/{type}/{id}/_source", "/_mget", "/{index}/_mget", "/{index}/{type}/_mget"],
       "parts": {
+        "id": {
+        },
         "index": {
         },
         "type": {
-        },
-        "id": {
         }
       },
       "params": {
+        "fields": {
+        },
         "id": {
-        },
-        "refresh": {
-        },
-        "routing": {
         },
         "parent": {
         },
@@ -26,7 +24,9 @@
         },
         "realtime": {
         },
-        "fields": {
+        "refresh": {
+        },
+        "routing": {
         },
         "type": {
         }

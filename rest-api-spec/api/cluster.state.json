@@ -8,21 +8,21 @@
       "parts": {
       },
       "params": {
-        "master_timeout": {
+        "filter_blocks": {
+        },
+        "filter_index_templates": {
+        },
+        "filter_indices": {
+        },
+        "filter_metadata": {
         },
         "filter_nodes": {
         },
         "filter_routing_table": {
         },
-        "filter_metadata": {
-        },
-        "filter_blocks": {
-        },
-        "filter_indices": {
-        },
-        "filter_index_templates": {
-        },
         "local": {
+        },
+        "master_timeout": {
         }
       }
     },

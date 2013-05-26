@@ -6,6 +6,8 @@
       "path": "/_stats",
       "paths": ["/_stats", "/{index}/_stats", "_stats/docs", "/{index}/_stats/docs", "/_stats/store", "/{index}/_stats/store", "/_stats/indexing", "/{index}/_stats/indexing", "/_stats/indexing/{indexingTypes1}", "/{index}/_stats/indexing/{indexingTypes2}", "/_stats/search", "/{index}/_stats/search", "/_stats/search/{searchGroupsStats1}", "/{index}/_stats/search/{searchGroupsStats2}", "/_stats/get", "/{index}/_stats/get", "/_stats/refresh", "/{index}/_stats/refresh", "/_stats/merge", "/{index}/_stats/merge", "/_stats/flush", "/{index}/_stats/flush", "/_stats/warmer", "/{index}/_stats/warmer", "/_stats/filter_cache", "/{index}/_stats/filter_cache", "/_stats/id_cache", "/{index}/_stats/id_cache", "/_stats/fielddata", "/{index}/_stats/fielddata", "/_stats/fielddata/{fields}", "/{index}/_stats/fielddata/{fields}"],
       "parts": {
+        "fields": {
+        },
         "index": {
         },
         "indexingTypes1": {
@@ -15,48 +17,46 @@
         "searchGroupsStats1": {
         },
         "searchGroupsStats2": {
-        },
-        "fields": {
         }
       },
       "params": {
-        "ignore_indices": {
+        "all": {
         },
         "clear": {
         },
-        "all": {
+        "docs": {
         },
-        "index": {
+        "fielddata": {
         },
-        "types": {
+        "fields": {
+        },
+        "filter_cache": {
+        },
+        "flush": {
+        },
+        "get": {
         },
         "groups": {
         },
-        "docs": {
+        "id_cache": {
         },
-        "store": {
+        "ignore_indices": {
+        },
+        "index": {
         },
         "indexing": {
-        },
-        "search": {
-        },
-        "get": {
         },
         "merge": {
         },
         "refresh": {
         },
-        "flush": {
+        "search": {
+        },
+        "store": {
+        },
+        "types": {
         },
         "warmer": {
-        },
-        "filter_cache": {
-        },
-        "id_cache": {
-        },
-        "fielddata": {
-        },
-        "fields": {
         }
       }
     },

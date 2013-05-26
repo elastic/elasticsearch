@@ -6,53 +6,53 @@
       "path": "/{index}/{type}/{id}/_mlt",
       "paths": ["/{index}/{type}/{id}/_mlt"],
       "parts": {
+        "id": {
+        },
         "index": {
         },
         "type": {
-        },
-        "id": {
         }
       },
       "params": {
+        "boost_terms": {
+        },
         "id": {
         },
-        "routing": {
+        "max_doc_freq": {
+        },
+        "max_query_terms": {
+        },
+        "max_word_len": {
+        },
+        "min_doc_freq": {
+        },
+        "min_term_freq": {
+        },
+        "min_word_len": {
         },
         "mlt_fields": {
         },
         "percent_terms_to_match": {
         },
-        "min_term_freq": {
-        },
-        "max_query_terms": {
-        },
-        "stop_words": {
-        },
-        "min_doc_freq": {
-        },
-        "max_doc_freq": {
-        },
-        "min_word_len": {
-        },
-        "max_word_len": {
-        },
-        "boost_terms": {
-        },
-        "search_type": {
-        },
-        "search_indices": {
-        },
-        "search_types": {
-        },
-        "search_query_hint": {
-        },
-        "search_size": {
+        "routing": {
         },
         "search_from": {
         },
+        "search_indices": {
+        },
+        "search_query_hint": {
+        },
         "search_scroll": {
         },
+        "search_size": {
+        },
         "search_source": {
+        },
+        "search_type": {
+        },
+        "search_types": {
+        },
+        "stop_words": {
         }
       }
     },

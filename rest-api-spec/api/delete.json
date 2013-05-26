@@ -6,29 +6,29 @@
       "path": "/{index}/{type}/{id}",
       "paths": ["/{index}/{type}/{id}"],
       "parts": {
+        "id": {
+        },
         "index": {
         },
         "type": {
-        },
-        "id": {
         }
       },
       "params": {
+        "consistency": {
+        },
         "id": {
         },
         "parent": {
+        },
+        "refresh": {
+        },
+        "replication": {
         },
         "routing": {
         },
         "timeout": {
         },
-        "refresh": {
-        },
         "version_type": {
-        },
-        "replication": {
-        },
-        "consistency": {
         }
       }
     },

@@ -1,0 +1,36 @@
+{
+  "cluster.node.hot_threads": {
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-cluster-nodes-hot-threads/",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cluster/nodes/hot_threads",
+      "paths": ["/_cluster/nodes/hotthreads", "/_cluster/nodes/hot_threads", "/_cluster/nodes/{nodeId}/hotthreads", "/_cluster/nodes/{nodeId}/hot_threads", "/_nodes/hotthreads", "/_nodes/hot_threads", "/_nodes/{nodeId}/hotthreads", "/_nodes/{nodeId}/hot_threads"],
+      "parts": {
+        "nodeId": {
+          "type" : "list",
+          "description" : "A comma-separated list of nodes to limit the returned information"
+        }
+      },
+      "params": {
+        "interval": {
+          "type" : "time",
+          "description" : "The interval for the second sampling of threads"
+        },
+        "snapshots": {
+          "type" : "string",
+          "description" : "TODO: ?"
+        },
+        "threads": {
+          "type" : "number",
+          "description" : "Specify the number of threads to provide information for (default: 3)"
+        },
+        "type": {
+          "type" : "enum",
+          "options" : ["cpu", "wait", "block"],
+          "description" : "The type to sample (default: cpu)"
+        }
+      }
+    },
+    "body": null
+  }
+}

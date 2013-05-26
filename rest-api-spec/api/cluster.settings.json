@@ -10,6 +10,8 @@
       "params": {
       }
     },
-    "body": null
+    "body": {
+      "description" : "The settings to be updated. Can be either `transient` or `persistent`."
+    }
   }
 }

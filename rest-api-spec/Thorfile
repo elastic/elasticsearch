@@ -75,10 +75,10 @@ module Elasticsearch
           name.gsub! /admin\./, ''
 
           # Extract params
-          url_params = content.scan(PATTERN_URL_PARAMS).map { |n| n.first }
+          url_params = content.scan(PATTERN_URL_PARAMS).map { |n| n.first }.sort
 
           # Extract parts
-          url_parts = content.scan(PATTERN_URL_PARTS).map { |n| n.first }
+          url_parts = content.scan(PATTERN_URL_PARTS).map { |n| n.first }.sort
 
           # Extract if body allowed
           has_body  = !!content.match(PATTERN_HAS_BODY)

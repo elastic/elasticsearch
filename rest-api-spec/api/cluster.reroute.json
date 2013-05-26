@@ -9,12 +9,17 @@
       },
       "params": {
         "dry_run": {
+          "type" : "boolean",
+          "description" : "Simulate the operation only and return the resulting state after rebalancing"
         },
         "filter_metadata": {
+          "type" : "boolean",
+          "description" : "TODO: ?"
         }
       }
     },
     "body": {
+      "description" : "The definition of `commands` to perform (`move`, `cancel`, `allocate`)"
     }
   }
 }

@@ -7,30 +7,54 @@
       "paths": ["/_cluster/nodes", "/_cluster/nodes/{nodeId}", "/_nodes", "/_nodes/{nodeId}", "/_nodes/settings", "/_nodes/{nodeId}/settings", "/_nodes/os", "/_nodes/{nodeId}/os", "/_nodes/process", "/_nodes/{nodeId}/process", "/_nodes/jvm", "/_nodes/{nodeId}/jvm", "/_nodes/thread_pool", "/_nodes/{nodeId}/thread_pool", "/_nodes/network", "/_nodes/{nodeId}/network", "/_nodes/transport", "/_nodes/{nodeId}/transport", "/_nodes/http", "/_nodes/{nodeId}/http", "/_nodes/plugin", "/_nodes/{nodeId}/plugin"],
       "parts": {
         "nodeId": {
+          "type" : "list",
+          "description" : "A comma-separated list of nodes to limit the returned information"
         }
       },
       "params": {
         "all": {
+          "type" : "boolean",
+          "description" : "Return all available information"
         },
         "clear": {
+          "type" : "boolean",
+          "description" : "Reset the default settings"
         },
         "http": {
+          "type" : "boolean",
+          "description" : "Return information about HTTP"
         },
         "jvm": {
+          "type" : "boolean",
+          "description" : "Return information about the JVM"
         },
         "network": {
+          "type" : "boolean",
+          "description" : "Return information about network"
         },
         "os": {
+          "type" : "boolean",
+          "description" : "Return information about the operating system"
         },
         "plugin": {
+          "type" : "boolean",
+          "description" : "Return information about plugins"
         },
         "process": {
+          "type" : "boolean",
+          "description" : "Return information about the Elasticsearch process"
         },
         "settings": {
+          "type" : "boolean",
+          "description" : "Return information about node settings"
         },
         "thread_pool": {
+          "type" : "boolean",
+          "description" : "Return information about the thread pool"
         },
         "transport": {
+          "type" : "boolean",
+          "description" : "Return information about transport"
         }
       }
     },

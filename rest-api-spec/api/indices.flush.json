@@ -1,24 +1,35 @@
 {
   "indices.flush": {
-    "documentation": "",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-flush/",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_flush",
       "paths": ["/_flush", "/{index}/_flush"],
       "parts": {
         "index": {
+          "type" : "list",
+          "required" : true,
+          "description" : "A comma-separated list of index names; use `_all` or empty string for all indices"
         }
       },
       "params": {
         "force": {
+          "type" : "boolean",
+          "description" : "TODO: ?"
         },
         "full": {
+          "type" : "boolean",
+          "description" : "TODO: ?"
         },
         "ignore_indices": {
-        },
-        "index": {
+          "type" : "enum",
+          "options" : ["none","missing"],
+          "default" : "none",
+          "description" : "When performed on multiple indices, allows to ignore `missing` ones"
         },
         "refresh": {
+          "type" : "boolean",
+          "description" : "Refresh the index after performing the operation"
         }
       }
     },

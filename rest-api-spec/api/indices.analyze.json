@@ -1,32 +1,49 @@
 {
   "indices.analyze": {
-    "documentation": "",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-analyze/",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_analyze",
       "paths": ["/_analyze", "/{index}/_analyze"],
       "parts": {
         "index": {
+          "type" : "string",
+          "description" : "The name of the index to scope the operation"
         }
       },
       "params": {
         "analyzer": {
+          "type" : "string",
+          "description" : "The name of the analyzer to use"
         },
         "field": {
+          "type" : "string",
+          "description" : "The name of the field to "
         },
         "filters": {
+          "type" : "list",
+          "description" : "A comma-separated list of filters to use for the analysis"
         },
         "index": {
+          "type" : "string",
+          "description" : "The name of the index to scope the operation"
         },
         "prefer_local": {
+          "type" : "boolean",
+          "description" : "Specify whether a local or random replica should be used (default: true)"
         },
         "text": {
+          "type" : "string",
+          "description" : "The text on which the analysis should be performed (when request body is not used)"
         },
         "tokenizer": {
+          "type" : "string",
+          "description" : "The name of the tokenizer to use for the analysis"
         }
       }
     },
     "body": {
+      "description" : "The text on which the analysis should be performed"
     }
   }
 }

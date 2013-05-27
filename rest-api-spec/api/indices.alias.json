@@ -1,21 +1,29 @@
 {
   "indices.alias": {
-    "documentation": "",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_aliases",
       "paths": ["/_aliases", "/{index}/_aliases"],
       "parts": {
         "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of index names to filter aliases"
         }
       },
       "params": {
         "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of index names to filter aliases"
         },
         "timeout": {
+          "type" : "time",
+          "description" : "Explicit timestamp for the document"
         }
       }
     },
-    "body": null
+    "body": {
+      "description" : "The definition of `actions` to perform"
+    }
   }
 }

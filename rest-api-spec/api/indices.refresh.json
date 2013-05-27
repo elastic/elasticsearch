@@ -1,20 +1,26 @@
 {
   "indices.refresh": {
-    "documentation": "",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-refresh/",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_refresh",
       "paths": ["/_refresh", "/{index}/_refresh"],
       "parts": {
         "index": {
+          "type" : "list",
+          "required" : true,
+          "description" : "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
         }
       },
       "params": {
         "ignore_indices": {
-        },
-        "index": {
+          "type" : "enum",
+          "options" : ["none","missing"],
+          "default" : "none",
+          "description" : "When performed on multiple indices, allows to ignore `missing` ones"
         },
         "operation_threading": {
+          "description" : "TODO: ?"
         }
       }
     },

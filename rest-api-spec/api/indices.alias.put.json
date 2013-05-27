@@ -1,26 +1,39 @@
 {
   "indices.alias.put": {
-    "documentation": "",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
     "methods": ["PUT"],
     "url": {
       "path": "/{index}/_alias/{name}",
       "paths": ["/{index}/_alias/{name}", "/_alias/{name}", "/{index}/_alias", "/_alias"],
       "parts": {
         "index": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the index with an alias"
         },
         "name": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the alias to be created or updated"
         }
       },
       "params": {
         "index": {
+          "type" : "string",
+          "description" : "The name of the index with an alias"
         },
         "name": {
+          "type" : "string",
+          "description" : "The name of the alias to be created or updated"
         },
         "timeout": {
+          "type" : "time",
+          "description" : "Explicit timestamp for the document"
         }
       }
     },
     "body": {
+      "description" : "The settings for the alias, such as `routing` or `filter`"
     }
   }
 }

@@ -7,18 +7,27 @@
       "paths": ["/_status", "/{index}/_status"],
       "parts": {
         "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
         }
       },
       "params": {
         "ignore_indices": {
-        },
-        "index": {
+          "type" : "enum",
+          "options" : ["none","missing"],
+          "default" : "none",
+          "description" : "When performed on multiple indices, allows to ignore `missing` ones"
         },
         "operation_threading": {
+          "description" : "TODO: ?"
         },
         "recovery": {
+          "type" : "boolean",
+          "description" : "Return information about shard recovery"
         },
         "snapshot": {
+          "type" : "boolean",
+          "description" : "TODO: ?"
         }
       }
     },

@@ -7,17 +7,25 @@
       "paths": ["/{index}/{type}/_percolate"],
       "parts": {
         "index": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the index with a registered percolator query"
         },
         "type": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The document type"
         }
       },
       "params": {
         "prefer_local": {
-        },
-        "type": {
+          "type" : "boolean",
+          "description" : "Specify whether a local or random replica should be used (default: true)"
         }
       }
     },
-    "body": null
+    "body": {
+      "description" : "The document (`doc`) to percolate against registered queries; optionally also a `query` to limit the percolation to specific registered queries"
+    }
   }
 }

@@ -1,17 +1,18 @@
 {
   "indices.template.get": {
-    "documentation": "",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-templates/",
     "methods": ["GET"],
     "url": {
       "path": "/_template/{name}",
       "paths": ["/_template/{name}"],
       "parts": {
         "name": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the template"
         }
       },
       "params": {
-        "name": {
-        }
       }
     },
     "body": null

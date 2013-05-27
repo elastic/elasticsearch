@@ -16,21 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest;
-import java.io.IOException;
+package org.elasticsearch.test.integration.search.suggest;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.util.CharsRef;
-import org.elasticsearch.search.suggest.Suggest.Suggestion;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
-import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.search.suggest.SuggestModule;
 
-public interface Suggester<T extends SuggestionSearchContext.SuggestionContext> {
+/**
+ *
+ */
+public class CustomSuggesterPlugin extends AbstractPlugin {
 
-    public Suggestion<? extends Entry<? extends Option>> execute(String name, T suggestion, IndexReader indexReader, CharsRef spare)
-            throws IOException;
+    @Override
+    public String name() {
+        return "test-plugin-custom-suggester";
+    }
 
-    public String[] names();
+    @Override
+    public String description() {
+        return "Custom suggester to test pluggable implementation";
+    }
 
-    public SuggestContextParser getContextParser();
+    public void onModule(SuggestModule suggestModule) {
+        suggestModule.registerSuggester(CustomSuggester.class);
+    }
+
 }

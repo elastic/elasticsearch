@@ -45,9 +45,9 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
     private final SuggestParseElement parseElement;
 
     @Inject
-    public SuggestPhase(Settings settings) {
+    public SuggestPhase(Settings settings, SuggestParseElement suggestParseElement) {
         super(settings);
-        this.parseElement = new SuggestParseElement();
+        this.parseElement = suggestParseElement;
     }
 
     @Override

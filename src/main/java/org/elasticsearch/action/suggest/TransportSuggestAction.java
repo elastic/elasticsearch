@@ -65,10 +65,10 @@ public class TransportSuggestAction extends TransportBroadcastOperationAction<Su
 
     @Inject
     public TransportSuggestAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  IndicesService indicesService) {
+                                  IndicesService indicesService, SuggestPhase suggestPhase) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
-        this.suggestPhase = new SuggestPhase(settings);
+        this.suggestPhase = suggestPhase;
     }
 
     @Override

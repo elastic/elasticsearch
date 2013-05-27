@@ -33,10 +33,11 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 
-final class PhraseSuggester implements Suggester<PhraseSuggestionContext> {
+public final class PhraseSuggester implements Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
     
     /*
@@ -79,6 +80,16 @@ final class PhraseSuggester implements Suggester<PhraseSuggestionContext> {
         final Suggestion<Entry<Option>> response = new Suggestion<Entry<Option>>(name, suggestion.getSize());
         response.addTerm(resultEntry);
         return response;
+    }
+
+    @Override
+    public String[] names() {
+        return new String[] {"phrase"};
+    }
+
+    @Override
+    public SuggestContextParser getContextParser() {
+        return new PhraseSuggestParser();
     }
 
 }

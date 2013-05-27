@@ -1,36 +1,62 @@
 {
   "indices.cache.clear": {
-    "documentation": "",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-clearcache/",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_cache/clear",
       "paths": ["/_cache/clear", "/{index}/_cache/clear"],
       "parts": {
         "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of index name to limit the operation"
         }
       },
       "params": {
         "field_data": {
+          "type" : "boolean",
+          "description" : "Clear field data"
         },
         "fielddata": {
+          "type" : "boolean",
+          "description" : "Clear field data"
         },
         "fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields to clear when using the `field_data` parameter (default: all)"
         },
         "filter": {
+          "type" : "boolean",
+          "description" : "Clear filter caches"
         },
         "filter_cache": {
+          "type" : "boolean",
+          "description" : "Clear filter caches"
         },
         "filter_keys": {
+          "type" : "boolean",
+          "description" : "A comma-separated list of keys to clear when using the `filter_cache` parameter (default: all)"
         },
         "id": {
+          "type" : "boolean",
+          "description" : "Clear ID caches for parent/child"
         },
         "id_cache": {
+          "type" : "boolean",
+          "description" : "Clear ID caches for parent/child"
         },
         "ignore_indices": {
+          "type" : "enum",
+          "options" : ["none","missing"],
+          "default" : "none",
+          "description" : "When performed on multiple indices, allows to ignore `missing` ones"
         },
         "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of index name to limit the operation"
         },
         "recycler": {
+          "type" : "boolean",
+          "description" : "TODO: ?"
         }
       }
     },

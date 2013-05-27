@@ -32,11 +32,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
-final class TermSuggester implements Suggester<TermSuggestionContext> {
+public final class TermSuggester implements Suggester<TermSuggestionContext> {
 
     @Override
     public TermSuggestion execute(String name, TermSuggestionContext suggestion, IndexReader indexReader, CharsRef spare) throws IOException {
@@ -62,7 +63,17 @@ final class TermSuggester implements Suggester<TermSuggestionContext> {
         return response;
     }
 
-   
+    @Override
+    public String[] names() {
+        return new String[] {"term"};
+    }
+
+    @Override
+    public SuggestContextParser getContextParser() {
+        return new TermSuggestParser();
+    }
+
+
     private List<Token> queryTerms(SuggestionContext suggestion, CharsRef spare) throws IOException {
         final List<Token> result = new ArrayList<TermSuggester.Token>();
         final String field = suggestion.getField();

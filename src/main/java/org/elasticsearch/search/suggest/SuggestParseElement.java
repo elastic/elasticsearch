@@ -22,21 +22,24 @@ import java.io.IOException;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggestParser;
-import org.elasticsearch.search.suggest.term.TermSuggestParser;
 
 /**
  *
  */
 public class SuggestParseElement implements SearchParseElement {
-    private final SuggestContextParser termSuggestParser = new TermSuggestParser();
-    private final SuggestContextParser phraseSuggestParser = new PhraseSuggestParser();
-    
+    private Suggesters suggesters;
+
+    @Inject
+    public SuggestParseElement(Suggesters suggesters) {
+        this.suggesters = suggesters;
+    }
+
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService());
@@ -74,16 +77,11 @@ public class SuggestParseElement implements SearchParseElement {
                         if (suggestionName == null) {
                             throw new ElasticSearchIllegalArgumentException("Suggestion must have name");
                         }
-                        final SuggestContextParser contextParser;
-                        if ("term".equals(fieldName)) {
-                            contextParser = termSuggestParser;
-                        } else if ("phrase".equals(fieldName)) {
-                            contextParser = phraseSuggestParser;
-                        } else {
+                        if (suggesters.get(fieldName) == null) {
                             throw new ElasticSearchIllegalArgumentException("Suggester[" + fieldName + "] not supported");
                         }
+                        final SuggestContextParser contextParser = suggesters.get(fieldName).getContextParser();
                         parseAndVerify(parser, mapperService, suggestionSearchContext, globalText, suggestionName, suggestText, contextParser);
-                        
                     }
                 }
             }

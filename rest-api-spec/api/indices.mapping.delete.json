@@ -1,21 +1,22 @@
 {
-  "indices.mapping.delete": {
-    "documentation": "",
+  "indices.type.delete": {
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-delete-mapping/",
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}/{type}/_mapping",
       "paths": ["/{index}/{type}/_mapping", "/{index}/{type}"],
       "parts": {
         "index": {
+          "type" : "list",
+          "required" : true,
+          "description" : "A comma-separated list of index names; use `_all` for all indices"
         },
         "type": {
+          "type" : "string",
+          "description" : "The name of the document type to delete"
         }
       },
       "params": {
-        "index": {
-        },
-        "type": {
-        }
       }
     },
     "body": null

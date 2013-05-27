@@ -1,21 +1,23 @@
 {
   "indices.mapping.get": {
-    "documentation": "",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-get-mapping/",
     "methods": ["GET"],
     "url": {
       "path": "/_mapping",
       "paths": ["/_mapping", "/{index}/_mapping", "/{index}/{type}/_mapping"],
       "parts": {
         "index": {
+          "type" : "list",
+          "required" : true,
+          "description" : "A comma-separated list of index names; use `_all` or empty string for all indices"
         },
         "type": {
+          "type" : "list",
+          "required" : true,
+          "description" : "A comma-separated list of document types"
         }
       },
       "params": {
-        "index": {
-        },
-        "type": {
-        }
       }
     },
     "body": null

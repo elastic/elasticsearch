@@ -8,7 +8,7 @@
       "parts": {
         "index": {
           "type" : "string",
-          "description" : "The name of the index to close"
+          "description" : "The name of the index"
         }
       },
       "params": {

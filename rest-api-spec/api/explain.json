@@ -45,10 +45,6 @@
           "type": "list",
           "description" : "A comma-separated list of fields to return in the response"
         },
-        "id": {
-          "type" : "string",
-          "description" : "The document ID"
-        },
         "lenient": {
           "type" : "boolean",
           "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"

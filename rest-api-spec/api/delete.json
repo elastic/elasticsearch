@@ -28,10 +28,6 @@
           "options" : ["one", "quorum", "all"],
           "description" : "Specific write consistency setting for the operation"
         },
-        "id": {
-          "type" : "string",
-          "description" : "The document ID"
-        },
         "parent": {
           "type" : "string",
           "description" : "ID of parent document"

@@ -12,10 +12,6 @@
         }
       },
       "params": {
-        "index": {
-          "type" : "string",
-          "description" : "Limit the health information to specific index"
-        },
         "level": {
           "type" : "enum",
           "options" : ["cluster","indices","shards"],

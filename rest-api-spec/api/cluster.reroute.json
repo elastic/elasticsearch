@@ -10,7 +10,7 @@
       "params": {
         "dry_run": {
           "type" : "boolean",
-          "description" : "Simulate the operation only and return the resulting state after rebalancing"
+          "description" : "Simulate the operation only and return the resulting state"
         },
         "filter_metadata": {
           "type" : "boolean",

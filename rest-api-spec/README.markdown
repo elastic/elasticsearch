@@ -7,30 +7,32 @@ Their purpose is to formalize and standardize the API, to facilitate development
 Example for the ["Create Index"](http://www.elasticsearch.org/guide/reference/api/admin-indices-create-index/) API:
 
 ```json
-    {
-      "indices.create": {
-        "documentation": "http://elasticsearch.org/guide/reference/mapping/",
-
-        "methods": ["PUT", "POST"],
-
-        "url": {
-          "path": "/{index}",
-
-          "paths": ["/{index}"],
-
-          "parts": {
-            "index": {}
-          },
-
-          "params": {
-            "index": {},
-            "timeout": {}
-          }
-        },
-        "body": {
+{
+  "indices.create": {
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-create-index/",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/{index}",
+      "paths": ["/{index}"],
+      "parts": {
+        "index": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the index"
+        }
+      },
+      "params": {
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
         }
       }
+    },
+    "body": {
+      "description" : "The configuration for the index (`settings` and `mappings`)"
     }
+  }
+}
 ```
 
 The specification contains:
@@ -39,12 +41,12 @@ The specification contains:
 * Link to the documentation at <http://elasticsearch.org>
 * List of HTTP methods for the endpoint
 * URL specification: path, parts, parameters
-* Whether body is allowed for the endpoint or not
+* Whether body is allowed for the endpoint or not and its description
 
 The `methods` and `url.paths` elements list all possible HTTP methods and URLs for the endpoint;
 it is the responsibility of the developer to use this information for a sensible API on the target platform.
 
-The repository also contains a utility script in Ruby which will scan and parse the Elasticsearch source code
+The repository contains a utility script in Ruby which will scan and parse the Elasticsearch source code
 to extract the information from the Java source files. Run `bundle install` and then `thor help api:generate:spec`.
 
 ## License

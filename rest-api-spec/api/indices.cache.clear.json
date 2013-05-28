@@ -56,7 +56,7 @@
         },
         "recycler": {
           "type" : "boolean",
-          "description" : "TODO: ?"
+          "description" : "Clear the recycler cache"
         }
       }
     },

@@ -22,10 +22,6 @@
           "default" : "none",
           "description" : "When performed on multiple indices, allows to ignore `missing` ones"
         },
-        "index": {
-          "type" : "list",
-          "description" : "A comma-separated list of indices to restrict the results"
-        },
         "min_score": {
           "type" : "number",
           "description" : "Include only documents with a specific `_score` value in the result"
@@ -44,10 +40,6 @@
         "source": {
           "type" : "string",
           "description" : "The URL-encoded query definition (instead of using the request body)"
-        },
-        "type": {
-          "type" : "list",
-          "description" : "A comma-separated list of document types to restrict the results"
         }
       }
     },

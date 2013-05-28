@@ -18,10 +18,6 @@
         }
       },
       "params": {
-        "name": {
-          "type" : "string",
-          "description" : "The name of the alias to be created or updated"
-        },
         "timeout": {
           "type" : "time",
           "description" : "Explicit timestamp for the document"

@@ -8,7 +8,7 @@
       "parts": {
         "nodeId": {
           "type" : "list",
-          "description" : "A comma-separated list of nodes to limit the returned information"
+          "description" : "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
         }
       },
       "params": {

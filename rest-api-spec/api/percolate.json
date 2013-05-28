@@ -20,7 +20,7 @@
       "params": {
         "prefer_local": {
           "type" : "boolean",
-          "description" : "Specify whether a local or random replica should be used (default: true)"
+          "description" : "With `true`, specify that a local shard should be used if available, with `false`, use a random shard (default: true)"
         }
       }
     },

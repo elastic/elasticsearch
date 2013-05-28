@@ -26,16 +26,16 @@
         "metric_family" : {
           "type" : "enum",
           "values" : ["all","fs","http","indices","jvm","network","os","process","thread_pool","transport"],
-          "description" : "Limit the information returned to certain metric family"
+          "description" : "Limit the information returned to a certain metric family"
         },
         "metric" : {
           "type" : "enum",
           "values" : ["docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merges", "refresh", "search", "store", "warmer"],
-          "description" : "Limit the information returned for `indices` family to a specifi metric"
+          "description" : "Limit the information returned for `indices` family to a specific metric"
         },
         "nodeId": {
           "type" : "list",
-          "description" : "A comma-separated list of nodes to limit the returned information"
+          "description" : "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
         }
       },
       "params": {

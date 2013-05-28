@@ -1,5 +1,5 @@
 {
-  "search": {
+  "msearch": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/multi-search/",
     "methods": ["GET", "POST"],
     "url": {
@@ -24,7 +24,7 @@
       }
     },
     "body": {
-      "description": "The request definitions (metadata-search request pairs), separated by newlines"
+      "description": "The request definitions (metadata-search request definition pairs), separated by newlines"
     }
   }
 }

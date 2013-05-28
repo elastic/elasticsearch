@@ -12,10 +12,6 @@
         }
       },
       "params": {
-        "index": {
-          "type" : "list",
-          "description" : "A comma-separated list of index names to filter aliases"
-        },
         "timeout": {
           "type" : "time",
           "description" : "Explicit timestamp for the document"

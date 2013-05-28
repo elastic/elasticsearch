@@ -117,6 +117,7 @@ public class ESExporter extends AbstractLifecycleComponent<ESExporter> implement
             if (conn.getResponseCode() != 201) {
                 logger.error("Remote target didn't respond with 201 Created");
             }
+            conn.getInputStream().close(); // close and release to connection pool.
 
         } catch (IOException e) {
             logger.error("Error connecting to target", e);

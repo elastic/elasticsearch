@@ -21,10 +21,6 @@
           "options" : ["one", "quorum", "all"],
           "description" : "Explicit write consistency setting for the operation"
         },
-        "index": {
-          "type" : "string",
-          "description" : "Default index for items which don't provide one"
-        },
         "refresh": {
           "type" : "boolean",
           "description" : "Refresh the index after performing the operation"

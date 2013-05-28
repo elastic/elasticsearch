@@ -12,7 +12,7 @@
         },
         "name": {
           "type" : "string",
-          "description" : "The name of the warmer (supports wildcards)"
+          "description" : "The name of the warmer"
         },
         "type": {
           "type" : "list",
@@ -23,7 +23,7 @@
       }
     },
     "body": {
-      "description" : "The search request definition (query, filters, facets, sorting, etc)"
+      "description" : "The search request definition for the warmer (query, filters, facets, sorting, etc)"
     }
   }
 }

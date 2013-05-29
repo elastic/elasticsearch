@@ -29,7 +29,12 @@ import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 public final class TermSuggestParser implements SuggestContextParser {
-    private final TermSuggester suggester = new TermSuggester();
+
+    private TermSuggester suggester;
+
+    public TermSuggestParser(TermSuggester suggester) {
+        this.suggester = suggester;
+    }
 
     public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService) throws IOException {
         XContentParser.Token token;

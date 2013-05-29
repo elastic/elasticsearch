@@ -65,6 +65,7 @@ import org.apache.lucene.analysis.nl.DutchStemFilter;
 import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.pattern.PatternTokenizer;
+import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
@@ -647,6 +648,19 @@ public class IndicesAnalysisService extends AbstractComponent {
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new KeywordRepeatFilter(tokenStream);
+            }
+        }));
+        
+        tokenFilterFactories.put("type_as_payload", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            
+            @Override
+            public String name() {
+                return "type_as_payload";
+            }
+            
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new TypeAsPayloadTokenFilter(tokenStream);
             }
         }));
 

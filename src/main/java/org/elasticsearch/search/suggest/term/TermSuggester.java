@@ -70,7 +70,7 @@ public final class TermSuggester implements Suggester<TermSuggestionContext> {
 
     @Override
     public SuggestContextParser getContextParser() {
-        return new TermSuggestParser();
+        return new TermSuggestParser(this);
     }
 
 

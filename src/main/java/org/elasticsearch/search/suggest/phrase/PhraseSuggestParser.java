@@ -35,7 +35,11 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCan
 
 public final class PhraseSuggestParser implements SuggestContextParser {
 
-    private final PhraseSuggester suggester = new PhraseSuggester();
+    private PhraseSuggester suggester;
+
+    public PhraseSuggestParser(PhraseSuggester suggester) {
+        this.suggester = suggester;
+    }
 
     public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService) throws IOException {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);

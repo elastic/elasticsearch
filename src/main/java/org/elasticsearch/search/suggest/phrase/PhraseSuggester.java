@@ -89,7 +89,7 @@ public final class PhraseSuggester implements Suggester<PhraseSuggestionContext>
 
     @Override
     public SuggestContextParser getContextParser() {
-        return new PhraseSuggestParser();
+        return new PhraseSuggestParser(this);
     }
 
 }

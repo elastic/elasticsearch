@@ -647,6 +647,16 @@ public final class XContentBuilder implements BytesStream {
         endArray();
         return this;
     }
+    
+    public XContentBuilder field(XContentBuilderString name, int offset, int length, int... value) throws IOException {
+        assert ((offset >= 0) && (value.length > length));
+        startArray(name);
+        for (int i = offset; i < length; i++) {
+            value(value[i]);
+        }
+        endArray();
+        return this;
+    }
 
     public XContentBuilder field(XContentBuilderString name, int... value) throws IOException {
         startArray(name);

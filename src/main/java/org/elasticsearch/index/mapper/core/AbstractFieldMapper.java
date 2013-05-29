@@ -666,7 +666,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
     }
 
-    protected static String termVectorOptionsToString(FieldType fieldType) {
+    public static String termVectorOptionsToString(FieldType fieldType) {
         if (!fieldType.storeTermVectors()) {
             return "no";
         } else if(!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {

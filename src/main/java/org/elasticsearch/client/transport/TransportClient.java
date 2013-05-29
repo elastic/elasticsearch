@@ -39,6 +39,8 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
+import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
@@ -428,6 +430,11 @@ public class TransportClient extends AbstractClient {
     @Override
     public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
         internalClient.moreLikeThis(request, listener);
+    }
+    
+    @Override
+    public void termVector(TermVectorRequest request, ActionListener<TermVectorResponse> listener) {
+        internalClient.termVector(request, listener);
     }
 
     @Override

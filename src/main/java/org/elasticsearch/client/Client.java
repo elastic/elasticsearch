@@ -41,6 +41,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
+import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
+import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -433,7 +436,7 @@ public interface Client {
      * @param listener A listener to be notified of the result
      */
     void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
-
+    
     /**
      * A more like this action to search for documents that are "like" a specific document.
      *
@@ -442,6 +445,33 @@ public interface Client {
      * @param id    The id of the document
      */
     MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id);
+
+    
+    /**
+     * An action that returns the term vectors for a specific document.
+     *
+     * @param request The term vector request
+     * @return The response future
+     */
+    ActionFuture<TermVectorResponse> termVector(TermVectorRequest request);
+
+    /**
+     * An action that returns the term vectors for a specific document.
+     *
+     * @param request The term vector request
+     * @return The response future
+     */
+    void termVector(TermVectorRequest request, ActionListener<TermVectorResponse> listener);
+
+
+    /**
+     * Builder for the term vector request.
+     *
+     * @param index The index to load the document from
+     * @param type  The type of the document
+     * @param id    The id of the document
+     */
+    TermVectorRequestBuilder prepareTermVector(String index, String type, String id);
 
     /**
      * Percolates a request returning the matches documents.

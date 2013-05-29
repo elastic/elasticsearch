@@ -48,6 +48,10 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisAction;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
+import org.elasticsearch.action.termvector.TermVectorAction;
+import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
+import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
@@ -292,6 +296,21 @@ public abstract class AbstractClient implements InternalClient {
     @Override
     public MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id) {
         return new MoreLikeThisRequestBuilder(this, index, type, id);
+    }
+    
+    @Override
+    public ActionFuture<TermVectorResponse> termVector(final TermVectorRequest request) {
+        return execute(TermVectorAction.INSTANCE, request);
+    }
+
+    @Override
+    public void termVector(final TermVectorRequest request, final ActionListener<TermVectorResponse> listener) {
+        execute(TermVectorAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public TermVectorRequestBuilder prepareTermVector(String index, String type, String id) {
+        return new TermVectorRequestBuilder(this, index, type, id);
     }
 
     @Override

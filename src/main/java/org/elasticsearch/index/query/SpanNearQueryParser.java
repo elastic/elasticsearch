@@ -52,7 +52,7 @@ public class SpanNearQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         float boost = 1.0f;
-        int slop = Integer.MIN_VALUE;
+        Integer slop = null;
         boolean inOrder = true;
         boolean collectPayloads = true;
 
@@ -81,7 +81,7 @@ public class SpanNearQueryParser implements QueryParser {
                 } else if ("collect_payloads".equals(currentFieldName) || "collectPayloads".equals(currentFieldName)) {
                     collectPayloads = parser.booleanValue();
                 } else if ("slop".equals(currentFieldName)) {
-                    slop = parser.intValue();
+                    slop = Integer.valueOf(parser.intValue());
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
@@ -94,11 +94,11 @@ public class SpanNearQueryParser implements QueryParser {
         if (clauses.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "span_near must include [clauses]");
         }
-        if (slop == Integer.MIN_VALUE) {
+        if (slop == null) {
             throw new QueryParsingException(parseContext.index(), "span_near must include [slop]");
         }
 
-        SpanNearQuery query = new SpanNearQuery(clauses.toArray(new SpanQuery[clauses.size()]), slop, inOrder, collectPayloads);
+        SpanNearQuery query = new SpanNearQuery(clauses.toArray(new SpanQuery[clauses.size()]), slop.intValue(), inOrder, collectPayloads);
         query.setBoost(boost);
         return query;
     }

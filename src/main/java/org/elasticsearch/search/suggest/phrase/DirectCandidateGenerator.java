@@ -41,13 +41,14 @@ import org.elasticsearch.search.suggest.SuggestUtils;
 //TODO public for tests
 public final class DirectCandidateGenerator extends CandidateGenerator {
 
+    private final static double LOG_BASE = 5;
+
     private final DirectSpellChecker spellchecker;
     private final String field;
     private final SuggestMode suggestMode;
     private final TermsEnum termsEnum;
     private final IndexReader reader;
     private final long dictSize;
-    private final double logBase = 5;
     private final long frequencyPlateau;
     private final Analyzer preFilter;
     private final Analyzer postFilter;
@@ -175,7 +176,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     
     protected long thresholdFrequency(long termFrequency, long dictionarySize) {
         if (termFrequency > 0) {
-            return (long) Math.max(0, Math.round(termFrequency * (Math.log10(termFrequency - frequencyPlateau) * (1.0 / Math.log10(logBase))) + 1));
+            return (long) Math.max(0, Math.round(termFrequency * (Math.log10(termFrequency - frequencyPlateau) * (1.0 / Math.log10(LOG_BASE))) + 1));
         }
         return 0;
         

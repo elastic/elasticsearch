@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch</artifactId>
-    <version>0.90.1-SNAPSHOT</version>
+    <version>0.90.1</version>
     <packaging>jar</packaging>
     <description>ElasticSearch - Open Source, Distributed, RESTful Search Engine</description>
     <inceptionYear>2009</inceptionYear>
@@ -792,68 +792,68 @@
                     </postremoveScriptlet>
                 </configuration>
             </plugin>
-			<plugin>
-		<groupId>de.thetaphi</groupId>
-		<artifactId>forbiddenapis</artifactId>
-		<version>1.3</version>
-	
-		<executions>
-			<execution>
-				<id>check-forbidden-apis</id>
-				<configuration>
-					<targetVersion>1.6</targetVersion>
-					<!-- disallow undocumented classes like sun.misc.Unsafe: -->
-					<internalRuntimeForbidden>true</internalRuntimeForbidden>
-					<!-- if the used Java version is too new, don't fail, just do nothing: -->
-					<failOnUnsupportedJava>false</failOnUnsupportedJava>
-					<excludes>
-						<exclude>jsr166e/**</exclude>
-						<exclude>jsr166y/**</exclude>
-						<!--  these excludes are due to sysout/syserr usage - we should check those at some point
-						<exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
-						<exclude>org/elasticsearch/common/logging/support/LoggerMessageFormat.class</exclude>
-						<exclude>org/elasticsearch/common/Base64.class</exclude>
-						<exclude>org/elasticsearch/common/compress/bzip2/CBZip2InputStream.class</exclude>
-						<exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
-						<exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
-						 -->
-					</excludes>
-					<bundledSignatures>
-						<!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
-						<bundledSignature>jdk-unsafe</bundledSignature>
-						<bundledSignature>jdk-deprecated</bundledSignature>
-						<!-- <bundledSignaure>jdk-system-out</bundledSignaure>  see excludes -->
-					</bundledSignatures>
-					<signaturesFiles>
-						<signaturesFile>core-signatures.txt</signaturesFile>
-					</signaturesFiles>
-				</configuration>
-				<phase>test</phase>
-				<goals>
-					<goal>check</goal>
-				</goals>
-			</execution>
-			<execution>
-				<id>check-forbidden-test-apis</id>
-				<configuration>
-					<targetVersion>1.6</targetVersion>
-					<!-- disallow undocumented classes like sun.misc.Unsafe: -->
-					<internalRuntimeForbidden>true</internalRuntimeForbidden>
-					<!-- if the used Java version is too new, don't fail, just do nothing: -->
-					<failOnUnsupportedJava>false</failOnUnsupportedJava>
-					<bundledSignatures>
-						<!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
-						<bundledSignature>jdk-unsafe</bundledSignature>
-						<bundledSignature>jdk-deprecated</bundledSignature>
-					</bundledSignatures>
-				</configuration>
-				<phase>test</phase>
-				<goals>
-					<goal>testCheck</goal>
-				</goals>
-			</execution>
-		</executions>
-		</plugin>
+            <plugin>
+                <groupId>de.thetaphi</groupId>
+                <artifactId>forbiddenapis</artifactId>
+                <version>1.3</version>
+
+                <executions>
+                    <execution>
+                        <id>check-forbidden-apis</id>
+                        <configuration>
+                            <targetVersion>1.6</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <excludes>
+                                <exclude>jsr166e/**</exclude>
+                                <exclude>jsr166y/**</exclude>
+                                <!--  these excludes are due to sysout/syserr usage - we should check those at some point
+                                <exclude>org/elasticsearch/common/logging/log4j/ConsoleAppender*</exclude>
+                                <exclude>org/elasticsearch/common/logging/support/LoggerMessageFormat.class</exclude>
+                                <exclude>org/elasticsearch/common/Base64.class</exclude>
+                                <exclude>org/elasticsearch/common/compress/bzip2/CBZip2InputStream.class</exclude>
+                                <exclude>org/elasticsearch/plugins/PluginManager.class</exclude>
+                                <exclude>org/elasticsearch/bootstrap/Bootstrap.class</exclude>
+                                 -->
+                            </excludes>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                                <!-- <bundledSignaure>jdk-system-out</bundledSignaure>  see excludes -->
+                            </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>core-signatures.txt</signaturesFile>
+                            </signaturesFiles>
+                        </configuration>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check-forbidden-test-apis</id>
+                        <configuration>
+                            <targetVersion>1.6</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'maven.compiler.target': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                            </bundledSignatures>
+                        </configuration>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>testCheck</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
         <pluginManagement>
             <plugins>

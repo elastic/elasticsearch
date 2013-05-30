@@ -145,7 +145,7 @@ public class FetchPhase implements SearchPhase {
             fieldsVisitor.postProcess(context.mapperService());
 
             Map<String, SearchHitField> searchFields = null;
-            if (fieldsVisitor.fields() != null) {
+            if (!fieldsVisitor.fields().isEmpty()) {
                 searchFields = new HashMap<String, SearchHitField>(fieldsVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
                     searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue()));

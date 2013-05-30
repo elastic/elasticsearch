@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fieldvisitor;
 
+import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
@@ -44,9 +45,6 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
     protected Map<String, List<Object>> fieldsValues;
 
     public void postProcess(MapperService mapperService) {
-        if (fieldsValues == null || fieldsValues.isEmpty()) {
-            return;
-        }
         if (uid != null) {
             DocumentMapper documentMapper = mapperService.documentMapper(uid.type());
             if (documentMapper != null) {
@@ -56,7 +54,7 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
             }
         }
         // can't derive exact mapping type
-        for (Map.Entry<String, List<Object>> entry : fieldsValues.entrySet()) {
+        for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             FieldMappers fieldMappers = mapperService.indexName(entry.getKey());
             if (fieldMappers == null) {
                 continue;
@@ -69,8 +67,8 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public void postProcess(DocumentMapper documentMapper) {
-        for (Map.Entry<String, List<Object>> entry : fieldsValues.entrySet()) {
-            FieldMapper fieldMapper = documentMapper.mappers().indexName(entry.getKey()).mapper();
+        for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
+            FieldMapper<?> fieldMapper = documentMapper.mappers().indexName(entry.getKey()).mapper();
             if (fieldMapper == null) {
                 continue;
             }
@@ -128,7 +126,9 @@ public abstract class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public Map<String, List<Object>> fields() {
-        return fieldsValues;
+        return fieldsValues != null
+                ? fieldsValues
+                : ImmutableMap.<String, List<Object>>of();
     }
 
     public void reset() {

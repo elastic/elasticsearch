@@ -68,9 +68,9 @@ public class MultiMatchQuery extends MatchQuery {
         if (useDisMax) {
             DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreaker);
             boolean clauseAdded = false;
-            for (String fieldName : fieldNames.keySet()) {
-                Query query = parseAndApply(type, fieldName, value, minimumShouldMatch);
-                Float boostValue = fieldNames.get(fieldName);
+            for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
+                Query query = parseAndApply(type, entry.getKey(), value, minimumShouldMatch);
+                Float boostValue = entry.getValue();
                 if (boostValue != null) {
                     query.setBoost(boostValue);
                 }
@@ -83,9 +83,9 @@ public class MultiMatchQuery extends MatchQuery {
             return clauseAdded ? disMaxQuery : null;
         } else {
             BooleanQuery booleanQuery = new BooleanQuery();
-            for (String fieldName : fieldNames.keySet()) {
-                Query query = parseAndApply(type, fieldName, value, minimumShouldMatch);
-                Float boostValue = fieldNames.get(fieldName);
+            for (Map.Entry<String, Float> entry : fieldNames.entrySet()) {
+                Query query = parseAndApply(type, entry.getKey(), value, minimumShouldMatch);
+                Float boostValue = entry.getValue();
                 if (boostValue != null) {
                     query.setBoost(boostValue);
                 }

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.highlight;
 
+import com.google.common.collect.ImmutableList;
+
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
@@ -58,10 +60,10 @@ public class PlainHighlighter implements Highlighter {
         Encoder encoder = field.encoder().equals("html") ? Encoders.HTML : Encoders.DEFAULT;
 
         if (!hitContext.cache().containsKey(CACHE_KEY)) {
-            Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter> mappers = Maps.newHashMap();
+            Map<FieldMapper<?>, org.apache.lucene.search.highlight.Highlighter> mappers = Maps.newHashMap();
             hitContext.cache().put(CACHE_KEY, mappers);
         }
-        Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter> cache = (Map<FieldMapper, org.apache.lucene.search.highlight.Highlighter>) hitContext.cache().get(CACHE_KEY);
+        Map<FieldMapper<?>, org.apache.lucene.search.highlight.Highlighter> cache = (Map<FieldMapper<?>, org.apache.lucene.search.highlight.Highlighter>) hitContext.cache().get(CACHE_KEY);
 
         org.apache.lucene.search.highlight.Highlighter entry = cache.get(mapper);
         if (entry == null) {
@@ -98,6 +100,10 @@ public class PlainHighlighter implements Highlighter {
                 CustomFieldsVisitor fieldVisitor = new CustomFieldsVisitor(ImmutableSet.of(mapper.names().indexName()), false);
                 hitContext.reader().document(hitContext.docId(), fieldVisitor);
                 textsToHighlight = fieldVisitor.fields().get(mapper.names().indexName());
+                if (textsToHighlight == null) {
+                    // Can happen if the document doesn't have the field to highlight
+                    textsToHighlight = ImmutableList.of();
+                }
             } catch (Exception e) {
                 throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
             }
@@ -107,6 +113,7 @@ public class PlainHighlighter implements Highlighter {
             lookup.setNextDocId(hitContext.docId());
             textsToHighlight = lookup.source().extractRawValues(mapper.names().sourcePath());
         }
+        assert textsToHighlight != null;
 
         // a HACK to make highlighter do highlighting, even though its using the single frag list builder
         int numberOfFragments = field.numberOfFragments() == 0 ? 1 : field.numberOfFragments();

@@ -1503,4 +1503,34 @@ public class HighlighterSearchTests extends AbstractNodesTests {
         }
     }
 
+    @Test
+    public void testMissingStoredField() throws Exception {
+        try {
+            client.admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client.admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
+                .put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("highlight_field").field("type", "string").field("store", "yes").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client.prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject()
+                    .field("field", "highlight")
+                .endObject())
+                .setRefresh(true).execute().actionGet();
+
+        // This query used to fail when the field to highlight was absent
+        SearchResponse response = client.prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("field", "highlight").type(MatchQueryBuilder.Type.BOOLEAN))
+                .addHighlightedField(new HighlightBuilder.Field("highlight_field")
+                        .fragmentSize(-1).numOfFragments(1).fragmenter("simple"))
+                .execute().actionGet();
+        assertThat(response.getHits().hits()[0].highlightFields().isEmpty(), equalTo(true));
+    }
+
 }

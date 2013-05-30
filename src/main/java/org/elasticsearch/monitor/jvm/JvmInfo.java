@@ -132,19 +132,19 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
     public int versionAsInteger() {
         try {
             int i = 0;
-            String sVersion = "";
+            StringBuilder sVersionBuilder = new StringBuilder("");
             for (; i < version.length(); i++) {
                 if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
                     break;
                 }
                 if (version.charAt(i) != '.') {
-                    sVersion += version.charAt(i);
+                    sVersionBuilder.append(version.charAt(i));
                 }
             }
             if (i == 0) {
                 return -1;
             }
-            return Integer.parseInt(sVersion);
+            return Integer.parseInt(sVersionBuilder.toString());
         } catch (Exception e) {
             return -1;
         }
@@ -153,19 +153,19 @@ public class JvmInfo implements Streamable, Serializable, ToXContent {
     public int versionUpdatePack() {
         try {
             int i = 0;
-            String sVersion = "";
+            StringBuilder sVersionBuilder = new StringBuilder("");
             for (; i < version.length(); i++) {
                 if (!Character.isDigit(version.charAt(i)) && version.charAt(i) != '.') {
                     break;
                 }
                 if (version.charAt(i) != '.') {
-                    sVersion += version.charAt(i);
+                    sVersionBuilder.append(version.charAt(i));
                 }
             }
             if (i == 0) {
                 return -1;
             }
-            Integer.parseInt(sVersion);
+            Integer.parseInt(sVersionBuilder.toString());
             int from;
             if (version.charAt(i) == '_') {
                 // 1.7.0_4

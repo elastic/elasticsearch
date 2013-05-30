@@ -54,12 +54,12 @@ public class XContentMapValues {
             return;
         }
 
-        String key = pathElements[index];
-        Object currentValue = part.get(key);
-        int nextIndex = index + 1;
+      StringBuilder keyBuilder = new StringBuilder(pathElements[index]);
+      Object currentValue = part.get(keyBuilder.toString());
+      int nextIndex = index + 1;
         while (currentValue == null && nextIndex != pathElements.length) {
-            key += "." + pathElements[nextIndex];
-            currentValue = part.get(key);
+            keyBuilder.append(".").append(pathElements[nextIndex]);
+            currentValue = part.get(keyBuilder.toString());
             nextIndex++;
         }
 
@@ -109,13 +109,13 @@ public class XContentMapValues {
             return null;
         }
         if (currentValue instanceof Map) {
-            Map map = (Map) currentValue;
-            String key = pathElements[index];
-            Object mapValue = map.get(key);
-            int nextIndex = index + 1;
+          Map map = (Map) currentValue;
+          StringBuilder keyBuilder = new StringBuilder(pathElements[index]);
+          Object mapValue = map.get(keyBuilder.toString());
+          int nextIndex = index + 1;
             while (mapValue == null && nextIndex != pathElements.length) {
-                key += "." + pathElements[nextIndex];
-                mapValue = map.get(key);
+                keyBuilder.append(".").append(pathElements[nextIndex]);
+                mapValue = map.get(keyBuilder.toString());
                 nextIndex++;
             }
             return extractValue(pathElements, nextIndex, mapValue);

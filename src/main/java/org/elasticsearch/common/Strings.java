@@ -1478,16 +1478,6 @@ public class Strings {
         return (array == null || array.length == 0);
     }
 
-    /**
-     * Return <code>true</code> if the supplied Collection is <code>null</code>
-     * or empty. Otherwise, return <code>false</code>.
-     *
-     * @param collection the Collection to check
-     * @return whether the given Collection is empty
-     */
-    private static boolean isEmpty(Collection collection) {
-        return (collection == null || collection.isEmpty());
-    }
 
     private Strings() {
 

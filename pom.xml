@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-analysis-smartcn</artifactId>
-    <version>1.5.0</version>
+    <version>1.6.0-SNAPSHOT</version>
     <packaging>jar</packaging>
     <description>Smart Chinese Analysis for ElasticSearch</description>
     <inceptionYear>2009</inceptionYear>

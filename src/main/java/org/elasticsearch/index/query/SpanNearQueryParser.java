@@ -52,7 +52,7 @@ public class SpanNearQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         float boost = 1.0f;
-        int slop = -1;
+        int slop = Integer.MIN_VALUE;
         boolean inOrder = true;
         boolean collectPayloads = true;
 
@@ -94,7 +94,7 @@ public class SpanNearQueryParser implements QueryParser {
         if (clauses.isEmpty()) {
             throw new QueryParsingException(parseContext.index(), "span_near must include [clauses]");
         }
-        if (slop == -1) {
+        if (slop == Integer.MIN_VALUE) {
             throw new QueryParsingException(parseContext.index(), "span_near must include [slop]");
         }
 

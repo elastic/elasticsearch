@@ -441,7 +441,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    class SearchFreeContextRequest extends TransportRequest {
+    static class SearchFreeContextRequest extends TransportRequest {
 
         private long id;
 

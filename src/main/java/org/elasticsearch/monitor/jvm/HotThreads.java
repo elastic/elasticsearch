@@ -225,7 +225,7 @@ public class HotThreads {
     }
 
 
-    class MyThreadInfo {
+    static class MyThreadInfo {
         long cpuTime;
         long blockedCount;
         long blockedTime;

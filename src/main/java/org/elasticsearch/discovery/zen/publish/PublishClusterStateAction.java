@@ -112,7 +112,7 @@ public class PublishClusterStateAction extends AbstractComponent {
         }
     }
 
-    class PublishClusterStateRequest extends TransportRequest {
+    static class PublishClusterStateRequest extends TransportRequest {
 
         BytesReference clusterStateInBytes;
         Version version = Version.CURRENT;

@@ -384,7 +384,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         });
     }
 
-    class CreateIndexListener implements Listener {
+    static class CreateIndexListener implements Listener {
 
         private final AtomicBoolean notified = new AtomicBoolean();
 

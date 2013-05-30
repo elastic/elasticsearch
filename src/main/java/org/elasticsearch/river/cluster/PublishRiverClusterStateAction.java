@@ -84,7 +84,7 @@ public class PublishRiverClusterStateAction extends AbstractComponent {
         }
     }
 
-    private class PublishClusterStateRequest extends TransportRequest {
+    static private class PublishClusterStateRequest extends TransportRequest {
 
         private RiverClusterState clusterState;
 

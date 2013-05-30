@@ -137,7 +137,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         });
     }
 
-    class DeleteIndexListener implements Listener {
+    static class DeleteIndexListener implements Listener {
 
         private final AtomicBoolean notified = new AtomicBoolean();
 

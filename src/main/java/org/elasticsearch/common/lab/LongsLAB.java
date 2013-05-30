@@ -21,6 +21,7 @@ package org.elasticsearch.common.lab;
 
 import org.elasticsearch.common.Preconditions;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -232,7 +233,7 @@ public class LongsLAB {
 
         @Override
         public String toString() {
-            return "Allocation(data=" + data +
+            return "Allocation(data=" + Arrays.toString(data) +
                     " with capacity=" + data.length +
                     ", off=" + offset + ")";
         }

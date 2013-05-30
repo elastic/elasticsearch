@@ -308,7 +308,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         }
     }
 
-    private class ClusterGroup {
+    private static class ClusterGroup {
 
         private Queue<LocalDiscovery> members = ConcurrentCollections.newQueue();
 

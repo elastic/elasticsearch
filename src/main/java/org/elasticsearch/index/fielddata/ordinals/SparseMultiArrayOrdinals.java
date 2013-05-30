@@ -180,7 +180,7 @@ public final class SparseMultiArrayOrdinals implements Ordinals {
             return iter.reset(docId);
         }
 
-        class IterImpl implements Docs.Iter {
+        static class IterImpl implements Docs.Iter {
             private final int[] lookup;
             private final PositiveIntPool pool;
             private final IntsRef slice = new IntsRef(1);

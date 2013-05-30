@@ -155,14 +155,14 @@ public class FastVectorHighlighter implements Highlighter {
         return null;
     }
 
-    private class MapperHighlightEntry {
+    static private class MapperHighlightEntry {
         public FragListBuilder fragListBuilder;
         public FragmentsBuilder fragmentsBuilder;
 
         public org.apache.lucene.search.highlight.Highlighter highlighter;
     }
 
-    private class HighlighterEntry {
+    static private class HighlighterEntry {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
         public FieldQuery noFieldMatchFieldQuery;
         public FieldQuery fieldMatchFieldQuery;

@@ -549,7 +549,7 @@ public class ThreadPool extends AbstractComponent {
         }
     }
 
-    class ThreadedRunnable implements Runnable {
+    static class ThreadedRunnable implements Runnable {
 
         private final Runnable runnable;
 

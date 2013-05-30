@@ -100,7 +100,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
         return new BloomFilteredFieldsProducer(state);
     }
 
-    public final class BloomFilteredFieldsProducer extends FieldsProducer {
+    public final static class BloomFilteredFieldsProducer extends FieldsProducer {
         private FieldsProducer delegateFieldsProducer;
         HashMap<String, BloomFilter> bloomsByFieldName = new HashMap<String, BloomFilter>();
         
@@ -446,7 +446,7 @@ public final class BloomFilterPostingsFormat extends PostingsFormat {
 
     }
 
-    class WrappedTermsConsumer extends TermsConsumer {
+    static class WrappedTermsConsumer extends TermsConsumer {
         private TermsConsumer delegateTermsConsumer;
         private BloomFilter bloomFilter;
 

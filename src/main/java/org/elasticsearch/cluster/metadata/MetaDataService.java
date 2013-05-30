@@ -43,7 +43,7 @@ public class MetaDataService extends AbstractComponent {
         return indexMdLocks[Math.abs(DjbHashFunction.DJB_HASH(index) % indexMdLocks.length)];
     }
 
-    public class MdLock {
+    public static class MdLock {
 
         private boolean isLocked = false;
 

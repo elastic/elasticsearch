@@ -5,21 +5,21 @@ The Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis modul
 
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-analysis-smartcn/1.4.0`.
 
-    --------------------------------------------------
-    | Smart Chinese Analysis Plugin | ElasticSearch  |
-    --------------------------------------------------
-    | master                        | 0.90 -> master |
-    --------------------------------------------------
-    | 1.4.0                         | 0.90 -> master |
-    --------------------------------------------------
-    | 1.3.0                         | 0.90 -> master |
-    --------------------------------------------------
-    | 1.2.0                         | 0.19 -> 0.20   |
-    --------------------------------------------------
-    | 1.1.0                         | 0.19 -> 0.20   |
-    --------------------------------------------------
-    | 1.0.0                         | 0.18           |
-    --------------------------------------------------
+    ----------------------------------------------------
+    | Smart Chinese Analysis Plugin | ElasticSearch    |
+    ----------------------------------------------------
+    | 1.5.0-SNAPSHOT (master)       | 0.90.1 -> master |
+    ----------------------------------------------------
+    | 1.4.0                         | 0.90.0           |
+    ----------------------------------------------------
+    | 1.3.0                         | 0.90.0           |
+    ----------------------------------------------------
+    | 1.2.0                         | 0.19 -> 0.20     |
+    ----------------------------------------------------
+    | 1.1.0                         | 0.19 -> 0.20     |
+    ----------------------------------------------------
+    | 1.0.0                         | 0.18             |
+    ----------------------------------------------------
 
 The plugin includes the `smart_chinese` analyzer, `smartcn_sentence` tokenizer, and `smartcn_word` token filter.
 
@@ -28,7 +28,7 @@ License
 
     This software is licensed under the Apache 2 license, quoted below.
 
-    Copyright 2009-2012 Shay Banon and ElasticSearch <http://www.elasticsearch.org>
+    Copyright 2009-2013 Shay Banon and ElasticSearch <http://www.elasticsearch.org>
 
     Licensed under the Apache License, Version 2.0 (the "License"); you may not
     use this file except in compliance with the License. You may obtain a copy of

@@ -52,7 +52,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -322,7 +321,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
             }
             source = fieldVisitor.source();
 
-            if (fieldVisitor.fields() != null) {
+            if (!fieldVisitor.fields().isEmpty()) {
                 fieldVisitor.postProcess(docMapper);
                 fields = new HashMap<String, GetField>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {

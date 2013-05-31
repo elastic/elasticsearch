@@ -80,8 +80,8 @@
           "description" : "Query in the Lucene query string syntax"
         },
         "routing": {
-          "type" : "string",
-          "description" : "Specific routing value"
+          "type" : "list",
+          "description" : "A comma-separated list of specific routing values"
         },
         "scroll": {
           "type" : "duration",

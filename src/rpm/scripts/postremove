@@ -1,13 +1,15 @@
-echo "Removing elasticsearch user and group if existing"
+# only execute in case of package removal, not on upgrade
+if [ $1 -eq 0 ] ; then
 
-getent passwd elasticsearch > /dev/null
-if [ "$?" == "0" ] ; then
-    userdel elasticsearch
-fi
+    getent passwd elasticsearch > /dev/null
+    if [ "$?" == "0" ] ; then
+        userdel elasticsearch
+    fi
 
-getent group elasticsearch >/dev/null
-if [ "$?" == "0" ] ; then
-    groupdel elasticsearch
+    getent group elasticsearch >/dev/null
+    if [ "$?" == "0" ] ; then
+        groupdel elasticsearch
+    fi
 fi
 
 exit

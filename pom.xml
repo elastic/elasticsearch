@@ -634,11 +634,7 @@
                     <mappings>
                         <mapping>
                             <directory>/etc/elasticsearch/</directory>
-                            <configuration>true</configuration>
-                        </mapping>
-                        <mapping>
-                            <directory>/etc/elasticsearch/</directory>
-                            <configuration>true</configuration>
+                            <configuration>noreplace</configuration>
                             <sources>
                                 <source>
                                     <location>config/</location>
@@ -650,7 +646,7 @@
                         </mapping>
                         <mapping>
                             <directory>/etc/sysconfig/</directory>
-                            <configuration>true</configuration>
+                            <configuration>noreplace</configuration>
                             <sources>
                                 <source>
                                     <location>src/rpm/sysconfig</location>

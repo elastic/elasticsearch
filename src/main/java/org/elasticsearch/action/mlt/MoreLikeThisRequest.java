@@ -595,7 +595,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
         searchSize = in.readVInt();
         searchFrom = in.readVInt();
-        if (Version.V_0_90_1.onOrAfter(in.getVersion())) {
+        if (in.getVersion().onOrAfter(Version.V_0_90_1)) {
             routing = in.readOptionalString();
         }
     }
@@ -665,7 +665,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> {
 
         out.writeVInt(searchSize);
         out.writeVInt(searchFrom);
-        if (Version.V_0_90_1.onOrAfter(out.getVersion())) {
+        if (out.getVersion().onOrAfter(Version.V_0_90_1)) {
             out.writeOptionalString(routing);
         }
     }

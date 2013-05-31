@@ -255,19 +255,19 @@ public class Version implements Serializable {
     }
 
     public boolean after(Version version) {
-        return version.id > id;
-    }
-
-    public boolean onOrAfter(Version version) {
-        return version.id >= id;
-    }
-
-    public boolean before(Version version) {
         return version.id < id;
     }
 
-    public boolean onOrBefore(Version version) {
+    public boolean onOrAfter(Version version) {
         return version.id <= id;
+    }
+
+    public boolean before(Version version) {
+        return version.id > id;
+    }
+
+    public boolean onOrBefore(Version version) {
+        return version.id >= id;
     }
 
     /**

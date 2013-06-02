@@ -422,11 +422,10 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
     @Test
     public void testFiltersWithCustomCacheKey() throws Exception {
+        createIndex("test");
+        ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
+        refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsFilter("field1", "value1").cacheKey("test1"))).execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));

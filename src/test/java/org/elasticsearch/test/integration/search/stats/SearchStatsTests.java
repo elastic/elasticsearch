@@ -19,6 +19,13 @@
 
 package org.elasticsearch.test.integration.search.stats;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,12 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
-
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -41,7 +43,6 @@ public class SearchStatsTests extends AbstractSharedClusterTest {
     @Override
     public Settings getSettings() {
         return randomSettingsBuilder()
-                .put("index.number_of_shards", 3)
                 .put("index.number_of_replicas", 0)
                 .build();
     }
@@ -52,16 +53,17 @@ public class SearchStatsTests extends AbstractSharedClusterTest {
         for (int i = 0; i < 500; i++) {
             client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
             if (i == 10) {
-                client().admin().indices().prepareRefresh("test1").execute().actionGet();
+                refresh();
             }
         }
         createIndex("test2");
         for (int i = 0; i < 500; i++) {
             client().prepareIndex("test2", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
             if (i == 10) {
-                client().admin().indices().prepareRefresh("test1").execute().actionGet();
+                refresh();
             }
         }
+        cluster().ensureAtMostNumNodes(numAssignedShards("test1", "test2"));
         for (int i = 0; i < 200; i++) {
             client().prepareSearch().setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2").execute().actionGet();
         }
@@ -102,7 +104,7 @@ public class SearchStatsTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
 
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
-        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(3l)); // 3 shards
+        assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo((long)numAssignedShards("test1")));
 
         // scroll, but with no timeout (so no context)
         searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).execute().actionGet();

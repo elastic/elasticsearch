@@ -19,26 +19,23 @@
 
 package org.elasticsearch.test.integration.mlt;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
-
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.indexAliasesRequest;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.moreLikeThisRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.Test;
 
 /**
  *
@@ -48,12 +45,9 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
     @Test
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
-        createIndex("test");
+        createIndexMapped("test", "type1", "text", "string");
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
         client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene").endObject())).actionGet();
@@ -71,16 +65,13 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
     @Test
     public void testMoreLikeThisWithAliases() throws Exception {
         logger.info("Creating index test");
-        createIndex("test");
+        createIndexMapped("test", "type1", "text", "string");
         logger.info("Creating aliases alias release");
         client().admin().indices().aliases(indexAliasesRequest().addAlias("test", "release", termFilter("text", "release"))).actionGet();
         client().admin().indices().aliases(indexAliasesRequest().addAlias("test", "beta", termFilter("text", "beta"))).actionGet();
 
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
         client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("text", "lucene beta").endObject())).actionGet();
@@ -116,6 +107,7 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
                 .setSource(jsonBuilder().startObject().startObject("foo").field("bar", "boz").endObject())
                 .execute().actionGet();
         client().admin().indices().prepareRefresh("foo").execute().actionGet();
+        assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         SearchResponse searchResponse = client().prepareMoreLikeThis("foo", "bar", "1").execute().actionGet();
         assertThat(searchResponse, notNullValue());

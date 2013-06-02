@@ -32,7 +32,9 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -252,4 +254,11 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     protected void optimize() {
         client().admin().indices().prepareOptimize().execute().actionGet();
     }
+    
+    protected int numAssignedShards(String... indices) {
+        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        return allAssignedShardsGrouped.size();
+    }
+
 }

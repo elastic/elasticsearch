@@ -23,6 +23,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
@@ -35,6 +36,8 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -254,6 +257,21 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     protected void optimize() {
         client().admin().indices().prepareOptimize().execute().actionGet();
+    }
+    
+    protected Set<String> nodeIdsWithIndex(String... indices) {
+        ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        Set<String> nodes = new HashSet<String>();
+        for (ShardIterator shardIterator : allAssignedShardsGrouped) {
+            for (ShardRouting routing : shardIterator.asUnordered()) {
+                if (routing.active()) {
+                    nodes.add(routing.currentNodeId());    
+                }
+                
+            }
+        }
+        return nodes;
     }
     
     protected int numAssignedShards(String... indices) {

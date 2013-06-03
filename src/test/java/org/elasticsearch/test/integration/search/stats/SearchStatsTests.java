@@ -26,6 +26,9 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+import java.util.Set;
+
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -81,10 +84,23 @@ public class SearchStatsTests extends AbstractSharedClusterTest {
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getQueryTimeInMillis(), greaterThan(0l));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchCount(), greaterThan(0l));
         assertThat(indicesStats.getTotal().getSearch().getGroupStats().get("group1").getFetchTimeInMillis(), greaterThan(0l));
-
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().execute().actionGet();
-        assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryCount(), greaterThan(0l));
-        assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0l));
+        NodeStats[] nodes = nodeStats.getNodes();
+        Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
+        int num = 0;
+        for (NodeStats stat : nodes) {
+            if (nodeIdsWithIndex.contains(stat.getNode().getId())) {
+                assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryCount(), greaterThan(0l));
+                assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0l));
+                num++;
+            } else {
+                assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryCount(), equalTo(0l));
+                assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryTimeInMillis(), equalTo(0l));
+            }
+        }
+        
+        assertThat(num, greaterThan(0));
+     
     }
 
     @Test

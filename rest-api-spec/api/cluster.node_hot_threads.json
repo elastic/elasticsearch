@@ -1,5 +1,5 @@
 {
-  "cluster.node.hot_threads": {
+  "cluster.node_hot_threads": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-cluster-nodes-hot-threads/",
     "methods": ["GET"],
     "url": {

@@ -1,5 +1,5 @@
 {
-  "cluster.node.info": {
+  "cluster.node_info": {
     "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-nodes-info/",
     "methods": ["GET"],
     "url": {

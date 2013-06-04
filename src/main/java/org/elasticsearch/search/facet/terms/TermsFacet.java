@@ -147,12 +147,12 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
     long getMissingCount();
 
     /**
-     * The total count of terms.
+     * The total number of docs for all terms.
      */
     long getTotalCount();
 
     /**
-     * The count of terms other than the one provided by the entries.
+     * The number of docs for terms other than the ones provided by the entries.
      */
     long getOtherCount();
 

@@ -18,9 +18,6 @@
           "default" : "none",
           "description" : "When performed on multiple indices, allows to ignore `missing` ones"
         },
-        "operation_threading": {
-          "description" : "TODO: ?"
-        },
         "preference": {
           "type" : "string",
           "description" : "Specify the shards the operation should be performed on (default: random shard)"

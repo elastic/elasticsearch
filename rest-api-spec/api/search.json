@@ -64,9 +64,6 @@
           "type" : "boolean",
           "description" : "Specify whether query terms should be lowercased"
         },
-        "operation_threading": {
-          "description" : "TODO: ?"
-        },
         "preference": {
           "type" : "string",
           "description" : "Specify the shards the operation should be performed on (default: random shard)"

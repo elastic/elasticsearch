@@ -50,6 +50,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -526,31 +527,18 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
     
     @Test 
     public void testSortScript() throws IOException {
-        String mapping = jsonBuilder().startObject().startObject("profile").field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("id").field("type", "integer").field("index", "not_analyzed").field("store", true).endObject()
-                .startObject("groups_code").startObject("properties").field("type", "integer").field("index", "not_analyzed").endObject().endObject()
-                .startObject("date").field("type", "date").field("index", "not_analyzed").field("format", "date_time_no_millis").endObject()
-                .endObject().endObject().endObject().string();
-        prepareCreate("test")
-                .setSettings(randomSettingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0)).addMapping("test", mapping);
+       createIndexMapped("test", "test", "value", "string");
         ensureGreen();
-
-        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
-                .startArray("groups_code").startObject().field("id", 47642).field("date", "2010-08-12T07:54:55Z").endObject().endArray()
-                .endObject()).execute().actionGet();
-        client().prepareIndex("test", "test", "2").setSource(jsonBuilder().startObject()
-                .startArray("groups_code").startObject().field("id", 47642).field("date", "2010-05-04T12:10:54Z").endObject().endArray()
-                .endObject()).execute().actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject()
+                    .field("value", "" + i).endObject()).execute().actionGet();
+        }
+        refresh();
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.scriptSort("\u0027\u0027", "string")).setSize(10)
                 .execute().actionGet();
-
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
-        
     }
     
     @Test

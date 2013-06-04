@@ -148,7 +148,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         for (String name : names) {
             try {
                 prepareCreate(name).setSettings(getSettings()).execute().actionGet();
-                return;
+                continue;
             } catch (IndexAlreadyExistsException ex) {
                 wipeIndex(name);
             }
@@ -233,6 +233,13 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     public ClusterHealthStatus ensureGreen() {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID)).actionGet();
+        assertThat(actionGet.isTimedOut(), equalTo(false));
+        return actionGet.getStatus();
+    }
+    
+    public ClusterHealthStatus ensureYellow() {
+        ClusterHealthResponse actionGet = client().admin().cluster()
+                .health(Requests.clusterHealthRequest().waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
         assertThat(actionGet.isTimedOut(), equalTo(false));
         return actionGet.getStatus();
     }

@@ -1,5 +1,5 @@
 {
-  "indices.alias": {
+  "indices.aliases": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
     "methods": ["GET", "POST"],
     "url": {

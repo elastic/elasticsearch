@@ -26,6 +26,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -86,17 +87,9 @@ public class HighlighterParseElement implements SearchParseElement {
                 topLevelFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("pre_tags".equals(topLevelFieldName) || "preTags".equals(topLevelFieldName)) {
-                    List<String> preTagsList = Lists.newArrayList();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        preTagsList.add(parser.text());
-                    }
-                    globalPreTags = preTagsList.toArray(new String[preTagsList.size()]);
+                  globalPreTags = parseStartArrayTags(parser);
                 } else if ("post_tags".equals(topLevelFieldName) || "postTags".equals(topLevelFieldName)) {
-                    List<String> postTagsList = Lists.newArrayList();
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        postTagsList.add(parser.text());
-                    }
-                    globalPostTags = postTagsList.toArray(new String[postTagsList.size()]);
+                  globalPostTags = parseStartArrayTags(parser);
                 }
             } else if (token.isValue()) {
                 if ("order".equals(topLevelFieldName)) {
@@ -142,40 +135,12 @@ public class HighlighterParseElement implements SearchParseElement {
                                     fieldName = parser.currentName();
                                 } else if (token == XContentParser.Token.START_ARRAY) {
                                     if ("pre_tags".equals(fieldName) || "preTags".equals(fieldName)) {
-                                        List<String> preTagsList = Lists.newArrayList();
-                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                            preTagsList.add(parser.text());
-                                        }
-                                        field.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                                      parseStartArrayPreTags(parser, field);
                                     } else if ("post_tags".equals(fieldName) || "postTags".equals(fieldName)) {
-                                        List<String> postTagsList = Lists.newArrayList();
-                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                            postTagsList.add(parser.text());
-                                        }
-                                        field.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                                      parseStartArrayPostTags(parser, field);
                                     }
                                 } else if (token.isValue()) {
-                                    if ("fragment_size".equals(fieldName) || "fragmentSize".equals(fieldName)) {
-                                        field.fragmentCharSize(parser.intValue());
-                                    } else if ("number_of_fragments".equals(fieldName) || "numberOfFragments".equals(fieldName)) {
-                                        field.numberOfFragments(parser.intValue());
-                                    } else if ("fragment_offset".equals(fieldName) || "fragmentOffset".equals(fieldName)) {
-                                        field.fragmentOffset(parser.intValue());
-                                    } else if ("highlight_filter".equals(fieldName) || "highlightFilter".equals(fieldName)) {
-                                        field.highlightFilter(parser.booleanValue());
-                                    } else if ("order".equals(fieldName)) {
-                                        field.scoreOrdered("score".equals(parser.text()));
-                                    } else if ("require_field_match".equals(fieldName) || "requireFieldMatch".equals(fieldName)) {
-                                        field.requireFieldMatch(parser.booleanValue());
-                                    } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
-                                        field.boundaryMaxScan(parser.intValue());
-                                    } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
-                                        field.boundaryChars(parser.text().toCharArray());
-                                    } else if ("type".equals(fieldName)) {
-                                        field.highlighterType(parser.text());
-                                    } else if ("fragmenter".equals(fieldName)) {
-                                        field.fragmenter(parser.text());
-                                    }
+                                    parseTokenValue(parser, topLevelFieldName, field, fieldName);
                                 } else if (fieldName.equals("options")) {
                                     field.options(parser.map());
                                 }
@@ -189,50 +154,104 @@ public class HighlighterParseElement implements SearchParseElement {
         if (globalPreTags != null && globalPostTags == null) {
             throw new SearchParseException(context, "Highlighter global preTags are set, but global postTags are not set");
         }
+      fillFieldsWithDefaultGlobalValues(fields, globalPreTags, globalPostTags, globalScoreOrdered, globalHighlightFilter, globalRequireFieldMatch, globalFragmentSize, globalNumOfFragments, globalEncoder, globalBoundaryMaxScan, globalBoundaryChars, globalHighlighterType, globalFragmenter, globalOptions);
 
-        // now, go over and fill all fields with default values from the global state
-        for (SearchContextHighlight.Field field : fields) {
-            if (field.preTags() == null) {
-                field.preTags(globalPreTags);
-            }
-            if (field.postTags() == null) {
-                field.postTags(globalPostTags);
-            }
-            if (field.highlightFilter() == null) {
-                field.highlightFilter(globalHighlightFilter);
-            }
-            if (field.scoreOrdered() == null) {
-                field.scoreOrdered(globalScoreOrdered);
-            }
-            if (field.fragmentCharSize() == -1) {
-                field.fragmentCharSize(globalFragmentSize);
-            }
-            if (field.numberOfFragments() == -1) {
-                field.numberOfFragments(globalNumOfFragments);
-            }
-            if (field.encoder() == null) {
-                field.encoder(globalEncoder);
-            }
-            if (field.requireFieldMatch() == null) {
-                field.requireFieldMatch(globalRequireFieldMatch);
-            }
-            if (field.boundaryMaxScan() == -1) {
-                field.boundaryMaxScan(globalBoundaryMaxScan);
-            }
-            if (field.boundaryChars() == null) {
-                field.boundaryChars(globalBoundaryChars);
-            }
-            if (field.highlighterType() == null) {
-                field.highlighterType(globalHighlighterType);
-            }
-            if (field.fragmenter() == null) {
-                field.fragmenter(globalFragmenter);
-            }
-            if (field.options() == null || field.options().size() == 0) {
-                field.options(globalOptions);
-            }
-        }
 
-        context.highlight(new SearchContextHighlight(fields));
+      context.highlight(new SearchContextHighlight(fields));
     }
+
+  private void parseStartArrayPostTags(XContentParser parser, SearchContextHighlight.Field field) throws IOException {
+    XContentParser.Token token;List<String> postTagsList = Lists.newArrayList();
+    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        postTagsList.add(parser.text());
+    }
+    field.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+  }
+
+  private void parseStartArrayPreTags(XContentParser parser, SearchContextHighlight.Field field) throws IOException {
+    XContentParser.Token token;List<String> preTagsList = Lists.newArrayList();
+    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        preTagsList.add(parser.text());
+    }
+    field.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+  }
+
+  private void parseTokenValue(XContentParser parser, String topLevelFieldName, SearchContextHighlight.Field field, String fieldName) throws IOException {
+    if ("fragment_size".equals(fieldName) || "fragmentSize".equals(fieldName)) {
+        field.fragmentCharSize(parser.intValue());
+    } else if ("number_of_fragments".equals(fieldName) || "numberOfFragments".equals(fieldName)) {
+        field.numberOfFragments(parser.intValue());
+    } else if ("fragment_offset".equals(fieldName) || "fragmentOffset".equals(fieldName)) {
+        field.fragmentOffset(parser.intValue());
+    } else if ("highlight_filter".equals(fieldName) || "highlightFilter".equals(fieldName)) {
+        field.highlightFilter(parser.booleanValue());
+    } else if ("order".equals(fieldName)) {
+        field.scoreOrdered("score".equals(parser.text()));
+    } else if ("require_field_match".equals(fieldName) || "requireFieldMatch".equals(fieldName)) {
+        field.requireFieldMatch(parser.booleanValue());
+    } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
+        field.boundaryMaxScan(parser.intValue());
+    } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
+        field.boundaryChars(parser.text().toCharArray());
+    } else if ("type".equals(fieldName)) {
+        field.highlighterType(parser.text());
+    } else if ("fragmenter".equals(fieldName)) {
+        field.fragmenter(parser.text());
+    }
+  }
+
+  private void fillFieldsWithDefaultGlobalValues(List<SearchContextHighlight.Field> fields, String[] globalPreTags, String[] globalPostTags, boolean globalScoreOrdered, boolean globalHighlightFilter, boolean globalRequireFieldMatch, int globalFragmentSize, int globalNumOfFragments, String globalEncoder, int globalBoundaryMaxScan, char[] globalBoundaryChars, String globalHighlighterType, String globalFragmenter, Map<String, Object> globalOptions) {
+    // now, go over and fill all fields with default values from the global state
+    for (SearchContextHighlight.Field field : fields) {
+        if (field.preTags() == null) {
+            field.preTags(globalPreTags);
+        }
+        if (field.postTags() == null) {
+            field.postTags(globalPostTags);
+        }
+        if (field.highlightFilter() == null) {
+            field.highlightFilter(globalHighlightFilter);
+        }
+        if (field.scoreOrdered() == null) {
+            field.scoreOrdered(globalScoreOrdered);
+        }
+        if (field.fragmentCharSize() == -1) {
+            field.fragmentCharSize(globalFragmentSize);
+        }
+        if (field.numberOfFragments() == -1) {
+            field.numberOfFragments(globalNumOfFragments);
+        }
+        if (field.encoder() == null) {
+            field.encoder(globalEncoder);
+        }
+        if (field.requireFieldMatch() == null) {
+            field.requireFieldMatch(globalRequireFieldMatch);
+        }
+        if (field.boundaryMaxScan() == -1) {
+            field.boundaryMaxScan(globalBoundaryMaxScan);
+        }
+        if (field.boundaryChars() == null) {
+            field.boundaryChars(globalBoundaryChars);
+        }
+        if (field.highlighterType() == null) {
+            field.highlighterType(globalHighlighterType);
+        }
+        if (field.fragmenter() == null) {
+            field.fragmenter(globalFragmenter);
+        }
+        if (field.options() == null || field.options().size() == 0) {
+            field.options(globalOptions);
+        }
+    }
+  }
+
+  private String[] parseStartArrayTags(XContentParser parser) throws IOException {
+    XContentParser.Token token;
+    String[] globalPreTags;List<String> preTagsList = Lists.newArrayList();
+    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        preTagsList.add(parser.text());
+    }
+    globalPreTags = preTagsList.toArray(new String[preTagsList.size()]);
+    return globalPreTags;
+  }
 }

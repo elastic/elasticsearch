@@ -128,24 +128,7 @@ public class HighlighterParseElement implements SearchParseElement {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             highlightFieldName = parser.currentName();
                         } else if (token == XContentParser.Token.START_OBJECT) {
-                            SearchContextHighlight.Field field = new SearchContextHighlight.Field(highlightFieldName);
-                            String fieldName = null;
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    fieldName = parser.currentName();
-                                } else if (token == XContentParser.Token.START_ARRAY) {
-                                    if ("pre_tags".equals(fieldName) || "preTags".equals(fieldName)) {
-                                      parseStartArrayPreTags(parser, field);
-                                    } else if ("post_tags".equals(fieldName) || "postTags".equals(fieldName)) {
-                                      parseStartArrayPostTags(parser, field);
-                                    }
-                                } else if (token.isValue()) {
-                                    parseTokenValue(parser, topLevelFieldName, field, fieldName);
-                                } else if (fieldName.equals("options")) {
-                                    field.options(parser.map());
-                                }
-                            }
-                            fields.add(field);
+                          parseStartObject(parser, topLevelFieldName, fields, highlightFieldName);
                         }
                     }
                 }
@@ -159,6 +142,33 @@ public class HighlighterParseElement implements SearchParseElement {
 
       context.highlight(new SearchContextHighlight(fields));
     }
+
+  private void parseStartObject(XContentParser parser, String topLevelFieldName, List<SearchContextHighlight.Field> fields, String highlightFieldName) throws IOException {
+    XContentParser.Token token;
+    SearchContextHighlight.Field field = new SearchContextHighlight.Field(highlightFieldName);
+    String fieldName = null;
+    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+      fieldName = parseStartObjectTokens(parser, token, topLevelFieldName, field, fieldName);
+    }
+    fields.add(field);
+  }
+
+  private String parseStartObjectTokens(XContentParser parser, XContentParser.Token token, String topLevelFieldName, SearchContextHighlight.Field field, String fieldName) throws IOException {
+    if (token == XContentParser.Token.FIELD_NAME) {
+        fieldName = parser.currentName();
+    } else if (token == XContentParser.Token.START_ARRAY) {
+        if ("pre_tags".equals(fieldName) || "preTags".equals(fieldName)) {
+          parseStartArrayPreTags(parser, field);
+        } else if ("post_tags".equals(fieldName) || "postTags".equals(fieldName)) {
+          parseStartArrayPostTags(parser, field);
+        }
+    } else if (token.isValue()) {
+        parseTokenValue(parser, topLevelFieldName, field, fieldName);
+    } else if (fieldName.equals("options")) {
+        field.options(parser.map());
+    }
+    return fieldName;
+  }
 
   private void parseStartArrayPostTags(XContentParser parser, SearchContextHighlight.Field field) throws IOException {
     XContentParser.Token token;List<String> postTagsList = Lists.newArrayList();

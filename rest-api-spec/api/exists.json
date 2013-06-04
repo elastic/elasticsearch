@@ -1,10 +1,10 @@
 {
-  "get": {
+  "exists": {
     "documentation": "http://elasticsearch.org/guide/reference/api/get/",
-    "methods": ["GET"],
+    "methods": ["HEAD"],
     "url": {
       "path": "/{index}/{type}/{id}",
-      "paths": ["/{index}/{type}/{id}", "/{index}/{type}/{id}/_source"],
+      "paths": ["/{index}/{type}/{id}"],
       "parts": {
         "id": {
           "type" : "string",
@@ -23,10 +23,6 @@
         }
       },
       "params": {
-        "fields": {
-          "type": "list",
-          "description" : "A comma-separated list of fields to return in the response"
-        },
         "parent": {
           "type" : "string",
           "description" : "The ID of the parent document"

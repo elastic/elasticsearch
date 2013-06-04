@@ -179,20 +179,11 @@ public class IgnoreIndicesTests extends AbstractSharedClusterTest {
     @Test
     // For now don't handle closed indices
     public void testClosed() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
-        client().admin().indices().prepareCreate("test1").execute().actionGet();
-        client().admin().indices().prepareCreate("test2").execute().actionGet();
-
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-
+        createIndex("test1", "test2");
+        ensureYellow();
         client().prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-
         client().admin().indices().prepareClose("test2").execute().actionGet();
-
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         try {
             client().prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();

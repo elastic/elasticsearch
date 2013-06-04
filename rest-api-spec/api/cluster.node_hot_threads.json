@@ -17,8 +17,8 @@
           "description" : "The interval for the second sampling of threads"
         },
         "snapshots": {
-          "type" : "string",
-          "description" : "TODO: ?"
+          "type" : "number",
+          "description" : "Number of samples of thread stacktrace (default: 10)"
         },
         "threads": {
           "type" : "number",

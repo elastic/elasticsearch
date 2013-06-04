@@ -4,7 +4,7 @@
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_search",
-      "paths": ["/_search", "/{index}/_search", "/{index}/{type}/_search", "/_search/scroll", "/_search/scroll/{scroll_id}"],
+      "paths": ["/_search", "/{index}/_search", "/{index}/{type}/_search"],
       "parts": {
         "index": {
          "type" : "list",
@@ -13,10 +13,6 @@
         "type": {
           "type" : "list",
           "description" : "A comma-separated list of document types to search; leave empty to perform the operation on all types"
-        },
-        "scroll_id": {
-          "type" : "string",
-          "description" : "The scroll ID"
         }
       },
       "params": {
@@ -86,10 +82,6 @@
         "scroll": {
           "type" : "duration",
           "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"
-        },
-        "scroll_id": {
-          "type" : "string",
-          "description" : "The scroll ID for scrolled search"
         },
         "search_type": {
           "type" : "enum",

@@ -14,7 +14,7 @@
         },
         "filter_metadata": {
           "type" : "boolean",
-          "description" : "TODO: ?"
+          "description" : "Don't return cluster state metadata (default: false)"
         }
       }
     },

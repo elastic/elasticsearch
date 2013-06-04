@@ -52,6 +52,8 @@ public class SearchStatsTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimpleStats() throws Exception {
+        // clear all stats first
+        client().admin().indices().prepareStats().clear().execute().actionGet();
         createIndex("test1");
         for (int i = 0; i < 500; i++) {
             client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();

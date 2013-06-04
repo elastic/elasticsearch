@@ -26,9 +26,6 @@
           "type" : "number",
           "description" : "Include only documents with a specific `_score` value in the result"
         },
-        "operation_threading": {
-          "description" : "TODO: ?"
-        },
         "preference": {
           "type" : "string",
           "description" : "Specify the shards the operation should be performed on (default: random shard)"

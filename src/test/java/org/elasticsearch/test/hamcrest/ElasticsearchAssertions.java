@@ -26,6 +26,7 @@ import java.util.Arrays;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.hamcrest.Matcher;
@@ -63,6 +64,10 @@ public class ElasticsearchAssertions {
     
     public static void assertNoFailures(SearchResponse searchResponse) {
         assertThat("Unexpectd ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+    }
+    
+    public static void assertNoFailures(BroadcastOperationResponse response) {
+        assertThat("Unexpectd ShardFailures: " + Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
     }
 
     public static void assertSearchHit(SearchHit searchHit, Matcher<SearchHit> matcher) {

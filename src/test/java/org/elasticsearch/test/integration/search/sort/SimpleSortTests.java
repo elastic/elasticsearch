@@ -33,6 +33,8 @@ import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -805,16 +807,14 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .field("i_value", -1)
                 .field("d_value", -1.1)
                 .endObject()).execute().actionGet();
-
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
+        ensureYellow();
         logger.info("--> sort with an unmapped field, verify it fails");
         try {
-                client().prepareSearch()
+                SearchResponse result = client().prepareSearch()
                     .setQuery(matchAllQuery())
                     .addSort(SortBuilders.fieldSort("kkk"))
                     .execute().actionGet();
-            assert false;
+                assertThat("Expected exception but returned with", result, nullValue());
         } catch (SearchPhaseExecutionException e) {
 
         }
@@ -823,8 +823,7 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("kkk").ignoreUnmapped(true))
                 .execute().actionGet();
-
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertNoFailures(searchResponse);
     }
 
     @Test

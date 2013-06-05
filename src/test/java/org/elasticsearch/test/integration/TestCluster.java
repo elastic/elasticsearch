@@ -64,6 +64,12 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 
 public class TestCluster {
+    
+    /* some random options to consider
+     *  "action.auto_create_index"
+     *  "node.local"
+     */
+
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
 

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.test.integration.document;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
@@ -44,10 +41,5 @@ public class AliasedIndexDocumentActionsTests extends DocumentActionsTests {
     @Override
     protected String getConcreteIndexName() {
         return "test1";
-    }
-
-    @Override
-    protected Settings nodeSettings() {
-        return ImmutableSettings.settingsBuilder().put("action.auto_create_index", false).build();
     }
 }

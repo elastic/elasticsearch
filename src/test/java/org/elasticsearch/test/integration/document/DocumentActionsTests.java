@@ -39,6 +39,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -48,6 +49,7 @@ import java.util.Map;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -73,13 +75,8 @@ public class DocumentActionsTests extends AbstractSharedClusterTest {
     }
 
     protected void createIndex() {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        logger.info("--> creating index test");
-        client().admin().indices().create(createIndexRequest("test")).actionGet();
+       wipeIndex(getConcreteIndexName());
+       createIndex(getConcreteIndexName());
     }
 
 
@@ -87,47 +84,33 @@ public class DocumentActionsTests extends AbstractSharedClusterTest {
         return "test";
     }
 
-
-    protected Settings nodeSettings() {
-        return ImmutableSettings.Builder.EMPTY_SETTINGS;
-    }
-    
     @Test
     public void testIndexActions() throws Exception {
         createIndex();
         logger.info("Running Cluster Health");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-
+        ensureGreen();
         logger.info("Indexing [type1/1]");
         IndexResponse indexResponse = client().prepareIndex().setIndex("test").setType("type1").setId("1").setSource(source("1", "test")).setRefresh(true).execute().actionGet();
         assertThat(indexResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(indexResponse.getId(), equalTo("1"));
         assertThat(indexResponse.getType(), equalTo("type1"));
         logger.info("Refreshing");
-        RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().actionGet();
+        RefreshResponse refreshResponse = refresh();
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
-        assertThat(refreshResponse.getFailedShards(), equalTo(0));
-
+        
         logger.info("--> index exists?");
-        IndicesExistsResponse indicesExistsResponse = client().admin().indices().prepareExists(getConcreteIndexName()).execute().actionGet();
-        assertThat(indicesExistsResponse.isExists(), equalTo(true));
-
+        assertThat(indexExists(getConcreteIndexName()), equalTo(false));
         logger.info("--> index exists?, fake index");
-        indicesExistsResponse = client().admin().indices().prepareExists("test1234565").execute().actionGet();
-        assertThat(indicesExistsResponse.isExists(), equalTo(false));
+        assertThat(indexExists("test1234565"), equalTo(false));
 
         logger.info("Clearing cache");
         ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().clearCache(clearIndicesCacheRequest("test").recycler(true).fieldDataCache(true).filterCache(true).idCache(true)).actionGet();
+        assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(10));
-        assertThat(clearIndicesCacheResponse.getFailedShards(), equalTo(0));
 
         logger.info("Optimizing");
-        OptimizeResponse optimizeResponse = client().admin().indices().prepareOptimize("test").execute().actionGet();
+        OptimizeResponse optimizeResponse = optimize();
         assertThat(optimizeResponse.getSuccessfulShards(), equalTo(10));
-        assertThat(optimizeResponse.getFailedShards(), equalTo(0));
 
         GetResponse getResult;
 

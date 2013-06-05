@@ -19,6 +19,7 @@
 package org.elasticsearch.test.integration;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -30,6 +31,9 @@ import java.util.Set;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
@@ -234,6 +238,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID)).actionGet();
         assertThat(actionGet.isTimedOut(), equalTo(false));
+        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         return actionGet.getStatus();
     }
     
@@ -257,13 +262,17 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         client().prepareIndex(index, type).setSource(source).execute().actionGet();
     }
 
-    protected void refresh() {
+    protected RefreshResponse refresh() {
         // TODO RANDOMIZE with flush?
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();
+        assertNoFailures(actionGet);
+        return actionGet;
     }
 
-    protected void optimize() {
-        client().admin().indices().prepareOptimize().execute().actionGet();
+    protected OptimizeResponse optimize() {
+        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().execute().actionGet();
+        assertNoFailures(actionGet);
+        return actionGet;
     }
     
     protected Set<String> nodeIdsWithIndex(String... indices) {
@@ -285,6 +294,11 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
+    }
+    
+    protected boolean indexExists(String index) {
+        IndicesExistsResponse actionGet = client().admin().indices().prepareExists("test1234565").execute().actionGet();
+        return actionGet.isExists();
     }
 
 }

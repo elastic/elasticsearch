@@ -36,6 +36,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.search.stats.SearchStats.Stats;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
@@ -91,13 +92,14 @@ public class SearchStatsTests extends AbstractSharedClusterTest {
         Set<String> nodeIdsWithIndex = nodeIdsWithIndex("test1", "test2");
         int num = 0;
         for (NodeStats stat : nodes) {
+            Stats total = stat.getIndices().getSearch().getTotal();
             if (nodeIdsWithIndex.contains(stat.getNode().getId())) {
-                assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryCount(), greaterThan(0l));
-                assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryTimeInMillis(), greaterThan(0l));
+                assertThat(total.getQueryCount(), greaterThan(0l));
+                assertThat(total.getQueryTimeInMillis(), greaterThan(0l));
                 num++;
             } else {
-                assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryCount(), equalTo(0l));
-                assertThat(nodeStats.getNodes()[0].getIndices().getSearch().getTotal().getQueryTimeInMillis(), equalTo(0l));
+                assertThat(total.getQueryCount(), equalTo(0l));
+                assertThat(total.getQueryTimeInMillis(), equalTo(0l));
             }
         }
         

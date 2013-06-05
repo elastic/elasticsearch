@@ -31,7 +31,7 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>0.90.0.Beta1</elasticsearch.version>
+        <elasticsearch.version>0.90.1</elasticsearch.version>
     </properties>
 
     <repositories>
@@ -46,14 +46,12 @@
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
-            <scope>compile</scope>
         </dependency>
 
         <dependency>
             <groupId>org.mozilla</groupId>
             <artifactId>rhino</artifactId>
             <version>1.7R4</version>
-            <scope>compile</scope>
             <exclusions>
             </exclusions>
         </dependency>

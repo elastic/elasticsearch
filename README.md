@@ -3,21 +3,23 @@ JavaScript lang Plugin for ElasticSearch
 
 The JavaScript language plugin allows to have `javascript` as the language of scripts to execute.
 
-In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-lang-javascript/1.3.0`.
+In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-lang-javascript/1.4.0`.
 
-    ----------------------------------------
-    | JavaScript Plugin | ElasticSearch    |
-    ----------------------------------------
-    | master            | 0.90 -> master   |
-    ----------------------------------------
-    | 1.3.0             | 0.90 -> master   |
-    ----------------------------------------
-    | 1.2.0             | 0.19 -> 0.20     |
-    ----------------------------------------
-    | 1.1.0             | 0.19             |
-    ----------------------------------------
-    | 1.0.0             | 0.18             |
-    ----------------------------------------
+    -----------------------------------------------
+    | JavaScript Plugin        | ElasticSearch    |
+    -----------------------------------------------
+    | 1.5.0-SNAPSHOT (master)  | 0.90 -> master   |
+    -----------------------------------------------
+    | 1.4.0                    | 0.90 -> master   |
+    -----------------------------------------------
+    | 1.3.0                    | 0.90             |
+    -----------------------------------------------
+    | 1.2.0                    | 0.19 -> 0.20     |
+    -----------------------------------------------
+    | 1.1.0                    | 0.19             |
+    -----------------------------------------------
+    | 1.0.0                    | 0.18             |
+    -----------------------------------------------
 
 License
 -------

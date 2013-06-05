@@ -31,15 +31,10 @@ import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -91,6 +86,57 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
                 .execute().actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(
+                        filteredQuery(
+                                matchAllQuery(),
+                                hasParentFilter(
+                                        "parent",
+                                        termFilter("p_field", "p_value1")
+                                )
+                        )
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(
+                        filteredQuery(
+                                matchAllQuery(),
+                                hasParentFilter(
+                                        "child",
+                                        termFilter("c_field", "c_value1")
+                                )
+                        )
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("gc1"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(
+                        hasParentQuery(
+                                "parent",
+                                termQuery("p_field", "p_value1")
+                        )
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(
+                        hasParentQuery(
+                                "child",
+                                termQuery("c_field", "c_value1")
+                        )
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("gc1"));
     }
     
     

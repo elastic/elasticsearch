@@ -37,8 +37,8 @@ import org.elasticsearch.index.search.child.HasParentFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  *
@@ -136,17 +136,22 @@ public class HasParentFilterParser implements FilterParser {
             throw new ElasticSearchIllegalStateException("[has_parent] Can't execute, search context not set");
         }
 
-        List<String> parentTypes = new ArrayList<String>(2);
+        Set<String> parentTypes = new HashSet<String>(5);
+        parentTypes.add(parentType);
         for (DocumentMapper documentMapper : parseContext.mapperService()) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper != null) {
-                parentTypes.add(parentFieldMapper.type());
+                DocumentMapper parentTypeDocumentMapper = searchContext.mapperService().documentMapper(parentFieldMapper.type());
+                if (parentTypeDocumentMapper == null) {
+                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
+                    parentTypes.add(parentFieldMapper.type());
+                }
             }
         }
 
         Filter parentFilter;
         if (parentTypes.size() == 1) {
-            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.get(0));
+            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
             parentFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
         } else {
             XBooleanFilter parentsFilter = new XBooleanFilter();

@@ -32,6 +32,7 @@ import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -65,7 +66,7 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         this.searchContext = searchContext;
         this.parentType = parentType;
         this.childType = childType;
-        this.parentFilter = parentFilter;
+        this.parentFilter = new ApplyAcceptedDocsFilter(parentFilter);
         this.originalChildQuery = childQuery;
         this.scoreType = scoreType;
     }

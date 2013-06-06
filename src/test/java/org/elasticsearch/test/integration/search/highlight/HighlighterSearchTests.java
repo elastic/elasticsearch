@@ -54,6 +54,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHighlight;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
 import static org.testng.Assert.fail;
 
 /**
@@ -123,6 +124,56 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
             .setRefresh(true).execute().actionGet();
         SearchResponse search = client().prepareSearch("test").setTypes("test").setQuery(matchQuery("name.autocomplete", "deut tel").operator(Operator.OR)).addHighlightedField("name.autocomplete").execute().actionGet();
         assertHighlight(search, 0, "name.autocomplete", 0, equalTo("ARCO<em>TEL</em> Ho<em>tel</em>s <em>Deut</em>schland"));
+    }
+    
+    
+    
+    @Test 
+    public void testMultiPhraseCutoff() throws ElasticSearchException, IOException {
+        /*
+         * MultiPhraseQuery can literally kill an entire node if there are too many terms in the
+         * query. We cut off and extract terms if there are more than 16 terms in the query
+         */
+        prepareCreate("test")
+        .addMapping("test", jsonBuilder()
+                .startObject()
+                    .startObject("test")
+                        .startObject("properties")
+                            .startObject("body")
+                                    .field("type", "string")
+                                    .field("index_analyzer", "custom_analyzer")
+                                    .field("search_analyzer", "custom_analyzer")
+                                    .field("term_vector", "with_positions_offsets")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject())
+        .setSettings(ImmutableSettings.settingsBuilder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 0)
+                .put("analysis.filter.wordDelimiter.type", "word_delimiter")
+                .put("analysis.filter.wordDelimiter.type.split_on_numerics", false)
+                .put("analysis.filter.wordDelimiter.generate_word_parts", true)
+                .put("analysis.filter.wordDelimiter.generate_number_parts", true)
+                .put("analysis.filter.wordDelimiter.catenate_words", true)
+                .put("analysis.filter.wordDelimiter.catenate_numbers", true)
+                .put("analysis.filter.wordDelimiter.catenate_all", false)
+                .put("analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
+                .putArray("analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter"))
+        .execute().actionGet();
+
+        ensureGreen();
+        client().prepareIndex("test", "test", "1")
+            .setSource(XContentFactory.jsonBuilder()
+                    .startObject()
+                        .field("body", "Test: http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature Test: http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature")
+                    .endObject())
+            .execute().actionGet();
+        refresh();
+        SearchResponse search = client().prepareSearch().setQuery(matchQuery("body", "Test: http://www.facebook.com ").type(Type.PHRASE)).addHighlightedField("body").execute().actionGet();
+        assertHighlight(search, 0, "body", 0, startsWith("<em>Test: http://www.facebook.com</em>"));
+        search = client().prepareSearch().setQuery(matchQuery("body", "Test: http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature Test: http://www.facebook.com http://elasticsearch.org http://xing.com http://cnn.com http://quora.com http://twitter.com this is a test for highlighting feature").type(Type.PHRASE)).addHighlightedField("body").execute().actionGet();
+        assertHighlight(search, 0, "body", 0, equalTo("<em>Test</em>: <em>http</em>://<em>www</em>.<em>facebook</em>.<em>com</em> <em>http</em>://<em>elasticsearch</em>.<em>org</em> <em>http</em>://<em>xing</em>.<em>com</em> <em>http</em>://<em>cnn</em>.<em>com</em> <em>http</em>://<em>quora</em>.com"));
     }
     
     @Test

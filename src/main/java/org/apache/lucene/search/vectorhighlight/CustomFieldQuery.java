@@ -104,6 +104,21 @@ public class CustomFieldQuery extends FieldQuery {
     }
     
     private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, List<Term[]> terms, int[] pos, IndexReader reader, Collection<Query> flatQueries) throws IOException {
+        if (currentPos == 0) {
+            // if we have more than 16 terms 
+            int numTerms = 0;
+            for (Term[] currentPosTerm : terms) {
+                numTerms += currentPosTerm.length;
+            }
+            if (numTerms > 16) {
+                for (Term[] currentPosTerm : terms) {
+                    for (Term term : currentPosTerm) {
+                        super.flatten(new TermQuery(term), reader, flatQueries);    
+                    }
+                }
+                return;
+            }
+        }
         /*
          * we walk all possible ways and for each path down the MPQ we create a PhraseQuery this is what FieldQuery supports.
          * It seems expensive but most queries will pretty small.

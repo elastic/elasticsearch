@@ -91,7 +91,7 @@ public class TermsFilterParser implements FilterParser {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     Object value = parser.objectBytes();
                     if (value == null) {
-                        throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
+                        throw new QueryParsingException(parseContext.index(), "No value specified for terms filter");
                     }
                     terms.add(value);
                 }

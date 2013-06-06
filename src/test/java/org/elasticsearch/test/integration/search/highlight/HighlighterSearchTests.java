@@ -127,70 +127,93 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
     
     @Test
     public void testNgramHighlightingPreLucene42() throws ElasticSearchException, IOException {
-        client().admin().indices().prepareCreate("test")
-        .addMapping("test", jsonBuilder()
-                .startObject()
-                    .startObject("test")
-                        .startObject("properties")
-                            .startObject("name")
-                                .field("type", "string")
-                                .field("index_analyzer", "name_index_analyzer")
-                                .field("search_analyzer", "name_search_analyzer")
-                                .field("term_vector", "with_positions_offsets")
-                            .endObject()
-                            .startObject("name2")
-                                .field("type", "string")
-                                .field("index_analyzer", "name2_index_analyzer")
-                                .field("search_analyzer", "name_search_analyzer")
-                                .field("term_vector", "with_positions_offsets")
+        boolean[] doStore = {true, false};
+        for (boolean store : doStore) {
+            wipeIndex("test");
+            client().admin().indices().prepareCreate("test")
+            .addMapping("test", jsonBuilder()
+                    .startObject()
+                        .startObject("test")
+                            .startObject("properties")
+                                .startObject("name")
+                                    .field("type", "string")
+                                    .field("index_analyzer", "name_index_analyzer")
+                                    .field("search_analyzer", "name_search_analyzer")
+                                    .field("term_vector", "with_positions_offsets")
+                                    .field("store", store ? "yes" : "no")
+                                .endObject()
+                                .startObject("name2")
+                                    .field("type", "string")
+                                    .field("index_analyzer", "name2_index_analyzer")
+                                    .field("search_analyzer", "name_search_analyzer")
+                                    .field("term_vector", "with_positions_offsets")
+                                    .field("store", store ? "yes" : "no")
+                                .endObject()
                             .endObject()
                         .endObject()
-                    .endObject()
-                .endObject())
-        .setSettings(ImmutableSettings.settingsBuilder()
-                .put("index.number_of_shards", 2)
-                .put("analysis.filter.my_ngram.max_gram", 20)
-                .put("analysis.filter.my_ngram.version", "4.1")
-                .put("analysis.filter.my_ngram.min_gram", 1)
-                .put("analysis.filter.my_ngram.type", "ngram")
-                .put("analysis.tokenizer.my_ngramt.max_gram", 20)
-                .put("analysis.tokenizer.my_ngramt.version", "4.1")
-                .put("analysis.tokenizer.my_ngramt.min_gram", 1)
-                .put("analysis.tokenizer.my_ngramt.type", "ngram")
-                .put("analysis.analyzer.name_index_analyzer.tokenizer", "my_ngramt")
-                .put("analysis.analyzer.name2_index_analyzer.tokenizer", "whitespace")
-                .put("analysis.analyzer.name2_index_analyzer.filter", "my_ngram")
-                .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace"))
-        .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        client().prepareIndex("test", "test", "1")
+                    .endObject())
+            .setSettings(ImmutableSettings.settingsBuilder()
+                    .put("index.number_of_shards", 2)
+                    .put("analysis.filter.my_ngram.max_gram", 20)
+                    .put("analysis.filter.my_ngram.version", "4.1")
+                    .put("analysis.filter.my_ngram.min_gram", 1)
+                    .put("analysis.filter.my_ngram.type", "ngram")
+                    .put("analysis.tokenizer.my_ngramt.max_gram", 20)
+                    .put("analysis.tokenizer.my_ngramt.version", "4.1")
+                    .put("analysis.tokenizer.my_ngramt.min_gram", 1)
+                    .put("analysis.tokenizer.my_ngramt.type", "ngram")
+                    .put("analysis.analyzer.name_index_analyzer.tokenizer", "my_ngramt")
+                    .put("analysis.analyzer.name2_index_analyzer.tokenizer", "whitespace")
+                    .putArray("analysis.analyzer.name2_index_analyzer.filter", "lowercase", "my_ngram")
+                    .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace")
+                    .put("analysis.analyzer.name_search_analyzer.filter", "lowercase"))
+            .execute().actionGet();
+            ensureYellow();
+            client().prepareIndex("test", "test", "1")
+                .setSource(XContentFactory.jsonBuilder()
+                        .startObject()
+                            .field("name", "logicacmg ehemals avinci - the know how company")
+                            .field("name2", "logicacmg ehemals avinci - the know how company")
+                        .endObject())
+                .execute().actionGet();
+            
+            client().prepareIndex("test", "test", "2")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
-                        .field("name", "logicacmg ehemals avinci - the know how company")
-                        .field("name2", "logicacmg ehemals avinci - the know how company")
+                        .field("name", "avinci, unilog avinci, logicacmg, logica" )
+                        .field("name2", "avinci, unilog avinci, logicacmg, logica")
                     .endObject())
-            .setRefresh(true).execute().actionGet();
-        SearchResponse search = client().prepareSearch().setQuery(matchQuery("name", "logica m")).addHighlightedField("name").execute().actionGet();
-        assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
-        
-        search = client().prepareSearch().setQuery(matchQuery("name", "logica ma")).addHighlightedField("name").execute()
-                .actionGet();
-        assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name", "logica")).addHighlightedField("name").execute().actionGet();
-        assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
-        
-        search = client().prepareSearch().setQuery(matchQuery("name2", "logica m")).addHighlightedField("name2").execute().actionGet();
-        assertHighlight(search, 0, "name2", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
-        
-        search = client().prepareSearch().setQuery(matchQuery("name2", "logica ma")).addHighlightedField("name2").execute()
-                .actionGet();
-        assertHighlight(search, 0, "name2", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name2", "logica")).addHighlightedField("name2").execute().actionGet();
-        assertHighlight(search, 0, "name2", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
-    }
+            .execute().actionGet();
+            refresh();
+           
+            SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "logica m"))).addHighlightedField("name").execute().actionGet();
+            assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
+            assertHighlight(search, 1, "name", 0, equalTo("avinci, unilog avinci, <em>logica</em>c<em>m</em>g, <em>logica</em>"));
+            
+            search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "logica ma"))).addHighlightedField("name").execute()
+                    .actionGet();
+            assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
+            assertHighlight(search, 1, "name", 0, equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>"));
     
+            search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "logica"))).addHighlightedField("name").execute().actionGet();
+            assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
+            
+            search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name2", "logica m"))).addHighlightedField("name2").execute().actionGet();
+            assertHighlight(search, 0, "name2", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
+            assertHighlight(search, 1, "name2", 0, equalTo("avinci, unilog avinci, <em>logica</em>c<em>m</em>g, <em>logica</em>"));
+    
+            search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name2", "logica ma"))).addHighlightedField("name2").execute()
+                    .actionGet();
+            assertHighlight(search, 0, "name2", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
+            assertHighlight(search, 1, "name2", 0, equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>"));
+    
+    
+            search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name2", "logica"))).addHighlightedField("name2").execute().actionGet();
+            assertHighlight(search, 0, "name2", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
+            assertHighlight(search, 1, "name2", 0, equalTo("avinci, unilog avinci, <em>logica</em>cmg, <em>logica</em>"));
+        }
+
+    }
     
     @Test
     public void testNgramHighlighting() throws ElasticSearchException, IOException {

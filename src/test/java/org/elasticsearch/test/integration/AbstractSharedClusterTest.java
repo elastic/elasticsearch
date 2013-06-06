@@ -23,6 +23,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -239,6 +241,24 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID)).actionGet();
         assertThat(actionGet.isTimedOut(), equalTo(false));
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        return actionGet.getStatus();
+    }
+    
+    public ClusterHealthStatus waitForRelocation() {
+        return waitForRelocation(null);
+    }
+    
+    public ClusterHealthStatus waitForRelocation(ClusterHealthStatus status) {
+        ClusterHealthRequest request = Requests.clusterHealthRequest().waitForRelocatingShards(0);
+        if (status != null) {
+            request.waitForStatus(status);
+        }
+        ClusterHealthResponse actionGet = client().admin().cluster()
+                    .health(request).actionGet();
+        assertThat(actionGet.isTimedOut(), equalTo(false));
+        if (status != null) {
+            assertThat(actionGet.getStatus(), equalTo(status));
+        }
         return actionGet.getStatus();
     }
     

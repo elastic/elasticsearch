@@ -179,12 +179,12 @@ public class IgnoreIndicesTests extends AbstractSharedClusterTest {
     @Test
     // For now don't handle closed indices
     public void testClosed() throws Exception {
+        cluster().ensureAtLeastNumNodes(2);
         createIndex("test1", "test2");
-        ensureYellow();
+        ensureGreen();
         client().prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         client().admin().indices().prepareClose("test2").execute().actionGet();
-        ensureYellow();
-
+        ensureGreen();
         try {
             client().prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
             fail("Exception should have been thrown");

@@ -107,8 +107,9 @@ public class DocumentActionsTests extends AbstractSharedClusterTest {
         ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin().indices().clearCache(clearIndicesCacheRequest("test").recycler(true).fieldDataCache(true).filterCache(true).idCache(true)).actionGet();
         assertNoFailures(clearIndicesCacheResponse);
         assertThat(clearIndicesCacheResponse.getSuccessfulShards(), equalTo(10));
-
+        
         logger.info("Optimizing");
+        waitForRelocation(ClusterHealthStatus.GREEN);
         OptimizeResponse optimizeResponse = optimize();
         assertThat(optimizeResponse.getSuccessfulShards(), equalTo(10));
 
@@ -279,9 +280,10 @@ public class DocumentActionsTests extends AbstractSharedClusterTest {
         assertThat(bulkResponse.getItems()[4].getIndex(), equalTo(getConcreteIndexName()));
         assertThat(bulkResponse.getItems()[4].getType(), equalTo("type1"));
 
+        waitForRelocation(ClusterHealthStatus.GREEN);
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh("test").execute().actionGet();
+        assertNoFailures(refreshResponse);
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
-        assertThat(refreshResponse.getFailedShards(), equalTo(0));
 
 
         for (int i = 0; i < 5; i++) {

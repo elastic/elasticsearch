@@ -31,6 +31,7 @@ import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.hamcrest.Matchers;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -1316,6 +1317,86 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
             assertThat(searchResponse.getHits().hits()[3].id(), equalTo("p003"));
             assertThat(searchResponse.getHits().hits()[4].id(), equalTo("p004"));
         }
+    }
+
+    @Test
+    // See also issue: https://github.com/elasticsearch/elasticsearch/issues/3144
+    public void testReIndexingParentAndChildDocuments() throws Exception {
+        client().admin().indices().prepareDelete().execute().actionGet();
+
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client().prepareIndex("test", "child", "c3").setSource("c_field", "x").setParent("p2").execute().actionGet();
+        client().prepareIndex("test", "child", "c4").setSource("c_field", "x").setParent("p2").execute().actionGet();
+
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(hasChildQuery("child", termQuery("c_field", "yellow")).scoreType("sum"))
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
+        assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("\"p_value1\""));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(
+                        boolQuery()
+                                .must(matchQuery("c_field", "x"))
+                                .must(hasParentQuery("parent", termQuery("p_field", "p_value2")).scoreType("score"))
+                )
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c3"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c4"));
+
+        // re-index
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+            client().prepareIndex("test", "child", "d" + i).setSource("c_field", "red").setParent("p1").execute().actionGet();
+            client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+            client().prepareIndex("test", "child", "c3").setSource("c_field", "x").setParent("p2").execute().actionGet();
+            client().admin().indices().prepareRefresh("test").execute().actionGet();
+        }
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasChildQuery("child", termQuery("c_field", "yellow")).scoreType("sum"))
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p1"));
+        assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("\"p_value1\""));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(
+                        boolQuery()
+                                .must(matchQuery("c_field", "x"))
+                                .must(hasParentQuery("parent", termQuery("p_field", "p_value2")).scoreType("score"))
+                )
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).id(), Matchers.anyOf(equalTo("c3"), equalTo("c4")));
+        assertThat(searchResponse.getHits().getAt(1).id(), Matchers.anyOf(equalTo("c3"), equalTo("c4")));
     }
 
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.test.integration.document;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
-import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -35,11 +34,8 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.Unicode;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -99,7 +95,7 @@ public class DocumentActionsTests extends AbstractSharedClusterTest {
         assertThat(refreshResponse.getSuccessfulShards(), equalTo(10));
         
         logger.info("--> index exists?");
-        assertThat(indexExists(getConcreteIndexName()), equalTo(false));
+        assertThat(indexExists(getConcreteIndexName()), equalTo(true));
         logger.info("--> index exists?, fake index");
         assertThat(indexExists("test1234565"), equalTo(false));
 

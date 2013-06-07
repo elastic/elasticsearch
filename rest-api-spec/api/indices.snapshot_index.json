@@ -1,5 +1,5 @@
 {
-  "indices.gateway.snapshot": {
+  "indices.snapshot_index": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-gateway-snapshot/",
     "methods": ["POST"],
     "url": {

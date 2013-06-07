@@ -48,11 +48,9 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -816,9 +814,8 @@ public class SimpleSortTests extends AbstractSharedClusterTest {
                     .execute().actionGet();
                 assertThat("Expected exception but returned with", result, nullValue());
         } catch (SearchPhaseExecutionException e) {
-
         }
-
+        ensureYellow();
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("kkk").ignoreUnmapped(true))

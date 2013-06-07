@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.nested;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -77,6 +78,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .endArray()
                 .endObject()).execute().actionGet();
 
+        waitForRelocation(ClusterHealthStatus.GREEN);
         // flush, so we fetch it from the index (as see that we filter nested docs)
         flush();
         GetResponse getResponse = run(client().prepareGet("test", "type1", "1"));
@@ -123,7 +125,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .endObject()
                 .endArray()
                 .endObject()).execute().actionGet();
-
+        waitForRelocation(ClusterHealthStatus.GREEN);
         // flush, so we fetch it from the index (as see that we filter nested docs)
         flush();
         statusResponse = run(client().admin().indices().prepareStatus());

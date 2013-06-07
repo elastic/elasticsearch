@@ -440,7 +440,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             }
         }
 
-        context.externalValue(Double.toString(point.lat()) + ',' + Double.toString(point.lat()));
+        context.externalValue(Double.toString(point.lat()) + ',' + Double.toString(point.lon()));
         geoStringMapper.parse(context);
         if (enableGeoHash) {
             context.externalValue(geohash);

@@ -19,22 +19,29 @@
 
 package org.elasticsearch.test.integration.search.geo;
 
+import java.io.IOException;
+
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -688,5 +695,50 @@ public class GeoDistanceTests extends AbstractSharedClusterTest {
             assertThat(e.shardFailures()[0].status(), equalTo(RestStatus.BAD_REQUEST));
         }
     }
+    
+    /**
+     * Issue 3073
+     */
+    @Test
+    public void testGeoDistanceFilter() throws IOException {
+        double lat = 40.720611;
+        double lon = -73.998776;
+
+        XContentBuilder mapping = JsonXContent.contentBuilder()
+                .startObject()
+                    .startObject("location")
+                        .startObject("properties")
+                            .startObject("pin")
+                                .field("type", "geo_point")
+                                .field("geohash", true)
+                                .field("geohash_precision", 24)
+                                .field("lat_lon", true)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject();
+
+        XContentBuilder source = JsonXContent.contentBuilder()
+                .startObject()
+                    .field("pin", GeoHashUtils.encode(lat, lon))
+                .endObject();
+        
+        ensureYellow();
+        
+        client().admin().indices().prepareCreate("locations").addMapping("location", mapping).execute().actionGet();
+        client().prepareIndex("locations", "location", "1").setCreate(true).setSource(source).execute().actionGet();
+        client().admin().indices().prepareRefresh("locations").execute().actionGet();
+        client().prepareGet("locations", "location", "1").execute().actionGet();
+
+        SearchResponse result = client().prepareSearch("locations")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setFilter(FilterBuilders.geoDistanceFilter("pin")
+                        .geoDistance(GeoDistance.ARC)
+                        .lat(lat).lon(lon)
+                        .distance("1m"))
+                .execute().actionGet();
+
+        assertHitCount(result, 1);
+    } 
 
 }

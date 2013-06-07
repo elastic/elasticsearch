@@ -1,5 +1,5 @@
 {
-  "indices.validate.query": {
+  "indices.validate_query": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/validate/",
     "methods": ["GET", "POST"],
     "url": {

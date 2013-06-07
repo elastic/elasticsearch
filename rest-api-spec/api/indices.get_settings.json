@@ -1,7 +1,7 @@
 {
-  "indices.settings": {
+  "indices.get_settings": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-get-settings/",
-    "methods": ["GET", "PUT"],
+    "methods": ["GET"],
     "url": {
       "path": "/_settings",
       "paths": ["/_settings", "/{index}/_settings"],
@@ -14,8 +14,6 @@
       "params": {
       }
     },
-    "body": {
-      "description" : "The index settings to be updated (when using the PUT method)"
-    }
+    "body": null
   }
 }

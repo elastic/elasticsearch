@@ -205,9 +205,9 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
                 Object value = objects[i];
                 mappingBuilder.field(name,value);    
             }
-            mappingBuilder.endObject().endObject().endObject();
+            mappingBuilder.endObject();
         }
-        mappingBuilder.endObject();
+        mappingBuilder.endObject().endObject().endObject();
         builder.addMapping(type, mappingBuilder );
         return builder;
     }

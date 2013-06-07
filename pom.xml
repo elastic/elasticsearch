@@ -503,7 +503,7 @@
                 -->
                 <artifactId>jdeb</artifactId>
                 <groupId>org.vafer</groupId>
-                <version>0.9</version>
+                <version>1.0.1</version>
                 <configuration>
                     <deb>${project.build.directory}/releases/${project.artifactId}-${project.version}.deb</deb>
                 </configuration>
@@ -518,6 +518,7 @@
                                 <data>
                                     <src>${project.basedir}/</src>
                                     <includes>*.txt, *.textile</includes>
+                                    <excludes>LICENSE.txt, .DS_Store</excludes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -605,6 +606,22 @@
                                         <user>root</user>
                                         <group>root</group>
                                     </mapper>
+                                </data>
+                                <data>
+                                    <src>${project.basedir}/src/deb/lintian</src>
+                                    <type>directory</type>
+                                    <excludes>.DS_Store</excludes>
+                                    <mapper>
+                                        <type>perm</type>
+                                        <prefix>/usr/share/lintian/overrides</prefix>
+                                        <user>root</user>
+                                        <group>root</group>
+                                    </mapper>
+                                </data>
+                                <data>
+                                    <src>${project.basedir}/src/deb/copyright</src>
+                                    <dst>/usr/share/doc/elasticsearch/copyright</dst>
+                                    <type>file</type>
                                 </data>
                             </dataSet>
 

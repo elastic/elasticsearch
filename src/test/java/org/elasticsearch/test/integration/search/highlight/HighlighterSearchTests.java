@@ -134,22 +134,11 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
          * MultiPhraseQuery can literally kill an entire node if there are too many terms in the
          * query. We cut off and extract terms if there are more than 16 terms in the query
          */
-        prepareCreate("test")
-        .addMapping("test", jsonBuilder()
-                .startObject()
-                    .startObject("test")
-                        .startObject("properties")
-                            .startObject("body")
-                                    .field("type", "string")
-                                    .field("index_analyzer", "custom_analyzer")
-                                    .field("search_analyzer", "custom_analyzer")
-                                    .field("term_vector", "with_positions_offsets")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject())
-        .setSettings(ImmutableSettings.settingsBuilder()
-                .put("index.number_of_shards", 1)
+        run(addMapping(prepareCreate("test"), "test",
+                new Object[] {
+                "body", "type", "string", "index_analyzer", "custom_analyzer", "search_analyzer", "custom_analyzer",
+                        "term_vector", "with_positions_offsets" }).setSettings(
+                ImmutableSettings.settingsBuilder()                .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("analysis.filter.wordDelimiter.type", "word_delimiter")
                 .put("analysis.filter.wordDelimiter.type.split_on_numerics", false)
@@ -159,8 +148,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .put("analysis.filter.wordDelimiter.catenate_numbers", true)
                 .put("analysis.filter.wordDelimiter.catenate_all", false)
                 .put("analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
-                .putArray("analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter"))
-        .execute().actionGet();
+                .putArray("analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")));
 
         ensureGreen();
         client().prepareIndex("test", "test", "1")

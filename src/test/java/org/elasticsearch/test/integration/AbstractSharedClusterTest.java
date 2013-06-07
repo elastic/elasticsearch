@@ -20,13 +20,19 @@ package org.elasticsearch.test.integration;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterators;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
+import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
+import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
@@ -188,6 +194,23 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         }
         return client().admin().indices().prepareCreate(index).setSettings(builder.build());
     }
+    
+    public CreateIndexRequestBuilder addMapping(CreateIndexRequestBuilder builder, String type, Object[]... mapping) throws IOException {
+        XContentBuilder mappingBuilder = jsonBuilder();
+        mappingBuilder.startObject().startObject(type).startObject("properties");
+        for (Object[] objects : mapping) {
+            mappingBuilder.startObject(objects[0].toString());
+            for (int i = 1; i < objects.length; i++) {
+                String name = objects[i++].toString();
+                Object value = objects[i];
+                mappingBuilder.field(name,value);    
+            }
+            mappingBuilder.endObject().endObject().endObject();
+        }
+        mappingBuilder.endObject();
+        builder.addMapping(type, mappingBuilder );
+        return builder;
+    }
 
     private ImmutableSettings.Builder getExcludeSettings(String index, int num, ImmutableSettings.Builder builder) {
         String exclude = Joiner.on(',').join(cluster().allButN(num));
@@ -287,6 +310,12 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         return actionGet;
     }
 
+    protected FlushResponse flush() {
+        FlushResponse actionGet = client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        assertNoFailures(actionGet);
+        return actionGet;    
+    }
+    
     protected OptimizeResponse optimize() {
         OptimizeResponse actionGet = client().admin().indices().prepareOptimize().execute().actionGet();
         assertNoFailures(actionGet);
@@ -317,6 +346,21 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     protected boolean indexExists(String index) {
         IndicesExistsResponse actionGet = client().admin().indices().prepareExists(index).execute().actionGet();
         return actionGet.isExists();
+    }
+    
+    protected AdminClient admin() {
+        return client().admin();
+    }
+    
+    protected <Res extends ActionResponse> Res run(ActionRequestBuilder<?,Res,?> builder) {
+        Res actionGet = builder.execute().actionGet();
+        return actionGet;
+    }
+    
+    protected <Res extends BroadcastOperationResponse> Res run(BroadcastOperationRequestBuilder<?,Res,?> builder) {
+        Res actionGet = builder.execute().actionGet();
+        assertNoFailures(actionGet);
+        return actionGet;
     }
 
 }

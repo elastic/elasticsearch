@@ -54,25 +54,15 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleNested() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("nested1")
-                        .field("type", "nested")
-                        .endObject()
-                        .endObject().endObject().endObject())
-                .execute().actionGet();
-
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        run(addMapping(prepareCreate("test"), "type1", new Object[] {"nested1", "type", "nested"}));
+        ensureGreen();
 
         // check on no data, see it works
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
         searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
-
+        
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
@@ -88,13 +78,13 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .endObject()).execute().actionGet();
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+        flush();
+        GetResponse getResponse = run(client().prepareGet("test", "type1", "1"));
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getSourceAsBytes(), notNullValue());
 
         // check the numDocs
-        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
+        IndicesStatusResponse statusResponse = run(admin().indices().prepareStatus());
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
 
         // check that _all is working on nested docs
@@ -104,17 +94,17 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // search for something that matches the nested doc, and see that we don't find the nested doc
-        searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
+        searchResponse = run(client().prepareSearch("test").setQuery(matchAllQuery()));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
+        searchResponse = run(client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")));
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // now, do a nested query
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
+        searchResponse = run(client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))));
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).execute().actionGet();
+        searchResponse = run(client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -135,9 +125,8 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .endObject()).execute().actionGet();
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-
-        statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
+        flush();
+        statusResponse = run(client().admin().indices().prepareStatus());
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(6l));
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
@@ -162,8 +151,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
         assertThat(deleteResponse.isNotFound(), equalTo(false));
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-
+        flush();
         statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
 
@@ -188,7 +176,6 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
     }
 
     private void simpleNestedDeleteByQuery(int total, int docToDelete) throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
@@ -199,8 +186,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
 
         for (int i = 0; i < total; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
@@ -219,7 +205,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
         }
 
 
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
         IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(total * 3l));
 

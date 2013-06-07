@@ -1,5 +1,5 @@
 {
-  "indices.warmer.delete": {
+  "indices.delete_warmer": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-warmers/",
     "methods": ["DELETE"],
     "url": {

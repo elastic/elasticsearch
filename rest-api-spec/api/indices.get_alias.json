@@ -1,7 +1,7 @@
 {
-  "indices.alias.exists": {
+  "indices.get_alias": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
-    "methods": ["HEAD"],
+    "methods": ["GET"],
     "url": {
       "path": "/_alias/{name}",
       "paths": ["/_alias/{name}", "/{index}/_alias/{name}"],
@@ -22,6 +22,14 @@
           "options" : ["none","missing"],
           "default" : "none",
           "description" : "When performed on multiple indices, allows to ignore `missing` ones"
+        },
+        "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of index names to filter aliases"
+        },
+        "name": {
+          "type" : "list",
+          "description" : "A comma-separated list of alias names to return"
         }
       }
     },

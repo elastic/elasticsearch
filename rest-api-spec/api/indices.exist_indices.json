@@ -1,5 +1,5 @@
 {
-  "indices.exists.indices": {
+  "indices.exist_indices": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-indices-exists/",
     "methods": ["HEAD"],
     "url": {

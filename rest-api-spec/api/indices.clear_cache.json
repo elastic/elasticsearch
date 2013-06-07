@@ -1,5 +1,5 @@
 {
-  "indices.cache.clear": {
+  "indices.clear_cache": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-clearcache/",
     "methods": ["POST", "GET"],
     "url": {

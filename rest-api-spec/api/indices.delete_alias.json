@@ -1,5 +1,5 @@
 {
-  "indices.alias.delete": {
+  "indices.delete_alias": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
     "methods": ["DELETE"],
     "url": {

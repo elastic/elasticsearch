@@ -1,5 +1,5 @@
 {
-  "indices.template.get": {
+  "indices.get_template": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-templates/",
     "methods": ["GET"],
     "url": {

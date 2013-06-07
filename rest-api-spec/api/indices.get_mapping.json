@@ -1,5 +1,5 @@
 {
-  "indices.mapping.get": {
+  "indices.get_mapping": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-get-mapping/",
     "methods": ["GET"],
     "url": {

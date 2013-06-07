@@ -1,5 +1,5 @@
 {
-  "indices.type.delete": {
+  "indices.mapping.delete": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-delete-mapping/",
     "methods": ["DELETE"],
     "url": {

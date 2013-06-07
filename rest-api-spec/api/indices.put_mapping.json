@@ -1,5 +1,5 @@
 {
-  "indices.mapping.put": {
+  "indices.put_mapping": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-put-mapping/",
     "methods": ["PUT", "POST"],
     "url": {

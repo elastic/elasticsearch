@@ -1,5 +1,5 @@
 {
-  "indices.alias.put": {
+  "indices.put_alias": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
     "methods": ["PUT"],
     "url": {

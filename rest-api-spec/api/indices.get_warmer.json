@@ -1,5 +1,5 @@
 {
-  "indices.warmer.get": {
+  "indices.get_warmer": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-warmers/",
     "methods": ["GET"],
     "url": {

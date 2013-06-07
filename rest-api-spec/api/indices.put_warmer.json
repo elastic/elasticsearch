@@ -1,5 +1,5 @@
 {
-  "indices.warmer.put": {
+  "indices.put_warmer": {
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-warmers/",
     "methods": ["PUT"],
     "url": {

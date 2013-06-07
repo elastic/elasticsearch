@@ -1,7 +1,7 @@
 {
-  "indices.template.put": {
-    "documentation": "",
-    "methods": ["PUT", "POST"],
+  "indices.delete_template": {
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-templates/",
+    "methods": ["DELETE"],
     "url": {
       "path": "/_template/{name}",
       "paths": ["/_template/{name}"],
@@ -13,18 +13,12 @@
         }
       },
       "params": {
-        "order": {
-          "type" : "number",
-          "description" : "The order for this template when merging multiple matching ones (higher numbers are merged later, overriding the lower numbers)"
-        },
         "timeout": {
           "type" : "time",
           "description" : "Explicit operation timeout"
         }
       }
     },
-    "body": {
-      "description" : "The template definition"
-    }
+    "body": null
   }
 }

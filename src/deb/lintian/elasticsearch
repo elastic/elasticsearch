@@ -1,0 +1,8 @@
+# Ignore arch dependent warnings, we chose the right libs on start
+elasticsearch binary: arch-independent-package-contains-binary-or-object
+# Not stripping external libraries
+elasticsearch binary: unstripped-binary-or-object
+# Ignore arch dependent warnings, we chose the right libs on start
+elasticsearch binary: arch-dependent-file-in-usr-share
+# Please check our changelog at http://www.elasticsearch.org/downloads/
+elasticsearch binary: changelog-file-missing-in-native-package

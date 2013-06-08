@@ -28,6 +28,8 @@
         }
       }
     },
-    "body": null
+    "body": {
+      "description" : "The mapping definition"
+    }
   }
 }

@@ -29,7 +29,8 @@
       }
     },
     "body": {
-      "description" : "The mapping definition"
+      "description" : "The mapping definition",
+      "required" : true
     }
   }
 }

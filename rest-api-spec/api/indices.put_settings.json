@@ -15,7 +15,8 @@
       }
     },
     "body": {
-      "description" : "The index settings to be updated"
+      "description" : "The index settings to be updated",
+      "required" : true
     }
   }
 }

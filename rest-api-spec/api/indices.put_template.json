@@ -1,6 +1,6 @@
 {
   "indices.put_template": {
-    "documentation": "",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-templates/",
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/_template/{name}",

@@ -25,6 +25,7 @@ import java.util.Arrays;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
 import org.elasticsearch.search.SearchHit;
@@ -41,6 +42,10 @@ public class ElasticsearchAssertions {
      */
     public static void assertHitCount(SearchResponse searchResponse, long expectedHitCount) {
         assertThat(searchResponse.getHits().totalHits(), is(expectedHitCount));
+    }
+
+    public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
+        assertThat(countResponse.getCount(), is(expectedHitCount));
     }
 
     public static void assertFirstHit(SearchResponse searchResponse, Matcher<SearchHit> matcher) {

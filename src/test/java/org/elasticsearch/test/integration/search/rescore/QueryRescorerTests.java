@@ -24,7 +24,6 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchMatchers.SearchHitHasIdMatcher;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 
 import org.apache.lucene.util.English;
@@ -81,9 +80,9 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                 .setRescoreWindow(5).execute().actionGet();
 
         assertHitCount(searchResponse, 3);
-        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("1"));
-        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("2"));
-        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
 
         searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
@@ -91,9 +90,9 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                 .setRescoreWindow(5).execute().actionGet();
 
         assertHitCount(searchResponse, 3);
-        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("1"));
-        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("2"));
-        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
     }
     
     @Test
@@ -138,9 +137,9 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
 
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
         assertHitCount(searchResponse, 9);
-        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("2"));
-        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("6"));
-        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
+        assertFirstHit(searchResponse, hasId("2"));
+        assertSecondHit(searchResponse, hasId("6"));
+        assertThirdHit(searchResponse, hasId("3"));
         
         searchResponse = client()
         .prepareSearch()
@@ -154,9 +153,9 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
 
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
         assertHitCount(searchResponse, 9);
-        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("2"));
-        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("6"));
-        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
+        assertFirstHit(searchResponse, hasId("2"));
+        assertSecondHit(searchResponse, hasId("6"));
+        assertThirdHit(searchResponse, hasId("3"));
     }
 
     private static final void assertEquivalent(SearchResponse plain, SearchResponse rescored) {
@@ -289,9 +288,9 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                                 .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f)).setRescoreWindow(5).setExplain(true).execute()
                 .actionGet();
         assertHitCount(searchResponse, 3);
-        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("1"));
-        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("2"));
-        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("2"));
+        assertThirdHit(searchResponse, hasId("3"));
 
         for (int i = 0; i < 3; i++) {
             assertThat(searchResponse.getHits().getAt(i).explanation(), notNullValue());

@@ -24,6 +24,9 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchMatchers.SearchHitHasIdMatcher;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -46,12 +49,6 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
 
     @Test
     public void testRescorePhrase() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         client().admin()
                 .indices()
                 .prepareCreate("test")
@@ -67,8 +64,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "type1", "3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").execute()
                 .actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-
+        refresh();
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)))
@@ -84,30 +80,24 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "the quick brown").slop(3)))
                 .setRescoreWindow(5).execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
-        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertHitCount(searchResponse, 3);
+        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("1"));
+        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("2"));
+        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
 
         searchResponse = client().prepareSearch()
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
                 .setRescorer(RescoreBuilder.queryRescorer((QueryBuilders.matchPhraseQuery("field1", "the quick brown"))))
                 .setRescoreWindow(5).execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
-        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertHitCount(searchResponse, 3);
+        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("1"));
+        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("2"));
+        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
     }
     
     @Test
     public void testMoreDocs() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         Builder builder = ImmutableSettings.builder();
         builder.put("index.analysis.analyzer.synonym.tokenizer", "whitespace");
         builder.putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase");
@@ -146,12 +136,11 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                         RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
                                 .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(20).execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(9l));
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
-        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("6"));
-        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
-        
+        assertHitCount(searchResponse, 9);
+        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("2"));
+        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("6"));
+        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
         
         searchResponse = client()
         .prepareSearch()
@@ -163,11 +152,11 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                 RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
                         .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(20).execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(9l));
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
-        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("6"));
-        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertHitCount(searchResponse, 9);
+        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("2"));
+        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("6"));
+        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
     }
 
     private static final void assertEquivalent(SearchResponse plain, SearchResponse rescored) {
@@ -199,12 +188,6 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
 
     @Test
     public void testEquivalence() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         client().admin()
                 .indices()
                 .prepareCreate("test")
@@ -277,40 +260,32 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
 
     @Test
     public void testExplain() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        client().admin()
-                .indices()
-                .prepareCreate("test")
+       prepareCreate("test")
                 .addMapping(
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 2)).execute().actionGet();
-
+        ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "the quick lazy huge brown fox jumps over the tree").execute()
                 .actionGet();
         client().prepareIndex("test", "type1", "3")
                 .setSource("field1", "quick huge brown", "field2", "the quick lazy huge brown fox jumps over the tree").execute()
                 .actionGet();
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
-        
+        refresh();
         SearchResponse searchResponse = client()
                 .prepareSearch()
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                 .setQuery(QueryBuilders.matchQuery("field1", "the quick brown").operator(MatchQueryBuilder.Operator.OR))
                 .setRescorer(
                         RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "the quick brown").slop(2).boost(4.0f))
                                 .setQueryWeight(0.5f).setRescoreQueryWeight(0.4f)).setRescoreWindow(5).setExplain(true).execute()
                 .actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
-        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
-        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
-        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertHitCount(searchResponse, 3);
+        assertFirstHit(searchResponse, new SearchHitHasIdMatcher("1"));
+        assertSecondHit(searchResponse, new SearchHitHasIdMatcher("2"));
+        assertThirdHit(searchResponse, new SearchHitHasIdMatcher("3"));
 
         for (int i = 0; i < 3; i++) {
             assertThat(searchResponse.getHits().getAt(i).explanation(), notNullValue());

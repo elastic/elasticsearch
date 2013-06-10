@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.statistical;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,7 +37,7 @@ import java.util.List;
  */
 public class InternalStatisticalFacet extends InternalFacet implements StatisticalFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("statistical");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("statistical"));
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);

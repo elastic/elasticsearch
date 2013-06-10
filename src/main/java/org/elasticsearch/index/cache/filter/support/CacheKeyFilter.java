@@ -23,7 +23,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.Unicode;
+import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -43,17 +43,13 @@ public interface CacheKeyFilter {
         }
 
         public Key(String str) {
-            this(Unicode.fromStringAsBytes(str));
+            this(Strings.toUTF8Bytes(str));
         }
 
         public byte[] bytes() {
             return this.bytes;
         }
-
-        public String utf8ToString() {
-            return Unicode.fromBytes(bytes);
-        }
-
+        
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;

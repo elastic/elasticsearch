@@ -20,7 +20,6 @@
 package org.elasticsearch.test.integration.search.basic;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -41,10 +40,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
+
+import com.google.common.base.Charsets;
 
 /**
  *
@@ -69,7 +69,7 @@ public class TransportSearchFailuresTests extends AbstractSharedClusterTest {
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client().search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+                SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(3));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(3));
@@ -98,7 +98,7 @@ public class TransportSearchFailuresTests extends AbstractSharedClusterTest {
 
         for (int i = 0; i < 5; i++) {
             try {
-                SearchResponse searchResponse = client().search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+                SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
                 assertThat(searchResponse.getTotalShards(), equalTo(3));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
                 assertThat(searchResponse.getFailedShards(), equalTo(3));

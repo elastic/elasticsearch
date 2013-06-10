@@ -24,6 +24,7 @@ import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -50,7 +51,7 @@ import java.util.List;
  */
 public class InternalStringTermsFacet extends InternalTermsFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("tTerms");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("tTerms"));
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);

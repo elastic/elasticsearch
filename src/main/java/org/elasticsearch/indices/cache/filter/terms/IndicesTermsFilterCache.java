@@ -32,6 +32,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -133,8 +134,9 @@ public class IndicesTermsFilterCache extends AbstractComponent {
     }
 
     public void clear(String reason, String[] keys) {
+        final BytesRef spare = new BytesRef();
         for (String key : keys) {
-            cache.invalidate(new CacheKeyFilter.Key(key));
+            cache.invalidate(new CacheKeyFilter.Key(Strings.toUTF8Bytes(key, spare)));
         }
     }
 

@@ -19,12 +19,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.Closeables;
 
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
@@ -439,7 +438,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             int lastDotIndex = mappingFile.getName().lastIndexOf('.');
             String mappingType = lastDotIndex != -1 ? mappingFile.getName().substring(0, lastDotIndex) : mappingFile.getName();
             try {
-                String mappingSource = Streams.copyToString(new InputStreamReader(new FileInputStream(mappingFile), Streams.UTF8));
+                String mappingSource = Streams.copyToString(new InputStreamReader(new FileInputStream(mappingFile), Charsets.UTF_8));
                 if (mappings.containsKey(mappingType)) {
                     XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
                 } else {

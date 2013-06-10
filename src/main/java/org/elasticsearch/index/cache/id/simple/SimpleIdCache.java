@@ -22,7 +22,9 @@ package org.elasticsearch.index.cache.id.simple;
 import gnu.trove.impl.Constants;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
@@ -119,10 +121,11 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                 // We don't want to load uid of child documents, this allows us to not load uids of child types.
                 NavigableSet<HashedBytesArray> parentTypes = new TreeSet<HashedBytesArray>(UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder);
+                BytesRef spare = new BytesRef();
                 for (String type : indexService.mapperService().types()) {
                     ParentFieldMapper parentFieldMapper = indexService.mapperService().documentMapper(type).parentFieldMapper();
                     if (parentFieldMapper != null) {
-                        parentTypes.add(new HashedBytesArray(parentFieldMapper.type()));
+                        parentTypes.add(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), spare)));
                     }
                 }
 

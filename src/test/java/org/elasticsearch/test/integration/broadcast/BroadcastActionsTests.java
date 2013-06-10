@@ -26,11 +26,13 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationThreading;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
+
+import com.beust.jcommander.Strings;
+import com.google.common.base.Charsets;
 
 import java.io.IOException;
 
@@ -95,7 +97,7 @@ public class BroadcastActionsTests extends AbstractSharedClusterTest {
 
         for (int i = 0; i < 5; i++) {
             // test failed (simply query that can't be parsed)
-            CountResponse countResponse = client().count(countRequest("test").query(Unicode.fromStringAsBytes("{ term : { _type : \"type1 } }"))).actionGet();
+            CountResponse countResponse = client().count(countRequest("test").query("{ term : { _type : \"type1 } }".getBytes(Charsets.UTF_8))).actionGet();
 
             assertThat(countResponse.getCount(), equalTo(0l));
             assertThat(countResponse.getTotalShards(), equalTo(5));

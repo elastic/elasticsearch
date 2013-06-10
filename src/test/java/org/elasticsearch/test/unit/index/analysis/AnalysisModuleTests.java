@@ -45,6 +45,8 @@ import org.elasticsearch.test.unit.index.analysis.filter1.MyFilterTokenFilterFac
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
+import com.google.common.base.Charsets;
+
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -172,7 +174,7 @@ public class AnalysisModuleTests {
 
         BufferedWriter writer = null;
         try {
-            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(wordListFile), Streams.UTF8));
+            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(wordListFile), Charsets.UTF_8));
             for (String word : words) {
                 writer.write(word);
                 writer.write('\n');

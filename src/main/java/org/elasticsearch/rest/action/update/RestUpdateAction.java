@@ -70,6 +70,7 @@ public class RestUpdateAction extends BaseRestHandler {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         updateRequest.percolate(request.param("percolate", null));
+        updateRequest.shouldUpsertDoc(request.paramAsBoolean("doc_as_upsert",updateRequest.shouldUpsertDoc()));
         updateRequest.script(request.param("script"));
         updateRequest.scriptLang(request.param("lang"));
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
@@ -111,7 +112,7 @@ public class RestUpdateAction extends BaseRestHandler {
                     }
                     doc.version(RestActions.parseVersion(request));
                     doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
-                }
+                }                
             } catch (Exception e) {
                 try {
                     channel.sendResponse(new XContentThrowableRestResponse(request, e));

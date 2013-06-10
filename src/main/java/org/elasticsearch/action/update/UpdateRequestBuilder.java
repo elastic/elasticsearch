@@ -297,4 +297,9 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     protected void doExecute(ActionListener<UpdateResponse> listener) {
         ((Client) client).update(request, listener);
     }
+
+	public UpdateRequestBuilder setShouldUpsertDoc(boolean shouldUpsertDoc) {
+		request.shouldUpsertDoc(shouldUpsertDoc);
+		return this;
+	}
 }

@@ -66,10 +66,10 @@ public class UpdateHelper extends AbstractComponent {
                 new String[]{SourceFieldMapper.NAME, RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME}, true);
 
         if (!getResult.isExists()) {
-            if (request.upsertRequest() == null) {
+            if (request.upsertRequest() == null && !request.shouldUpsertDoc()) {
                 throw new DocumentMissingException(new ShardId(request.index(), request.shardId()), request.type(), request.id());
             }
-            IndexRequest indexRequest = request.upsertRequest();
+            IndexRequest indexRequest = request.shouldUpsertDoc() ? request.doc() : request.upsertRequest();
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
                     .create(true)

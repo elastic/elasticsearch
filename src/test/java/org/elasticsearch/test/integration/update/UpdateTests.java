@@ -165,7 +165,22 @@ public class UpdateTests extends AbstractSharedClusterTest {
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
     }
-
+    @Test
+    public void testUpsertDoc() throws Exception {
+    	createIndex();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
+        		.setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())        		
+        		.setShouldUpsertDoc(true)
+                .setFields("_source")
+                .execute().actionGet();
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
+    }
+    
     @Test
     public void testUpsertFields() throws Exception {
         createIndex();
@@ -371,6 +386,25 @@ public class UpdateTests extends AbstractSharedClusterTest {
             assertThat(e.validationErrors().size(), equalTo(1));
             assertThat(e.validationErrors().get(0), containsString("can't provide both script and doc"));
             assertThat(e.getMessage(), containsString("can't provide both script and doc"));
+        }
+    }
+    
+    @Test
+    public void testUpdateRequestWithScriptAndShouldUpsertDoc() throws Exception{
+    	createIndex();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        try {
+            client().prepareUpdate("test", "type1", "1")
+                    .setScript("ctx._source.field += 1")
+                    .setShouldUpsertDoc(true)
+                    .execute().actionGet();
+            fail("Should have thrown ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.validationErrors().size(), equalTo(1));
+            assertThat(e.validationErrors().get(0), containsString("can't say to upsert doc without providing doc"));
+            assertThat(e.getMessage(), containsString("can't say to upsert doc without providing doc"));
         }
     }
 

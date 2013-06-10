@@ -68,6 +68,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     private IndexRequest upsertRequest;
+    
+    private boolean shouldUpsertDoc;
 
     @Nullable
     private IndexRequest doc;
@@ -96,6 +98,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         }
         if (script != null && doc != null) {
             validationException = addValidationError("can't provide both script and doc", validationException);
+        }
+        if(doc == null && shouldUpsertDoc == true){
+        	validationException = addValidationError("can't say to upsert doc without providing doc", validationException);
         }
         return validationException;
     }
@@ -507,6 +512,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
                     safeDoc().source(docBuilder);
+                } else if("doc_as_upsert".equals(currentFieldName)){
+                	shouldUpsertDoc(parser.booleanValue());
                 }
             }
         } finally {
@@ -589,4 +596,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.writeTo(out);
         }
     }
+
+    public boolean shouldUpsertDoc() {
+        return this.shouldUpsertDoc;
+    }
+	public void shouldUpsertDoc(boolean shouldUpsertDoc) {
+		this.shouldUpsertDoc = shouldUpsertDoc;
+		if(this.doc != null && this.upsertRequest == null){
+			upsert(doc);
+		}		
+	}
 }

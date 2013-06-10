@@ -124,9 +124,8 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     @AfterClass
     protected static void afterClass() {
-        TestCluster toRelease = cluster;
         cluster = null;
-        ClusterManager.releaseCluster(toRelease);
+        ClusterManager.releaseCluster();
     }
 
     public static Client client() {

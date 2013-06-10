@@ -293,8 +293,17 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
+    /**
+     * Sets whether the specified doc parameter should be used as upsert document.
+     */
+    public UpdateRequestBuilder setDocAsUpsert(boolean shouldUpsertDoc) {
+        request.docAsUpsert(shouldUpsertDoc);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<UpdateResponse> listener) {
         ((Client) client).update(request, listener);
     }
+
 }

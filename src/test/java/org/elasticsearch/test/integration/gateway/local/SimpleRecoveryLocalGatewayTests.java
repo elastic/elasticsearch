@@ -19,8 +19,6 @@
 
 package org.elasticsearch.test.integration.gateway.local;
 
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-
 import org.elasticsearch.action.count.CountResponse;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -98,7 +96,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
                 .startArray("appAccountIds").value(14).endArray().endObject()).execute().actionGet();
 
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet().getCount(), equalTo(2l));
+        assertHitCount(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet(), 2);
 
         closeNode("node1");
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
@@ -112,7 +110,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
         CountResponse count = node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet();
         assertNoFailures(count);
-        assertThat(count.getCount(), equalTo(2l));
+        assertHitCount(count, 2);
 
         closeNode("node1");
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
@@ -126,7 +124,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
         count = node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet();
         assertNoFailures(count);
-        assertThat(count.getCount(), equalTo(2l));
+        assertHitCount(count, 2);
     }
 
     @Test
@@ -148,10 +146,10 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
 
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value1")).execute().actionGet().getCount(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value2")).execute().actionGet().getCount(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 179)).execute().actionGet().getCount(), equalTo(1l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
+            assertHitCount(node1.client().prepareCount().setQuery(termQuery("field", "value1")).execute().actionGet(), 1);
+            assertHitCount(node1.client().prepareCount().setQuery(termQuery("field", "value2")).execute().actionGet(), 1);
+            assertHitCount(node1.client().prepareCount().setQuery(termQuery("num", 179)).execute().actionGet(), 1);
         }
 
         closeNode("node1");
@@ -164,10 +162,10 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value1")).execute().actionGet().getCount(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value2")).execute().actionGet().getCount(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 179)).execute().actionGet().getCount(), equalTo(1l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
+            assertHitCount(node1.client().prepareCount().setQuery(termQuery("field", "value1")).execute().actionGet(), 1);
+            assertHitCount(node1.client().prepareCount().setQuery(termQuery("field", "value2")).execute().actionGet(), 1);
+            assertHitCount(node1.client().prepareCount().setQuery(termQuery("num", 179)).execute().actionGet(), 1);
         }
 
         closeNode("node1");
@@ -180,10 +178,10 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value1")).execute().actionGet().getCount(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("field", "value2")).execute().actionGet().getCount(), equalTo(1l));
-            assertThat(node1.client().prepareCount().setQuery(termQuery("num", 179)).execute().actionGet().getCount(), equalTo(1l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
+            assertHitCount(node1.client().prepareCount().setQuery(termQuery("field", "value1")).execute().actionGet(), 1);
+            assertHitCount(node1.client().prepareCount().setQuery(termQuery("field", "value2")).execute().actionGet(), 1);
+            assertHitCount(node1.client().prepareCount().setQuery(termQuery("num", 179)).execute().actionGet(), 1);
         }
     }
 
@@ -199,7 +197,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node1.client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().field("field", "value2").endObject()).execute().actionGet();
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+        assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
 
         closeNode("node1");
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
@@ -211,7 +209,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
 
         closeNode("node1");
@@ -224,7 +222,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
     }
 
@@ -250,7 +248,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
 
         logger.info("--> closing nodes");
@@ -271,7 +269,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
     }
 
@@ -297,7 +295,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 2);
         }
 
         logger.info("--> closing first node, and indexing more data to the second node");
@@ -307,7 +305,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         node2.client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node2.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(3l));
+            assertHitCount(node2.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 3);
         }
 
         logger.info("--> add some metadata, additional type and template");
@@ -340,7 +338,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         for (int i = 0; i < 10; i++) {
-            assertThat(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(3l));
+            assertHitCount(node1.client().prepareCount().setQuery(matchAllQuery()).execute().actionGet(), 3);
         }
 
         ClusterState state = node1.client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -459,7 +457,7 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(health.isTimedOut(), equalTo(false));
 
         assertThat(client("node2").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
-        assertThat(client("node2").prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
+        assertHitCount(client("node2").prepareCount("test").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 1);
     }
 
 }

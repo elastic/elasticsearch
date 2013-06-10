@@ -30,7 +30,10 @@ import org.testng.annotations.Test;
 import java.util.Date;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.testng.AssertJUnit.fail;
 
 /**
  *
@@ -145,10 +148,41 @@ public class SimpleJodaTests {
     public void testMultipleFormats() {
         FormatDateTimeFormatter formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
         long millis = formatter.parser().parseMillis("1970/01/01 00:00:00");
-        millis = formatter.parser().parseMillis("1970/01/01");
-//        System.out.println("" + millis);
+        assertThat("1970/01/01 00:00:00", is(formatter.printer().print(millis)));
+    }
 
-        System.out.println(formatter.printer().print(millis));
+    @Test
+    public void testMultipleDifferentFormats() {
+        FormatDateTimeFormatter formatter = Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
+        String input = "1970/01/01 00:00:00";
+        long millis = formatter.parser().parseMillis(input);
+        assertThat(input, is(formatter.printer().print(millis)));
+
+        Joda.forPattern("yyyy/MM/dd HH:mm:ss||yyyy/MM/dd||dateOptionalTime");
+        Joda.forPattern("dateOptionalTime||yyyy/MM/dd HH:mm:ss||yyyy/MM/dd");
+        Joda.forPattern("yyyy/MM/dd HH:mm:ss||dateOptionalTime||yyyy/MM/dd");
+        Joda.forPattern("date_time||date_time_no_millis");
+        Joda.forPattern(" date_time || date_time_no_millis");
+    }
+
+    @Test
+    public void testInvalidPatterns() {
+        expectInvalidPattern("does_not_exist_pattern", "Invalid format: [does_not_exist_pattern]: Illegal pattern component: o");
+        expectInvalidPattern("OOOOO", "Invalid format: [OOOOO]: Illegal pattern component: OOOOO");
+        expectInvalidPattern(null, "No date pattern provided");
+        expectInvalidPattern("", "No date pattern provided");
+        expectInvalidPattern(" ", "No date pattern provided");
+        expectInvalidPattern("||date_time_no_millis", "No date pattern provided");
+        expectInvalidPattern("date_time_no_millis||", "No date pattern provided");
+    }
+
+    private void expectInvalidPattern(String pattern, String errorMessage) {
+        try {
+            Joda.forPattern(pattern);
+            fail("Pattern " + pattern + " should have thrown an exception but did not");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(errorMessage));
+        }
     }
 
     @Test

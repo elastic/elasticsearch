@@ -30,6 +30,8 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
 
+import com.google.common.base.Charsets;
+
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
@@ -124,7 +126,7 @@ public class SimpleMapperTests {
                         .add(object("name").add(stringField("first").store(true).index(false)))
         ).build(mapperParser);
 
-        BytesReference json = new BytesArray("".getBytes(Streams.UTF8));
+        BytesReference json = new BytesArray("".getBytes(Charsets.UTF_8));
         try {
             docMapper.parse("person", "1", json).rootDoc();
             assertThat("this point is never reached", false);

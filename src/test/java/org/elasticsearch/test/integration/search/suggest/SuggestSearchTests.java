@@ -56,6 +56,8 @@ import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+import com.google.common.base.Charsets;
+
 /**
  */
 public class SuggestSearchTests extends AbstractSharedClusterTest {
@@ -550,7 +552,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         
         client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Streams.UTF8));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Charsets.UTF_8));
         String line = null;
         while ((line = reader.readLine()) != null) {
             client().prepareIndex("test", "type1")
@@ -884,7 +886,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         
         client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", mapping).execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Streams.UTF8));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(SuggestSearchTests.class.getResourceAsStream("/config/names.txt"), Charsets.UTF_8));
         String line = null;
         while ((line = reader.readLine()) != null) {
             client().prepareIndex("test", "type1")

@@ -22,6 +22,9 @@ package org.elasticsearch.common;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import gnu.trove.set.hash.THashSet;
+
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.BufferedReader;
@@ -1029,39 +1032,37 @@ public class Strings {
         return result;
     }
 
-    public static String[] splitStringToArray(final String s, final char c) {
+    public static String[] splitStringToArray(final CharSequence s, final char c) {
         if (s.length() == 0) {
             return Strings.EMPTY_ARRAY;
         }
-        final char[] chars = s.toCharArray();
         int count = 1;
-        for (final char x : chars) {
-            if (x == c) {
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == c) {
                 count++;
             }
         }
         final String[] result = new String[count];
-        final int len = chars.length;
-        int start = 0;  // starting index in chars of the current substring.
-        int pos = 0;    // current index in chars.
-        int i = 0;      // number of the current substring.
-        for (; pos < len; pos++) {
-            if (chars[pos] == c) {
-                int size = pos - start;
-                if (size > 0) {
-                    result[i++] = new String(chars, start, size);
+        final StringBuilder builder = new StringBuilder();
+        int res = 0;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) == c) {
+                if (builder.length() > 0) {
+                    result[res++] = builder.toString();
+                    builder.setLength(0);
                 }
-                start = pos + 1;
+                
+            } else {
+                builder.append(s.charAt(i));
             }
         }
-        int size = pos - start;
-        if (size > 0) {
-            result[i++] = new String(chars, start, size);
+        if (builder.length() > 0) {
+            result[res++] = builder.toString();
         }
-        if (i != count) {
+        if (res != count) {
             // we have empty strings, copy over to a new array
-            String[] result1 = new String[i];
-            System.arraycopy(result, 0, result1, 0, i);
+            String[] result1 = new String[res];
+            System.arraycopy(result, 0, result1, 0, res);
             return result1;
         }
         return result;
@@ -1491,5 +1492,16 @@ public class Strings {
 
     private Strings() {
 
+    }
+    
+    public static byte[] toUTF8Bytes(CharSequence charSequence) {
+        return toUTF8Bytes(charSequence, new BytesRef());
+    }
+    
+    public static byte[] toUTF8Bytes(CharSequence charSequence, BytesRef spare) {
+        UnicodeUtil.UTF16toUTF8(charSequence, 0, charSequence.length(), spare);
+        final byte[] bytes = new byte[spare.length];
+        System.arraycopy(spare.bytes, spare.offset, bytes, 0, bytes.length);
+        return bytes;
     }
 }

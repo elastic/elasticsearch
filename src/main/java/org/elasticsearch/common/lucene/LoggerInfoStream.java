@@ -23,6 +23,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
+import com.google.common.base.Charsets;
+
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
@@ -74,7 +76,7 @@ public class LoggerInfoStream extends PrintStream {
      * @throws UnsupportedEncodingException 
      */
     public LoggerInfoStream(ESLogger logger) throws UnsupportedEncodingException {
-        super((OutputStream) null, false, Streams.UTF8.name());
+        super((OutputStream) null, false, Charsets.UTF_8.name());
         this.logger = logger;
     }
 

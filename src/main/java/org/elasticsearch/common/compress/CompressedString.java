@@ -20,7 +20,6 @@
 package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -79,7 +78,7 @@ public class CompressedString implements Streamable {
     }
 
     public CompressedString(String str) throws IOException {
-        BytesRef result = Unicode.unsafeFromStringAsUtf8(str);
+        BytesRef result = new BytesRef(str);
         this.bytes = CompressorFactory.defaultCompressor().compress(result.bytes, result.offset, result.length);
     }
 
@@ -93,7 +92,7 @@ public class CompressedString implements Streamable {
     }
 
     public String string() throws IOException {
-        return Unicode.fromBytes(uncompressed());
+        return new BytesRef(uncompressed()).utf8ToString();
     }
 
     public static CompressedString readCompressedString(StreamInput in) throws IOException {

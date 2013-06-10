@@ -39,6 +39,12 @@
         "tokenizer": {
           "type" : "string",
           "description" : "The name of the tokenizer to use for the analysis"
+        },
+        "format": {
+          "type": "enum",
+          "options" : ["detailed","text"],
+          "default": "detailed",
+          "description": "Format of the output"
         }
       }
     },

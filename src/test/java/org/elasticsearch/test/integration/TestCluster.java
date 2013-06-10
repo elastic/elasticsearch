@@ -35,7 +35,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.Client;
@@ -69,15 +68,15 @@ public class TestCluster {
      *  "action.auto_create_index"
      *  "node.local"
      */
-
-
     protected final ESLogger logger = Loggers.getLogger(getClass());
 
     private Map<String, NodeAndClient> nodes = newHashMap();
 
-    private final AtomicInteger refCount = new AtomicInteger(1);
-
     private final String clusterName;
+    
+    private final AtomicBoolean open = new AtomicBoolean(true);
+    
+    
 
     private final Settings defaultSettings;
 
@@ -85,8 +84,8 @@ public class TestCluster {
     
     private NodeAndClient clientNode;
 
-    public TestCluster(int generation) {
-        this("simple-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "_gen_" + generation, ImmutableSettings.settingsBuilder().build());
+    public TestCluster() {
+        this("simple-test-cluster-" + NetworkUtils.getLocalAddress().getHostName() + "_" + System.currentTimeMillis(), ImmutableSettings.settingsBuilder().build());
     }
 
     private TestCluster(String clusterName, Settings defaultSettings) {
@@ -103,25 +102,11 @@ public class TestCluster {
         this.defaultSettings = ImmutableSettings.settingsBuilder().put(defaultSettings).put("cluster.name", clusterName).build();
     }
 
-    boolean tryAccquire() {
-        int refs = this.refCount.get();
-        while (refs > 0) {
-            if (this.refCount.compareAndSet(refs, refs + 1)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     private void ensureOpen() {
-        if (this.refCount.get() == 0) {
+        if (!open.get()) {
             throw new RuntimeException("Cluster is already closed");
         }
-        assert this.refCount.get() >= 0;
-    }
-
-    int decrementReference() {
-        return this.refCount.decrementAndGet();
     }
 
     public Node getOneNode() {
@@ -201,14 +186,12 @@ public class TestCluster {
 
     public void close() {
         ensureOpen();
-        while (this.refCount.get() == 1) {
-            if (this.refCount.compareAndSet(1, 0)) {
-                IOUtils.closeWhileHandlingException(nodes.values());
-                nodes.clear();
+        if (this.open.compareAndSet(true, false)) {
+            IOUtils.closeWhileHandlingException(nodes.values());
+            nodes.clear();
+            if (clientNode != null) {
+                IOUtils.closeWhileHandlingException(clientNode);
             }
-        }
-        if (clientNode != null) {
-            IOUtils.closeWhileHandlingException(clientNode);
         }
     }
 

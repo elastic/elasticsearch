@@ -201,13 +201,16 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i)).execute().actionGet();
         }
-
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        
+        flush();
+        optimize(); // make sure we don't have a background merge running
+        refresh();
         for (int i = 0; i < numDocs; i++) {
             String intToEnglish = English.intToEnglish(i);
             String query = intToEnglish.split(" ")[0];
             SearchResponse rescored = client()
                     .prepareSearch()
+                    .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
                     .setFrom(0)
                     .setSize(10)
@@ -222,6 +225,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
             
 
             SearchResponse plain = client().prepareSearch()
+                    .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR)).setFrom(0).setSize(10)
                     .execute().actionGet();
             // check equivalence
@@ -229,6 +233,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
             
             rescored = client()
             .prepareSearch()
+            .setPreference("test") // ensure we hit the same shards for tie-breaking
             .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
             .setFrom(0)
             .setSize(10)
@@ -245,6 +250,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
             
             rescored = client()
             .prepareSearch()
+            .setPreference("test") // ensure we hit the same shards for tie-breaking
             .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
             .setFrom(0)
             .setSize(10)

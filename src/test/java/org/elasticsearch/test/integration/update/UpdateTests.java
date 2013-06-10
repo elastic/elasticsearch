@@ -19,23 +19,6 @@
 
 package org.elasticsearch.test.integration.update;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.testng.AssertJUnit.assertFalse;
-import static org.testng.AssertJUnit.assertTrue;
-import static org.testng.AssertJUnit.fail;
-
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
@@ -49,6 +32,16 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
+import static org.testng.AssertJUnit.*;
 
 public class UpdateTests extends AbstractSharedClusterTest {
 
@@ -170,7 +163,22 @@ public class UpdateTests extends AbstractSharedClusterTest {
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
     }
-
+    @Test
+    public void testUpsertDoc() throws Exception {
+    	createIndex();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
+        		.setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())        		
+        		.setDocAsUpsert(true)
+                .setFields("_source")
+                .execute().actionGet();
+        assertThat(updateResponse.getGetResult(), notNullValue());
+        assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
+    }
+    
     @Test
     public void testUpsertFields() throws Exception {
         createIndex();
@@ -380,6 +388,25 @@ public class UpdateTests extends AbstractSharedClusterTest {
             assertThat(e.validationErrors().size(), equalTo(1));
             assertThat(e.validationErrors().get(0), containsString("can't provide both script and doc"));
             assertThat(e.getMessage(), containsString("can't provide both script and doc"));
+        }
+    }
+    
+    @Test
+    public void testUpdateRequestWithScriptAndShouldUpsertDoc() throws Exception{
+    	createIndex();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        try {
+            client().prepareUpdate("test", "type1", "1")
+                    .setScript("ctx._source.field += 1")
+                    .setDocAsUpsert(true)
+                    .execute().actionGet();
+            fail("Should have thrown ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.validationErrors().size(), equalTo(1));
+            assertThat(e.validationErrors().get(0), containsString("can't say to upsert doc without providing doc"));
+            assertThat(e.getMessage(), containsString("can't say to upsert doc without providing doc"));
         }
     }
 

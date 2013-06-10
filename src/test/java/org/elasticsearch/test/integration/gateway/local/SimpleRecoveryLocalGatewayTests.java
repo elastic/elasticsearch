@@ -19,6 +19,10 @@
 
 package org.elasticsearch.test.integration.gateway.local;
 
+import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+
+import org.elasticsearch.action.count.CountResponse;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndexShardStatus;
@@ -44,6 +48,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
@@ -99,7 +104,9 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet().getCount(), equalTo(2l));
+        CountResponse count = node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet();
+        assertNoFailures(count);
+        assertThat(count.getCount(), equalTo(2l));
 
         closeNode("node1");
         node1 = startNode("node1", settingsBuilder().put("gateway.type", "local").build());
@@ -111,7 +118,9 @@ public class SimpleRecoveryLocalGatewayTests extends AbstractNodesTests {
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
 
         node1.client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet().getCount(), equalTo(2l));
+        count = node1.client().prepareCount().setQuery(termQuery("appAccountIds", 179)).execute().actionGet();
+        assertNoFailures(count);
+        assertThat(count.getCount(), equalTo(2l));
     }
 
     @Test

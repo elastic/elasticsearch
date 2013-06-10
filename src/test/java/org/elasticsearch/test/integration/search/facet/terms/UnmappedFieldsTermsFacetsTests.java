@@ -202,7 +202,7 @@ public class UnmappedFieldsTermsFacetsTests extends AbstractSharedClusterTest {
 
         client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client().prepareSearch()
+        SearchResponse searchResponse = client().prepareSearch("mapped_idx", "unmapped_idx")
                 .setQuery(matchAllQuery())
                 .addFacet(termsFacet("mapped").field("mapped").size(10))
                 .addFacet(termsFacet("partially_mapped_str").field("partially_mapped_str").size(10))

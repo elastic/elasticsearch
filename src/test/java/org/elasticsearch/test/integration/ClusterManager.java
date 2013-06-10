@@ -18,41 +18,21 @@
  */
 package org.elasticsearch.test.integration;
 
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 public class ClusterManager {
 
-    private static final ScheduledExecutorService service = Executors.newSingleThreadScheduledExecutor();
     private static TestCluster cluster;
-    private static int generation = 0;
 
     public synchronized static TestCluster accquireCluster() {
         if (cluster == null) {
-            cluster = new TestCluster(generation++);
+            cluster = new TestCluster();
         }
-        TestCluster c = cluster;
-        if (!c.tryAccquire()) {
-            c = new TestCluster(generation++);
-            boolean tryAccquire = c.tryAccquire();
-            assert tryAccquire;
-            cluster = c;
-        }
-        
-        c.reset();
-        return c;
+        cluster.reset();
+        return cluster;
 
     }
     
-    public static synchronized void releaseCluster(final TestCluster toRelease) {
-        toRelease.decrementReference();
-        // TODO find a better way
-//        service.schedule(new Runnable() {
-//            @Override
-//            public void run() {
-//                toRelease.close();
-//            }
-//        }, 3, TimeUnit.MINUTES);
+    public static synchronized void releaseCluster() {
+        // doNothing 
     }
 }

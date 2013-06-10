@@ -20,6 +20,7 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
@@ -68,6 +69,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     private IndexRequest upsertRequest;
+    
+    private boolean docAsUpsert = false;
 
     @Nullable
     private IndexRequest doc;
@@ -96,6 +99,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         }
         if (script != null && doc != null) {
             validationException = addValidationError("can't provide both script and doc", validationException);
+        }
+        if(doc == null && docAsUpsert == true){
+        	validationException = addValidationError("can't say to upsert doc without providing doc", validationException);
         }
         return validationException;
     }
@@ -507,12 +513,24 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
                     safeDoc().source(docBuilder);
+                } else if("doc_as_upsert".equals(currentFieldName)){
+                	docAsUpsert(parser.booleanValue());
                 }
             }
         } finally {
             parser.close();
         }
         return this;
+    }
+
+    public boolean docAsUpsert() {
+        return this.docAsUpsert;
+    }
+    public void docAsUpsert(boolean shouldUpsertDoc) {
+        this.docAsUpsert = shouldUpsertDoc;
+        if(this.doc != null && this.upsertRequest == null){
+            upsert(doc);
+        }
     }
 
     @Override
@@ -543,6 +561,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         if (in.readBoolean()) {
             upsertRequest = new IndexRequest();
             upsertRequest.readFrom(in);
+        }
+        if (in.getVersion().onOrAfter(Version.V_0_90_2)) {
+            docAsUpsert = in.readBoolean();
         }
     }
 
@@ -588,5 +609,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.id(id);
             upsertRequest.writeTo(out);
         }
+        if (out.getVersion().onOrAfter(Version.V_0_90_2)) {
+            out.writeBoolean(docAsUpsert);
+        }
     }
+
 }

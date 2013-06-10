@@ -23,6 +23,8 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
+import com.google.common.base.Charsets;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -96,7 +98,7 @@ public class HttpClient {
             InputStream inputStream = urlConnection.getInputStream();
             String body = null;
             try {
-                body = Streams.copyToString(new InputStreamReader(inputStream, Streams.UTF8));
+                body = Streams.copyToString(new InputStreamReader(inputStream, Charsets.UTF_8));
             } catch (IOException e1) {
                 throw new ElasticSearchException("problem reading error stream", e1);
             }
@@ -105,7 +107,7 @@ public class HttpClient {
             InputStream errStream = urlConnection.getErrorStream();
             String body = null;
             try {
-                body = Streams.copyToString(new InputStreamReader(errStream, Streams.UTF8));
+                body = Streams.copyToString(new InputStreamReader(errStream, Charsets.UTF_8));
             } catch (IOException e1) {
                 throw new ElasticSearchException("problem reading error stream", e1);
             }

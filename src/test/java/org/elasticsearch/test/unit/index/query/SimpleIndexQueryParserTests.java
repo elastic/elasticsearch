@@ -31,6 +31,7 @@ import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -759,7 +760,7 @@ public class SimpleIndexQueryParserTests {
         Filter filter = ((XFilteredQuery) parsedQuery.query()).getFilter();
         assertThat(filter, instanceOf(CacheKeyFilter.Wrapper.class));
         CacheKeyFilter.Wrapper wrapper = (CacheKeyFilter.Wrapper) filter;
-        assertThat(wrapper.cacheKey().utf8ToString(), equalTo("key"));
+        assertThat(new BytesRef(wrapper.cacheKey().bytes()).utf8ToString(), equalTo("key"));
         assertThat(wrapper.wrappedFilter(), instanceOf(RegexpFilter.class));
         RegexpFilter regexpFilter = (RegexpFilter) wrapper.wrappedFilter();
         assertThat(regexpFilter.field(), equalTo("name.first"));

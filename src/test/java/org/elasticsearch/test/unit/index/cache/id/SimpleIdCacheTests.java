@@ -30,6 +30,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Injector;
@@ -132,10 +133,10 @@ public class SimpleIdCacheTests {
         assertThat(typeCache.parentIdByDoc(3).toUtf8(), equalTo("1"));
         assertThat(typeCache.parentIdByDoc(4).toUtf8(), equalTo("1"));
 
-        assertThat(typeCache.docById(new HashedBytesArray("1")), equalTo(0));
-        assertThat(typeCache.docById(new HashedBytesArray("2")), equalTo(-1));
-        assertThat(typeCache.docById(new HashedBytesArray("3")), equalTo(-1));
-        assertThat(typeCache.docById(new HashedBytesArray("4")), equalTo(-1));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("1"))), equalTo(0));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("2"))), equalTo(-1));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("3"))), equalTo(-1));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("4"))), equalTo(-1));
 
         // Verify simple id cache for segment 2
         readerCache = idCache.reader(leaves.get(1).reader());
@@ -153,10 +154,10 @@ public class SimpleIdCacheTests {
         assertThat(typeCache.parentIdByDoc(3), nullValue());
         assertThat(typeCache.parentIdByDoc(4), nullValue());
 
-        assertThat(typeCache.docById(new HashedBytesArray("2")), equalTo(1));
-        assertThat(typeCache.docById(new HashedBytesArray("3")), equalTo(2));
-        assertThat(typeCache.docById(new HashedBytesArray("4")), equalTo(3));
-        assertThat(typeCache.docById(new HashedBytesArray("5")), equalTo(4));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("2"))), equalTo(1));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("3"))), equalTo(2));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("4"))), equalTo(3));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("5"))), equalTo(4));
 
         // Verify simple id cache for segment 3
         readerCache = idCache.reader(leaves.get(2).reader());
@@ -176,8 +177,8 @@ public class SimpleIdCacheTests {
         assertThat(typeCache.parentIdByDoc(4).toUtf8(), equalTo("4"));
         assertThat(typeCache.parentIdByDoc(5), nullValue());
 
-        assertThat(typeCache.docById(new HashedBytesArray("6")), equalTo(0));
-        assertThat(typeCache.docById(new HashedBytesArray("7")), equalTo(5));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("6"))), equalTo(0));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("7"))), equalTo(5));
 
         // Verify simple id cache for segment 4
         readerCache = idCache.reader(leaves.get(3).reader());
@@ -195,7 +196,7 @@ public class SimpleIdCacheTests {
         assertThat(typeCache.parentIdByDoc(3), nullValue());
         assertThat(typeCache.parentIdByDoc(4), nullValue());
 
-        assertThat(typeCache.docById(new HashedBytesArray("8")), equalTo(4));
+        assertThat(typeCache.docById(new HashedBytesArray(Strings.toUTF8Bytes("8"))), equalTo(4));
     }
 
     @Test(expectedExceptions = AssertionError.class)

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +38,7 @@ import java.util.*;
  */
 public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("fdHistogram");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("fdHistogram"));
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);

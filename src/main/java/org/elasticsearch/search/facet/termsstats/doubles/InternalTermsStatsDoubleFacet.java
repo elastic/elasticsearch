@@ -21,6 +21,7 @@ package org.elasticsearch.search.facet.termsstats.doubles;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,7 +39,7 @@ import java.util.*;
 
 public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
 
-    private static final BytesReference STREAM_TYPE = new HashedBytesArray("dTS");
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("dTS"));
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);

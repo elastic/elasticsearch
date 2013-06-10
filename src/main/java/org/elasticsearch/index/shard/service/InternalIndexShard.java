@@ -841,7 +841,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
             }
             CheckIndex checkIndex = new CheckIndex(store.directory());
             FastByteArrayOutputStream os = new FastByteArrayOutputStream();
-            PrintStream out = new PrintStream(os, false, Streams.UTF8.name());
+            PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
             checkIndex.setInfoStream(out);
             out.flush();
             CheckIndex.Status status = checkIndex.checkIndex();

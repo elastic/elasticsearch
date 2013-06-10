@@ -50,7 +50,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.Scroll;
@@ -64,6 +63,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Sets;
 
 /**
@@ -339,7 +339,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
         try {
-            SearchResponse searchResponse =  client().search(searchRequest("test").source(Unicode.fromStringAsBytes("{ xxx }"))).actionGet();
+            SearchResponse searchResponse =  client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
             assertThat(searchResponse.getTotalShards(), equalTo(3));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(3));

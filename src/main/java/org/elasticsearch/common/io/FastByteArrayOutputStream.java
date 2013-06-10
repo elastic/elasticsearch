@@ -27,6 +27,8 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
+import com.google.common.base.Charsets;
+
 /**
  * Similar to {@link java.io.ByteArrayOutputStream} just not synced.
  */
@@ -171,7 +173,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
      * @since JDK1.1
      */
     public String toString() {
-        return new String(buf, 0, count, Streams.UTF8);
+        return new String(buf, 0, count, Charsets.UTF_8);
     }
 
     /**

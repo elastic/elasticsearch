@@ -35,6 +35,8 @@ import org.hamcrest.Matcher;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
+import com.google.common.base.Charsets;
+
 import java.io.IOException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -60,7 +62,7 @@ public class SimpleValidateQueryTests  extends AbstractSharedClusterTest {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes(Streams.UTF8)).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery("foo".getBytes(Charsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_id:1")).execute().actionGet().isValid(), equalTo(true));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryString("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
@@ -100,7 +102,7 @@ public class SimpleValidateQueryTests  extends AbstractSharedClusterTest {
 
         ValidateQueryResponse response;
         response = client().admin().indices().prepareValidateQuery("test")
-                .setQuery("foo".getBytes(Streams.UTF8))
+                .setQuery("foo".getBytes(Charsets.UTF_8))
                 .setExplain(true)
                 .execute().actionGet();
         assertThat(response.isValid(), equalTo(false));
@@ -207,7 +209,7 @@ public class SimpleValidateQueryTests  extends AbstractSharedClusterTest {
         
         for (Client client :  cluster().clients()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
-                    .setQuery("foo".getBytes(Streams.UTF8))
+                    .setQuery("foo".getBytes(Charsets.UTF_8))
                     .setExplain(true)
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(false));

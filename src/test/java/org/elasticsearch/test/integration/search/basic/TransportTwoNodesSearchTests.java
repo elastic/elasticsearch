@@ -27,7 +27,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.Scroll;
@@ -37,7 +36,6 @@ import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -60,13 +58,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
-
-    private static Set<String> fullExpectedIds = Sets.newHashSet();
-
-    @BeforeClass
-    public static void runBeforeClass() throws Exception {
-        AbstractSharedClusterTest.beforeClass();
-        wipeIndices();
+    private Set<String> prepareData() throws Exception {
+        Set<String> fullExpectedIds = Sets.newHashSet();
         cluster().ensureAtLeastNumNodes(2);
         client().admin().indices().create(createIndexRequest("test")
                 .settings(settingsBuilder().put("index.number_of_shards", 3)
@@ -74,21 +67,38 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
                         .put("routing.hash.type", "simple")))
                 .actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
         for (int i = 0; i < 100; i++) {
             index(client(), Integer.toString(i), "test", i);
             fullExpectedIds.add(Integer.toString(i));
         }
         client().admin().indices().refresh(refreshRequest("test")).actionGet();
+        return fullExpectedIds;
     }
 
-    @Override
-    protected boolean indexPerClass() {
-        return true; // don't wipe the index before test
+    private void index(Client client, String id, String nameValue, int age) throws IOException {
+        client().index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
+    }
+
+    private XContentBuilder source(String id, String nameValue, int age) throws IOException {
+        StringBuilder multi = new StringBuilder().append(nameValue);
+        for (int i = 0; i < age; i++) {
+            multi.append(" ").append(nameValue);
+        }
+        return jsonBuilder().startObject()
+                .field("id", id)
+                .field("nid", Integer.parseInt(id))
+                .field("name", nameValue + id)
+                .field("age", age)
+                .field("multi", multi.toString())
+                .field("_boost", age * 10)
+                .endObject();
     }
 
     @Test
     public void testDfsQueryThenFetch() throws Exception {
+        prepareData();
+
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true);
@@ -118,6 +128,8 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testDfsQueryThenFetchWithSort() throws Exception {
+        prepareData();
+
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
@@ -145,6 +157,8 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testQueryThenFetch() throws Exception {
+        prepareData();
+
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .sort("nid", SortOrder.DESC) // we have to sort here to have some ordering with dist scoring
@@ -173,6 +187,8 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testQueryThenFetchWithFrom() throws Exception {
+        Set<String> fullExpectedIds = prepareData();
+
         SearchSourceBuilder source = searchSource()
                 .query(matchAllQuery())
                 .explain(true);
@@ -200,6 +216,8 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testQueryThenFetchWithSort() throws Exception {
+        prepareData();
+
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
@@ -227,6 +245,8 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testQueryAndFetch() throws Exception {
+        prepareData();
+
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
@@ -264,6 +284,8 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testDfsQueryAndFetch() throws Exception {
+        prepareData();
+
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true);
@@ -302,6 +324,8 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testSimpleFacets() throws Exception {
+        prepareData();
+
         SearchSourceBuilder sourceBuilder = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(0).size(20).explain(true)
@@ -317,13 +341,9 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
     }
 
     @Test
-    public void testSimpleFacetsTwice() throws Exception {
-        testSimpleFacets();
-        testSimpleFacets();
-    }
-
-    @Test
     public void testFailedSearchWithWrongQuery() throws Exception {
+        prepareData();
+
         logger.info("Start Testing failed search with wrong query");
         try {
             SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
@@ -340,6 +360,8 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testFailedSearchWithWrongFrom() throws Exception {
+        prepareData();
+
         logger.info("Start Testing failed search with wrong from");
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
@@ -367,6 +389,8 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testFailedMultiSearchWithWrongQuery() throws Exception {
+        prepareData();
+
         logger.info("Start Testing failed multi search with a wrong query");
 
         MultiSearchResponse response = client().prepareMultiSearch()
@@ -385,24 +409,5 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
         assertThat(response.getResponses()[2].getResponse().getHits().hits().length, equalTo(10));
 
         logger.info("Done Testing failed search");
-    }
-
-    private static void index(Client client, String id, String nameValue, int age) throws IOException {
-        client().index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
-    }
-
-    private static XContentBuilder source(String id, String nameValue, int age) throws IOException {
-        StringBuilder multi = new StringBuilder().append(nameValue);
-        for (int i = 0; i < age; i++) {
-            multi.append(" ").append(nameValue);
-        }
-        return jsonBuilder().startObject()
-                .field("id", id)
-                .field("nid", Integer.parseInt(id))
-                .field("name", nameValue + id)
-                .field("age", age)
-                .field("multi", multi.toString())
-                .field("_boost", age * 10)
-                .endObject();
     }
 }

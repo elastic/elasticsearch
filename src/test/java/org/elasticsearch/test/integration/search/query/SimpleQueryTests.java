@@ -745,6 +745,8 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
     @Test
     public void testEmptyTermsFilter() throws Exception {
+        createIndexMapped("test",  "type", "term", "string");
+        ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("term", "1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("term", "2").execute().actionGet();
         client().prepareIndex("test", "type", "3").setSource("term", "3").execute().actionGet();
@@ -753,13 +755,13 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), termsFilter("term", new String[0]))
                 ).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
 
         searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), idsFilter())
                 ).execute().actionGet();
-        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
     }
 

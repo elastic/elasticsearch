@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterService;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
@@ -37,6 +39,7 @@ import org.elasticsearch.indices.InvalidIndexTemplateException;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -51,17 +54,24 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         this.clusterService = clusterService;
     }
 
-    public void removeTemplate(final RemoveRequest request, final RemoveListener listener) {
+    public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
         clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                if (!currentState.metaData().templates().containsKey(request.name)) {
+                Set<String> templateNames = Sets.newHashSet();
+                for (String templateName : currentState.metaData().templates().keySet()) {
+                    if (Regex.simpleMatch(request.name, templateName)) {
+                        templateNames.add(templateName);
+                    }
+                }
+                if (templateNames.isEmpty()) {
                     listener.onFailure(new IndexTemplateMissingException(request.name));
                     return currentState;
                 }
-                MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData())
-                        .removeTemplate(request.name);
-
+                MetaData.Builder metaData = MetaData.builder().metaData(currentState.metaData());
+                for (String templateName : templateNames) {
+                    metaData.removeTemplate(templateName);
+                }
                 return ClusterState.builder().state(currentState).metaData(metaData).build();
             }
 

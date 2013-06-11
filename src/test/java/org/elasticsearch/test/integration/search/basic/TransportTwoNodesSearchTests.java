@@ -19,30 +19,8 @@
 
 package org.elasticsearch.test.integration.search.basic;
 
-import static org.elasticsearch.action.search.SearchType.DFS_QUERY_AND_FETCH;
-import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
-import static org.elasticsearch.action.search.SearchType.QUERY_AND_FETCH;
-import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
-import static org.elasticsearch.client.Requests.createIndexRequest;
-import static org.elasticsearch.client.Requests.refreshRequest;
-import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.client.Requests.searchScrollRequest;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Set;
-
+import com.google.common.base.Charsets;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -60,11 +38,22 @@ import org.elasticsearch.search.facet.query.QueryFacet;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Set;
+
+import static org.elasticsearch.action.search.SearchType.*;
+import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -75,25 +64,23 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
     private static Set<String> fullExpectedIds = Sets.newHashSet();
 
     @BeforeClass
-    public static void runBeforeClass() throws Exception{
+    public static void runBeforeClass() throws Exception {
         AbstractSharedClusterTest.beforeClass();
         wipeIndices();
         cluster().ensureAtLeastNumNodes(2);
-         client().admin().indices().create(createIndexRequest("test")
+        client().admin().indices().create(createIndexRequest("test")
                 .settings(settingsBuilder().put("index.number_of_shards", 3)
                         .put("index.number_of_replicas", 0)
                         .put("routing.hash.type", "simple")))
                 .actionGet();
 
-         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         for (int i = 0; i < 100; i++) {
             index(client(), Integer.toString(i), "test", i);
             fullExpectedIds.add(Integer.toString(i));
         }
         client().admin().indices().refresh(refreshRequest("test")).actionGet();
     }
-    
-    
 
     @Override
     protected boolean indexPerClass() {
@@ -106,7 +93,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true);
 
-        SearchResponse searchResponse =  client().search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
@@ -119,7 +106,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
-        searchResponse =  client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
+        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(40));
@@ -135,7 +122,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
-        SearchResponse searchResponse =  client().search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(DFS_QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
@@ -146,7 +133,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(i)));
         }
 
-        searchResponse =  client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
+        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(40));
@@ -163,7 +150,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
                 .sort("nid", SortOrder.DESC) // we have to sort here to have some ordering with dist scoring
                 .from(0).size(60).explain(true);
 
-        SearchResponse searchResponse =  client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
@@ -174,7 +161,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - i - 1)));
         }
 
-        searchResponse =  client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
+        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(40));
@@ -192,7 +179,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
 
         Set<String> collectedIds = Sets.newHashSet();
 
-        SearchResponse searchResponse =  client().search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
@@ -200,7 +187,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
             SearchHit hit = searchResponse.getHits().hits()[i];
             collectedIds.add(hit.id());
         }
-        searchResponse =  client().search(searchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
+        searchResponse = client().search(searchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(40));
@@ -217,7 +204,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
                 .query(termQuery("multi", "test"))
                 .from(0).size(60).explain(true).sort("age", SortOrder.ASC);
 
-        SearchResponse searchResponse =  client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_THEN_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60));
@@ -228,7 +215,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
             assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(i)));
         }
 
-        searchResponse =  client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
+        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(40));
@@ -249,7 +236,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
             expectedIds.add(Integer.toString(i));
         }
 
-        SearchResponse searchResponse =  client().search(searchRequest("test").source(source).searchType(QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60)); // 20 per shard
@@ -262,7 +249,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
             assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
         }
 
-        searchResponse =  client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
+        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(40));
@@ -287,7 +274,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
         }
 
 
-        SearchResponse searchResponse =  client().search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(source).searchType(DFS_QUERY_AND_FETCH).scroll(new Scroll(timeValueMinutes(10)))).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(60)); // 20 per shard
@@ -299,7 +286,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
             assertThat("make sure we don't have duplicates", expectedIds.remove(hit.id()), notNullValue());
         }
 
-        searchResponse =  client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
+        searchResponse = client().searchScroll(searchScrollRequest(searchResponse.getScrollId())).actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
         assertThat(searchResponse.getHits().hits().length, equalTo(40));
@@ -321,7 +308,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
                 .facet(FacetBuilders.queryFacet("all", termQuery("multi", "test")).global(true))
                 .facet(FacetBuilders.queryFacet("test1", termQuery("name", "test1")));
 
-        SearchResponse searchResponse =  client().search(searchRequest("test").source(sourceBuilder)).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("test").source(sourceBuilder)).actionGet();
         assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(100l));
 
@@ -339,7 +326,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
     public void testFailedSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed search with wrong query");
         try {
-            SearchResponse searchResponse =  client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
+            SearchResponse searchResponse = client().search(searchRequest("test").source("{ xxx }".getBytes(Charsets.UTF_8))).actionGet();
             assertThat(searchResponse.getTotalShards(), equalTo(3));
             assertThat(searchResponse.getSuccessfulShards(), equalTo(0));
             assertThat(searchResponse.getFailedShards(), equalTo(3));
@@ -357,21 +344,21 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
         SearchSourceBuilder source = searchSource()
                 .query(termQuery("multi", "test"))
                 .from(1000).size(20).explain(true);
-        SearchResponse response =  client().search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
+        SearchResponse response = client().search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
         assertThat(response.getHits().hits().length, equalTo(0));
         assertThat(response.getTotalShards(), equalTo(3));
         assertThat(response.getSuccessfulShards(), equalTo(3));
         assertThat(response.getFailedShards(), equalTo(0));
 
-        response =  client().search(searchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
+        response = client().search(searchRequest("test").searchType(QUERY_THEN_FETCH).source(source)).actionGet();
         assertThat(Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
-        response =  client().search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
+        response = client().search(searchRequest("test").searchType(DFS_QUERY_AND_FETCH).source(source)).actionGet();
         assertThat(Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
-        response =  client().search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
+        response = client().search(searchRequest("test").searchType(DFS_QUERY_THEN_FETCH).source(source)).actionGet();
         assertThat(Arrays.toString(response.getShardFailures()), response.getShardFailures().length, equalTo(0));
         assertThat(response.getHits().hits().length, equalTo(0));
 
@@ -382,11 +369,11 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
     public void testFailedMultiSearchWithWrongQuery() throws Exception {
         logger.info("Start Testing failed multi search with a wrong query");
 
-        MultiSearchResponse response =  client().prepareMultiSearch()
+        MultiSearchResponse response = client().prepareMultiSearch()
                 // Add custom score query with missing script
-                .add( client().prepareSearch("test").setQuery(QueryBuilders.customScoreQuery(QueryBuilders.termQuery("nid", 1))))
-                .add( client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
-                .add( client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.customScoreQuery(QueryBuilders.termQuery("nid", 1))))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("nid", 2)))
+                .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();
         assertThat(response.getResponses().length, equalTo(3));
         assertThat(response.getResponses()[0].getFailureMessage(), notNullValue());
@@ -401,7 +388,7 @@ public class TransportTwoNodesSearchTests extends AbstractSharedClusterTest {
     }
 
     private static void index(Client client, String id, String nameValue, int age) throws IOException {
-         client().index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
+        client().index(Requests.indexRequest("test").type("type1").id(id).source(source(id, nameValue, age))).actionGet();
     }
 
     private static XContentBuilder source(String id, String nameValue, int age) throws IOException {

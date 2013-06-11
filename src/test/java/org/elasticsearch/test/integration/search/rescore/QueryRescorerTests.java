@@ -19,13 +19,6 @@
 
 package org.elasticsearch.test.integration.search.rescore;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-
 import org.apache.lucene.util.English;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -40,6 +33,12 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -94,7 +93,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
     }
-    
+
     @Test
     public void testMoreDocs() throws Exception {
         Builder builder = ImmutableSettings.builder();
@@ -103,7 +102,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
         builder.put("index.analysis.filter.synonym.type", "synonym");
         builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type2").startObject("properties")
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("field1").field("type", "string").field("index_analyzer", "whitespace").field("search_analyzer", "synonym")
                 .endObject().endObject().endObject().endObject();
 
@@ -140,16 +139,16 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
         assertFirstHit(searchResponse, hasId("2"));
         assertSecondHit(searchResponse, hasId("6"));
         assertThirdHit(searchResponse, hasId("3"));
-        
+
         searchResponse = client()
-        .prepareSearch()
-        .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
-        .setFrom(0)
-        .setSize(5)
-        .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-        .setRescorer(
-                RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
-                        .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(20).execute().actionGet();
+                .prepareSearch()
+                .setQuery(QueryBuilders.matchQuery("field1", "lexington avenue massachusetts").operator(MatchQueryBuilder.Operator.OR))
+                .setFrom(0)
+                .setSize(5)
+                .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+                .setRescorer(
+                        RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "lexington avenue massachusetts").slop(3))
+                                .setQueryWeight(0.6f).setRescoreQueryWeight(2.0f)).setRescoreWindow(20).execute().actionGet();
 
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
         assertHitCount(searchResponse, 9);
@@ -165,10 +164,10 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         for (int i = 0; i < hits.length; i++) {
-            assertThat(hits[i].getId(), equalTo(rightHits.getHits()[i].getId()));    
+            assertThat(hits[i].getId(), equalTo(rightHits.getHits()[i].getId()));
         }
     }
-    
+
     private static final void assertEquivalentOrSubstringMatch(String query, SearchResponse plain, SearchResponse rescored) {
         SearchHits leftHits = plain.getHits();
         SearchHits rightHits = rescored.getHits();
@@ -200,7 +199,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test", "type1", String.valueOf(i)).setSource("field1", English.intToEnglish(i)).execute().actionGet();
         }
-        
+
         flush();
         optimize(); // make sure we don't have a background merge running
         refresh();
@@ -220,44 +219,44 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                                                     .constantScoreQuery(QueryBuilders.matchPhraseQuery("field1", intToEnglish).slop(3)))
                                     .setQueryWeight(1.0f)
                                     .setRescoreQueryWeight(0.0f)) // no weigth - so we basically use the same score as the actual query
-                                    .setRescoreWindow(50).execute().actionGet();
-            
+                    .setRescoreWindow(50).execute().actionGet();
+
 
             SearchResponse plain = client().prepareSearch()
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR)).setFrom(0).setSize(10)
                     .execute().actionGet();
             // check equivalence
-            assertEquivalent(plain, rescored); 
-            
+            assertEquivalent(plain, rescored);
+
             rescored = client()
-            .prepareSearch()
-            .setPreference("test") // ensure we hit the same shards for tie-breaking
-            .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
-            .setFrom(0)
-            .setSize(10)
-            .setRescorer(
-                    RescoreBuilder
-                            .queryRescorer(
-                                    QueryBuilders
-                                            .constantScoreQuery(QueryBuilders.matchPhraseQuery("field1", "not in the index").slop(3)))
-                            .setQueryWeight(1.0f)
-                            .setRescoreQueryWeight(1.0f))
-                            .setRescoreWindow(50).execute().actionGet();
+                    .prepareSearch()
+                    .setPreference("test") // ensure we hit the same shards for tie-breaking
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
+                    .setFrom(0)
+                    .setSize(10)
+                    .setRescorer(
+                            RescoreBuilder
+                                    .queryRescorer(
+                                            QueryBuilders
+                                                    .constantScoreQuery(QueryBuilders.matchPhraseQuery("field1", "not in the index").slop(3)))
+                                    .setQueryWeight(1.0f)
+                                    .setRescoreQueryWeight(1.0f))
+                    .setRescoreWindow(50).execute().actionGet();
             // check equivalence
-            assertEquivalent(plain, rescored); 
-            
+            assertEquivalent(plain, rescored);
+
             rescored = client()
-            .prepareSearch()
-            .setPreference("test") // ensure we hit the same shards for tie-breaking
-            .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
-            .setFrom(0)
-            .setSize(10)
-            .setRescorer(
-                    RescoreBuilder
-                            .queryRescorer(
-                                    QueryBuilders.matchPhraseQuery("field1", intToEnglish).slop(0))
-                            .setQueryWeight(1.0f).setRescoreQueryWeight(1.0f)).setRescoreWindow(100).execute().actionGet();
+                    .prepareSearch()
+                    .setPreference("test") // ensure we hit the same shards for tie-breaking
+                    .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR))
+                    .setFrom(0)
+                    .setSize(10)
+                    .setRescorer(
+                            RescoreBuilder
+                                    .queryRescorer(
+                                            QueryBuilders.matchPhraseQuery("field1", intToEnglish).slop(0))
+                                    .setQueryWeight(1.0f).setRescoreQueryWeight(1.0f)).setRescoreWindow(100).execute().actionGet();
             // check equivalence or if the first match differs we check if the phrase is a substring of the top doc
             assertEquivalentOrSubstringMatch(intToEnglish, plain, rescored);
         }
@@ -265,7 +264,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
 
     @Test
     public void testExplain() throws Exception {
-       prepareCreate("test")
+        prepareCreate("test")
                 .addMapping(
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")

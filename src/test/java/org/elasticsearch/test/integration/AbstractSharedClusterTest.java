@@ -94,14 +94,8 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     @BeforeMethod
     public final void before() {
         cluster.ensureAtLeastNumNodes(numberOfNodes());
-        if (!indexPerClass()) {
-            wipeIndices();
-            wipeTemplates();
-        }
-    }
-
-    protected boolean indexPerClass() {
-        return false;
+        wipeIndices();
+        wipeTemplates();
     }
 
     @AfterMethod

@@ -47,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeClass;
@@ -67,7 +68,7 @@ import static org.hamcrest.Matchers.equalTo;
  * start an abitrary number of nodes in the background. This class might in the
  * future add random configureation options to created indices etc. unless
  * unless they are explicitly defined by the test.
- * 
+ * <p/>
  * <p>
  * This test wipes all indices before a testcase is executed and uses
  * elasticsearch features like allocation filters to ensure an index is
@@ -75,7 +76,7 @@ import static org.hamcrest.Matchers.equalTo;
  * information about the client or which client is returned, clients might be
  * node clients or transport clients and the returned client might be rotated.
  * </p>
- * <p>
+ * <p/>
  * Tests that need more explict control over the cluster or that need to change
  * the cluster state aside of per-index settings should not use this class as a
  * baseclass. If your test modifies the cluster state with persistent or
@@ -95,6 +96,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         cluster.ensureAtLeastNumNodes(numberOfNodes());
         if (!indexPerClass()) {
             wipeIndices();
+            wipeTemplates();
         }
     }
 
@@ -153,6 +155,23 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         wipeIndices(name);
     }
 
+    /**
+     * Deletes index templates, support wildcard notation.
+     */
+    public static void wipeTemplates(String... templates) {
+        // if nothing is provided, delete all
+        if (templates.length == 0) {
+            templates = new String[]{"*"};
+        }
+        for (String template : templates) {
+            try {
+                client().admin().indices().prepareDeleteTemplate(template).execute().actionGet();
+            } catch (IndexTemplateMissingException e) {
+                // ignore
+            }
+        }
+    }
+
     public void createIndex(String... names) {
         for (String name : names) {
             try {
@@ -164,7 +183,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
             prepareCreate(name).setSettings(getSettings()).execute().actionGet();
         }
     }
-    
+
     public void createIndexMapped(String name, String type, String... simpleMapping) throws IOException {
         XContentBuilder builder = jsonBuilder().startObject().startObject(type).startObject("properties");
         for (int i = 0; i < simpleMapping.length; i++) {
@@ -193,7 +212,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         }
         return client().admin().indices().prepareCreate(index).setSettings(builder.build());
     }
-    
+
     public CreateIndexRequestBuilder addMapping(CreateIndexRequestBuilder builder, String type, Object[]... mapping) throws IOException {
         XContentBuilder mappingBuilder = jsonBuilder();
         mappingBuilder.startObject().startObject(type).startObject("properties");
@@ -202,12 +221,12 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
             for (int i = 1; i < objects.length; i++) {
                 String name = objects[i++].toString();
                 Object value = objects[i];
-                mappingBuilder.field(name,value);    
+                mappingBuilder.field(name, value);
             }
             mappingBuilder.endObject();
         }
         mappingBuilder.endObject().endObject().endObject();
-        builder.addMapping(type, mappingBuilder );
+        builder.addMapping(type, mappingBuilder);
         return builder;
     }
 
@@ -263,25 +282,25 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         return actionGet.getStatus();
     }
-    
+
     public ClusterHealthStatus waitForRelocation() {
         return waitForRelocation(null);
     }
-    
+
     public ClusterHealthStatus waitForRelocation(ClusterHealthStatus status) {
         ClusterHealthRequest request = Requests.clusterHealthRequest().waitForRelocatingShards(0);
         if (status != null) {
             request.waitForStatus(status);
         }
         ClusterHealthResponse actionGet = client().admin().cluster()
-                    .health(request).actionGet();
+                .health(request).actionGet();
         assertThat(actionGet.isTimedOut(), equalTo(false));
         if (status != null) {
             assertThat(actionGet.getStatus(), equalTo(status));
         }
         return actionGet.getStatus();
     }
-    
+
     public ClusterHealthStatus ensureYellow() {
         ClusterHealthResponse actionGet = client().admin().cluster()
                 .health(Requests.clusterHealthRequest().waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
@@ -312,15 +331,15 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     protected FlushResponse flush() {
         FlushResponse actionGet = client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
         assertNoFailures(actionGet);
-        return actionGet;    
+        return actionGet;
     }
-    
+
     protected OptimizeResponse optimize() {
         OptimizeResponse actionGet = client().admin().indices().prepareOptimize().execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
     }
-    
+
     protected Set<String> nodeIdsWithIndex(String... indices) {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
@@ -328,35 +347,35 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         for (ShardIterator shardIterator : allAssignedShardsGrouped) {
             for (ShardRouting routing : shardIterator.asUnordered()) {
                 if (routing.active()) {
-                    nodes.add(routing.currentNodeId());    
+                    nodes.add(routing.currentNodeId());
                 }
-                
+
             }
         }
         return nodes;
     }
-    
+
     protected int numAssignedShards(String... indices) {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
     }
-    
+
     protected boolean indexExists(String index) {
         IndicesExistsResponse actionGet = client().admin().indices().prepareExists(index).execute().actionGet();
         return actionGet.isExists();
     }
-    
+
     protected AdminClient admin() {
         return client().admin();
     }
-    
-    protected <Res extends ActionResponse> Res run(ActionRequestBuilder<?,Res,?> builder) {
+
+    protected <Res extends ActionResponse> Res run(ActionRequestBuilder<?, Res, ?> builder) {
         Res actionGet = builder.execute().actionGet();
         return actionGet;
     }
-    
-    protected <Res extends BroadcastOperationResponse> Res run(BroadcastOperationRequestBuilder<?,Res,?> builder) {
+
+    protected <Res extends BroadcastOperationResponse> Res run(BroadcastOperationRequestBuilder<?, Res, ?> builder) {
         Res actionGet = builder.execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;

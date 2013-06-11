@@ -37,11 +37,8 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
 
-
     @Test
     public void simpleIndexTemplateTests() throws Exception {
-        clean();
-
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
                 .setOrder(0)
@@ -114,26 +111,43 @@ public class SimpleIndexTemplateTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2"));
     }
 
-    private void clean() {
-        try {
-            client().admin().indices().prepareDelete("test_index").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDelete("text_index").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDeleteTemplate("template_1").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        try {
-            client().admin().indices().prepareDeleteTemplate("template_2").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
+    @Test
+    public void testDeleteIndexTemplate() throws Exception {
+        logger.info("--> put template_1 and template_2");
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .setOrder(0)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
+                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        client().admin().indices().preparePutTemplate("template_2")
+                .setTemplate("test*")
+                .setOrder(1)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field2").field("type", "string").field("store", "no").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        logger.info("--> explicitly delete template_1");
+        admin().indices().prepareDeleteTemplate("template_1").execute().actionGet();
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(1));
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().containsKey("template_2"), equalTo(true));
+
+        logger.info("--> put template_1 back");
+        client().admin().indices().preparePutTemplate("template_1")
+                .setTemplate("te*")
+                .setOrder(0)
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("field1").field("type", "string").field("store", "yes").endObject()
+                        .startObject("field2").field("type", "string").field("store", "yes").field("index", "not_analyzed").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+
+        logger.info("--> delete template*");
+        admin().indices().prepareDeleteTemplate("template*").execute().actionGet();
+        assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(0));
     }
 }

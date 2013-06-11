@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -47,7 +46,6 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 
-import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
@@ -237,21 +235,15 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     @SuppressWarnings({"unchecked"})
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {
         Map<String, Object> root;
-        XContentParser xContentParser = null;
         try {
-            xContentParser = XContentFactory.xContent(source).createParser(source);
-            root = xContentParser.mapOrdered();
-        } catch (IOException e) {
-            throw new MapperParsingException("Failed to parse mapping definition", e);
-        } finally {
-            if (xContentParser != null) {
-                xContentParser.close();
-            }
+            root = XContentFactory.xContent(source).createParser(source).mapOrderedAndClose();
+        } catch (Exception e) {
+            throw new MapperParsingException("failed to parse mapping definition", e);
         }
 
         // we always assume the first and single key is the mapping type root
         if (root.keySet().size() != 1) {
-            throw new MapperParsingException("Mapping must have the `type` as the root object");
+            throw new MapperParsingException("mapping must have the `type` as the root object");
         }
 
         String rootName = root.keySet().iterator().next();

@@ -43,6 +43,7 @@ import java.util.concurrent.ConcurrentMap;
 public class IndexFieldDataService extends AbstractIndexComponent {
 
     private final static ImmutableMap<String, IndexFieldData.Builder> buildersByType;
+    private final static ImmutableMap<String, IndexFieldData.Builder> docValuesBuildersByType;
     private final static ImmutableMap<Tuple<String, String>, IndexFieldData.Builder> buildersByTypeAndFormat;
 
     static {
@@ -57,21 +58,38 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder())
                 .immutableMap();
 
+        docValuesBuildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
+                .put("string", new DocValuesIndexFieldData.Builder())
+                .put("float", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.FLOAT))
+                .put("double", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.DOUBLE))
+                .put("byte", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BYTE))
+                .put("short", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.SHORT))
+                .put("int", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.INT))
+                .put("long", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.LONG))
+                .immutableMap();
+
         buildersByTypeAndFormat = MapBuilder.<Tuple<String, String>, IndexFieldData.Builder>newMapBuilder()
                 .put(Tuple.tuple("string", "paged_bytes"), new PagedBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", "fst"), new FSTBytesIndexFieldData.Builder())
+                .put(Tuple.tuple("string", "doc_values"), new DocValuesIndexFieldData.Builder())
                 .put(Tuple.tuple("float", "array"), new FloatArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("float", "doc_values"), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.FLOAT))
                 .put(Tuple.tuple("double", "array"), new DoubleArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("double", "doc_values"), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.DOUBLE))
                 .put(Tuple.tuple("byte", "array"), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.BYTE))
+                .put(Tuple.tuple("byte", "doc_values"), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BYTE))
                 .put(Tuple.tuple("short", "array"), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.SHORT))
+                .put(Tuple.tuple("short", "doc_values"), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.SHORT))
                 .put(Tuple.tuple("int", "array"), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.INT))
+                .put(Tuple.tuple("int", "doc_values"), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.INT))
                 .put(Tuple.tuple("long", "array"), new PackedArrayIndexFieldData.Builder().setNumericType(IndexNumericFieldData.NumericType.LONG))
+                .put(Tuple.tuple("long", "doc_values"), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.LONG))
                 .put(Tuple.tuple("geo_point", "array"), new GeoPointDoubleArrayIndexFieldData.Builder())
                 .immutableMap();
     }
 
     private final IndicesFieldDataCache indicesFieldDataCache;
-    private final ConcurrentMap<String, IndexFieldData> loadedFieldData = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<String, IndexFieldData<?>> loadedFieldData = ConcurrentCollections.newConcurrentMap();
 
     IndexService indexService;
 
@@ -92,7 +110,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     public void clear() {
         synchronized (loadedFieldData) {
-            for (IndexFieldData fieldData : loadedFieldData.values()) {
+            for (IndexFieldData<?> fieldData : loadedFieldData.values()) {
                 fieldData.clear();
             }
             loadedFieldData.clear();
@@ -101,7 +119,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
 
     public void clearField(String fieldName) {
         synchronized (loadedFieldData) {
-            IndexFieldData fieldData = loadedFieldData.remove(fieldName);
+            IndexFieldData<?> fieldData = loadedFieldData.remove(fieldName);
             if (fieldData != null) {
                 fieldData.clear();
             }
@@ -109,28 +127,35 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     }
 
     public void clear(IndexReader reader) {
-        for (IndexFieldData indexFieldData : loadedFieldData.values()) {
+        for (IndexFieldData<?> indexFieldData : loadedFieldData.values()) {
             indexFieldData.clear(reader);
         }
     }
 
-    public <IFD extends IndexFieldData> IFD getForField(FieldMapper mapper) {
-        return getForField(mapper.names(), mapper.fieldDataType());
+    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper<?> mapper) {
+        return getForField(mapper.names(), mapper.fieldDataType(), mapper.hasDocValues());
     }
 
-    public <IFD extends IndexFieldData> IFD getForField(FieldMapper.Names fieldNames, FieldDataType type) {
-        IndexFieldData fieldData = loadedFieldData.get(fieldNames.indexName());
+    public <IFD extends IndexFieldData<?>> IFD getForField(FieldMapper.Names fieldNames, FieldDataType type, boolean docValues) {
+        IndexFieldData<?> fieldData = loadedFieldData.get(fieldNames.indexName());
         if (fieldData == null) {
             synchronized (loadedFieldData) {
                 fieldData = loadedFieldData.get(fieldNames.indexName());
                 if (fieldData == null) {
                     IndexFieldData.Builder builder = null;
-                    String format = type.getSettings().get("format", indexSettings.get("index.fielddata.type." + type.getType() + ".format", null));
+                    String format = type.getFormat(indexSettings);
+                    if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
+                        logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");
+                        format = null;
+                    }
                     if (format != null) {
                         builder = buildersByTypeAndFormat.get(Tuple.tuple(type.getType(), format));
                         if (builder == null) {
                             logger.warn("failed to find format [" + format + "] for field [" + fieldNames.fullName() + "], will use default");
                         }
+                    }
+                    if (builder == null && docValues) {
+                        builder = docValuesBuildersByType.get(type.getType());
                     }
                     if (builder == null) {
                         builder = buildersByType.get(type.getType());

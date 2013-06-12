@@ -34,6 +34,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.merge.policy.IndexUpgraderMergePolicy;
 import org.elasticsearch.test.ElasticSearchLuceneTestCase;
 import org.hamcrest.MatcherAssert;
@@ -77,7 +78,7 @@ public class VersionsTests extends ElasticSearchLuceneTestCase {
 
         doc = new Document();
         doc.add(new Field(UidFieldMapper.NAME, "1", UidFieldMapper.Defaults.FIELD_TYPE));
-        doc.add(new NumericDocValuesField(UidFieldMapper.VERSION, 1));
+        doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 1));
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
         directoryReader = reopen(directoryReader);
         assertThat(Versions.loadVersion(directoryReader, new Term(UidFieldMapper.NAME, "1")), equalTo(1l));
@@ -85,7 +86,7 @@ public class VersionsTests extends ElasticSearchLuceneTestCase {
 
         doc = new Document();
         Field uid = new Field(UidFieldMapper.NAME, "1", UidFieldMapper.Defaults.FIELD_TYPE);
-        Field version = new NumericDocValuesField(UidFieldMapper.VERSION, 2);
+        Field version = new NumericDocValuesField(VersionFieldMapper.NAME, 2);
         doc.add(uid);
         doc.add(version);
         writer.updateDocument(new Term(UidFieldMapper.NAME, "1"), doc);
@@ -128,7 +129,7 @@ public class VersionsTests extends ElasticSearchLuceneTestCase {
         // Root
         Document doc = new Document();
         doc.add(new Field(UidFieldMapper.NAME, "1", UidFieldMapper.Defaults.FIELD_TYPE));
-        NumericDocValuesField version = new NumericDocValuesField(UidFieldMapper.VERSION, 5L);
+        NumericDocValuesField version = new NumericDocValuesField(VersionFieldMapper.NAME, 5L);
         doc.add(version);
         docs.add(doc);
 
@@ -253,7 +254,7 @@ public class VersionsTests extends ElasticSearchLuceneTestCase {
         // 3rd segment new layout
         document = new Document();
         uid.setStringValue("5");
-        Field version = new NumericDocValuesField(UidFieldMapper.VERSION, 5L);
+        Field version = new NumericDocValuesField(VersionFieldMapper.NAME, 5L);
         document.add(uid);
         document.add(version);
         iw.addDocument(document);
@@ -268,7 +269,7 @@ public class VersionsTests extends ElasticSearchLuceneTestCase {
         // Force merge and check versions
         iw.forceMerge(1);
         final AtomicReader ir = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(iw.getDirectory()));
-        final NumericDocValues versions = ir.getNumericDocValues(UidFieldMapper.VERSION);
+        final NumericDocValues versions = ir.getNumericDocValues(VersionFieldMapper.NAME);
         assertThat(versions, notNullValue());
         for (int i = 0; i < ir.maxDoc(); ++i) {
             final String uidValue = ir.document(i).get(UidFieldMapper.NAME);

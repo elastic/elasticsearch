@@ -23,7 +23,6 @@ import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
@@ -59,20 +58,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     @Override
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
         assert fieldname.equals(indexFieldData.getFieldNames().indexName());
-        BytesRef missingBytes = null;
-        if (missingValue == null || "_last".equals(missingValue)) {
-            missingBytes = reversed ? null : MAX_TERM;
-        } else if ("_first".equals(missingValue)) {
-            missingBytes = reversed ? MAX_TERM : null;
-        } else if (missingValue instanceof BytesRef) {
-            missingBytes = (BytesRef) missingValue;
-        } else if (missingValue instanceof String) {
-            missingBytes = new BytesRef((String) missingValue);
-        } else if (missingValue instanceof byte[]) {
-            missingBytes = new BytesRef((byte[]) missingValue);
-        } else {
-            throw new ElasticSearchIllegalArgumentException("Unsupported missing value: " + missingValue);
-        }
+        final BytesRef missingBytes = (BytesRef) missingObject(missingValue, reversed);
 
         if (indexFieldData.valuesOrdered() && indexFieldData instanceof IndexFieldData.WithOrdinals) {
             return new BytesRefOrdValComparator((IndexFieldData.WithOrdinals<?>) indexFieldData, numHits, sortMode, missingBytes);

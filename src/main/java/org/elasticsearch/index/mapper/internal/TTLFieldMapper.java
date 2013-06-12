@@ -24,11 +24,13 @@ import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
@@ -37,6 +39,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -85,7 +88,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
         @Override
         public TTLFieldMapper build(BuilderContext context) {
-            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, ignoreMalformed(context), provider, fieldDataSettings);
+            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, ignoreMalformed(context), postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -115,14 +118,15 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     private long defaultTTL;
 
     public TTLFieldMapper() {
-        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, null, null);
+        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, null, null, null, ImmutableSettings.EMPTY);
     }
 
     protected TTLFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
-                             PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
+                             PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
                 Defaults.BOOST, fieldType, Defaults.NULL_VALUE, ignoreMalformed,
-                provider, null, fieldDataSettings);
+                postingsProvider, docValuesProvider, null, fieldDataSettings, indexSettings);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
     }
@@ -133,6 +137,11 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     public long defaultTTL() {
         return this.defaultTTL;
+    }
+
+    @Override
+    public boolean hasDocValues() {
+        return false;
     }
 
     // Overrides valueForSearch to display live value of remaining ttl
@@ -189,7 +198,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     }
 
     @Override
-    protected Field innerParseCreateField(ParseContext context) throws IOException, AlreadyExpiredException {
+    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException, AlreadyExpiredException {
         if (enabledState.enabled && !context.sourceToParse().flyweight()) {
             long ttl = context.sourceToParse().ttl();
             if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
@@ -205,10 +214,9 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
                     throw new AlreadyExpiredException(context.index(), context.type(), context.id(), timestamp, ttl, now);
                 }
                 // the expiration timestamp (timestamp + ttl) is set as field
-                return new CustomLongNumericField(this, expire, fieldType);
+                fields.add(new CustomLongNumericField(this, expire, fieldType));
             }
         }
-        return null;
     }
 
     @Override

@@ -24,10 +24,10 @@ import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.diskdv.DiskDocValuesFormat;
 import org.apache.lucene.codecs.lucene45.Lucene45Codec;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -42,13 +42,13 @@ public class PerFieldMappingPostingFormatCodec extends Lucene45Codec {
     private final ESLogger logger;
     private final MapperService mapperService;
     private final PostingsFormat defaultPostingFormat;
-    private final DocValuesFormat diskDocValuesFormat;
+    private final DocValuesFormat defaultDocValuesFormat;
 
-    public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat, ESLogger logger) {
+    public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat, DocValuesFormat defaultDocValuesFormat, ESLogger logger) {
         this.mapperService = mapperService;
         this.logger = logger;
         this.defaultPostingFormat = defaultPostingFormat;
-        this.diskDocValuesFormat = new DiskDocValuesFormat();
+        this.defaultDocValuesFormat = defaultDocValuesFormat;
     }
 
     @Override
@@ -64,11 +64,12 @@ public class PerFieldMappingPostingFormatCodec extends Lucene45Codec {
 
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
-        if (UidFieldMapper.VERSION.equals(field)) {
-            // Use DiskDVF for version by default
-            // TODO: Make it configurable
-            return diskDocValuesFormat;
+        final FieldMappers indexName = mapperService.indexName(field);
+        if (indexName == null) {
+            logger.warn("no index mapper found for field: [{}] returning default doc values format", field);
+            return defaultDocValuesFormat;
         }
-        return super.getDocValuesFormatForField(field);
+        DocValuesFormatProvider docValuesFormat = indexName.mapper().docValuesFormatProvider();
+        return docValuesFormat != null ? docValuesFormat.get() : defaultDocValuesFormat;
     }
 }

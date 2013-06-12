@@ -98,7 +98,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             if (type == null) {
                 throw new MapperParsingException("Parent mapping must contain the parent type");
             }
-            return new ParentFieldMapper(name, indexName, type, postingsFormat, null);
+            return new ParentFieldMapper(name, indexName, type, postingsFormat, null, context.indexSettings());
         }
     }
 
@@ -123,9 +123,9 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     private final String type;
     private final BytesRef typeAsBytes;
 
-    protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat, @Nullable Settings fieldDataSettings) {
+    protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, fieldDataSettings);
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null, fieldDataSettings, indexSettings);
         this.type = type;
         this.typeAsBytes = new BytesRef(type);
     }
@@ -142,6 +142,11 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
+    }
+
+    @Override
+    public boolean hasDocValues() {
+        return false;
     }
 
     @Override
@@ -163,29 +168,29 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (context.parser().currentName() != null && context.parser().currentName().equals(Defaults.NAME)) {
             // we are in the parsing of _parent phase
             String parentId = context.parser().text();
             context.sourceToParse().parent(parentId);
-            return new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType);
-        }
-        // otherwise, we are running it post processing of the xcontent
-        String parsedParentId = context.doc().get(Defaults.NAME);
-        if (context.sourceToParse().parent() != null) {
-            String parentId = context.sourceToParse().parent();
-            if (parsedParentId == null) {
-                if (parentId == null) {
-                    throw new MapperParsingException("No parent id provided, not within the document, and not externally");
+            fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
+        } else {
+            // otherwise, we are running it post processing of the xcontent
+            String parsedParentId = context.doc().get(Defaults.NAME);
+            if (context.sourceToParse().parent() != null) {
+                String parentId = context.sourceToParse().parent();
+                if (parsedParentId == null) {
+                    if (parentId == null) {
+                        throw new MapperParsingException("No parent id provided, not within the document, and not externally");
+                    }
+                    // we did not add it in the parsing phase, add it now
+                    fields.add(new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType));
+                } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), type, parentId))) {
+                    throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
                 }
-                // we did not add it in the parsing phase, add it now
-                return new Field(names.indexName(), Uid.createUid(context.stringBuilder(), type, parentId), fieldType);
-            } else if (parentId != null && !parsedParentId.equals(Uid.createUid(context.stringBuilder(), type, parentId))) {
-                throw new MapperParsingException("Parent id mismatch, document value is [" + Uid.createUid(parsedParentId).id() + "], while external value is [" + parentId + "]");
             }
         }
         // we have parent mapping, yet no value was set, ignore it...
-        return null;
     }
 
     @Override

@@ -27,7 +27,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 /**
  */
-public abstract class FloatArrayAtomicFieldData extends AtomicNumericFieldData {
+public abstract class FloatArrayAtomicFieldData extends AbstractAtomicNumericFieldData {
 
     public static FloatArrayAtomicFieldData empty(int numDocs) {
         return new Empty(numDocs);

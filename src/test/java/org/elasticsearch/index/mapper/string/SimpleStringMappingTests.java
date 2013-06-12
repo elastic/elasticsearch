@@ -19,19 +19,27 @@
 
 package org.elasticsearch.index.mapper.string;
 
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfo.DocValuesType;
+import org.apache.lucene.index.IndexableField;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.MapperTestUtils;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper.BuilderContext;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.test.ElasticSearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class SimpleStringMappingTests {
+public class SimpleStringMappingTests extends ElasticSearchTestCase {
+
+    private static Settings DOC_VALUES_SETTINGS = ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
     @Test
     public void testLimit() throws Exception {
@@ -204,6 +212,72 @@ public class SimpleStringMappingTests {
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorOffsets(), equalTo(true));
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPositions(), equalTo(true));
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
+    }
+
+    public void testDocValues() throws Exception {
+        // doc values only work on non-analyzed content
+        final BuilderContext ctx = new BuilderContext(null, new ContentPath(1));
+        try {
+            new StringFieldMapper.Builder("anything").fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
+            fail();
+        } catch (Exception e) { /* OK */ }
+        new StringFieldMapper.Builder("anything").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
+        new StringFieldMapper.Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("str1")
+                    .field("type", "string")
+                    .startObject("fielddata")
+                        .field("format", "fst")
+                    .endObject()
+                .endObject()
+                .startObject("str2")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                    .startObject("fielddata")
+                        .field("format", "doc_values")
+                    .endObject()
+                .endObject()
+                .startObject("int")
+                    .field("type", "integer")
+                    .startObject("fielddata")
+                        .field("format", "doc_values")
+                    .endObject()
+                .endObject()
+                .startObject("double")
+                    .field("type", "double")
+                    .startObject("fielddata")
+                        .field("format", "doc_values")
+                    .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = MapperTestUtils.newParser().parse(mapping);
+
+        ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("str1", "1234")
+                .field("str2", "1234")
+                .field("int", "1234")
+                .field("double", "1234")
+                .endObject()
+                .bytes());
+        final Document doc = parsedDoc.rootDoc();
+        assertEquals(null, docValuesType(doc, "str1"));
+        assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str2"));
+        assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "int"));
+        assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "double"));
+    }
+
+    private static DocValuesType docValuesType(Document document, String fieldName) {
+        for (IndexableField field : document.getFields(fieldName)) {
+            if (field.fieldType().docValueType() != null) {
+                return field.fieldType().docValueType();
+            }
+        }
+        return null;
     }
 
 }

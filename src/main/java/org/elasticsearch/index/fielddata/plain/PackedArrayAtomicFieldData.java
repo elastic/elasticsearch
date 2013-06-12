@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 /**
  * {@link AtomicNumericFieldData} implementation which stores data in packed arrays to save memory.
  */
-public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData {
+public abstract class PackedArrayAtomicFieldData extends AbstractAtomicNumericFieldData {
 
     public static PackedArrayAtomicFieldData empty(int numDocs) {
         return new Empty(numDocs);

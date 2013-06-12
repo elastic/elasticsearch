@@ -76,6 +76,12 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                         gramSizeSet = true;
                     } else if ("force_unigrams".equals(fieldName) || "forceUnigrams".equals(fieldName)) {
                         suggestion.setRequireUnigram(parser.booleanValue());
+                    } else if ("token_limit".equals(fieldName) || "tokenLimit".equals(fieldName)) {
+                        int tokenLimit = parser.intValue();
+                        if (tokenLimit <= 0) {
+                            throw new ElasticSearchIllegalArgumentException("token_limit must be >= 1");
+                        }
+                        suggestion.setTokenLimit(tokenLimit);
                     } else {
                         throw new ElasticSearchIllegalArgumentException("suggester[phrase] doesn't support field [" + fieldName + "]");
                     }

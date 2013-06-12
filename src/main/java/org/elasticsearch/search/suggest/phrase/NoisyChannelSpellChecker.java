@@ -39,20 +39,24 @@ import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidat
 //TODO public for tests
 public final class NoisyChannelSpellChecker {
     public static final double REAL_WORD_LIKELYHOOD = 0.95d;
+    public static final int DEFAULT_TOKEN_LIMIT = 10;
     private final double realWordLikelihood;
     private final boolean requireUnigram;
+    private final int tokenLimit;
 
     public NoisyChannelSpellChecker() {
         this(REAL_WORD_LIKELYHOOD);
     }
 
     public NoisyChannelSpellChecker(double nonErrorLikelihood) {
-        this(nonErrorLikelihood, true);
+        this(nonErrorLikelihood, true, DEFAULT_TOKEN_LIMIT);
     }
     
-    public NoisyChannelSpellChecker(double nonErrorLikelihood, boolean requireUnigram) {
+    public NoisyChannelSpellChecker(double nonErrorLikelihood, boolean requireUnigram, int tokenLimit) {
         this.realWordLikelihood = nonErrorLikelihood;
         this.requireUnigram = requireUnigram;
+        this.tokenLimit = tokenLimit;
+                
     }
 
     public Correction[] getCorrections(TokenStream stream, final CandidateGenerator generator,
@@ -104,7 +108,7 @@ public final class NoisyChannelSpellChecker {
             }
         });
         
-        if (candidateSetsList.isEmpty()) {
+        if (candidateSetsList.isEmpty() || candidateSetsList.size() >= tokenLimit) {
             return Correction.EMPTY;
         }
         

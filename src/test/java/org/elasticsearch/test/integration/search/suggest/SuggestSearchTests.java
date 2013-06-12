@@ -767,7 +767,7 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
                 realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
                 .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
                 .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
-                .maxErrors(0.5f)
+                .maxErrors(0.5f).tokenLimit(5)
                 .size(1));
         
         assertThat(searchSuggest, notNullValue());
@@ -777,6 +777,38 @@ public class SuggestSearchTests extends AbstractSharedClusterTest {
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel"));
         assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel"));
+        
+        // check tokenLimit
+        
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel",
+                phraseSuggestion("simple_phrase").
+                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
+                .maxErrors(0.5f)
+                .size(1).tokenLimit(4));
+        
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(0));
+        
+        searchSuggest = searchSuggest(client(), "Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel",
+                phraseSuggestion("simple_phrase").
+                realWordErrorLikelihood(0.95f).field("bigram").gramSize(2).analyzer("body")
+                .addCandidateGenerator(PhraseSuggestionBuilder.candidateGenerator("body").minWordLength(1).suggestMode("always"))
+                .smoothingModel(new PhraseSuggestionBuilder.StupidBackoff(0.1))
+                .maxErrors(0.5f)
+                .size(1).tokenLimit(15));
+        assertThat(searchSuggest, notNullValue());
+        assertThat(searchSuggest.size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getName(), equalTo("simple_phrase"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().size(), equalTo(1));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getText().string(), equalTo("Xor the Got-Jewel Xor the Got-Jewel Xor the Got-Jewel"));
+        assertThat(searchSuggest.getSuggestion("simple_phrase").getEntries().get(0).getOptions().get(0).getText().string(), equalTo("xorr the god jewel xorr the god jewel xorr the god jewel"));
+        
     }
     
     @Test

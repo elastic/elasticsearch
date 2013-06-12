@@ -43,6 +43,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
     private Integer gramSize;
     private SmoothingModel model;
     private Boolean forceUnigrams;
+    private Integer tokenLimit;
 
     public PhraseSuggestionBuilder(String name) {
         super(name, "phrase");
@@ -140,6 +141,11 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         this.model = model;
         return this;
     }
+    
+    public PhraseSuggestionBuilder tokenLimit(int tokenLimit) {
+        this.tokenLimit = tokenLimit;
+        return this;
+    }
 
     @Override
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
@@ -160,6 +166,9 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
         }
         if (forceUnigrams != null) {
             builder.field("force_unigrams", forceUnigrams);
+        }
+        if (tokenLimit != null) {
+            builder.field("token_limit", tokenLimit);
         }
         if (!generators.isEmpty()) {
             Set<Entry<String, List<CandidateGenerator>>> entrySet = generators.entrySet();
@@ -524,7 +533,7 @@ public final class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSugge
             this.postFilter = postFilter;
             return this;
         }
-
+        
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

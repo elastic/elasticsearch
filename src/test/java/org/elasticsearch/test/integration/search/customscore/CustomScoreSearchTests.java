@@ -309,6 +309,19 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
         logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
         assertThat(response.getHits().getAt(1).id(), equalTo("2"));
+
+        logger.info("running param1 * param2 * _score with filter instead of query");
+        response = client().search(searchRequest()
+                .searchType(SearchType.QUERY_THEN_FETCH)
+                .source(searchSource().explain(true).query(customScoreQuery(termFilter("test", "value")).script("param1 * param2 * _score").param("param1", 2).param("param2", 2)))
+        ).actionGet();
+
+        assertThat(response.getHits().totalHits(), equalTo(2l));
+        logger.info("Hit[0] {} Explanation {}", response.getHits().getAt(0).id(), response.getHits().getAt(0).explanation());
+        logger.info("Hit[1] {} Explanation {}", response.getHits().getAt(1).id(), response.getHits().getAt(1).explanation());
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).score(), equalTo(4f)); // _score is always 1
+        assertThat(response.getHits().getAt(1).score(), equalTo(4f)); // _score is always 1
     }
 
     @Test

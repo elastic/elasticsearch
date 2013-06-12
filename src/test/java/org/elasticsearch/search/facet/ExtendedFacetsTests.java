@@ -63,6 +63,13 @@ public class ExtendedFacetsTests extends AbstractIntegrationTest {
                         .field("loading", randomBoolean() ? "eager" : "lazy")
                         .endObject()
                         .endObject()
+                        .startObject("field1_dv")
+                        .field("type", "string")
+                        .field("index", randomBoolean() ? "no" : "not_analyzed")
+                        .startObject("fielddata")
+                        .field("format", "doc_values")
+                        .endObject()
+                        .endObject()
                         .startObject("field2")
                         .field("type", "string")
                         .field("index", "not_analyzed")
@@ -117,6 +124,7 @@ public class ExtendedFacetsTests extends AbstractIntegrationTest {
                     .setSource(jsonBuilder().startObject()
                             .field("field1_paged", field1Values)
                             .field("field1_fst", field1Values)
+                            .field("field1_dv", field1Values)
                             .field("field2", field2Val)
                             .field("q_field", queryVal)
                             .endObject())
@@ -131,7 +139,7 @@ public class ExtendedFacetsTests extends AbstractIntegrationTest {
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();
-        String[] facetFields = new String[]{"field1_paged", "field1_fst"};
+        String[] facetFields = new String[]{"field1_paged", "field1_fst", "field1_dv"};
         TermsFacet.ComparatorType[] compTypes = TermsFacet.ComparatorType.values();
         for (String facetField : facetFields) {
             for (String queryVal : queryValToField1FacetEntries.keySet()) {

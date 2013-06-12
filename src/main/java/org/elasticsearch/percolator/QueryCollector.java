@@ -63,7 +63,8 @@ abstract class QueryCollector extends Collector {
         this.searcher = context.docSearcher();
         this.idFieldData = context.fieldData().getForField(
                 new FieldMapper.Names(IdFieldMapper.NAME),
-                new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes"))
+                new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")),
+                false
         );
     }
 

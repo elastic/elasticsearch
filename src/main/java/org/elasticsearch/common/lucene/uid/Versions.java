@@ -24,6 +24,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -95,7 +96,7 @@ public class Versions {
         }
 
         // Versions are stored as doc values...
-        final NumericDocValues versions = reader.getNumericDocValues(UidFieldMapper.VERSION);
+        final NumericDocValues versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
         if (versions != null || !terms.hasPayloads()) {
             // only the last doc that matches the _uid is interesting here: if it is deleted, then there is
             // no match otherwise previous docs are necessarily either deleted or nested docs

@@ -24,6 +24,59 @@ field data after a certain time of inactivity. Defaults to `-1`. For
 example, can be set to `5m` for a 5 minute expiry.
 |=======================================================================
 
+=== Field data formats
+
+Depending on the field type, there might be several field data types
+available. In particular, string and numeric types support the `doc_values`
+format which allows for computing the field data data-structures at indexing
+time and storing them on disk. Although it will make the index larger and may
+be slightly slower, this implementation will be more near-realtime-friendly
+and will require much less memory from the JVM than other implementations.
+
+[source,js]
+--------------------------------------------------
+{
+    tag: {
+        type:      "string",
+        fielddata: {
+            format: "fst"
+        }
+    }
+}
+--------------------------------------------------
+
+[float]
+==== String field data types
+
+`paged_bytes` (default)::
+    Stores unique terms sequentially in a large buffer and maps documents to
+    the indices of the terms they contain in this large buffer.
+
+`fst`::
+    Stores terms in a FST. Slower to build than `paged_bytes` but can help lower
+    memory usage if many terms share common prefixes and/or suffixes.
+
+`doc_values`::
+    Computes and stores field data data-structures on disk at indexing time.
+    Lowers memory usage but only works on non-analyzed strings (`index`: `no` or
+    `not_analyzed`) and doesn't support filtering.
+
+[float]
+==== Numeric field data types
+
+`array` (default)::
+    Stores field values in memory using arrays. 
+
+`doc_values`::
+    Computes and stores field data data-structures on disk at indexing time.
+    Doesn't support filtering.
+
+[float]
+==== Geo point field data types
+
+`array` (default)::
+    Stores latitudes and longitudes in arrays.
+
 [float]
 === Fielddata loading
 

@@ -39,7 +39,8 @@ final class QueriesLoaderCollector extends Collector {
         this.logger = logger;
         this.idFieldData = indexFieldDataService.getForField(
                 new FieldMapper.Names(IdFieldMapper.NAME),
-                new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes"))
+                new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")),
+                false
         );
     }
 

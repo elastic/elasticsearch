@@ -25,7 +25,9 @@ package org.elasticsearch.index.fielddata;
 public interface AtomicFieldData<Script extends ScriptDocValues> {
 
     /**
-     * Does *one* of the docs contain multi values?
+     * If this method returns false, this means that no document has multiple values. However this method may return true even if all
+     * documents are single-valued. So this method is useful for performing optimizations when the single-value case makes the problem
+     * simpler but cannot be used to actually check whether this instance is multi-valued.
      */
     boolean isMultiValued();
 
@@ -40,7 +42,7 @@ public interface AtomicFieldData<Script extends ScriptDocValues> {
     int getNumDocs();
 
     /**
-     * The number of unique values in this atomic field data.
+     * An upper limit of the number of unique values in this atomic field data.
      */
     long getNumberUniqueValues();
 

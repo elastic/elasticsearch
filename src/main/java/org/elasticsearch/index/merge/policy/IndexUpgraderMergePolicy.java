@@ -30,6 +30,7 @@ import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -61,7 +62,7 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
     /** Return an "upgraded" view of the reader. */
     static AtomicReader filter(AtomicReader reader) throws IOException {
         final FieldInfos fieldInfos = reader.getFieldInfos();
-        final FieldInfo versionInfo = fieldInfos.fieldInfo(UidFieldMapper.VERSION);
+        final FieldInfo versionInfo = fieldInfos.fieldInfo(VersionFieldMapper.NAME);
         if (versionInfo != null && versionInfo.hasDocValues()) {
             // the reader is a recent one, it has versions and they are stored
             // in a numeric doc values field
@@ -100,10 +101,10 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
             for (FieldInfo fi : fieldInfos) {
                 fieldNumber = Math.max(fieldNumber, fi.number + 1);
             }
-            newVersionInfo = new FieldInfo(UidFieldMapper.VERSION, false, fieldNumber, false, true, false,
+            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, false, fieldNumber, false, true, false,
                     IndexOptions.DOCS_ONLY, DocValuesType.NUMERIC, DocValuesType.NUMERIC, Collections.<String, String>emptyMap());
         } else {
-            newVersionInfo = new FieldInfo(UidFieldMapper.VERSION, versionInfo.isIndexed(), versionInfo.number,
+            newVersionInfo = new FieldInfo(VersionFieldMapper.NAME, versionInfo.isIndexed(), versionInfo.number,
                     versionInfo.hasVectors(), versionInfo.omitsNorms(), versionInfo.hasPayloads(),
                     versionInfo.getIndexOptions(), versionInfo.getDocValuesType(), versionInfo.getNormType(), versionInfo.attributes());
         }
@@ -128,7 +129,7 @@ public final class IndexUpgraderMergePolicy extends MergePolicy {
             }
             @Override
             public NumericDocValues getNumericDocValues(String field) throws IOException {
-                if (UidFieldMapper.VERSION.equals(field)) {
+                if (VersionFieldMapper.NAME.equals(field)) {
                     return versionValues;
                 }
                 return super.getNumericDocValues(field);

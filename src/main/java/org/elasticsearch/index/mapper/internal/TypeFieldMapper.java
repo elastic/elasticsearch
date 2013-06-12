@@ -21,18 +21,22 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
@@ -40,6 +44,7 @@ import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.type;
@@ -79,7 +84,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            return new TypeFieldMapper(name, indexName, boost, fieldType, provider, fieldDataSettings);
+            return new TypeFieldMapper(name, indexName, boost, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -98,12 +103,13 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     protected TypeFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, null);
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, null, null, ImmutableSettings.EMPTY);
     }
 
-    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
+    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, PostingsFormatProvider postingsProvider,
+                           DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, provider, null, fieldDataSettings);
+                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, fieldDataSettings, indexSettings);
     }
 
     @Override
@@ -114,6 +120,11 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
+    }
+
+    @Override
+    public boolean hasDocValues() {
+        return false;
     }
 
     @Override
@@ -166,11 +177,14 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!fieldType.indexed() && !fieldType.stored()) {
-            return null;
+            return;
         }
-        return new Field(names.indexName(), context.type(), fieldType);
+        fields.add(new Field(names.indexName(), context.type(), fieldType));
+        if (hasDocValues()) {
+            fields.add(new SortedSetDocValuesField(names.indexName(), new BytesRef(context.type())));
+        }
     }
 
     @Override

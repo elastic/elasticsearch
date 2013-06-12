@@ -33,6 +33,11 @@ import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
 
+import java.util.Random;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+
 public class FilterFieldDataTest extends AbstractFieldDataTests {
 
     @Override
@@ -70,7 +75,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 ifdService.clear();
                 FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("format", format)
                         .put("filter.frequency.min_segment_size", 100).put("filter.frequency.min", 0.0d).put("filter.frequency.max", random.nextBoolean() ? 100 : 0.5d));
-                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType);
+                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType, false);
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
@@ -83,7 +88,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 ifdService.clear();
                 FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("format", format)
                         .put("filter.frequency.min_segment_size", 100).put("filter.frequency.min",  random.nextBoolean() ? 101 : 101d/200.0d).put("filter.frequency.max", 201));
-                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType);
+                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType, false);
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
@@ -96,7 +101,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 ifdService.clear(); // test # docs with value
                 FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("format", format)
                         .put("filter.frequency.min_segment_size", 101).put("filter.frequency.min", random.nextBoolean() ? 101 : 101d/200.0d));
-                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("med_freq"), fieldDataType);
+                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("med_freq"), fieldDataType, false);
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
@@ -110,7 +115,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 ifdService.clear();
                 FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("format", format)
                         .put("filter.frequency.min_segment_size", 101).put("filter.frequency.min", random.nextBoolean() ? 101 : 101d/200.0d));
-                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("med_freq"), fieldDataType);
+                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("med_freq"), fieldDataType, false);
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
@@ -127,7 +132,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                         .put("filter.frequency.min_segment_size", 0)
                         .put("filter.frequency.min", random.nextBoolean() ? 1 : 1d/200.0d) // 100, 10, 5
                         .put("filter.frequency.max", random.nextBoolean() ? 99 : 99d/200.0d)); // 100
-                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType);
+                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType, false);
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
@@ -172,7 +177,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 ifdService.clear();
                 FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("format", format)
                         .put("filter.regex.pattern", "\\d"));
-                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType);
+                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType, false);
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
@@ -184,7 +189,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 ifdService.clear();
                 FieldDataType fieldDataType = new FieldDataType("string", ImmutableSettings.builder().put("format", format)
                         .put("filter.regex.pattern", "\\d{1,2}"));
-                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType);
+                IndexFieldData fieldData = ifdService.getForField(new FieldMapper.Names("high_freq"), fieldDataType, false);
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();

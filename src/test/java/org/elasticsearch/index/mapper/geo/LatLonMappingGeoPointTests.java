@@ -342,9 +342,7 @@ public class LatLonMappingGeoPointTests {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getField("point.lat").binaryValue(), nullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().getField("point.lon").binaryValue(), nullValue());
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 

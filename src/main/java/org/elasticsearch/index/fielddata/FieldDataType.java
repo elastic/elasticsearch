@@ -35,7 +35,11 @@ public class FieldDataType {
         LAZY, EAGER;
     }
 
+    public static final String FORMAT_KEY = "format";
+    public static final String DOC_VALUES_FORMAT_VALUE = "doc_values";
+
     private final String type;
+    private final String typeFormat;
     private final Loading loading;
     private final Settings settings;
 
@@ -49,6 +53,7 @@ public class FieldDataType {
 
     public FieldDataType(String type, Settings settings) {
         this.type = type;
+        this.typeFormat = "index.fielddata.type." + type + "." + FORMAT_KEY;
         this.settings = settings;
         final String loading = settings.get(LOADING_KEY);
         if (loading == null || loading.equals(LAZY_LOADING_VALUE)) {
@@ -70,6 +75,14 @@ public class FieldDataType {
 
     public Loading getLoading() {
         return loading;
+    }
+
+    public String getFormat(Settings indexSettings) {
+        String format = settings.get(FORMAT_KEY);
+        if (format == null && indexSettings != null) {
+            format = indexSettings.get(typeFormat);
+        }
+        return format;
     }
 
     @Override

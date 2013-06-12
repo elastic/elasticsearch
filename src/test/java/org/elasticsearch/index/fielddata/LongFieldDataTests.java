@@ -28,7 +28,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.plain.PackedArrayAtomicFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
 
@@ -78,7 +77,7 @@ public class LongFieldDataTests extends AbstractNumericFieldDataTests {
         d.add(new LongField("value", Integer.MIN_VALUE - 1l, Field.Store.NO));
         writer.addDocument(d);
 
-        IndexNumericFieldData indexFieldData = ifdService.getForField(new FieldMapper.Names("value"), new FieldDataType("long"));
+        IndexNumericFieldData indexFieldData = getForField("value");
         AtomicNumericFieldData fieldData = indexFieldData.load(refreshReader());
         assertThat(fieldData, instanceOf(PackedArrayAtomicFieldData.class));
         assertThat(fieldData.getLongValues().getValue(0), equalTo((long) Integer.MAX_VALUE + 1l));

@@ -27,6 +27,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -38,6 +39,8 @@ import java.util.List;
  *
  */
 public interface FieldMapper<T> {
+
+    public static final String DOC_VALUES_FORMAT = "doc_values_format";
 
     public static class Names {
 
@@ -201,7 +204,11 @@ public interface FieldMapper<T> {
 
     PostingsFormatProvider postingsFormatProvider();
 
+    DocValuesFormatProvider docValuesFormatProvider();
+
     boolean isNumeric();
 
     boolean isSortable();
+
+    boolean hasDocValues();
 }

@@ -24,8 +24,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.endsWith;
@@ -49,7 +52,7 @@ public class CodecTests extends AbstractIntegrationTest {
                 .setSettings(ImmutableSettings.settingsBuilder()
                         .put("index.number_of_shards", 1)
                         .put("index.number_of_replicas", 0)
-                        .put("codec.postings_format.test1.type", "pulsing")
+                        .put("index.codec.postings_format.test1.type", "pulsing")
                 ).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
@@ -89,6 +92,31 @@ public class CodecTests extends AbstractIntegrationTest {
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
         }
+    }
+
+    @Test
+    public void testCustomDocValuesFormat() throws IOException {
+        try {
+            client().admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+
+        client().admin().indices().prepareCreate("test")
+            .addMapping("test", jsonBuilder().startObject().startObject("test")
+                    .startObject("_version").field("doc_values_format", "disk").endObject()
+                    .startObject("properties").startObject("field").field("type", "long").field("doc_values_format", "dvf").endObject().endObject()
+                    .endObject().endObject())
+            .setSettings(ImmutableSettings.settingsBuilder()
+                    .put("index.codec.doc_values_format.dvf.type", "disk")
+                    .build());
+
+        for (int i = 10; i >= 0; --i) {
+            client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", randomLong()).setRefresh(i == 0 || rarely()).execute().actionGet();
+        }
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).addSort(new FieldSortBuilder("field")).execute().actionGet();
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
     }
 
 }

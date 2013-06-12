@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingFormats;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -70,87 +72,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         public static final float BOOST = 1.0f;
     }
 
-    public abstract static class OpenBuilder<T extends Builder, Y extends AbstractFieldMapper> extends AbstractFieldMapper.Builder<T, Y> {
-
-        protected OpenBuilder(String name, FieldType fieldType) {
-            super(name, fieldType);
-        }
-
-        @Override
-        public T index(boolean index) {
-            return super.index(index);
-        }
-
-        @Override
-        public T store(boolean store) {
-            return super.store(store);
-        }
-
-        @Override
-        public T storeTermVectors(boolean termVectors) {
-            return super.storeTermVectors(termVectors);
-        }
-
-        @Override
-        public T storeTermVectorOffsets(boolean termVectorOffsets) {
-            return super.storeTermVectorOffsets(termVectorOffsets);
-        }
-
-        @Override
-        public T storeTermVectorPositions(boolean termVectorPositions) {
-            return super.storeTermVectorPositions(termVectorPositions);
-        }
-
-        @Override
-        public T storeTermVectorPayloads(boolean termVectorPayloads) {
-            return super.storeTermVectorPayloads(termVectorPayloads);
-        }
-
-        @Override
-        public T tokenized(boolean tokenized) {
-            return super.tokenized(tokenized);
-        }
-
-        @Override
-        public T boost(float boost) {
-            return super.boost(boost);
-        }
-
-        @Override
-        public T omitNorms(boolean omitNorms) {
-            return super.omitNorms(omitNorms);
-        }
-
-        @Override
-        public T indexOptions(IndexOptions indexOptions) {
-            return super.indexOptions(indexOptions);
-        }
-
-        @Override
-        public T indexName(String indexName) {
-            return super.indexName(indexName);
-        }
-
-        @Override
-        public T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
-            return super.indexAnalyzer(indexAnalyzer);
-        }
-
-        @Override
-        public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
-            return super.searchAnalyzer(searchAnalyzer);
-        }
-
-        @Override
-        public T similarity(SimilarityProvider similarity) {
-            return super.similarity(similarity);
-        }
-
-        public T fieldDataSettings(Settings settings) {
-            return super.fieldDataSettings(settings);
-        }
-    }
-
     public abstract static class Builder<T extends Builder, Y extends AbstractFieldMapper> extends Mapper.Builder<T, Y> {
 
         protected final FieldType fieldType;
@@ -161,7 +82,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         protected NamedAnalyzer searchAnalyzer;
         protected Boolean includeInAll;
         protected boolean indexOptionsSet = false;
-        protected PostingsFormatProvider provider;
+        protected PostingsFormatProvider postingsProvider;
+        protected DocValuesFormatProvider docValuesProvider;
         protected SimilarityProvider similarity;
         @Nullable
         protected Settings fieldDataSettings;
@@ -171,124 +93,138 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             this.fieldType = fieldType;
         }
 
-        protected T index(boolean index) {
+        public T index(boolean index) {
             this.fieldType.setIndexed(index);
             return builder;
         }
 
-        protected T store(boolean store) {
+        public T store(boolean store) {
             this.fieldType.setStored(store);
             return builder;
         }
 
-        protected T storeTermVectors(boolean termVectors) {
+        public T storeTermVectors(boolean termVectors) {
             this.fieldType.setStoreTermVectors(termVectors);
             return builder;
         }
 
-        protected T storeTermVectorOffsets(boolean termVectorOffsets) {
+        public T storeTermVectorOffsets(boolean termVectorOffsets) {
             this.fieldType.setStoreTermVectors(termVectorOffsets);
             this.fieldType.setStoreTermVectorOffsets(termVectorOffsets);
             return builder;
         }
 
-        protected T storeTermVectorPositions(boolean termVectorPositions) {
+        public T storeTermVectorPositions(boolean termVectorPositions) {
             this.fieldType.setStoreTermVectors(termVectorPositions);
             this.fieldType.setStoreTermVectorPositions(termVectorPositions);
             return builder;
         }
 
-        protected T storeTermVectorPayloads(boolean termVectorPayloads) {
+        public T storeTermVectorPayloads(boolean termVectorPayloads) {
             this.fieldType.setStoreTermVectors(termVectorPayloads);
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
             return builder;
         }
 
-        protected T tokenized(boolean tokenized) {
+        public T tokenized(boolean tokenized) {
             this.fieldType.setTokenized(tokenized);
             return builder;
         }
 
-        protected T boost(float boost) {
+        public T boost(float boost) {
             this.boost = boost;
             return builder;
         }
 
-        protected T omitNorms(boolean omitNorms) {
+        public T omitNorms(boolean omitNorms) {
             this.fieldType.setOmitNorms(omitNorms);
             this.omitNormsSet = true;
             return builder;
         }
 
-        protected T indexOptions(IndexOptions indexOptions) {
+        public T indexOptions(IndexOptions indexOptions) {
             this.fieldType.setIndexOptions(indexOptions);
             this.indexOptionsSet = true;
             return builder;
         }
 
-        protected T indexName(String indexName) {
+        public T indexName(String indexName) {
             this.indexName = indexName;
             return builder;
         }
 
-        protected T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
+        public T indexAnalyzer(NamedAnalyzer indexAnalyzer) {
             this.indexAnalyzer = indexAnalyzer;
             return builder;
         }
 
-        protected T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
+        public T searchAnalyzer(NamedAnalyzer searchAnalyzer) {
             this.searchAnalyzer = searchAnalyzer;
             return builder;
         }
 
-        protected T includeInAll(Boolean includeInAll) {
+        public T includeInAll(Boolean includeInAll) {
             this.includeInAll = includeInAll;
             return builder;
         }
 
-        protected T postingsFormat(PostingsFormatProvider postingsFormat) {
-            this.provider = postingsFormat;
+        public T postingsFormat(PostingsFormatProvider postingsFormat) {
+            this.postingsProvider = postingsFormat;
             return builder;
         }
 
-        protected T similarity(SimilarityProvider similarity) {
+        public T docValuesFormat(DocValuesFormatProvider docValuesFormat) {
+            this.docValuesProvider = docValuesFormat;
+            return builder;
+        }
+
+        public T similarity(SimilarityProvider similarity) {
             this.similarity = similarity;
             return builder;
         }
 
-        protected T fieldDataSettings(Settings settings) {
+        public T fieldDataSettings(Settings settings) {
             this.fieldDataSettings = settings;
             return builder;
         }
 
-        protected Names buildNames(BuilderContext context) {
+        public Names buildNames(BuilderContext context) {
             return new Names(name, buildIndexName(context), indexName == null ? name : indexName, buildFullName(context), context.path().sourcePath());
         }
 
-        protected String buildIndexName(BuilderContext context) {
+        public String buildIndexName(BuilderContext context) {
             String actualIndexName = indexName == null ? name : indexName;
             return context.path().pathAsText(actualIndexName);
         }
 
-        protected String buildFullName(BuilderContext context) {
+        public String buildFullName(BuilderContext context) {
             return context.path().fullPathAsText(name);
         }
     }
 
+    private static final ThreadLocal<List<Field>> FIELD_LIST = new ThreadLocal<List<Field>>() {
+        protected List<Field> initialValue() {
+            return new ArrayList<Field>(2);
+        }
+    };
+
     protected final Names names;
     protected float boost;
     protected final FieldType fieldType;
+    private final boolean docValues;
     protected final NamedAnalyzer indexAnalyzer;
     protected NamedAnalyzer searchAnalyzer;
     protected PostingsFormatProvider postingsFormat;
+    protected DocValuesFormatProvider docValuesFormat;
     protected final SimilarityProvider similarity;
 
     protected Settings customFieldDataSettings;
     protected FieldDataType fieldDataType;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, NamedAnalyzer indexAnalyzer,
-                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat, SimilarityProvider similarity,
-                                  @Nullable Settings fieldDataSettings) {
+                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
+                                  DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
+                                  @Nullable Settings fieldDataSettings, Settings indexSettings) {
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -312,6 +248,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             }
         }
         this.postingsFormat = postingsFormat;
+        this.docValuesFormat = docValuesFormat;
         this.similarity = similarity;
 
         this.customFieldDataSettings = fieldDataSettings;
@@ -323,10 +260,20 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                     ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(fieldDataSettings)
             );
         }
+        if (fieldDataType == null) {
+            docValues = false;
+        } else {
+            this.docValues = FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldDataType.getFormat(indexSettings));
+        }
     }
 
     @Nullable
     protected String defaultPostingFormat() {
+        return null;
+    }
+
+    @Nullable
+    protected String defaultDocValuesFormat() {
         return null;
     }
 
@@ -381,23 +328,27 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
 
     @Override
     public void parse(ParseContext context) throws IOException {
+        final List<Field> fields = FIELD_LIST.get();
+        assert fields.isEmpty();
         try {
-            Field field = parseCreateField(context);
-            if (field == null) {
-                return;
-            }
-            if (!customBoost()) {
-                field.setBoost(boost);
-            }
-            if (context.listener().beforeFieldAdded(this, field, context)) {
-                context.doc().add(field);
+            parseCreateField(context, fields);
+            for (Field field : fields) {
+                if (!customBoost()) {
+                    field.setBoost(boost);
+                }
+                if (context.listener().beforeFieldAdded(this, field, context)) {
+                    context.doc().add(field);
+                }
             }
         } catch (Exception e) {
             throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
+        } finally {
+            fields.clear();
         }
     }
 
-    protected abstract Field parseCreateField(ParseContext context) throws IOException;
+    /** Parse the field value and populate <code>fields</code>. */
+    protected abstract void parseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
     /**
      * Derived classes can override it to specify that boost value is set by derived classes.
@@ -569,6 +520,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             if (fieldMergeWith.postingsFormat != null) {
                 this.postingsFormat = fieldMergeWith.postingsFormat;
             }
+            if (fieldMergeWith.docValuesFormat != null) {
+                this.docValuesFormat = fieldMergeWith.docValuesFormat;
+            }
             if (fieldMergeWith.searchAnalyzer != null) {
                 this.searchAnalyzer = fieldMergeWith.searchAnalyzer;
             }
@@ -586,6 +540,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     @Override
     public PostingsFormatProvider postingsFormatProvider() {
         return postingsFormat;
+    }
+
+    @Override
+    public DocValuesFormatProvider docValuesFormatProvider() {
+        return docValuesFormat;
     }
 
     @Override
@@ -638,6 +597,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         if (postingsFormat != null) {
             if (!postingsFormat.name().equals(defaultPostingFormat())) {
                 builder.field("postings_format", postingsFormat.name());
+            }
+        }
+
+        if (docValuesFormat != null) {
+            if (!docValuesFormat.name().equals(defaultDocValuesFormat())) {
+                builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
             }
         }
 
@@ -714,4 +679,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     public boolean isSortable() {
         return true;
     }
+
+    public boolean hasDocValues() {
+        return docValues;
+    }
+
 }

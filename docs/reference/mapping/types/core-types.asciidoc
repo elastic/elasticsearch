@@ -462,7 +462,53 @@ custom postings format. See
 information.
 
 [float]
-[[similarity]]
+==== Doc values format
+
+Doc values formats define how fields are written into column-stride storage in
+the index for the purpose of sorting or faceting. Fields that have doc values
+enabled will have special field data instances, which will not be uninverted
+from the inverted index, but directly read from disk. This makes _refresh faster
+and ultimately allows for having field data stored on disk depending on the
+configured doc values format.
+
+Doc values formats are configurable. Elasticsearch has several builtin formats:
+
+`memory`::
+        A doc values format which stores data in memory. Compared to the default
+        field data implementations, using doc values with this format will have
+        similar performance but will be faster to load, making '_refresh' less
+        time-consuming.
+
+`disk`::
+        A doc values format which stores all data on disk, requiring almost no
+        memory from the JVM at the cost of a slight performance degradation.
+
+`default`::
+        The default Elasticsearch doc values format, offering good performance
+        with low memory usage. This format is used if no format is specified in
+        the field mapping.
+
+[float]
+===== Doc values format example
+
+On all field types, it is possible to configure a `doc_values_format` attribute:
+
+[source,js]
+--------------------------------------------------
+{
+  "product" : {
+     "properties" : {
+         "price" : {"type" : "integer", "doc_values_format" : "memory"}
+     }
+  }
+}
+--------------------------------------------------
+
+On top of using the built-in doc values formats it is possible to define
+custom doc values formats. See
+<<index-modules-codec,codec module>> for more information.
+
+[float]
 ==== Similarity
 
 Elasticsearch allows you to configure a similarity (scoring algorithm) per field.

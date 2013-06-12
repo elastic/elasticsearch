@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableCollection;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
+import org.apache.lucene.codecs.memory.DirectPostingsFormat;
 import org.elasticsearch.common.collect.MapBuilder;
 
 /**
@@ -92,7 +93,8 @@ public class PostingFormats {
     }
 
     public static PostingsFormatProvider getAsProvider(String name) {
-        return builtInPostingFormats.get(name).get();
+        final PreBuiltPostingsFormatProvider.Factory factory = builtInPostingFormats.get(name);
+        return factory == null ? null : factory.get();
     }
 
     public static ImmutableCollection<PreBuiltPostingsFormatProvider.Factory> listFactories() {

@@ -31,9 +31,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
@@ -42,6 +44,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -102,7 +105,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
             fieldType.setIndexed(true);
             fieldType.setTokenized(true);
 
-            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, provider, similarity, fieldDataSettings);
+            return new AllFieldMapper(name, fieldType, indexAnalyzer, searchAnalyzer, enabled, autoBoost, postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -134,12 +137,15 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     private volatile boolean autoBoost;
 
     public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null);
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, null, ImmutableSettings.EMPTY);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-                             boolean enabled, boolean autoBoost, PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, provider, similarity, fieldDataSettings);
+                             boolean enabled, boolean autoBoost, PostingsFormatProvider postingsProvider,
+                             DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings,
+                             Settings indexSettings) {
+        super(new Names(name, name, name, name), 1.0f, fieldType, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
+              similarity, fieldDataSettings, indexSettings);
         this.enabled = enabled;
         this.autoBoost = autoBoost;
 
@@ -199,9 +205,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!enabled) {
-            return null;
+            return;
         }
         // reset the entries
         context.allEntries().reset();
@@ -214,7 +220,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         }
 
         Analyzer analyzer = findAnalyzer(context);
-        return new AllField(names.indexName(), context.allEntries(), analyzer, fieldType);
+        fields.add(new AllField(names.indexName(), context.allEntries(), analyzer, fieldType));
     }
 
     private Analyzer findAnalyzer(ParseContext context) {
@@ -252,7 +258,7 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         // if all are defaults, no need to write it at all
         if (enabled == Defaults.ENABLED && fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
                 fieldType.storeTermVectors() == Defaults.FIELD_TYPE.storeTermVectors() &&
-                indexAnalyzer == null && searchAnalyzer == null) {
+                indexAnalyzer == null && searchAnalyzer == null && customFieldDataSettings == null) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -291,6 +297,9 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
         }
+        if (customFieldDataSettings != null) {
+            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+        }
         builder.endObject();
         return builder;
     }
@@ -298,5 +307,10 @@ public class AllFieldMapper extends AbstractFieldMapper<Void> implements Interna
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
         // do nothing here, no merging, but also no exception
+    }
+
+    @Override
+    public boolean hasDocValues() {
+        return false;
     }
 }

@@ -61,6 +61,10 @@ public final class MapperBuilders {
         return new UidFieldMapper.Builder();
     }
 
+    public static VersionFieldMapper.Builder version() {
+        return new VersionFieldMapper.Builder();
+    }
+
     public static TypeFieldMapper.Builder type() {
         return new TypeFieldMapper.Builder();
     }

@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -48,6 +50,7 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
@@ -89,7 +92,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
         public IntegerFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             IntegerFieldMapper fieldMapper = new IntegerFieldMapper(buildNames(context), precisionStep, boost, fieldType,
-                    nullValue, ignoreMalformed(context), provider, similarity, fieldDataSettings);
+                    nullValue, ignoreMalformed(context), postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -117,11 +120,12 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
 
     protected IntegerFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
                                  Integer nullValue, Explicit<Boolean> ignoreMalformed,
-                                 PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+                                 PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+                                 SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(names, precisionStep, boost, fieldType, ignoreMalformed,
                 NumericIntegerAnalyzer.buildNamedAnalyzer(precisionStep), NumericIntegerAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                provider, similarity, fieldDataSettings);
-        this.nullValue = nullValue;
+                postingsProvider, docValuesProvider, similarity, fieldDataSettings, indexSettings);
+       this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
 
@@ -241,21 +245,21 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
     }
 
     @Override
-    protected Field innerParseCreateField(ParseContext context) throws IOException {
+    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         int value;
         float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
                 if (nullValue == null) {
-                    return null;
+                    return;
                 }
                 value = nullValue;
             } else if (externalValue instanceof String) {
                 String sExternalValue = (String) externalValue;
                 if (sExternalValue.length() == 0) {
                     if (nullValue == null) {
-                        return null;
+                        return;
                     }
                     value = nullValue;
                 } else {
@@ -272,7 +276,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
                     (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
                 if (nullValue == null) {
-                    return null;
+                    return;
                 }
                 value = nullValue;
                 if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
@@ -299,7 +303,7 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
                 }
                 if (objValue == null) {
                     // no value
-                    return null;
+                    return;
                 }
                 value = objValue;
             } else {
@@ -310,9 +314,16 @@ public class IntegerFieldMapper extends NumberFieldMapper<Integer> {
             }
         }
 
-        CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
-        field.setBoost(boost);
-        return field;
+        if (fieldType.indexed() || fieldType.stored()) {
+            CustomIntegerNumericField field = new CustomIntegerNumericField(this, value, fieldType);
+            field.setBoost(boost);
+            fields.add(field);
+        }
+        if (hasDocValues()) {
+            final BytesRef bytes = new BytesRef();
+            NumericUtils.intToPrefixCoded(value, 0, bytes);
+            fields.add(new SortedSetDocValuesField(names.indexName(), bytes));
+        }
     }
 
     @Override

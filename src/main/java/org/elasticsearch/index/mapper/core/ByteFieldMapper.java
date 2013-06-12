@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericIntegerAnalyzer;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -48,6 +49,7 @@ import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeByteValue;
@@ -90,7 +92,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             ByteFieldMapper fieldMapper = new ByteFieldMapper(buildNames(context),
                     precisionStep, boost, fieldType, nullValue, ignoreMalformed(context),
-                    provider, similarity, fieldDataSettings);
+                    postingsProvider, docValuesProvider, similarity, fieldDataSettings, context.indexSettings());
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
         }
@@ -117,10 +119,13 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     private String nullValueAsString;
 
     protected ByteFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
-                              Byte nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
+                              Byte nullValue, Explicit<Boolean> ignoreMalformed, PostingsFormatProvider postingsProvider,
+                              DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
+                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(names, precisionStep, boost, fieldType,
                 ignoreMalformed, new NamedAnalyzer("_byte/" + precisionStep, new NumericIntegerAnalyzer(precisionStep)),
-                new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
+                new NamedAnalyzer("_byte/max", new NumericIntegerAnalyzer(Integer.MAX_VALUE)), postingsProvider,
+                docValuesProvider, similarity, fieldDataSettings, indexSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }
@@ -245,21 +250,21 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
     }
 
     @Override
-    protected Field innerParseCreateField(ParseContext context) throws IOException {
+    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         byte value;
         float boost = this.boost;
         if (context.externalValueSet()) {
             Object externalValue = context.externalValue();
             if (externalValue == null) {
                 if (nullValue == null) {
-                    return null;
+                    return;
                 }
                 value = nullValue;
             } else if (externalValue instanceof String) {
                 String sExternalValue = (String) externalValue;
                 if (sExternalValue.length() == 0) {
                     if (nullValue == null) {
-                        return null;
+                        return;
                     }
                     value = nullValue;
                 } else {
@@ -276,7 +281,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL ||
                     (parser.currentToken() == XContentParser.Token.VALUE_STRING && parser.textLength() == 0)) {
                 if (nullValue == null) {
-                    return null;
+                    return;
                 }
                 value = nullValue;
                 if (nullValueAsString != null && (context.includeInAll(includeInAll, this))) {
@@ -303,7 +308,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                 }
                 if (objValue == null) {
                     // no value
-                    return null;
+                    return;
                 }
                 value = objValue;
             } else {
@@ -313,9 +318,14 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
                 }
             }
         }
-        CustomByteNumericField field = new CustomByteNumericField(this, value, fieldType);
-        field.setBoost(boost);
-        return field;
+        if (fieldType.indexed() || fieldType.stored()) {
+            CustomByteNumericField field = new CustomByteNumericField(this, value, fieldType);
+            field.setBoost(boost);
+            fields.add(field);
+        }
+        if (hasDocValues()) {
+            fields.add(toDocValues((int) value));
+        }
     }
 
     @Override

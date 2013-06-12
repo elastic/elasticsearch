@@ -34,6 +34,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
@@ -57,6 +58,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     final AnalysisService analysisService;
     private final PostingsFormatService postingsFormatService;
+    private final DocValuesFormatService docValuesFormatService;
     private final SimilarityLookupService similarityLookupService;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
@@ -67,15 +69,18 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
 
     public DocumentMapperParser(Index index, AnalysisService analysisService, PostingsFormatService postingsFormatService,
-                                SimilarityLookupService similarityLookupService) {
-        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, analysisService, postingsFormatService, similarityLookupService);
+                                DocValuesFormatService docValuesFormatService, SimilarityLookupService similarityLookupService) {
+        this(index, ImmutableSettings.Builder.EMPTY_SETTINGS, analysisService, postingsFormatService, docValuesFormatService,
+                similarityLookupService);
     }
 
     public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
-                                PostingsFormatService postingsFormatService, SimilarityLookupService similarityLookupService) {
+                                PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService,
+                                SimilarityLookupService similarityLookupService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.postingsFormatService = postingsFormatService;
+        this.docValuesFormatService = docValuesFormatService;
         this.similarityLookupService = similarityLookupService;
         MapBuilder<String, Mapper.TypeParser> typeParsersBuilder = new MapBuilder<String, Mapper.TypeParser>()
                 .put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser())
@@ -114,6 +119,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(TimestampFieldMapper.NAME, new TimestampFieldMapper.TypeParser())
                 .put(TTLFieldMapper.NAME, new TTLFieldMapper.TypeParser())
                 .put(UidFieldMapper.NAME, new UidFieldMapper.TypeParser())
+                .put(VersionFieldMapper.NAME, new VersionFieldMapper.TypeParser())
                 .put(IdFieldMapper.NAME, new IdFieldMapper.TypeParser())
                 .immutableMap();
     }
@@ -136,7 +142,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(postingsFormatService, analysisService, similarityLookupService, typeParsers);
+        return new Mapper.TypeParser.ParserContext(postingsFormatService, docValuesFormatService, analysisService, similarityLookupService, typeParsers);
     }
 
     public DocumentMapper parse(String source) throws MapperParsingException {
@@ -170,7 +176,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
             }
         }
 
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(postingsFormatService, analysisService, similarityLookupService, typeParsers);
+        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(postingsFormatService, docValuesFormatService, analysisService, similarityLookupService, typeParsers);
 
         DocumentMapper.Builder docBuilder = doc(index.name(), indexSettings, (RootObjectMapper.Builder) rootObjectTypeParser.parse(type, mapping, parserContext));
 

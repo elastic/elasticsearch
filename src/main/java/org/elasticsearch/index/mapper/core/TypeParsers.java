@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.*;
+import static org.elasticsearch.index.mapper.FieldMapper.DOC_VALUES_FORMAT;
 
 /**
  *
@@ -118,6 +119,9 @@ public class TypeParsers {
             } else if (propName.equals("postings_format")) {
                 String postingFormatName = propNode.toString();
                 builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
+            } else if (propName.equals(DOC_VALUES_FORMAT)) {
+                String docValuesFormatName = propNode.toString();
+                builder.docValuesFormat(parserContext.docValuesFormatService().get(docValuesFormatName));
             } else if (propName.equals("similarity")) {
                 builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));
             } else if (propName.equals("fielddata")) {
@@ -188,6 +192,16 @@ public class TypeParsers {
             builder.tokenized(true);
         } else {
             throw new MapperParsingException("Wrong value for index [" + index + "] for field [" + fieldName + "]");
+        }
+    }
+
+    public static boolean parseDocValues(String docValues) {
+        if ("no".equals(docValues)) {
+            return false;
+        } else if ("yes".equals(docValues)) {
+            return true;
+        } else {
+            return nodeBooleanValue(docValues);
         }
     }
 

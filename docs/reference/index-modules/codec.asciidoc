@@ -4,10 +4,14 @@
 Codecs define how documents are written to disk and read from disk. The
 postings format is the part of the codec that responsible for reading
 and writing the term dictionary, postings lists and positions, payloads
-and offsets stored in the postings list.
+and offsets stored in the postings list. The doc values format is
+responsible for reading column-stride storage for a field and is typically
+used for sorting or faceting. When a field doesn't have doc values enabled,
+it is still possible to sort or facet by loading field values from the
+inverted index into main memory.
 
-Configuring custom postings formats is an expert feature and most likely
-using the builtin postings formats will suite your needs as is described
+Configuring custom postings or doc values formats is an expert feature and
+most likely using the builtin formats will suit your needs as is described
 in the <<mapping-core-types,mapping section>>
 
 [float]
@@ -168,5 +172,76 @@ The default postings format has the following options:
 `max_block_size`::
     The maximum block size the default Lucene term
     dictionary uses to encode on-disk blocks. Defaults to *48*.
+
+Type name: `default`
+
+[float]
+=== Configuring a custom doc values format
+
+Custom doc values format can be defined in the index settings in the
+`codec` part. The `codec` part can be configured when creating an index
+or updating index settings. An example on how to define your custom
+doc values format:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'http://localhost:9200/twitter/' -d '{
+    "settings" : {
+        "index" : {
+            "codec" : {
+                "doc_values_format" : {
+                    "my_format" : {
+                        "type" : "disk"
+                    }
+                }
+            }
+        }
+    }
+}'
+--------------------------------------------------
+
+Then we defining your mapping your can use the `my_format` name in the
+`doc_values_format` option as the example below illustrates:
+
+[source,js]
+--------------------------------------------------
+{
+  "product" : {
+     "properties" : {
+         "price" : {"type" : "integer", "doc_values_format" : "my_format"}
+     }
+  }
+}
+--------------------------------------------------
+
+[float]
+=== Available doc values formats
+
+[float]
+==== Memory doc values format
+
+A doc values format that stores all values in a FST in RAM. This format does
+write to disk but the whole data-structure is loaded into memory when reading
+the index. The memory postings format has no options.
+
+Type name: `memory`
+
+[float]
+==== Disk doc values format
+
+A doc values format that stores and reads everything from disk. Although it may
+be slightly slower than the default doc values format, this doc values format
+will require almost no memory from the JVM. The disk doc values format has no
+options.
+
+Type name: `disk`
+
+[float]
+==== Default doc values format
+
+The default doc values format tries to make a good compromise between speed and
+memory usage by only loading into memory data-structures that matter for
+performance. This makes this doc values format a good fit for most use-cases.
+The default doc values format has no options.
 
 Type name: `default`

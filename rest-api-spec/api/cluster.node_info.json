@@ -4,9 +4,9 @@
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/nodes",
-      "paths": ["/_cluster/nodes", "/_cluster/nodes/{nodeId}", "/_nodes", "/_nodes/{nodeId}", "/_nodes/settings", "/_nodes/{nodeId}/settings", "/_nodes/os", "/_nodes/{nodeId}/os", "/_nodes/process", "/_nodes/{nodeId}/process", "/_nodes/jvm", "/_nodes/{nodeId}/jvm", "/_nodes/thread_pool", "/_nodes/{nodeId}/thread_pool", "/_nodes/network", "/_nodes/{nodeId}/network", "/_nodes/transport", "/_nodes/{nodeId}/transport", "/_nodes/http", "/_nodes/{nodeId}/http", "/_nodes/plugin", "/_nodes/{nodeId}/plugin"],
+      "paths": ["/_cluster/nodes", "/_cluster/nodes/{node_id}", "/_nodes", "/_nodes/{node_id}", "/_nodes/settings", "/_nodes/{node_id}/settings", "/_nodes/os", "/_nodes/{node_id}/os", "/_nodes/process", "/_nodes/{node_id}/process", "/_nodes/jvm", "/_nodes/{node_id}/jvm", "/_nodes/thread_pool", "/_nodes/{node_id}/thread_pool", "/_nodes/network", "/_nodes/{node_id}/network", "/_nodes/transport", "/_nodes/{node_id}/transport", "/_nodes/http", "/_nodes/{node_id}/http", "/_nodes/plugin", "/_nodes/{node_id}/plugin"],
       "parts": {
-        "nodeId": {
+        "node_id": {
           "type" : "list",
           "description" : "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
         }

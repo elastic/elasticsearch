@@ -29,7 +29,6 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -768,9 +767,7 @@ public class MapperQueryParser extends QueryParser {
     private Collection<String> extractMultiFields(String field) {
         Collection<String> fields = null;
         if (field != null) {
-            if (Regex.isSimpleMatchPattern(field)) {
-                fields = parseContext.mapperService().simpleMatchToIndexNames(field);
-            }
+            fields = parseContext.simpleMatchToIndexNames(field);
         } else {
             fields = settings.fields();
         }

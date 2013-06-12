@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
 import java.util.*;
@@ -292,10 +293,12 @@ public class MetaData implements Iterable<IndexMetaData> {
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
+
                 public boolean apply(String alias) {
                 // Simon says: we could build and FST out of the alias key and then run a regexp query against it ;)
                 return Regex.simpleMatch(aliases, alias);
                 }
+
             }).values();
             if (!filteredValues.isEmpty()) {
                 mapBuilder.put(index, ImmutableList.copyOf(filteredValues));
@@ -324,15 +327,87 @@ public class MetaData implements Iterable<IndexMetaData> {
         for (String index : intersection) {
             IndexMetaData indexMetaData = indices.get(index);
             Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
+
                 public boolean apply(String alias) {
                 return Regex.simpleMatch(aliases, alias);
                 }
+
             }).values();
             if (!filteredValues.isEmpty()) {
                 return true;
             }
         }
         return false;
+    }
+
+    public ImmutableMap<String, ImmutableMap<String, MappingMetaData>> findMappings(String[] concreteIndices, final String[] types) {
+        assert types != null;
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return ImmutableMap.of();
+        }
+
+        ImmutableMap.Builder<String, ImmutableMap<String, MappingMetaData>> indexMapBuilder = ImmutableMap.builder();
+        Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indices.keySet());
+        for (String index : intersection) {
+            IndexMetaData indexMetaData = indices.get(index);
+            Map<String, MappingMetaData> filteredMappings;
+            if (types.length == 0) {
+                filteredMappings = indexMetaData.getMappings(); // No types specified means get it all
+            } else {
+                filteredMappings = Maps.filterKeys(indexMetaData.getMappings(), new Predicate<String>() {
+
+                    @Override
+                    public boolean apply(String type) {
+                        return Regex.simpleMatch(types, type);
+                    }
+
+                });
+            }
+            if (!filteredMappings.isEmpty()) {
+                indexMapBuilder.put(index, ImmutableMap.copyOf(filteredMappings));
+            }
+        }
+        return indexMapBuilder.build();
+    }
+
+    public ImmutableMap<String, ImmutableList<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] warmers) {
+        assert warmers != null;
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return ImmutableMap.of();
+        }
+
+        ImmutableMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableMap.builder();
+        Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indices.keySet());
+        for (String index : intersection) {
+            IndexMetaData indexMetaData = indices.get(index);
+            IndexWarmersMetaData indexWarmersMetaData = indexMetaData.custom(IndexWarmersMetaData.TYPE);
+            if (indexWarmersMetaData == null || indexWarmersMetaData.entries().isEmpty()) {
+                continue;
+            }
+
+            Collection<IndexWarmersMetaData.Entry> filteredWarmers = Collections2.filter(indexWarmersMetaData.entries(), new Predicate<IndexWarmersMetaData.Entry>() {
+
+                @Override
+                public boolean apply(IndexWarmersMetaData.Entry warmer) {
+                    if (warmers.length != 0 && types.length != 0) {
+                        return Regex.simpleMatch(warmers, warmer.name()) && Regex.simpleMatch(types, warmer.types());
+                    } else if (warmers.length != 0) {
+                        return Regex.simpleMatch(warmers, warmer.name());
+                    } else if (types.length != 0) {
+                        return Regex.simpleMatch(types, warmer.types());
+                    } else {
+                        return true;
+                    }
+                }
+
+            });
+            if (!filteredWarmers.isEmpty()) {
+                mapBuilder.put(index, ImmutableList.copyOf(filteredWarmers));
+            }
+        }
+        return mapBuilder.build();
     }
 
     /**

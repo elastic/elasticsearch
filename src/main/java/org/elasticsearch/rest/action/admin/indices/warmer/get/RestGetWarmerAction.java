@@ -19,29 +19,28 @@
 
 package org.elasticsearch.rest.action.admin.indices.warmer.get;
 
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequest;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
-import org.elasticsearch.search.warmer.IndexWarmerMissingException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
+import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
 
 /**
  *
@@ -60,65 +59,34 @@ public class RestGetWarmerAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = splitIndices(request.param("index"));
-        final String name = request.param("name");
+        final String[] types = splitTypes(request.param("type"));
+        final String[] names = request.paramAsStringArray("name", Strings.EMPTY_ARRAY);
+        boolean local = request.paramAsBooleanOptional("local", false);
 
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .filterAll()
-                .filterMetaData(false)
-                .filteredIndices(indices);
+        GetWarmersRequest getWarmersRequest = new GetWarmersRequest();
+        getWarmersRequest.indices(indices).types(types).warmers(names).local(local);
+        client.admin().indices().getWarmers(getWarmersRequest, new ActionListener<GetWarmersResponse>() {
 
-        clusterStateRequest.listenerThreaded(false);
-
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
-            public void onResponse(ClusterStateResponse response) {
+            public void onResponse(GetWarmersResponse response) {
                 try {
-                    MetaData metaData = response.getState().metaData();
-
-                    if (indices.length == 1 && metaData.indices().isEmpty()) {
+                    if (indices.length > 0 && response.warmers().isEmpty()) {
                         channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
                         return;
                     }
 
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-
-                    boolean wroteOne = false;
-                    for (IndexMetaData indexMetaData : metaData) {
-                        IndexWarmersMetaData warmers = indexMetaData.custom(IndexWarmersMetaData.TYPE);
-                        if (warmers == null) {
-                            continue;
+                    for (Map.Entry<String, ImmutableList<IndexWarmersMetaData.Entry>> entry : response.warmers().entrySet()) {
+                        builder.startObject(entry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                        builder.startObject(IndexWarmersMetaData.TYPE, XContentBuilder.FieldCaseConversion.NONE);
+                        for (IndexWarmersMetaData.Entry warmerEntry : entry.getValue()) {
+                            IndexWarmersMetaData.FACTORY.toXContent(warmerEntry, builder, request);
                         }
-
-                        boolean foundOne = false;
-                        for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                            if (name == null || Regex.simpleMatch(name, entry.name())) {
-                                foundOne = true;
-                                wroteOne = true;
-                                break;
-                            }
-                        }
-
-                        if (foundOne) {
-                            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-                            builder.startObject(IndexWarmersMetaData.TYPE, XContentBuilder.FieldCaseConversion.NONE);
-                            for (IndexWarmersMetaData.Entry entry : warmers.entries()) {
-                                if (name == null || Regex.simpleMatch(name, entry.name())) {
-                                    IndexWarmersMetaData.FACTORY.toXContent(entry, builder, request);
-                                }
-                            }
-                            builder.endObject();
-                            builder.endObject();
-                        }
+                        builder.endObject();
+                        builder.endObject();
                     }
-
                     builder.endObject();
-
-                    if (!wroteOne && name != null) {
-                        // did not find any...
-                        channel.sendResponse(new XContentThrowableRestResponse(request, new IndexWarmerMissingException(name)));
-                        return;
-                    }
 
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Throwable e) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.nested;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -272,8 +273,6 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
 
     @Test
     public void multiNested() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
@@ -283,8 +282,7 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
                 .startObject()
                 .field("field", "value")
@@ -295,10 +293,10 @@ public class SimpleNestedTests extends AbstractSharedClusterTest {
                 .endObject()).execute().actionGet();
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
-        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
         GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
-
+        waitForRelocation(ClusterHealthStatus.GREEN);
         // check the numDocs
         IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
         assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(7l));

@@ -905,19 +905,17 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
+        waitForRelocation();
+        ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
+        refresh();
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
                 .setQuery(fieldQuery("title", "this is a test"))
                 .setHighlighterEncoder("html")
                 .addHighlightedField("title", 50, 1)
                 .execute().actionGet();
-        assertThat(Arrays.toString(search.getShardFailures()), search.getFailedShards(), equalTo(0));
+        
 
         SearchHit hit = search.getHits().getAt(0);
         assertThat(hit.highlightFields().get("title").fragments()[0].string(), equalTo("this is a <em>test</em>"));

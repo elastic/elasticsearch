@@ -406,7 +406,7 @@ public class CustomScoreSearchTests extends AbstractSharedClusterTest {
 
         assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
         assertThat(searchResponse.getHits().totalHits(), equalTo(4l));
-        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("1"), equalTo("3"))); // could be both depending on the order of the docs internally (lucene order)
         assertThat(searchResponse.getHits().getAt(0).score(), equalTo(5.0f));
         logger.info("--> Hit[0] {} Explanation {}", searchResponse.getHits().getAt(0).id(), searchResponse.getHits().getAt(0).explanation());
 

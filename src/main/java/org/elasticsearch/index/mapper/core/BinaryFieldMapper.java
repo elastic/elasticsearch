@@ -33,11 +33,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -84,13 +86,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         }
 
         @Override
-        public Builder indexName(String indexName) {
-            return super.indexName(indexName);
-        }
-
-        @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold, provider);
+            return new BinaryFieldMapper(buildNames(context), fieldType, compress, compressThreshold, postingsProvider, docValuesProvider);
         }
     }
 
@@ -122,8 +119,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
     private long compressThreshold;
 
-    protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold, PostingsFormatProvider provider) {
-        super(names, 1.0f, fieldType, null, null, provider, null, null);
+    protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean compress, long compressThreshold,
+                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider) {
+        super(names, 1.0f, fieldType, null, null, postingsProvider, docValuesProvider, null, null, null);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }
@@ -171,13 +169,13 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!fieldType().stored()) {
-            return null;
+            return;
         }
         byte[] value;
         if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-            return null;
+            return;
         } else {
             value = context.parser().binaryValue();
             if (compress != null && compress && !CompressorFactory.isCompressed(value, 0, value.length)) {
@@ -191,9 +189,9 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
             }
         }
         if (value == null) {
-            return null;
+            return;
         }
-        return new Field(names.indexName(), value, fieldType);
+        fields.add(new Field(names.indexName(), value, fieldType));
     }
 
     @Override
@@ -234,4 +232,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
         }
     }
 
+    @Override
+    public boolean hasDocValues() {
+        return false;
+    }
 }

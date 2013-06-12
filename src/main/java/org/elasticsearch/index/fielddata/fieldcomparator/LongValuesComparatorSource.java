@@ -50,15 +50,7 @@ public class LongValuesComparatorSource extends IndexFieldData.XFieldComparatorS
     public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
         assert fieldname.equals(indexFieldData.getFieldNames().indexName());
 
-        long dMissingValue;
-        if (missingValue == null || "_last".equals(missingValue)) {
-            dMissingValue = reversed ? Long.MIN_VALUE : Long.MAX_VALUE;
-        } else if ("_first".equals(missingValue)) {
-            dMissingValue = reversed ? Long.MAX_VALUE : Long.MIN_VALUE;
-        } else {
-            dMissingValue = missingValue instanceof Number ? ((Number) missingValue).longValue() : Long.parseLong(missingValue.toString());
-        }
-
+        final long dMissingValue = (Long) missingObject(missingValue, reversed);
         return new LongValuesComparator(indexFieldData, dMissingValue, numHits, sortMode);
     }
 }

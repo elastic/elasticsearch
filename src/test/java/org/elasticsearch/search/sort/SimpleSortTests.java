@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util._TestUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -32,8 +33,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.AbstractIntegrationTest;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -352,14 +355,14 @@ public class SimpleSortTests extends AbstractIntegrationTest {
         prepareCreate("test")
                 .setSettings(randomSettingsBuilder().put("index.number_of_shards", numberOfShards).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("str_value").field("type", "string").endObject()
+                        .startObject("str_value").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
                         .startObject("boolean_value").field("type", "boolean").endObject()
-                        .startObject("byte_value").field("type", "byte").endObject()
-                        .startObject("short_value").field("type", "short").endObject()
-                        .startObject("integer_value").field("type", "integer").endObject()
-                        .startObject("long_value").field("type", "long").endObject()
-                        .startObject("float_value").field("type", "float").endObject()
-                        .startObject("double_value").field("type", "double").endObject()
+                        .startObject("byte_value").field("type", "byte").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("short_value").field("type", "short").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("integer_value").field("type", "integer").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("long_value").field("type", "long").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("float_value").field("type", "float").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("double_value").field("type", "double").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
         ensureGreen();
@@ -756,7 +759,7 @@ public class SimpleSortTests extends AbstractIntegrationTest {
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("svalue").field("type", "string").endObject()
+                .startObject("svalue").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
                 .endObject().endObject().endObject().string();
         prepareCreate("test").setSettings(getSettings()).addMapping("type1", mapping).execute().actionGet();
         ensureGreen();
@@ -851,12 +854,17 @@ public class SimpleSortTests extends AbstractIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("properties")
-                        .startObject("i_value")
-                        .field("type", "integer")
+                            .startObject("i_value")
+                                .field("type", "integer")
+                                .startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject()
+                            .endObject()
+                            .startObject("d_value")
+                                .field("type", "float")
+                                .startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject()
+                            .endObject()
                         .endObject()
                         .startObject("d_value")
                         .field("type", "float")
-                        .endObject()
                         .endObject()
                         .endObject()
                         .endObject()).execute().actionGet();
@@ -1041,13 +1049,13 @@ public class SimpleSortTests extends AbstractIntegrationTest {
         prepareCreate("test")
                 .setSettings(randomSettingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("long_values").field("type", "long").endObject()
-                        .startObject("int_values").field("type", "integer").endObject()
-                        .startObject("short_values").field("type", "short").endObject()
-                        .startObject("byte_values").field("type", "byte").endObject()
-                        .startObject("float_values").field("type", "float").endObject()
-                        .startObject("double_values").field("type", "double").endObject()
-                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").endObject()
+                        .startObject("long_values").field("type", "long").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("int_values").field("type", "integer").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("short_values").field("type", "short").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("byte_values").field("type", "byte").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("float_values").field("type", "float").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("double_values").field("type", "double").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
         ensureGreen();
@@ -1359,7 +1367,7 @@ public class SimpleSortTests extends AbstractIntegrationTest {
         prepareCreate("test")
                 .setSettings(randomSettingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").endObject()
+                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
         ensureGreen();
@@ -1456,6 +1464,70 @@ public class SimpleSortTests extends AbstractIntegrationTest {
 
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo(Integer.toString(3)));
         assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("03"));
+    }
+
+    public void testSortMetaField() throws Exception {
+        final boolean idDocValues = maybeDocValues();
+        final boolean timestampDocValues = maybeDocValues();
+        prepareCreate("test")
+            .addMapping("typ", XContentFactory.jsonBuilder().startObject().startObject("typ")
+                        .startObject("_uid").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
+                        .startObject("_id").field("index", !idDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", idDocValues ? "doc_values" : null).endObject().endObject()
+                        .startObject("_timestamp").field("enabled", true).field("store", true).field("index", !timestampDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", timestampDocValues ? "doc_values" : null).endObject().endObject()
+                        .endObject().endObject())
+                .execute().actionGet();
+        ensureGreen();
+        final int numDocs = atLeast(10);
+        IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; ++i) {
+            indexReqs[i] = client().prepareIndex("test", "typ", Integer.toString(i)).setTimestamp(Integer.toString(randomInt(1000))).setSource();
+        }
+        indexRandom(true, indexReqs);
+
+        SortOrder order = randomFrom(SortOrder.values());
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(randomIntBetween(1, numDocs + 5))
+                .addSort("_uid", order)
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        SearchHit[] hits = searchResponse.getHits().hits();
+        BytesRef previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
+        for (int i = 0; i < hits.length; ++i) {
+            final BytesRef uid = new BytesRef(Uid.createUid(hits[i].type(), hits[i].id()));
+            assertThat(previous, order == SortOrder.ASC ? lessThan(uid) : greaterThan(uid));
+            previous = uid;
+        }
+
+        /*searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(randomIntBetween(1, numDocs + 5))
+                .addSort("_id", order)
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        hits = searchResponse.getHits().hits();
+        previous = order == SortOrder.ASC ? new BytesRef() : UnicodeUtil.BIG_TERM;
+        for (int i = 0; i < hits.length; ++i) {
+            final BytesRef id = new BytesRef(Uid.createUid(hits[i].type(), hits[i].id()));
+            assertThat(previous, order == SortOrder.ASC ? lessThan(id) : greaterThan(id));
+            previous = id;
+        }*/
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .setSize(randomIntBetween(1, numDocs + 5))
+                .addSort("_timestamp", order)
+                .addField("_timestamp")
+                .execute().actionGet();
+        assertNoFailures(searchResponse);
+        hits = searchResponse.getHits().hits();
+        Long previousTs = order == SortOrder.ASC ? 0 : Long.MAX_VALUE;
+        for (int i = 0; i < hits.length; ++i) {
+            SearchHitField timestampField = hits[i].getFields().get("_timestamp");
+            Long timestamp = timestampField.<Long>getValue();
+            assertThat(previousTs, order == SortOrder.ASC ? lessThanOrEqualTo(timestamp) : greaterThanOrEqualTo(timestamp));
+            previousTs = timestamp;
+        }
     }
 
 }

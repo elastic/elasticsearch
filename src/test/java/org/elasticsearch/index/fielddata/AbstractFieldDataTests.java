@@ -38,8 +38,12 @@ public abstract class AbstractFieldDataTests extends ElasticSearchTestCase {
 
     protected abstract FieldDataType getFieldDataType();
 
+    protected boolean hasDocValues() {
+        return false;
+    }
+
     public <IFD extends IndexFieldData> IFD getForField(String fieldName) {
-        return ifdService.getForField(new FieldMapper.Names(fieldName), getFieldDataType());
+        return ifdService.getForField(new FieldMapper.Names(fieldName), getFieldDataType(), hasDocValues());
     }
 
     @Before
@@ -53,6 +57,7 @@ public abstract class AbstractFieldDataTests extends ElasticSearchTestCase {
         if (readerContext != null) {
             readerContext.reader().close();
         }
+        writer.forceMerge(1); // nocommit
         AtomicReader reader = new SlowCompositeReaderWrapper(DirectoryReader.open(writer, true));
         readerContext = reader.getContext();
         return readerContext;

@@ -70,6 +70,10 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.percolator.QueryCollector.Count;
+import org.elasticsearch.percolator.QueryCollector.Match;
+import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
+import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.highlight.HighlightField;
@@ -673,7 +677,8 @@ public class PercolatorService extends AbstractComponent {
 
                 IndexFieldData idFieldData = context.fieldData().getForField(
                         new FieldMapper.Names(IdFieldMapper.NAME),
-                        new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes"))
+                        new FieldDataType("string", ImmutableSettings.builder().put("format", "paged_bytes")),
+                        false
                 );
                 int i = 0;
                 final HashedBytesRef spare = new HashedBytesRef(new BytesRef());

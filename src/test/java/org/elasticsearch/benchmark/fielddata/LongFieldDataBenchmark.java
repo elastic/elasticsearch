@@ -135,7 +135,7 @@ public class LongFieldDataBenchmark {
 
             final DirectoryReader dr = DirectoryReader.open(dir);
             final IndexFieldDataService fds = new IndexFieldDataService(new Index("dummy"));
-            final IndexNumericFieldData<AtomicNumericFieldData> fd = fds.getForField(new FieldMapper.Names(fieldName), new FieldDataType("long"));
+            final IndexNumericFieldData<AtomicNumericFieldData> fd = fds.getForField(new FieldMapper.Names(fieldName), new FieldDataType("long"), false);
             final long start = System.nanoTime();
             final AtomicNumericFieldData afd = fd.loadDirect(SlowCompositeReaderWrapper.wrap(dr).getContext());
             final long loadingTimeMs = (System.nanoTime() - start) / 1000 / 1000;

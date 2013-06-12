@@ -26,6 +26,10 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class FieldDataType {
 
+    public static final String FORMAT = "format";
+    public static final String FORMAT_DOC_VALUES = "doc_values";
+
+    private final String typeFormat;
     private final String type;
     private final Settings settings;
 
@@ -39,6 +43,7 @@ public class FieldDataType {
 
     public FieldDataType(String type, Settings settings) {
         this.type = type;
+        this.typeFormat = "index.fielddata.type." + type + "." + FORMAT;
         this.settings = settings;
     }
 
@@ -48,6 +53,14 @@ public class FieldDataType {
 
     public Settings getSettings() {
         return this.settings;
+    }
+
+    public String getFormat(Settings indexSettings) {
+        String format = settings.get(FORMAT);
+        if (format == null && indexSettings != null) {
+            format = indexSettings.get(typeFormat);
+        }
+        return format;
     }
 
     @Override

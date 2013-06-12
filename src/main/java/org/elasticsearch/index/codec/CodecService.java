@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -39,10 +40,12 @@ import org.elasticsearch.index.settings.IndexSettings;
  * {@link Codec} capabilities through this {@link CodecService}.
  * 
  * @see PostingsFormatService
+ * @see DocValuesFormatService
  */
 public class CodecService extends AbstractIndexComponent {
 
     private final PostingsFormatService postingsFormatService;
+    private final DocValuesFormatService docValuesFormatService;
     private final MapperService mapperService;
     private final ImmutableMap<String, Codec> codecs;
 
@@ -51,20 +54,21 @@ public class CodecService extends AbstractIndexComponent {
     }
 
     public CodecService(Index index, @IndexSettings Settings indexSettings) {
-        this(index, indexSettings, new PostingsFormatService(index, indexSettings), null);
+        this(index, indexSettings, new PostingsFormatService(index, indexSettings), new DocValuesFormatService(index, indexSettings), null);
     }
 
     @Inject
     public CodecService(Index index, @IndexSettings Settings indexSettings, PostingsFormatService postingsFormatService,
-                        MapperService mapperService) {
+                        DocValuesFormatService docValuesFormatService, MapperService mapperService) {
         super(index, indexSettings);
         this.postingsFormatService = postingsFormatService;
+        this.docValuesFormatService = docValuesFormatService;
         this.mapperService = mapperService;
         MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
             codecs.put("default", Codec.getDefault());
         } else {
-            codecs.put("default", new PerFieldMappingPostingFormatCodec(mapperService, postingsFormatService.get("default").get(), logger));
+            codecs.put("default", new PerFieldMappingPostingFormatCodec(mapperService, postingsFormatService.get("default").get(), docValuesFormatService.get("default").get(), logger));
         }
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
@@ -74,6 +78,10 @@ public class CodecService extends AbstractIndexComponent {
 
     public PostingsFormatService postingsFormatService() {
         return this.postingsFormatService;
+    }
+
+    public DocValuesFormatService docValuesFormatService() {
+        return docValuesFormatService;
     }
 
     public MapperService mapperService() {

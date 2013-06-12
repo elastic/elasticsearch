@@ -176,6 +176,7 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper());
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper());
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper());
+            this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper());
             // don't add parent field, by default its "null"
         }
 

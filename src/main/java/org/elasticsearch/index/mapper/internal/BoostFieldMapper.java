@@ -30,10 +30,12 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -45,6 +47,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
@@ -87,7 +90,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    precisionStep, boost, fieldType, nullValue, provider, fieldDataSettings);
+                    precisionStep, boost, fieldType, nullValue, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -116,14 +119,14 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     protected BoostFieldMapper(String name, String indexName) {
         this(name, indexName, Defaults.PRECISION_STEP, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
-                Defaults.NULL_VALUE, null, null);
+                Defaults.NULL_VALUE, null, null, null, ImmutableSettings.EMPTY);
     }
 
-    protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType,
-                               Float nullValue, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
+    protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType, Float nullValue,
+            PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType, Defaults.IGNORE_MALFORMED,
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                provider, null, fieldDataSettings);
+                postingsProvider, docValuesProvider, null, fieldDataSettings, indexSettings);
         this.nullValue = nullValue;
     }
 
@@ -135,6 +138,11 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("float");
+    }
+
+    @Override
+    public boolean hasDocValues() {
+        return false;
     }
 
     @Override
@@ -247,13 +255,13 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
     }
 
     @Override
-    protected Field innerParseCreateField(ParseContext context) throws IOException {
+    protected void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException {
         final float value = parseFloatValue(context);
         if (Float.isNaN(value)) {
-            return null;
+            return;
         }
         context.docBoost(value);
-        return new FloatFieldMapper.CustomFloatNumericField(this, value, fieldType);
+        fields.add(new FloatFieldMapper.CustomFloatNumericField(this, value, fieldType));
     }
 
     private float parseFloatValue(ParseContext context) throws IOException {
@@ -279,7 +287,8 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         // all are defaults, don't write it at all
         if (name().equals(Defaults.NAME) && nullValue == null &&
 				fieldType.indexed() == Defaults.FIELD_TYPE.indexed() &&
-                fieldType.stored() == Defaults.FIELD_TYPE.stored()) {
+                fieldType.stored() == Defaults.FIELD_TYPE.stored() &&
+                customFieldDataSettings == null) {
             return builder;
         }
         builder.startObject(contentType());
@@ -294,6 +303,9 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         }
         if (fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
+        }
+        if (customFieldDataSettings != null) {
+            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         }
         builder.endObject();
         return builder;

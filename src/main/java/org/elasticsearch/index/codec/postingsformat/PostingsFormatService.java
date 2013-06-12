@@ -70,8 +70,7 @@ public class PostingsFormatService extends AbstractIndexComponent {
             providers.put(name, factory.create(name, settings));
         }
 
-        // even though we have this logic in the cache module (where it should be, so posting format with delegates will work properly wiht the pre initialized map)
-        // we do it here as well so we can use just this instance for tests
+        // This is only needed for tests when guice doesn't have the chance to populate the list of PF factories
         for (PreBuiltPostingsFormatProvider.Factory factory : PostingFormats.listFactories()) {
             if (providers.containsKey(factory.name())) {
                 continue;

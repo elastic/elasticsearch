@@ -22,15 +22,18 @@ package org.elasticsearch.index.mapper.core;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.*;
@@ -40,6 +43,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.io.Reader;
+import java.util.List;
 
 /**
  *
@@ -70,26 +74,6 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         public Builder(String name, FieldType fieldType) {
             super(name, fieldType);
-        }
-
-        @Override
-        public T store(boolean store) {
-            return super.store(store);
-        }
-
-        @Override
-        public T boost(float boost) {
-            return super.boost(boost);
-        }
-
-        @Override
-        public T indexName(String indexName) {
-            return super.indexName(indexName);
-        }
-
-        @Override
-        public T includeInAll(Boolean includeInAll) {
-            return super.includeInAll(includeInAll);
         }
 
         public T precisionStep(int precisionStep) {
@@ -149,10 +133,11 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected NumberFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
                                 Explicit<Boolean> ignoreMalformed, NamedAnalyzer indexAnalyzer,
-                                NamedAnalyzer searchAnalyzer, PostingsFormatProvider provider, SimilarityProvider similarity,
-                                @Nullable Settings fieldDataSettings) {
+                                NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider,
+                                DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
+                                @Nullable Settings fieldDataSettings, Settings indexSettings) {
         // LUCENE 4 UPGRADE: Since we can't do anything before the super call, we have to push the boost check down to subclasses
-        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, provider, similarity, fieldDataSettings);
+        super(names, boost, fieldType, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider, similarity, fieldDataSettings, indexSettings);
         if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
             this.precisionStep = Integer.MAX_VALUE;
         } else {
@@ -182,24 +167,46 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
-        RuntimeException e;
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        RuntimeException e = null;
         try {
-            return innerParseCreateField(context);
+            innerParseCreateField(context, fields);
         } catch (IllegalArgumentException e1) {
             e = e1;
         } catch (MapperParsingException e2) {
             e = e2;
         }
 
-        if (ignoreMalformed.value()) {
-            return null;
-        } else {
+        if (e != null && !ignoreMalformed.value()) {
             throw e;
         }
     }
 
-    protected abstract Field innerParseCreateField(ParseContext context) throws IOException;
+    /** Utility method to convert a long to a doc values field using {@link NumericUtils} encoding. */
+    protected final Field toDocValues(long l) {
+        final BytesRef bytes = new BytesRef();
+        NumericUtils.longToPrefixCoded(l, 0, bytes);
+        return new SortedSetDocValuesField(names().indexName(), bytes);
+    }
+
+    /** Utility method to convert an int to a doc values field using {@link NumericUtils} encoding. */
+    protected final Field toDocValues(int i) {
+        final BytesRef bytes = new BytesRef();
+        NumericUtils.intToPrefixCoded(i, 0, bytes);
+        return new SortedSetDocValuesField(names().indexName(), bytes);
+    }
+
+    /** Utility method to convert a float to a doc values field using {@link NumericUtils} encoding. */
+    protected final Field toDocValues(float f) {
+        return toDocValues(NumericUtils.floatToSortableInt(f));
+    }
+
+    /** Utility method to convert a double to a doc values field using {@link NumericUtils} encoding. */
+    protected final Field toDocValues(double d) {
+        return toDocValues(NumericUtils.doubleToSortableLong(d));
+    }
+
+    protected abstract void innerParseCreateField(ParseContext context, List<Field> fields) throws IOException;
 
     /**
      * Use the field query created here when matching on numbers.

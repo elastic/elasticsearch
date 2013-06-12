@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.google.common.base.Predicate;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.AbstractRandomizedTest;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -76,7 +77,7 @@ public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
     public static String randomNumericType(Random random) {
         return numericTypes[random.nextInt(numericTypes.length)];
     }
-    
+
     /**
      * Returns a {@link File} pointing to the class path relative resource given
      * as the first argument. In contrast to
@@ -145,7 +146,6 @@ public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
         return false;
     }
 
-    
     @BeforeClass
     public static void registerMockDirectoryHooks() throws Exception {
         closeAfterSuite(new Closeable() {
@@ -162,4 +162,9 @@ public abstract class ElasticSearchTestCase extends AbstractRandomizedTest {
             }
         });
     }
-  }
+
+    public static boolean maybeDocValues() {
+        return LuceneTestCase.defaultCodecSupportsSortedSet() && randomBoolean();
+    }
+
+}

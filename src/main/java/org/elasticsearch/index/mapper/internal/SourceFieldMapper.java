@@ -196,7 +196,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
                                 String[] includes, String[] excludes) {
         super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE),
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null); // Only stored.
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, null, null); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;
@@ -230,6 +230,11 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
+    public boolean hasDocValues() {
+        return false;
+    }
+
+    @Override
     public void preParse(ParseContext context) throws IOException {
         super.parse(context);
     }
@@ -253,15 +258,15 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         if (!enabled) {
-            return null;
+            return;
         }
         if (!fieldType.stored()) {
-            return null;
+            return;
         }
         if (context.flyweight()) {
-            return null;
+            return;
         }
         BytesReference source = context.source();
 
@@ -337,7 +342,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
             }
         }
         assert source.hasArray();
-        return new StoredField(names().indexName(), source.array(), source.arrayOffset(), source.length());
+        fields.add(new StoredField(names().indexName(), source.array(), source.arrayOffset(), source.length()));
     }
 
     @Override

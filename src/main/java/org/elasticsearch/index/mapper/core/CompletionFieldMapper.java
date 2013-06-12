@@ -75,10 +75,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         public static final String MAX_INPUT_LENGTH = "max_input_len";
     }
 
-    public static class Builder extends AbstractFieldMapper.OpenBuilder<Builder, CompletionFieldMapper> {
+    public static class Builder extends AbstractFieldMapper.Builder<Builder, CompletionFieldMapper> {
 
-        private NamedAnalyzer searchAnalyzer;
-        private NamedAnalyzer indexAnalyzer;
         private boolean preserveSeparators = Defaults.DEFAULT_PRESERVE_SEPARATORS;
         private boolean payloads = Defaults.DEFAULT_HAS_PAYLOADS;
         private boolean preservePositionIncrements = Defaults.DEFAULT_POSITION_INCREMENTS;
@@ -86,16 +84,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
-        }
-
-        public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
-            this.searchAnalyzer = searchAnalyzer;
-            return this;
-        }
-
-        public Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
-            this.indexAnalyzer = indexAnalyzer;
-            return this;
         }
 
         public Builder payloads(boolean payloads) {
@@ -123,7 +111,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
         @Override
         public CompletionFieldMapper build(Mapper.BuilderContext context) {
-            return new CompletionFieldMapper(buildNames(context), indexAnalyzer, searchAnalyzer, provider, similarity, payloads,
+            return new CompletionFieldMapper(buildNames(context), indexAnalyzer, searchAnalyzer, postingsProvider, similarity, payloads,
                     preserveSeparators, preservePositionIncrements, maxInputLength);
         }
     }
@@ -190,11 +178,11 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     private final boolean preserveSeparators;
     private int maxInputLength;
 
-    public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormatProvider provider, SimilarityProvider similarity, boolean payloads,
+    public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider, SimilarityProvider similarity, boolean payloads,
                                  boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength) {
-        super(names, 1.0f, Defaults.FIELD_TYPE, indexAnalyzer, searchAnalyzer, provider, similarity, null);
+        super(names, 1.0f, Defaults.FIELD_TYPE, indexAnalyzer, searchAnalyzer, postingsProvider, null, similarity, null, null);
         analyzingSuggestLookupProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
-        this.completionPostingsFormatProvider = new CompletionPostingsFormatProvider("completion", provider, analyzingSuggestLookupProvider);
+        this.completionPostingsFormatProvider = new CompletionPostingsFormatProvider("completion", postingsProvider, analyzingSuggestLookupProvider);
         this.preserveSeparators = preserveSeparators;
         this.payloads = payloads;
         this.preservePositionIncrements = preservePositionIncrements;
@@ -347,8 +335,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     }
 
     @Override
-    protected Field parseCreateField(ParseContext context) throws IOException {
-        return null;
+    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
     }
 
 
@@ -359,6 +346,11 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
     @Override
     public boolean isSortable() {
+        return false;
+    }
+
+    @Override
+    public boolean hasDocValues() {
         return false;
     }
 

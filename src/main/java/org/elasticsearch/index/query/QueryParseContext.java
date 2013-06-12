@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -263,6 +264,10 @@ public class QueryParseContext {
             return name;
         }
         return smartMapper.names().indexName();
+    }
+
+    public Set<String> simpleMatchToIndexNames(String pattern) {
+        return indexQueryParser.mapperService.simpleMatchToIndexNames(pattern, getTypes());
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {

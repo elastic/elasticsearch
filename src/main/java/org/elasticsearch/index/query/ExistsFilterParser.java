@@ -19,13 +19,17 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
@@ -49,7 +53,7 @@ public class ExistsFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        String fieldName = null;
+        String fieldPattern = null;
         String filterName = null;
 
         XContentParser.Token token;
@@ -59,7 +63,7 @@ public class ExistsFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
-                    fieldName = parser.text();
+                    fieldPattern = parser.text();
                 } else if ("_name".equals(currentFieldName)) {
                     filterName = parser.text();
                 } else {
@@ -68,23 +72,43 @@ public class ExistsFilterParser implements FilterParser {
             }
         }
 
-        if (fieldName == null) {
+        if (fieldPattern == null) {
             throw new QueryParsingException(parseContext.index(), "exists must be provided with a [field]");
         }
 
-        Filter filter = null;
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
-        if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-            filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
-        }
-        if (filter == null) {
-            filter = new TermRangeFilter(fieldName, null, null, true, true);
+        MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
+        if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
+            // automatic make the object mapper pattern
+            fieldPattern = fieldPattern + ".*";
         }
 
-        // we always cache this one, really does not change...
-        filter = parseContext.cacheFilter(filter, null);
+        Set<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
+        if (fields.isEmpty()) {
+            return null;
+        }
+        MapperService.SmartNameFieldMappers nonNullFieldMappers = null;
 
-        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
+        XBooleanFilter boolFilter = new XBooleanFilter();
+        for (String field : fields) {
+            MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
+            if (smartNameFieldMappers != null) {
+                nonNullFieldMappers = smartNameFieldMappers;
+            }
+            Filter filter = null;
+            if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
+            }
+            if (filter == null) {
+                filter = new TermRangeFilter(field, null, null, true, true);
+            }
+            boolFilter.add(filter, BooleanClause.Occur.SHOULD);
+        }
+
+        // we always cache this one, really does not change... (exists)
+        // its ok to cache under the fieldName cacheKey, since its per segment and the mapping applies to this data on this segment...
+        Filter filter = parseContext.cacheFilter(boolFilter, new CacheKeyFilter.Key("$exists$" + fieldPattern));
+
+        filter = wrapSmartNameFilter(filter, nonNullFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, filter);
         }

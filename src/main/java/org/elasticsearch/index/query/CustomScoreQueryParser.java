@@ -20,8 +20,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -55,7 +56,8 @@ public class CustomScoreQueryParser implements QueryParser {
         XContentParser parser = parseContext.parser();
 
         Query query = null;
-        boolean queryFound = false;
+        Filter filter = null;
+        boolean queryOrFilterFound = false;
         float boost = 1.0f;
         String script = null;
         String scriptLang = null;
@@ -69,7 +71,10 @@ public class CustomScoreQueryParser implements QueryParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("query".equals(currentFieldName)) {
                     query = parseContext.parseInnerQuery();
-                    queryFound = true;
+                    queryOrFilterFound = true;
+                } else if ("filter".equals(currentFieldName)) {
+                    filter = parseContext.parseInnerFilter();
+                    queryOrFilterFound = true;
                 } else if ("params".equals(currentFieldName)) {
                     vars = parser.map();
                 } else {
@@ -87,14 +92,16 @@ public class CustomScoreQueryParser implements QueryParser {
                 }
             }
         }
-        if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'query' field");
+        if (!queryOrFilterFound) {
+            throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'query' or 'filter' field");
         }
         if (script == null) {
             throw new QueryParsingException(parseContext.index(), "[custom_score] requires 'script' field");
         }
-        if (query == null) {
+        if (query == null && filter == null) {
             return null;
+        } else if (filter != null) {
+            query = new ConstantScoreQuery(filter);
         }
 
         SearchScript searchScript;

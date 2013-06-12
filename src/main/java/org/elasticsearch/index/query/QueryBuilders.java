@@ -520,6 +520,16 @@ public abstract class QueryBuilders {
         return new CustomScoreQueryBuilder(queryBuilder);
     }
 
+    /**
+     * A query that allows to define a custom scoring script, that defines the score for each document that match
+     * with the specified filter.
+     *
+     * @param filterBuilder The filter that defines which documents are scored by a script.
+     */
+    public static CustomScoreQueryBuilder customScoreQuery(FilterBuilder filterBuilder) {
+        return new CustomScoreQueryBuilder(filterBuilder);
+    }
+
     public static CustomFiltersScoreQueryBuilder customFiltersScoreQuery(QueryBuilder queryBuilder) {
         return new CustomFiltersScoreQueryBuilder(queryBuilder);
     }

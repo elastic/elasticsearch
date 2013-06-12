@@ -72,6 +72,10 @@ import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
@@ -120,6 +124,10 @@ import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequest;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequestBuilder;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder;
@@ -315,6 +323,21 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public GatewaySnapshotRequestBuilder prepareGatewaySnapshot(String... indices) {
         return new GatewaySnapshotRequestBuilder(this).setIndices(indices);
+    }
+
+    @Override
+    public void getMappings(GetMappingsRequest request, ActionListener<GetMappingsResponse> listener) {
+        execute(GetMappingsAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public GetMappingsRequestBuilder prepareGetMappings(String... indices) {
+        return new GetMappingsRequestBuilder(this, indices);
+    }
+
+    @Override
+    public ActionFuture<GetMappingsResponse> getMappings(GetMappingsRequest request) {
+        return execute(GetMappingsAction.INSTANCE, request);
     }
 
     @Override
@@ -530,5 +553,20 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     @Override
     public DeleteWarmerRequestBuilder prepareDeleteWarmer() {
         return new DeleteWarmerRequestBuilder(this);
+    }
+
+    @Override
+    public GetWarmersRequestBuilder prepareGetWarmers(String... indices) {
+        return new GetWarmersRequestBuilder(this, indices);
+    }
+
+    @Override
+    public ActionFuture<GetWarmersResponse> getWarmers(GetWarmersRequest request) {
+        return execute(GetWarmersAction.INSTANCE, request);
+    }
+
+    @Override
+    public void getWarmers(GetWarmersRequest request, ActionListener<GetWarmersResponse> listener) {
+        execute(GetWarmersAction.INSTANCE, request, listener);
     }
 }

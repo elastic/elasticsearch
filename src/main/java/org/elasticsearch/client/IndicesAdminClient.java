@@ -59,6 +59,9 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotRe
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequestBuilder;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -95,6 +98,9 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRespon
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequest;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequestBuilder;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
@@ -389,6 +395,12 @@ public interface IndicesAdminClient {
      */
     OptimizeRequestBuilder prepareOptimize(String... indices);
 
+    void getMappings(GetMappingsRequest request, ActionListener<GetMappingsResponse> listener);
+
+    ActionFuture<GetMappingsResponse> getMappings(GetMappingsRequest request);
+
+    GetMappingsRequestBuilder prepareGetMappings(String... indices);
+
     /**
      * Add mapping definition for a type into one or more indices.
      *
@@ -676,4 +688,11 @@ public interface IndicesAdminClient {
      * Deletes an index warmer.
      */
     DeleteWarmerRequestBuilder prepareDeleteWarmer();
+
+    void getWarmers(GetWarmersRequest request, ActionListener<GetWarmersResponse> listener);
+
+    ActionFuture<GetWarmersResponse> getWarmers(GetWarmersRequest request);
+
+    GetWarmersRequestBuilder prepareGetWarmers(String... indices);
+
 }

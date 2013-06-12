@@ -20,6 +20,7 @@
 package org.elasticsearch.test.integration.indices.mapping;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Priority;
@@ -29,7 +30,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -55,6 +56,8 @@ public class SimpleDeleteMappingTests extends AbstractSharedClusterTest {
 
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(true));
+        GetMappingsResponse mappingsResponse = client().admin().indices().prepareGetMappings("test").setTypes("type1").execute().actionGet();
+        assertThat(mappingsResponse.getMappings().get("test").get("type1"), notNullValue());
 
         client().admin().indices().prepareDeleteMapping().setType("type1").execute().actionGet();
         Thread.sleep(500); // for now, we don't have ack logic, so just wait
@@ -66,5 +69,7 @@ public class SimpleDeleteMappingTests extends AbstractSharedClusterTest {
 
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.metaData().index("test").mappings().containsKey("type1"), equalTo(false));
+        mappingsResponse = client().admin().indices().prepareGetMappings("test").setTypes("type1").execute().actionGet();
+        assertThat(mappingsResponse.getMappings().get("test"), nullValue());
     }
 }

@@ -66,6 +66,8 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotAc
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportGatewaySnapshotAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.TransportGetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
@@ -90,6 +92,8 @@ import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQu
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.TransportDeleteWarmerAction;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
+import org.elasticsearch.action.admin.indices.warmer.get.TransportGetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.TransportPutWarmerAction;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -192,6 +196,7 @@ public class ActionModule extends AbstractModule {
         registerAction(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         registerAction(IndicesExistsAction.INSTANCE, TransportIndicesExistsAction.class);
         registerAction(TypesExistsAction.INSTANCE, TransportTypesExistsAction.class);
+        registerAction(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
         registerAction(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
         registerAction(DeleteMappingAction.INSTANCE, TransportDeleteMappingAction.class);
         registerAction(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
@@ -207,6 +212,7 @@ public class ActionModule extends AbstractModule {
         registerAction(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         registerAction(PutWarmerAction.INSTANCE, TransportPutWarmerAction.class);
         registerAction(DeleteWarmerAction.INSTANCE, TransportDeleteWarmerAction.class);
+        registerAction(GetWarmersAction.INSTANCE, TransportGetWarmersAction.class);
         registerAction(IndicesGetAliasesAction.INSTANCE, TransportIndicesGetAliasesAction.class);
         registerAction(IndicesExistsAliasesAction.INSTANCE, TransportIndicesExistsAliasesAction.class);
 

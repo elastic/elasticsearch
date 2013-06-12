@@ -163,7 +163,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         if (smartMappers == null || !smartMappers.hasMapper()) {
             throw new QueryParsingException(parseContext.index(), "failed to find geo_point field [" + fieldName + "]");
         }
-        FieldMapper mapper = smartMappers.mapper();
+        FieldMapper<?> mapper = smartMappers.mapper();
         if (!(mapper instanceof GeoPointFieldMapper.GeoStringFieldMapper)) {
             throw new QueryParsingException(parseContext.index(), "field [" + fieldName + "] is not a geo_point field");
         }
@@ -173,7 +173,7 @@ public class GeoBoundingBoxFilterParser implements FilterParser {
         if ("indexed".equals(type)) {
             filter = IndexedGeoBoundingBoxFilter.create(topLeft, bottomRight, geoMapper);
         } else if ("memory".equals(type)) {
-            IndexGeoPointFieldData indexFieldData = parseContext.fieldData().getForField(mapper);
+            IndexGeoPointFieldData<?> indexFieldData = parseContext.fieldData().getForField(mapper);
             filter = new InMemoryGeoBoundingBoxFilter(topLeft, bottomRight, indexFieldData);
         } else {
             throw new QueryParsingException(parseContext.index(), "geo bounding box type [" + type + "] not supported, either 'indexed' or 'memory' are allowed");

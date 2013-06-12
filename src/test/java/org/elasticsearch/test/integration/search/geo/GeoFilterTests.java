@@ -30,20 +30,23 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Random;
 import java.util.zip.GZIPInputStream;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeBuilder;
@@ -52,8 +55,8 @@ import org.elasticsearch.common.geo.ShapeBuilder.PolygonBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -62,16 +65,12 @@ import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import com.spatial4j.core.context.SpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
 import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Point;
-import com.spatial4j.core.shape.Rectangle;
 import com.spatial4j.core.shape.Shape;
 
 /**
@@ -444,6 +443,85 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         }
     }
 
+    @Test
+    public void testGeoHashFilter() throws IOException {
+        String geohash = randomhash(12);
+        String[] neighbors = GeoHashUtils.neighbors(geohash);
+
+        logger.info("Testing geohash boundingbox filter for [{}]", geohash);
+        logger.info("Neighbors {}", Arrays.toString(neighbors));
+
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("location")
+                        .startObject("properties")
+                            .startObject("pin")
+                                .field("type", "geo_point")
+                                .field("geohash", true)
+                                .field("geohash_prefix", true)
+                                .field("latlon", false)
+                                .field("store", true)
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .string();
+
+        ensureYellow();
+
+        client().admin().indices().prepareCreate("locations").addMapping("location", mapping).execute().actionGet();
+
+        // Index a pin
+        client().prepareIndex("locations", "location", "1").setCreate(true).setSource("{\"pin\":\""+geohash+"\"}").execute().actionGet();
+
+        // index neighbors
+        for (int i = 0; i < neighbors.length; i++) {
+            client().prepareIndex("locations", "location", "N"+i).setCreate(true).setSource("{\"pin\":\""+neighbors[i]+"\"}").execute().actionGet();
+        }
+
+        // Index parent cell
+        client().prepareIndex("locations", "location", "p").setCreate(true).setSource("{\"pin\":\""+geohash.substring(0, geohash.length()-1)+"\"}").execute().actionGet();
+
+        // index neighbors
+        String[] parentNeighbors = GeoHashUtils.neighbors(geohash.substring(0, geohash.length()-1));
+        for (int i = 0; i < parentNeighbors.length; i++) {
+            client().prepareIndex("locations", "location", "p"+i).setCreate(true).setSource("{\"pin\":\""+parentNeighbors[i]+"\"}").execute().actionGet();
+        }
+
+        client().admin().indices().prepareRefresh("locations").execute().actionGet();
+
+        // Result of this geohash search should contain the geohash only 
+        SearchResponse results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter("{\"geohash_cell\": {\"field\": \"pin\", \"geohash\": \""+geohash+"\", \"neighbors\": false}}").execute().actionGet();
+        assertHitCount(results1, 1);
+
+        SearchResponse results2 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter("{\"geohash_cell\": {\"field\": \"pin\", \"geohash\": \""+geohash.substring(0, geohash.length()-1)+"\", \"neighbors\": true}}").execute().actionGet();
+        // Result of the parent query should contain the parent it self, its neighbors, the child and all its neighbors
+        assertHitCount(results2, 2 + neighbors.length + parentNeighbors.length);
+    }
+
+    @Test
+    public void testNeighbors() {
+        // Simple root case
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("7")), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
+
+        // Root cases (Outer cells)
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("0")), containsInAnyOrder("1", "2", "3", "p", "r"));
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("b")), containsInAnyOrder("8", "9", "c", "x", "z"));
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("p")), containsInAnyOrder("n", "q", "r", "0", "2"));
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("z")), containsInAnyOrder("8", "b", "w", "x", "y"));
+
+        // Root crossing dateline
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("2")), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("r")), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
+
+        // level1: simple case
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("dk")), containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
+
+        // Level1: crossing cells
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("d5")), containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
+        assertThat(Arrays.asList(GeoHashUtils.neighbors("d0")), containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
+    }
+
     public static double distance(double lat1, double lon1, double lat2, double lon2) {
         return GeoUtils.EARTH_SEMI_MAJOR_AXIS * DistanceUtils.distHaversineRAD(
                 DistanceUtils.toRadians(lat1),
@@ -464,6 +542,33 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         } catch (UnsupportedSpatialOperation e) {
             return false;
         }
+    }
+    
+    protected static String randomhash(int length) {
+        return randomhash(new Random(), length);
+    }
+
+    protected static String randomhash(Random random) {
+        return randomhash(random, 2 + random.nextInt(10));
+    }
+    
+    protected static String randomhash() {
+        return randomhash(new Random());
+    }
+    
+    protected static String randomhash(Random random, int length) {
+        final char[] BASE_32 = {
+            '0', '1', '2', '3', '4', '5', '6', '7',
+            '8', '9', 'b', 'c', 'd', 'e', 'f', 'g',
+            'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r',
+            's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+        
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            sb.append(BASE_32[random.nextInt(BASE_32.length)]);
+        }
+        
+        return sb.toString();
     }
 }
 

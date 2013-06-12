@@ -60,7 +60,7 @@ final class PhraseSuggester implements Suggester<PhraseSuggestionContext> {
         }
         
         
-        final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram());
+        final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(), suggestion.getTokenLimit());
         final BytesRef separator = suggestion.separator();
         TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField());
         WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestion.getField(), realWordErrorLikelihood, separator);

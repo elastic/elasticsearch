@@ -26,9 +26,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
@@ -52,7 +54,7 @@ public class MissingFilterParser implements FilterParser {
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        String fieldName = null;
+        String fieldPattern = null;
         String filterName = null;
         boolean nullValue = false;
         boolean existence = true;
@@ -64,7 +66,7 @@ public class MissingFilterParser implements FilterParser {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
-                    fieldName = parser.text();
+                    fieldPattern = parser.text();
                 } else if ("null_value".equals(currentFieldName)) {
                     nullValue = parser.booleanValue();
                 } else if ("existence".equals(currentFieldName)) {
@@ -77,7 +79,7 @@ public class MissingFilterParser implements FilterParser {
             }
         }
 
-        if (fieldName == null) {
+        if (fieldPattern == null) {
             throw new QueryParsingException(parseContext.index(), "missing must be provided with a [field]");
         }
 
@@ -85,33 +87,56 @@ public class MissingFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true");
         }
 
+        MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
+        if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
+            // automatic make the object mapper pattern
+            fieldPattern = fieldPattern + ".*";
+        }
+
+        Set<String> fields = parseContext.simpleMatchToIndexNames(fieldPattern);
+        if (fields.isEmpty()) {
+            return null;
+        }
+
         Filter existenceFilter = null;
         Filter nullFilter = null;
 
-
-        MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(fieldName);
+        MapperService.SmartNameFieldMappers nonNullFieldMappers = null;
 
         if (existence) {
-            if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-                existenceFilter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
-            }
-            if (existenceFilter == null) {
-                existenceFilter = new TermRangeFilter(fieldName, null, null, true, true);
+            XBooleanFilter boolFilter = new XBooleanFilter();
+            for (String field : fields) {
+                MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
+                if (smartNameFieldMappers != null) {
+                    nonNullFieldMappers = smartNameFieldMappers;
+                }
+                Filter filter = null;
+                if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                    filter = smartNameFieldMappers.mapper().rangeFilter(null, null, true, true, parseContext);
+                }
+                if (filter == null) {
+                    filter = new TermRangeFilter(field, null, null, true, true);
+                }
+                boolFilter.add(filter, BooleanClause.Occur.SHOULD);
             }
 
             // we always cache this one, really does not change... (exists)
-            existenceFilter = parseContext.cacheFilter(existenceFilter, null);
+            // its ok to cache under the fieldName cacheKey, since its per segment and the mapping applies to this data on this segment...
+            existenceFilter = parseContext.cacheFilter(boolFilter, new CacheKeyFilter.Key("$exists$" + fieldPattern));
             existenceFilter = new NotFilter(existenceFilter);
             // cache the not filter as well, so it will be faster
-            existenceFilter = parseContext.cacheFilter(existenceFilter, null);
+            existenceFilter = parseContext.cacheFilter(existenceFilter, new CacheKeyFilter.Key("$missing$" + fieldPattern));
         }
 
         if (nullValue) {
-            if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
-                nullFilter = smartNameFieldMappers.mapper().nullValueFilter();
-                if (nullFilter != null) {
-                    // cache the not filter as well, so it will be faster
-                    nullFilter = parseContext.cacheFilter(nullFilter, null);
+            for (String field : fields) {
+                MapperService.SmartNameFieldMappers smartNameFieldMappers = parseContext.smartFieldMappers(field);
+                if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
+                    nullFilter = smartNameFieldMappers.mapper().nullValueFilter();
+                    if (nullFilter != null) {
+                        // cache the not filter as well, so it will be faster
+                        nullFilter = parseContext.cacheFilter(nullFilter, new CacheKeyFilter.Key("$null$" + fieldPattern));
+                    }
                 }
             }
         }
@@ -135,7 +160,7 @@ public class MissingFilterParser implements FilterParser {
             return null;
         }
 
-        filter = wrapSmartNameFilter(filter, smartNameFieldMappers, parseContext);
+        filter = wrapSmartNameFilter(filter, nonNullFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, existenceFilter);
         }

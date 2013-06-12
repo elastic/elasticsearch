@@ -20,10 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Charsets;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
-import com.google.common.collect.UnmodifiableIterator;
+import com.google.common.collect.*;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.AnalyzerWrapper;
 import org.apache.lucene.index.Term;
@@ -508,7 +505,40 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
         return fullPathObjectMappers.get(path);
     }
 
+    /**
+     * Returns all the fields that match the given pattern, with an optional narrowing
+     * based on a list of types.
+     */
+    public Set<String> simpleMatchToIndexNames(String pattern, @Nullable String[] types) {
+        if (types == null || types.length == 0) {
+            return simpleMatchToIndexNames(pattern);
+        }
+        if (types.length == 1 && types[0].equals("_all")) {
+            return simpleMatchToIndexNames(pattern);
+        }
+        if (!Regex.isSimpleMatchPattern(pattern)) {
+            return ImmutableSet.of(pattern);
+        }
+        Set<String> fields = Sets.newHashSet();
+        for (String type : types) {
+            DocumentMapper possibleDocMapper = mappers.get(type);
+            if (possibleDocMapper != null) {
+                for (String indexName : possibleDocMapper.mappers().simpleMatchToIndexNames(pattern)) {
+                    fields.add(indexName);
+                }
+            }
+        }
+        return fields;
+    }
+
+    /**
+     * Returns all the fields that match the given pattern. If the pattern is prefixed with a type
+     * then the fields will be returned with a type prefix.
+     */
     public Set<String> simpleMatchToIndexNames(String pattern) {
+        if (!Regex.isSimpleMatchPattern(pattern)) {
+            return ImmutableSet.of(pattern);
+        }
         int dotIndex = pattern.indexOf('.');
         if (dotIndex != -1) {
             String possibleType = pattern.substring(0, dotIndex);
@@ -762,11 +792,11 @@ public class MapperService extends AbstractIndexComponent implements Iterable<Do
     public Analyzer searchQuoteAnalyzer() {
         return this.searchQuoteAnalyzer;
     }
-    
+
     public Analyzer fieldSearchAnalyzer(String field) {
         return this.searchAnalyzer.getWrappedAnalyzer(field);
     }
-    
+
     public Analyzer fieldSearchQuoteAnalyzer(String field) {
         return this.searchQuoteAnalyzer.getWrappedAnalyzer(field);
     }

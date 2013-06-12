@@ -19,25 +19,26 @@
 
 package org.elasticsearch.test.integration.search.query;
 
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
+import org.elasticsearch.index.query.MatchQueryBuilder.Type;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.facet.FacetBuilders;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.Test;
+
+import java.io.IOException;
+import java.util.Arrays;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.existsFilter;
-import static org.elasticsearch.index.query.FilterBuilders.idsFilter;
-import static org.elasticsearch.index.query.FilterBuilders.limitFilter;
-import static org.elasticsearch.index.query.FilterBuilders.missingFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termsFilter;
-import static org.elasticsearch.index.query.FilterBuilders.termsLookupFilter;
-import static org.elasticsearch.index.query.FilterBuilders.typeFilter;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.queryString;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -46,40 +47,16 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.testng.Assert.assertTrue;
 import static org.testng.Assert.fail;
 
-import java.io.IOException;
-import java.util.Arrays;
-
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.MatchQueryBuilder.Type;
-import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.index.query.WrapperFilterBuilder;
-import org.elasticsearch.index.query.WrapperQueryBuilder;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.facet.FacetBuilders;
-import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.Test;
-
 /**
  *
  */
 public class SimpleQueryTests extends AbstractSharedClusterTest {
 
-    
+
     public int numberOfNodes() {
         return 4;
     }
+
     @Test
     public void passQueryAsStringTest() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
@@ -344,10 +321,10 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
     public void filterExistsMissingTests() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value1_2").execute().actionGet();
-        client().prepareIndex("test", "type1", "3").setSource("field2", "value2_3").execute().actionGet();
-        client().prepareIndex("test", "type1", "4").setSource("field3", "value3_4").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()).execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
@@ -375,12 +352,24 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("4"));
 
+        // wildcard check
+        searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), existsFilter("x*"))).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("1"), equalTo("2")));
+
+        // object check
+        searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), existsFilter("obj1"))).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("1"), equalTo("2")));
+        assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("1"), equalTo("2")));
+
+
         searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
 
-        // double check for cache
         searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), missingFilter("field1"))).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
@@ -392,6 +381,18 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
 
         searchResponse = client().prepareSearch().setQuery(queryString("_missing_:field1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
+        assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
+
+        // wildcard check
+        searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), missingFilter("x*"))).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
+        assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
+
+        // object check
+        searchResponse = client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), missingFilter("obj1"))).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("3"), equalTo("4")));
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("3"), equalTo("4")));
@@ -745,7 +746,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
     @Test
     public void testEmptyTermsFilter() throws Exception {
-        createIndexMapped("test",  "type", "term", "string");
+        createIndexMapped("test", "type", "term", "string");
         ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("term", "1").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("term", "2").execute().actionGet();
@@ -799,7 +800,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         client().prepareIndex("test", "type", "3").setSource("term", "3").execute().actionGet();
         client().prepareIndex("test", "type", "4").setSource("term", "4").execute().actionGet();
         refresh();
-        
+
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
                 ).execute().actionGet();

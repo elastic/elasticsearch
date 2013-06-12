@@ -192,7 +192,7 @@ public abstract class FilterBuilders {
      * @param name   The field name
      * @param values The terms
      */
-    public static TermsFilterBuilder termsFilter(String name, Iterable values) {
+    public static TermsFilterBuilder termsFilter(String name, Iterable<?> values) {
         return new TermsFilterBuilder(name, values);
     }
 
@@ -349,6 +349,42 @@ public abstract class FilterBuilders {
         return new GeoBoundingBoxFilterBuilder(name);
     }
 
+    /**
+     * A filter based on a bounding box defined by geohash. The field this filter is applied to
+     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
+     * to work.
+     *
+     * @param fieldname The geopoint field name.
+     */
+    public static GeohashFilter.Builder geoHashFilter(String fieldname) {
+        return new GeohashFilter.Builder(fieldname);
+    }
+
+    /**
+     * A filter based on a bounding box defined by geohash. The field this filter is applied to
+     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
+     * to work.
+     *
+     * @param fieldname The geopoint field name.
+     * @param geohash The Geohash to filter
+     */
+    public static GeohashFilter.Builder geoHashFilter(String fieldname, String geohash) {
+        return new GeohashFilter.Builder(fieldname, geohash);
+    }
+
+    /**
+     * A filter based on a bounding box defined by geohash. The field this filter is applied to
+     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
+     * to work.
+     *
+     * @param fieldname The geopoint field name
+     * @param geohash The Geohash to filter
+     * @param neighbors should the neighbor cell also be filtered
+     */
+    public static GeohashFilter.Builder geoHashFilter(String fieldname, String geohash, boolean neighbors) {
+        return new GeohashFilter.Builder(fieldname, geohash, neighbors);
+    }
+    
     /**
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *

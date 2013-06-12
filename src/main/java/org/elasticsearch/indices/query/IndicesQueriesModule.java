@@ -132,6 +132,7 @@ public class IndicesQueriesModule extends AbstractModule {
         fpBinders.addBinding().to(GeoDistanceFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoDistanceRangeFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoBoundingBoxFilterParser.class).asEagerSingleton();
+        fpBinders.addBinding().to(GeohashFilter.Parser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoPolygonFilterParser.class).asEagerSingleton();
         if (ShapesAvailability.JTS_AVAILABLE) {
             fpBinders.addBinding().to(GeoShapeFilterParser.class).asEagerSingleton();

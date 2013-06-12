@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.mapper.geo;
 
-import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
+
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -34,7 +37,14 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -45,10 +55,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseStore;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.FieldInfo.IndexOptions;
 
 /**
  * Parsing: We handle:
@@ -78,6 +86,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         public static final boolean STORE = false;
         public static final boolean ENABLE_LATLON = false;
         public static final boolean ENABLE_GEOHASH = false;
+        public static final boolean ENABLE_GEOHASH_PREFIX = false;
         public static final int PRECISION = GeoHashUtils.PRECISION;
         public static final boolean NORMALIZE_LAT = true;
         public static final boolean NORMALIZE_LON = true;
@@ -100,6 +109,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
         private boolean enableGeoHash = Defaults.ENABLE_GEOHASH;
+        
+        private boolean enableGeohashPrefix = Defaults.ENABLE_GEOHASH_PREFIX;
 
         private boolean enableLatLon = Defaults.ENABLE_LATLON;
 
@@ -126,6 +137,11 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
         public Builder enableGeoHash(boolean enableGeoHash) {
             this.enableGeoHash = enableGeoHash;
+            return this;
+        }
+
+        public Builder geohashPrefix(boolean enableGeohashPrefix) {
+            this.enableGeohashPrefix = enableGeohashPrefix;
             return this;
         }
 
@@ -157,14 +173,13 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
             GeoStringFieldMapper geoStringMapper = new GeoStringFieldMapper.Builder(name)
                     .includeInAll(false).store(store).build(context);
 
-
             DoubleFieldMapper latMapper = null;
             DoubleFieldMapper lonMapper = null;
 
             context.path().add(name);
             if (enableLatLon) {
-                NumberFieldMapper.Builder latMapperBuilder = doubleField(Names.LAT).includeInAll(false);
-                NumberFieldMapper.Builder lonMapperBuilder = doubleField(Names.LON).includeInAll(false);
+                NumberFieldMapper.Builder<?, ?> latMapperBuilder = doubleField(Names.LAT).includeInAll(false);
+                NumberFieldMapper.Builder<?, ?> lonMapperBuilder = doubleField(Names.LON).includeInAll(false);
                 if (precisionStep != null) {
                     latMapperBuilder.precisionStep(precisionStep);
                     lonMapperBuilder.precisionStep(precisionStep);
@@ -180,7 +195,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
             context.path().pathType(origPathType);
 
-            return new GeoPointFieldMapper(name, pathType, enableLatLon, enableGeoHash, precisionStep, precision,
+            return new GeoPointFieldMapper(name, pathType, enableLatLon, enableGeoHash, enableGeohashPrefix, precisionStep, precision,
                     latMapper, lonMapper, geohashMapper, geoStringMapper,
                     validateLon, validateLat, normalizeLon, normalizeLat);
         }
@@ -188,7 +203,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
 
             for (Map.Entry<String, Object> entry : node.entrySet()) {
@@ -202,6 +217,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
                     builder.enableLatLon(XContentMapValues.nodeBooleanValue(fieldNode));
                 } else if (fieldName.equals("geohash")) {
                     builder.enableGeoHash(XContentMapValues.nodeBooleanValue(fieldNode));
+                } else if (fieldName.equals("geohash_prefix")) {
+                    builder.geohashPrefix(XContentMapValues.nodeBooleanValue(fieldNode));
                 } else if (fieldName.equals("precision_step")) {
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(fieldNode));
                 } else if (fieldName.equals("geohash_precision")) {
@@ -233,6 +250,8 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     private final boolean enableLatLon;
 
     private final boolean enableGeoHash;
+    
+    private final boolean enableGeohashPrefix;
 
     private final Integer precisionStep;
 
@@ -252,7 +271,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
     private final boolean normalizeLon;
     private final boolean normalizeLat;
 
-    public GeoPointFieldMapper(String name, ContentPath.Type pathType, boolean enableLatLon, boolean enableGeoHash, Integer precisionStep, int precision,
+    public GeoPointFieldMapper(String name, ContentPath.Type pathType, boolean enableLatLon, boolean enableGeoHash, boolean enableGeohashPrefix, Integer precisionStep, int precision,
                                DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geohashMapper, GeoStringFieldMapper geoStringMapper,
                                boolean validateLon, boolean validateLat,
                                boolean normalizeLon, boolean normalizeLat) {
@@ -260,9 +279,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         this.pathType = pathType;
         this.enableLatLon = enableLatLon;
         this.enableGeoHash = enableGeoHash;
+        this.enableGeohashPrefix = enableGeohashPrefix;
         this.precisionStep = precisionStep;
         this.precision = precision;
-
+        
         this.latMapper = latMapper;
         this.lonMapper = lonMapper;
         this.geoStringMapper = geoStringMapper;
@@ -292,6 +312,10 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
 
     public GeoStringFieldMapper stringMapper() {
         return this.geoStringMapper;
+    }
+    
+    public StringFieldMapper geoHashStringMapper() {
+        return this.geohashMapper;
     }
 
     public boolean isEnableLatLon() {
@@ -389,6 +413,16 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
     }
 
+    private void parseGeohashField(ParseContext context, String geohash) throws IOException {
+        int len = enableGeohashPrefix ?Math.min(precision, geohash.length()) :1;
+        
+        for (int i = 0; i < len; i++) {
+            context.externalValue(geohash.substring(0, geohash.length() - i));
+            // side effect of this call is adding the field
+            geohashMapper.parse(context);
+        }
+    }
+    
     private void parseLatLon(ParseContext context, double lat, double lon) throws IOException {
         if (normalizeLat || normalizeLon) {
             GeoPoint point = new GeoPoint(lat, lon);
@@ -411,8 +445,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         context.externalValue(Double.toString(lat) + ',' + Double.toString(lon));
         geoStringMapper.parse(context);
         if (enableGeoHash) {
-            context.externalValue(GeoHashUtils.encode(lat, lon, precision));
-            geohashMapper.parse(context);
+            parseGeohashField(context, GeoHashUtils.encode(lat, lon, precision));
         }
         if (enableLatLon) {
             context.externalValue(lat);
@@ -443,8 +476,7 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         context.externalValue(Double.toString(point.lat()) + ',' + Double.toString(point.lon()));
         geoStringMapper.parse(context);
         if (enableGeoHash) {
-            context.externalValue(geohash);
-            geohashMapper.parse(context);
+            parseGeohashField(context, geohash);
         }
         if (enableLatLon) {
             context.externalValue(point.lat());
@@ -503,6 +535,9 @@ public class GeoPointFieldMapper implements Mapper, ArrayValueMapperParser {
         }
         if (enableGeoHash != Defaults.ENABLE_GEOHASH) {
             builder.field("geohash", enableGeoHash);
+        }
+        if (enableGeohashPrefix != Defaults.ENABLE_GEOHASH_PREFIX) {
+            builder.field("geohash_prefix", enableGeohashPrefix);
         }
         if (geoStringMapper.fieldType().stored() != Defaults.STORE) {
             builder.field("store", geoStringMapper.fieldType().stored());

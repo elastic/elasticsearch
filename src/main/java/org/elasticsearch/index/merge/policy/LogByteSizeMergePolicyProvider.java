@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
@@ -39,11 +38,10 @@ import java.util.concurrent.CopyOnWriteArraySet;
 /**
  *
  */
-public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<LogByteSizeMergePolicy> {
+public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<LogByteSizeMergePolicy> {
 
     private final IndexSettingsService indexSettingsService;
 
-    private volatile boolean compoundFormat;
     private volatile ByteSizeValue minMergeSize;
     private volatile ByteSizeValue maxMergeSize;
     private volatile int mergeFactor;
@@ -57,11 +55,9 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
 
     @Inject
     public LogByteSizeMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
-        super(store.shardId(), store.indexSettings());
+        super(store);
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
-
-        this.compoundFormat = indexSettings.getAsBoolean(INDEX_COMPOUND_FORMAT, store.suggestUseCompoundFile());
         this.minMergeSize = componentSettings.getAsBytesSize("min_merge_size", new ByteSizeValue((long) (LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB * 1024 * 1024), ByteSizeUnit.BYTES));
         this.maxMergeSize = componentSettings.getAsBytesSize("max_merge_size", new ByteSizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, ByteSizeUnit.MB));
         this.mergeFactor = componentSettings.getAsInt("merge_factor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
@@ -88,6 +84,7 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
         mergePolicy.setMaxMergeDocs(maxMergeDocs);
         mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);
         mergePolicy.setUseCompoundFile(compoundFormat);
+        mergePolicy.setNoCFSRatio(noCFSRatio);
 
         policies.add(mergePolicy);
         return mergePolicy;
@@ -102,7 +99,6 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
     public static final String INDEX_MERGE_POLICY_MAX_MERGE_SIZE = "index.merge.policy.max_merge_size";
     public static final String INDEX_MERGE_POLICY_MAX_MERGE_DOCS = "index.merge.policy.max_merge_docs";
     public static final String INDEX_MERGE_POLICY_MERGE_FACTOR = "index.merge.policy.merge_factor";
-    public static final String INDEX_COMPOUND_FORMAT = "index.compound_format";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
@@ -142,15 +138,19 @@ public class LogByteSizeMergePolicyProvider extends AbstractIndexShardComponent 
                     policy.setMergeFactor(mergeFactor);
                 }
             }
-
-            boolean compoundFormat = settings.getAsBoolean(INDEX_COMPOUND_FORMAT, LogByteSizeMergePolicyProvider.this.compoundFormat);
-            if (compoundFormat != LogByteSizeMergePolicyProvider.this.compoundFormat) {
-                logger.info("updating index.compound_format from [{}] to [{}]", LogByteSizeMergePolicyProvider.this.compoundFormat, compoundFormat);
+            
+            final double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(LogByteSizeMergePolicyProvider.this.noCFSRatio)));
+            final boolean compoundFormat = noCFSRatio != 0.0;
+            if (noCFSRatio != LogByteSizeMergePolicyProvider.this.noCFSRatio) {
+                logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(LogByteSizeMergePolicyProvider.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
                 LogByteSizeMergePolicyProvider.this.compoundFormat = compoundFormat;
+                LogByteSizeMergePolicyProvider.this.noCFSRatio = noCFSRatio;
                 for (CustomLogByteSizeMergePolicy policy : policies) {
+                    policy.setNoCFSRatio(noCFSRatio);
                     policy.setUseCompoundFile(compoundFormat);
                 }
             }
+
         }
     }
 

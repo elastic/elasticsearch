@@ -45,6 +45,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -56,6 +57,7 @@ import org.testng.annotations.BeforeMethod;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Random;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -132,6 +134,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
         // TODO RANDOMIZE
         return ImmutableSettings.builder();
     }
+    // TODO Randomize MergePolicyProviderBase.INDEX_COMPOUND_FORMAT [true|false|"true"|"false"|[0..1]| toString([0..1])]
 
     public Settings getSettings() {
         return randomSettingsBuilder().build();

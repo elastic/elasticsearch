@@ -6,17 +6,17 @@
       "path": "/_cluster/nodes/stats",
       "paths": [
         "/_cluster/nodes/stats",
-        "/_cluster/nodes/{nodeId}/stats",
+        "/_cluster/nodes/{node_id}/stats",
         "/_nodes/stats",
-        "/_nodes/{nodeId}/stats",
+        "/_nodes/{node_id}/stats",
         "/_nodes/stats/{metric_family}",
-        "/_nodes/{nodeId}/stats/{metric_family}",
+        "/_nodes/{node_id}/stats/{metric_family}",
         "/_nodes/{metric_family}/stats",
-        "/_nodes/{nodeId}/{metric_family}/stats",
+        "/_nodes/{node_id}/{metric_family}/stats",
         "/_nodes/stats/indices/{metric}/{fields}",
-        "/_nodes/{nodeId}/stats/indices/{metric}/{fields}",
+        "/_nodes/{node_id}/stats/indices/{metric}/{fields}",
         "/_nodes/indices/{metric}/{fields}/stats",
-        "/_nodes/{nodeId}/indices/{metric}/{fields}/stats"
+        "/_nodes/{node_id}/indices/{metric}/{fields}/stats"
       ],
       "parts": {
         "fields" : {
@@ -33,7 +33,7 @@
           "values" : ["docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merges", "refresh", "search", "store", "warmer"],
           "description" : "Limit the information returned for `indices` family to a specific metric"
         },
-        "nodeId": {
+        "node_id": {
           "type" : "list",
           "description" : "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
         }

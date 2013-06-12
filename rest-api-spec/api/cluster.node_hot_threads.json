@@ -4,9 +4,9 @@
     "methods": ["GET"],
     "url": {
       "path": "/_cluster/nodes/hot_threads",
-      "paths": ["/_cluster/nodes/hotthreads", "/_cluster/nodes/hot_threads", "/_cluster/nodes/{nodeId}/hotthreads", "/_cluster/nodes/{nodeId}/hot_threads", "/_nodes/hotthreads", "/_nodes/hot_threads", "/_nodes/{nodeId}/hotthreads", "/_nodes/{nodeId}/hot_threads"],
+      "paths": ["/_cluster/nodes/hotthreads", "/_cluster/nodes/hot_threads", "/_cluster/nodes/{node_id}/hotthreads", "/_cluster/nodes/{node_id}/hot_threads", "/_nodes/hotthreads", "/_nodes/hot_threads", "/_nodes/{node_id}/hotthreads", "/_nodes/{node_id}/hot_threads"],
       "parts": {
-        "nodeId": {
+        "node_id": {
           "type" : "list",
           "description" : "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
         }

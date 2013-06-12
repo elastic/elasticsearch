@@ -25,12 +25,12 @@
         },
         "metric_family" : {
           "type" : "enum",
-          "values" : ["all","fs","http","indices","jvm","network","os","process","thread_pool","transport"],
+          "options" : ["all","fs","http","indices","jvm","network","os","process","thread_pool","transport"],
           "description" : "Limit the information returned to a certain metric family"
         },
         "metric" : {
           "type" : "enum",
-          "values" : ["docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merges", "refresh", "search", "store", "warmer"],
+          "options" : ["docs", "fielddata", "filter_cache", "flush", "get", "id_cache", "indexing", "merges", "refresh", "search", "store", "warmer"],
           "description" : "Limit the information returned for `indices` family to a specific metric"
         },
         "node_id": {

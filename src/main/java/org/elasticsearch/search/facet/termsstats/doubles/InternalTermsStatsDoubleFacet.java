@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.facet.termsstats.doubles;
 
+import org.apache.lucene.util.CollectionUtil;
+
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
@@ -175,7 +177,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
                 InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facets.get(0);
                 if (!tsFacet.entries.isEmpty()) {
                     List<DoubleEntry> entries = tsFacet.mutableList();
-                    Collections.sort(entries, comparatorType.comparator());
+                    CollectionUtil.timSort(entries, comparatorType.comparator());
                 }
             }
             return facets.get(0);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.facet.datehistogram;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -163,7 +164,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
             // we need to sort it
             InternalFullDateHistogramFacet internalFacet = (InternalFullDateHistogramFacet) facets.get(0);
             List<FullEntry> entries = internalFacet.getEntries();
-            Collections.sort(entries, comparatorType.comparator());
+            CollectionUtil.timSort(entries, comparatorType.comparator());
             internalFacet.releaseCache();
             return internalFacet;
         }

@@ -19,6 +19,7 @@ package org.elasticsearch.common.inject.internal;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.spi.*;
 
@@ -439,7 +440,7 @@ public final class Errors implements Serializable {
         }
 
         List<Message> result = Lists.newArrayList(root.errors);
-        Collections.sort(result, new Comparator<Message>() {
+        CollectionUtil.timSort(result, new Comparator<Message>() {
             public int compare(Message a, Message b) {
                 return a.getSource().compareTo(b.getSource());
             }

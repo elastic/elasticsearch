@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.termsstats.strings;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -180,7 +181,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                 InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facets.get(0);
                 if (!tsFacet.entries.isEmpty()) {
                     List<StringEntry> entries = tsFacet.mutableList();
-                    Collections.sort(entries, comparatorType.comparator());
+                    CollectionUtil.timSort(entries, comparatorType.comparator());
                 }
             }
             return facets.get(0);

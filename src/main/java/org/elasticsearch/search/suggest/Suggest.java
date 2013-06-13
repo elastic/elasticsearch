@@ -18,15 +18,7 @@
  */
 package org.elasticsearch.search.suggest;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,6 +30,9 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
+
+import java.io.IOException;
+import java.util.*;
 
 /**
  * Top level suggest result, containing the result for each suggestion.
@@ -354,7 +349,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             }
             
             protected void sort(Comparator<O> comparator) {
-                Collections.sort(options, comparator);
+                CollectionUtil.timSort(options, comparator);
             }
 
             protected Entry<O> reduce(List<Entry<O>> toReduce) {

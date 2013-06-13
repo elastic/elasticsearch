@@ -20,12 +20,12 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -101,7 +101,7 @@ public class CustomScoreQueryParser implements QueryParser {
         if (query == null && filter == null) {
             return null;
         } else if (filter != null) {
-            query = new ConstantScoreQuery(filter);
+            query = new XConstantScoreQuery(filter);
         }
 
         SearchScript searchScript;

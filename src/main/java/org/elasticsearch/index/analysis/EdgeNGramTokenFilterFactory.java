@@ -20,9 +20,10 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
-import org.apache.lucene.analysis.ngram.NGramTokenFilter;
+import org.apache.lucene.analysis.ngram.*;
+import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter.Side;
+import org.apache.lucene.analysis.reverse.ReverseStringFilter;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +52,19 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new EdgeNGramTokenFilter(tokenStream, side, minGram, maxGram);
+        if (version.onOrAfter(Version.LUCENE_43)) {
+            TokenStream result = tokenStream;
+            // side=BACK is not supported anymore but applying ReverseStringFilter up-front and after the token filter has the same effect
+            if (side == Side.BACK) {
+                result = new ReverseStringFilter(version, result);
+            }
+            result = new XEdgeNGramTokenFilter(version, result, minGram, maxGram);
+            if (side == Side.BACK) {
+                result = new ReverseStringFilter(version, result);
+            }
+            return result;
+        } else {
+            return new EdgeNGramTokenFilter(tokenStream, side, minGram, maxGram);
+        }
     }
 }

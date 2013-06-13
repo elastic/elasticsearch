@@ -498,7 +498,7 @@ public class PluginsService extends AbstractComponent {
                     pluginProps.load(is);
                     String pluginClassName = pluginProps.getProperty("plugin");
                     Plugin plugin = loadPluginFromClassLoader(pluginClassName,settings, pluginCL);
-                    plugins.put(pluginName, plugin);
+                    plugins.put(plugin.name(), plugin);
                 } catch (Exception e) {
                     logger.warn("failed to load plugin from [" + pluginURL
                             + "]", e);

@@ -19,14 +19,13 @@
 package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.ImmutableList;
-
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
-import org.apache.lucene.search.highlight.Formatter;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.text.StringText;
@@ -37,7 +36,10 @@ import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -135,7 +137,7 @@ public class PlainHighlighter implements Highlighter {
             throw new FetchPhaseExecutionException(context, "Failed to highlight field [" + highlighterContext.fieldName + "]", e);
         }
         if (field.scoreOrdered()) {
-            Collections.sort(fragsList, new Comparator<TextFragment>() {
+            CollectionUtil.quickSort(fragsList, new Comparator<TextFragment>() {
                 public int compare(TextFragment o1, TextFragment o2) {
                     return Math.round(o2.getScore() - o1.getScore());
                 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet.termsstats.longs;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -175,7 +176,7 @@ public class InternalTermsStatsLongFacet extends InternalTermsStatsFacet {
                 InternalTermsStatsLongFacet tsFacet = (InternalTermsStatsLongFacet) facets.get(0);
                 if (!tsFacet.entries.isEmpty()) {
                     List<LongEntry> entries = tsFacet.mutableList();
-                    Collections.sort(entries, comparatorType.comparator());
+                    CollectionUtil.timSort(entries, comparatorType.comparator());
                 }
             }
             return facets.get(0);

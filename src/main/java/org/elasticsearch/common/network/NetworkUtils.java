@@ -20,6 +20,7 @@
 package org.elasticsearch.common.network;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -109,7 +110,7 @@ public abstract class NetworkUtils {
             final Method getIndexMethod = NetworkInterface.class.getDeclaredMethod("getIndex");
             getIndexMethod.setAccessible(true);
 
-            Collections.sort(intfsList, new Comparator<NetworkInterface>() {
+            CollectionUtil.timSort(intfsList, new Comparator<NetworkInterface>() {
                 @Override
                 public int compare(NetworkInterface o1, NetworkInterface o2) {
                     try {

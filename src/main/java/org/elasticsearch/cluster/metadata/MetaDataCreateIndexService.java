@@ -24,7 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.Closeables;
-
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -64,10 +64,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -481,7 +479,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        Collections.sort(templates, new Comparator<IndexTemplateMetaData>() {
+        CollectionUtil.quickSort(templates, new Comparator<IndexTemplateMetaData>() {
             @Override
             public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {
                 return o2.order() - o1.order();

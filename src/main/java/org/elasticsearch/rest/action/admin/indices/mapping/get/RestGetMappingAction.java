@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -82,45 +81,25 @@ public class RestGetMappingAction extends BaseRestHandler {
                     }
 
                     ImmutableSet<String> uniqueTypes = ImmutableSet.copyOf(types);
+                    for (Map.Entry<String, ImmutableMap<String, MappingMetaData>> indexEntry : mappingsByIndex.entrySet()) {
+                        builder.startObject(indexEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
 
-                    if (indices.length == 1 && uniqueTypes.size() == 1) {
-                        boolean foundType = false;
-                        ImmutableMap<String, MappingMetaData> indexMetaData = mappingsByIndex.entrySet().iterator().next().getValue();
-                        for (MappingMetaData mappingMd : indexMetaData.values()) {
-                            if (!uniqueTypes.isEmpty() && !uniqueTypes.contains(mappingMd.type())) {
+                        for (Map.Entry<String, MappingMetaData> typeEntry : indexEntry.getValue().entrySet()) {
+                            if (!uniqueTypes.isEmpty() && !uniqueTypes.contains(typeEntry.getKey())) {
                                 // filter this type out...
                                 continue;
                             }
                             foundAny = true;
-                            foundType = true;
-                            builder.field(mappingMd.type());
-                            builder.map(mappingMd.sourceAsMap());
+                            builder.field(typeEntry.getKey());
+                            builder.map(typeEntry.getValue().sourceAsMap());
                         }
-                        if (!foundType) {
-                            channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index(indices[0]), uniqueTypes.iterator().next())));
-                            return;
+
+                        if (indexEntry.getValue().isEmpty() && uniqueTypes.isEmpty()) {
+                            // if no types are specified and no mappings are set for the index, consider this an empty mapping
+                            foundAny = true;
                         }
-                    } else {
-                        for (Map.Entry<String, ImmutableMap<String, MappingMetaData>> indexEntry : mappingsByIndex.entrySet()) {
-                            builder.startObject(indexEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
 
-                            for (Map.Entry<String, MappingMetaData> typeEntry : indexEntry.getValue().entrySet()) {
-                                if (!uniqueTypes.isEmpty() && !uniqueTypes.contains(typeEntry.getKey())) {
-                                    // filter this type out...
-                                    continue;
-                                }
-                                foundAny = true;
-                                builder.field(typeEntry.getKey());
-                                builder.map(typeEntry.getValue().sourceAsMap());
-                            }
-
-                            if (indexEntry.getValue().isEmpty() && uniqueTypes.isEmpty()) {
-                                // if no types are specified and no mappings are set for the index, consider this an empty mapping
-                                foundAny = true;
-                            }
-
-                            builder.endObject();
-                        }
+                        builder.endObject();
                     }
 
                     builder.endObject();

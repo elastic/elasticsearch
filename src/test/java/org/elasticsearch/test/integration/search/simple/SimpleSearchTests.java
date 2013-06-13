@@ -30,6 +30,7 @@ import org.testng.annotations.Test;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -114,10 +115,11 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.mapping.date.parse_upper_inclusive", false)).execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
+        refresh();
+        ensureGreen();
         // test include upper on ranges to include the full day on the upper bound (disabled here though...)
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lte("2010-01-06")).execute().actionGet();
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lt("2010-01-06")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -128,9 +130,10 @@ public class SimpleSearchTests extends AbstractSharedClusterTest {
         prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()).execute().actionGet();
         client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
+        refresh();
+        ensureGreen();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d")).execute().actionGet();
+        assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
         searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();

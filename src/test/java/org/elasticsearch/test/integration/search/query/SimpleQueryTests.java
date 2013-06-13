@@ -56,6 +56,38 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
     public int numberOfNodes() {
         return 4;
     }
+    
+    @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
+    public void testIssue3177() {
+        run(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)));
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "value2").execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("field1", "value3").execute().actionGet();
+        ensureGreen();
+        waitForRelocation();
+        optimize();
+        refresh();
+        assertThat(
+                client().prepareSearch()
+                        .setQuery(matchAllQuery())
+                        .setFilter(
+                                FilterBuilders.andFilter(
+                                        FilterBuilders.queryFilter(matchAllQuery()),
+                                        FilterBuilders.notFilter(FilterBuilders.andFilter(FilterBuilders.queryFilter(QueryBuilders.termQuery("field1", "value1")),
+                                                FilterBuilders.queryFilter(QueryBuilders.termQuery("field1", "value2")))))).execute().actionGet().getHits().getTotalHits(),
+                equalTo(3l));
+        assertThat(
+                client().prepareSearch()
+                        .setQuery(
+                                QueryBuilders.filteredQuery(
+                                        QueryBuilders.boolQuery().should(QueryBuilders.termQuery("field1", "value1")).should(QueryBuilders.termQuery("field1", "value2"))
+                                                .should(QueryBuilders.termQuery("field1", "value3")),
+                                        FilterBuilders.notFilter(FilterBuilders.andFilter(FilterBuilders.queryFilter(QueryBuilders.termQuery("field1", "value1")),
+                                                FilterBuilders.queryFilter(QueryBuilders.termQuery("field1", "value2")))))).execute().actionGet().getHits().getTotalHits(),
+                equalTo(3l));
+        assertThat(client().prepareSearch().setQuery(matchAllQuery()).setFilter(FilterBuilders.notFilter(FilterBuilders.termFilter("field1", "value3"))).execute().actionGet()
+                .getHits().getTotalHits(), equalTo(2l));
+    }
 
     @Test
     public void passQueryAsStringTest() throws Exception {

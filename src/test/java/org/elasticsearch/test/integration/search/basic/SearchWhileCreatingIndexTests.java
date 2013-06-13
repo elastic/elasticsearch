@@ -19,15 +19,18 @@
 
 package org.elasticsearch.test.integration.search.basic;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
-
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+
+import java.util.Arrays;
+
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.Test;
+
+
 
 public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
 
@@ -38,28 +41,13 @@ public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
      */
     @Test
     public void searchWhileCreatingIndex() {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         for (int i = 0; i < 20; i++) {
-            client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 10)).execute().actionGet();
-
-            client().prepareIndex("test", "type1").setSource("field", "test").execute().actionGet();
-            client().admin().indices().prepareRefresh().execute().actionGet();
-
+            run(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 10)));
+            run(client().prepareIndex("test", "type1").setSource("field", "test"));
+            refresh();
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
-            assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        }
-
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
+            assertThat("Found unexpected number of hits ShardFailures:" + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getHits().totalHits(), equalTo(1l));
+            wipeIndex("test");
         }
     }
 }

@@ -86,6 +86,9 @@ public class RestUpdateAction extends BaseRestHandler {
             }
         }
         updateRequest.retryOnConflict(request.paramAsInt("retry_on_conflict", updateRequest.retryOnConflict()));
+        updateRequest.version(RestActions.parseVersion(request));
+        updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
+
 
         // see if we have it in the body
         if (request.hasContent()) {

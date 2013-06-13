@@ -394,49 +394,23 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
 
             // same logic as index
             long updatedVersion;
+            long expectedVersion = create.version();
             if (create.origin() == Operation.Origin.PRIMARY) {
-                if (create.versionType() == VersionType.INTERNAL) { // internal version type
-                    long expectedVersion = create.version();
-                    if (expectedVersion != Versions.MATCH_ANY && currentVersion != Versions.NOT_SET) {
-                        // an explicit version is provided, see if there is a conflict
-                        // if we did not find anything, and a version is provided, so we do expect to find a doc under that version
-                        // this is important, since we don't allow to preset a version in order to handle deletes
-                        if (currentVersion == Versions.NOT_FOUND) {
-                            throw new VersionConflictEngineException(shardId, create.type(), create.id(), Versions.NOT_FOUND, expectedVersion);
-                        } else if (expectedVersion != currentVersion) {
-                            throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
-                        }
-
-                    }
-                    updatedVersion = (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
-                } else { // external version type
-                    // an external version is provided, just check, if a local version exists, that its higher than it
-                    // the actual version checking is one in an external system, and we just want to not index older versions
-                    if (currentVersion >= 0) { // we can check!, its there
-                        if (currentVersion >= create.version()) {
-                            throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, create.version());
-                        }
-                    }
-                    updatedVersion = create.version();
+                if (create.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+                    throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
                 }
+                updatedVersion = create.versionType().updateVersion(currentVersion, expectedVersion);
             } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
-                long expectedVersion = create.version();
-                if (currentVersion != Versions.NOT_SET) { // we don't have a version, so ignore...
-                    // if it does not exists, and its considered the first index operation (replicas/recovery are 1 of)
-                    // then nothing to check
-                    if (!(currentVersion == Versions.NOT_FOUND && create.version() == 1)) {
-                        // with replicas/recovery, we only check for previous version, we allow to set a future version
-                        if (expectedVersion <= currentVersion) {
-                            if (create.origin() == Operation.Origin.RECOVERY) {
-                                return;
-                            } else {
-                                throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
-                            }
-                        }
+                // replicas treat the version as "external" as it comes from the primary ->
+                // only exploding if the version they got is lower or equal to what they know.
+                if (VersionType.EXTERNAL.isVersionConflict(currentVersion, expectedVersion)) {
+                    if (create.origin() == Operation.Origin.RECOVERY) {
+                        return;
+                    } else {
+                        throw new VersionConflictEngineException(shardId, create.type(), create.id(), currentVersion, expectedVersion);
                     }
                 }
-                // replicas already hold the "future" version
-                updatedVersion = create.version();
+                updatedVersion = VersionType.EXTERNAL.updateVersion(currentVersion, expectedVersion);
             }
 
             // if the doc does not exists or it exists but not delete
@@ -516,49 +490,25 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
 
             long updatedVersion;
+            long expectedVersion = index.version();
             if (index.origin() == Operation.Origin.PRIMARY) {
-                if (index.versionType() == VersionType.INTERNAL) { // internal version type
-                    long expectedVersion = index.version();
-                    if (expectedVersion != Versions.MATCH_ANY && currentVersion != Versions.NOT_SET) {
-                        // an explicit version is provided, see if there is a conflict
-                        // if we did not find anything, and a version is provided, so we do expect to find a doc under that version
-                        // this is important, since we don't allow to preset a version in order to handle deletes
-                        if (currentVersion == Versions.NOT_FOUND) {
-                            throw new VersionConflictEngineException(shardId, index.type(), index.id(), Versions.NOT_FOUND, expectedVersion);
-                        } else if (expectedVersion != currentVersion) {
-                            throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
-                        }
-                    }
-                    updatedVersion = (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
+                if (index.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+                    throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
+                }
 
-                } else { // external version type
-                    // an external version is provided, just check, if a local version exists, that its higher than it
-                    // the actual version checking is one in an external system, and we just want to not index older versions
-                    if (currentVersion >= 0) { // we can check!, its there
-                        if (currentVersion >= index.version()) {
-                            throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, index.version());
-                        }
-                    }
-                    updatedVersion = index.version();
-                }
+                updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
+
             } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
-                long expectedVersion = index.version();
-                if (currentVersion != Versions.NOT_SET) { // we don't have a version, so ignore...
-                    // if it does not exists, and its considered the first index operation (replicas/recovery are 1 of)
-                    // then nothing to check
-                    if (!(currentVersion == Versions.NOT_FOUND && index.version() == 1)) {
-                        // with replicas/recovery, we only check for previous version, we allow to set a future version
-                        if (expectedVersion <= currentVersion) {
-                            if (index.origin() == Operation.Origin.RECOVERY) {
-                                return;
-                            } else {
-                                throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
-                            }
-                        }
+                // replicas treat the version as "external" as it comes from the primary ->
+                // only exploding if the version they got is lower or equal to what they know.
+                if (VersionType.EXTERNAL.isVersionConflict(currentVersion, expectedVersion)) {
+                    if (index.origin() == Operation.Origin.RECOVERY) {
+                        return;
+                    } else {
+                        throw new VersionConflictEngineException(shardId, index.type(), index.id(), currentVersion, expectedVersion);
                     }
                 }
-                // replicas already hold the "future" version
-                updatedVersion = index.version();
+                updatedVersion = VersionType.EXTERNAL.updateVersion(currentVersion, expectedVersion);
             }
 
             index.version(updatedVersion);
@@ -571,7 +521,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
                     writer.addDocument(index.docs().get(0), index.analyzer());
                 }
             } else {
-                if (versionValue != null) index.created(versionValue.delete()); // we have a delete which is not GC'ed...
+                if (versionValue != null) {
+                    index.created(versionValue.delete()); // we have a delete which is not GC'ed...
+                }
                 if (index.docs().size() > 1) {
                     writer.updateDocuments(index.uid(), index.docs(), index.analyzer());
                 } else {
@@ -629,45 +581,25 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             }
 
             long updatedVersion;
+            long expectedVersion = delete.version();
             if (delete.origin() == Operation.Origin.PRIMARY) {
-                if (delete.versionType() == VersionType.INTERNAL) { // internal version type
-                    if (delete.version() != Versions.MATCH_ANY && currentVersion != Versions.NOT_SET) { // we don't have a version, so ignore...
-                        // an explicit version is provided, see if there is a conflict
-                        // if we did not find anything and a version is provided, so we do expect to find a doc under that version
-                        if (currentVersion == Versions.NOT_FOUND) {
-                            throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), Versions.NOT_FOUND, delete.version());
-                        } else if (delete.version() != currentVersion) {
-                            throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, delete.version());
-                        }
-                    }
-                    updatedVersion = (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
+                if (delete.versionType().isVersionConflict(currentVersion, expectedVersion)) {
+                    throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, expectedVersion);
+                }
 
-                } else { // External
-                    if (currentVersion == Versions.NOT_FOUND) {
-                        // its an external version, that's fine, we allow it to be set
-                        //throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), UidField.DocIdAndVersion.Versions.NOT_FOUND, delete.version());
-                    } else if (currentVersion >= delete.version()) {
-                        throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion, delete.version());
-                    }
-                    updatedVersion = delete.version();
-                }
+                updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
+
             } else { // if (index.origin() == Operation.Origin.REPLICA || index.origin() == Operation.Origin.RECOVERY) {
-                // on replica, the version is the future value expected (returned from the operation on the primary)
-                if (currentVersion != Versions.NOT_SET) { // we don't have a version in the index, ignore
-                    // only check if we have a version for it, otherwise, ignore (see later)
-                    if (currentVersion != Versions.NOT_FOUND) {
-                        // with replicas, we only check for previous version, we allow to set a future version
-                        if (delete.version() <= currentVersion) {
-                            if (delete.origin() == Operation.Origin.RECOVERY) {
-                                return;
-                            } else {
-                                throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion - 1, delete.version());
-                            }
-                        }
+                // replicas treat the version as "external" as it comes from the primary ->
+                // only exploding if the version they got is lower or equal to what they know.
+                if (VersionType.EXTERNAL.isVersionConflict(currentVersion, expectedVersion)) {
+                    if (delete.origin() == Operation.Origin.RECOVERY) {
+                        return;
+                    } else {
+                        throw new VersionConflictEngineException(shardId, delete.type(), delete.id(), currentVersion - 1, expectedVersion);
                     }
                 }
-                // replicas already hold the "future" version
-                updatedVersion = delete.version();
+                updatedVersion = VersionType.EXTERNAL.updateVersion(currentVersion, expectedVersion);
             }
 
             if (currentVersion == Versions.NOT_FOUND) {
@@ -1056,7 +988,9 @@ public class RobinEngine extends AbstractIndexShardComponent implements Engine {
             snapshotIndexCommit = deletionPolicy.snapshot();
             traslogSnapshot = translog.snapshot();
         } catch (Exception e) {
-            if (snapshotIndexCommit != null) snapshotIndexCommit.release();
+            if (snapshotIndexCommit != null) {
+                snapshotIndexCommit.release();
+            }
             throw new SnapshotFailedEngineException(shardId, e);
         } finally {
             rwl.readLock().unlock();

@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationResponse;
@@ -46,7 +47,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
@@ -58,7 +58,6 @@ import org.testng.annotations.BeforeMethod;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Random;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -317,6 +316,10 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     // utils
     protected IndexResponse index(String index, String type, XContentBuilder source) {
         return client().prepareIndex(index, type).setSource(source).execute().actionGet();
+    }
+
+    protected GetResponse get(String index, String type, String id) {
+        return client().prepareGet(index, type, id).execute().actionGet();
     }
 
     protected IndexResponse index(String index, String type, String id, String field, Object value) {

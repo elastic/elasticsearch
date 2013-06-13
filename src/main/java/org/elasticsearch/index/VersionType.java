@@ -19,13 +19,47 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.common.lucene.uid.Versions;
 
 /**
  *
  */
 public enum VersionType {
-    INTERNAL((byte) 0),
-    EXTERNAL((byte) 1);
+    INTERNAL((byte) 0) {
+        /**
+         * - always returns false if currentVersion == {@link Versions#NOT_SET}
+         * - always accepts expectedVersion == {@link Versions#MATCH_ANY}
+         * - if expectedVersion is set, always conflict if currentVersion == {@link Versions#NOT_FOUND}
+         */
+        @Override
+        public boolean isVersionConflict(long currentVersion, long expectedVersion) {
+            return currentVersion != Versions.NOT_SET && expectedVersion != Versions.MATCH_ANY
+                    && (currentVersion == Versions.NOT_FOUND || currentVersion != expectedVersion);
+        }
+
+        @Override
+        public long updateVersion(long currentVersion, long expectedVersion) {
+            return (currentVersion == Versions.NOT_SET || currentVersion == Versions.NOT_FOUND) ? 1 : currentVersion + 1;
+        }
+
+    },
+    EXTERNAL((byte) 1) {
+        /**
+         * - always returns false if currentVersion == {@link Versions#NOT_SET}
+         * - always conflict if expectedVersion == {@link Versions#MATCH_ANY} (we need something to set)
+         * - accepts currentVersion == {@link Versions#NOT_FOUND}
+         */
+        @Override
+        public boolean isVersionConflict(long currentVersion, long expectedVersion) {
+            return currentVersion != Versions.NOT_SET && currentVersion != Versions.NOT_FOUND
+                    && (expectedVersion == Versions.MATCH_ANY || currentVersion >= expectedVersion);
+        }
+
+        @Override
+        public long updateVersion(long currentVersion, long expectedVersion) {
+            return expectedVersion;
+        }
+    };
 
     private final byte value;
 
@@ -36,6 +70,20 @@ public enum VersionType {
     public byte getValue() {
         return value;
     }
+
+    /**
+     * Checks whether the current version conflicts with the expected version, based on the current version type.
+     *
+     * @return true if versions conflict false o.w.
+     */
+    public abstract boolean isVersionConflict(long currentVersion, long expectedVersion);
+
+    /**
+     * Returns the new version for a document, based on it's current one and the specified in the request
+     *
+     * @return new version
+     */
+    public abstract long updateVersion(long currentVersion, long expectedVersion);
 
     public static VersionType fromString(String versionType) {
         if ("internal".equals(versionType)) {

@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -155,6 +156,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
         }
         return this;
     }
+
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
@@ -272,7 +274,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 String timestamp = null;
                 Long ttl = null;
                 String opType = null;
-                long version = 0;
+                long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
                 String percolate = null;
                 int retryOnConflict = 0;
@@ -345,6 +347,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                                 .percolate(percolate), payload);
                     } else if ("update".equals(action)) {
                         internalAdd(new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
+                                .version(version).versionType(versionType)
                                 .source(data.slice(from, nextMarker - from))
                                 .percolate(percolate), payload);
                     }

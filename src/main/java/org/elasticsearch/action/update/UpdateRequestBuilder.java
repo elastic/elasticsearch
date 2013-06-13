@@ -29,6 +29,7 @@ import org.elasticsearch.client.internal.InternalClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 
 import java.util.Map;
 
@@ -125,6 +126,24 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
+     * Sets the version, which will cause the index operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public UpdateRequestBuilder setVersion(long version) {
+        request.version(version);
+        return this;
+    }
+
+    /**
+     * Sets the versioning type. Defaults to {@link org.elasticsearch.index.VersionType#INTERNAL}.
+     */
+    public UpdateRequestBuilder setVersionType(VersionType versionType) {
+        request.versionType(versionType);
+        return this;
+    }
+
+
+    /**
      * Should a refresh be executed post this update operation causing the operation to
      * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
      * to <tt>false</tt>.
@@ -217,6 +236,14 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     }
 
     /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequestBuilder setDoc(String field, Object value) {
+        request.doc(field, value);
+        return this;
+    }
+
+    /**
      * Sets the index request to be used if the document does not exists. Otherwise, a {@link org.elasticsearch.index.engine.DocumentMissingException}
      * is thrown.
      */
@@ -305,5 +332,4 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     protected void doExecute(ActionListener<UpdateResponse> listener) {
         ((Client) client).update(request, listener);
     }
-
 }

@@ -89,8 +89,17 @@ public class PluginsService extends AbstractComponent {
         }
 
         // now, find all the ones that are in the classpath
-        loadPluginsIntoClassLoader();
-        plugins.putAll(loadPluginsFromClasspath(settings));
+        // check if we should isolate plugins from each other.
+        boolean isolatePlugins = settings.getAsBoolean("plugin.isolate", false);
+        if (isolatePlugins){
+            logger.info("Plugin isolation set to true, loading each plugin in a dedicated ClassLoader");
+            Map<String, ClassLoader> pluginsCL = loadPluginsClassLoaders();
+            plugins.putAll(loadPluginsFromClassLoader(settings, pluginsCL));
+        } else {
+            loadPluginsIntoClassLoader();
+            plugins.putAll(loadPluginsFromClasspath(settings));
+        }
+        
         Set<String> sitePlugins = PluginsHelper.sitePlugins(this.environment);
 
         String[] mandatoryPlugins = settings.getAsArray("plugin.mandatory", null);
@@ -393,6 +402,53 @@ public class PluginsService extends AbstractComponent {
             }
         }
     }
+    
+    private Map<String, ClassLoader> loadPluginsClassLoaders() {
+        Map<String, ClassLoader> classloaders = Maps.newHashMap();
+
+        File pluginsFile = environment.pluginsFile();
+        if (!pluginsFile.exists()) {
+            return classloaders;
+        }
+        if (!pluginsFile.isDirectory()) {
+            return classloaders;
+        }
+        // Retrieve parent classLoader.
+        ClassLoader parentCL = settings.getClassLoader();
+
+        File[] pluginsFiles = pluginsFile.listFiles();
+        for (File pluginFile : pluginsFiles) {
+            if (pluginFile.isDirectory()) {
+                logger.trace("--- adding plugin [" + pluginFile.getAbsolutePath() + "]");
+                try {
+                    // Gather plugin files to add
+                    List<File> libFiles = Lists.newArrayList();
+                    if (pluginFile.listFiles() != null) {
+                        libFiles.addAll(Arrays.asList(pluginFile.listFiles()));
+                    }
+                    File libLocation = new File(pluginFile, "lib");
+                    if (libLocation.exists() && libLocation.isDirectory()
+                            && libLocation.listFiles() != null) {
+                        libFiles.addAll(Arrays.asList(libLocation.listFiles()));
+                    }
+
+                    // If there are jars in it, filter them.
+                    List<URL> libURLs = Lists.newArrayList();
+                    for (File libFile : libFiles) {
+                        if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
+                            continue;
+                        }
+                        libURLs.add(libFile.toURI().toURL());
+                    }
+                    PluginClassLoader pluginCL = new PluginClassLoader(libURLs.toArray(new URL[libURLs.size()]), parentCL);
+                    classloaders.put(pluginFile.getName(), pluginCL);
+                } catch (Exception e) {
+                    logger.warn("failed to add plugin [" + pluginFile + "]", e);
+                }
+            }
+        }
+        return classloaders;
+    }
 
     private Map<String, Plugin> loadPluginsFromClasspath(Settings settings) {
         Map<String, Plugin> plugins = newHashMap();
@@ -427,6 +483,38 @@ public class PluginsService extends AbstractComponent {
         }
         return plugins;
     }
+    
+    private Map<String, Plugin> loadPluginsFromClassLoader(Settings settings,
+            Map<String, ClassLoader> pluginsCL) {
+        Map<String, Plugin> plugins = newHashMap();
+        for (String pluginName : pluginsCL.keySet()) {
+            ClassLoader pluginCL = pluginsCL.get(pluginName);
+            URL pluginURL = pluginCL.getResource(ES_PLUGIN_PROPERTIES);
+            if (pluginURL != null) {
+                InputStream is = null;
+                Properties pluginProps = new Properties();
+                try {
+                    is = pluginURL.openStream();
+                    pluginProps.load(is);
+                    String pluginClassName = pluginProps.getProperty("plugin");
+                    Plugin plugin = loadPluginFromClassLoader(pluginClassName,settings, pluginCL);
+                    plugins.put(pluginName, plugin);
+                } catch (Exception e) {
+                    logger.warn("failed to load plugin from [" + pluginURL
+                            + "]", e);
+                } finally {
+                    if (is != null) {
+                        try {
+                            is.close();
+                        } catch (IOException e) {
+                            // ignore
+                        }
+                    }
+                }
+            }
+        }
+        return plugins;
+    }
 
     private Plugin loadPlugin(String className, Settings settings) {
         try {
@@ -447,5 +535,24 @@ public class PluginsService extends AbstractComponent {
             throw new ElasticSearchException("Failed to load plugin class [" + className + "]", e);
         }
 
+    }
+    
+    private Plugin loadPluginFromClassLoader(String pluginClassName, Settings settings, ClassLoader pluginCL) {
+        try {
+            Class<? extends Plugin> pluginClass = (Class<? extends Plugin>) pluginCL.loadClass(pluginClassName);
+            try {
+                return pluginClass.getConstructor(Settings.class).newInstance(settings);
+            } catch (NoSuchMethodException nsme) {
+                try {
+                    return pluginClass.getConstructor().newInstance();
+                } catch (NoSuchMethodException nsme1) {
+                    throw new ElasticSearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
+                                    "have either an empty default constructor or a single argument constructor accepting a " +
+                                     "Settings instance");
+                }
+            }
+        } catch (Exception e) {
+            throw new ElasticSearchException("Failed to load plugin class [" + pluginClassName + "]", e);
+        }
     }
 }

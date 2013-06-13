@@ -19,10 +19,11 @@
 
 package org.elasticsearch.test.integration.routing;
 
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
+
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
@@ -43,9 +44,9 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
     @Test
     public void testAliasCrudRouting() throws Exception {
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test", "alias0").routing("0")).execute().actionGet();
+        ensureGreen();
+        IndicesAliasesResponse res = run(admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test", "alias0").routing("0")));
+        assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> indexing with id [1], and routing [0] using alias");
         client().prepareIndex("alias0", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -124,15 +125,13 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
     @Test
     public void testAliasSearchRouting() throws Exception {
         createIndex("test");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        client().admin().indices().prepareAliases()
+        ensureGreen();
+        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
                 .addAliasAction(newAddAliasAction("test", "alias"))
                 .addAliasAction(newAddAliasAction("test", "alias0").routing("0"))
                 .addAliasAction(newAddAliasAction("test", "alias1").routing("1"))
-                .addAliasAction(newAddAliasAction("test", "alias01").searchRouting("0,1"))
-                .execute().actionGet();
-
+                .addAliasAction(newAddAliasAction("test", "alias01").searchRouting("0,1")));
+        assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> indexing with id [1], and routing [0] using alias");
         client().prepareIndex("alias0", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -223,18 +222,16 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
     public void testAliasSearchRoutingWithTwoIndices() throws Exception {
         createIndex("test-a");
         createIndex("test-b");
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-        client().admin().indices().prepareAliases()
+        ensureGreen();
+        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
                 .addAliasAction(newAddAliasAction("test-a", "alias-a0").routing("0"))
                 .addAliasAction(newAddAliasAction("test-a", "alias-a1").routing("1"))
                 .addAliasAction(newAddAliasAction("test-b", "alias-b0").routing("0"))
                 .addAliasAction(newAddAliasAction("test-b", "alias-b1").routing("1"))
-
                 .addAliasAction(newAddAliasAction("test-a", "alias-ab").searchRouting("0"))
-                .addAliasAction(newAddAliasAction("test-b", "alias-ab").searchRouting("1"))
-                .execute().actionGet();
-
+                .addAliasAction(newAddAliasAction("test-b", "alias-ab").searchRouting("1")));
+        assertThat(res.isAcknowledged(), equalTo(true));
+        ensureGreen(); // wait for events again to make sure we got the aliases on all nodes
         logger.info("--> indexing with id [1], and routing [0] using alias to test-a");
         client().prepareIndex("alias-a0", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
         logger.info("--> verifying get with no routing, should not find anything");
@@ -279,19 +276,11 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
 
     @Test
     public void testAliasSearchRoutingWithConcreteAndAliasedIndices() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("index").execute().actionGet();
-            client().admin().indices().prepareDelete("index_2").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client().admin().indices().prepareCreate("index").execute().actionGet();
-        client().admin().indices().prepareCreate("index_2").execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-
-        client().admin().indices().prepareAliases()
-                .addAliasAction(newAddAliasAction("index", "index_1").routing("1"))
-                .execute().actionGet();
+        createIndex("index", "index_2");
+        ensureGreen();
+        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
+                .addAliasAction(newAddAliasAction("index", "index_1").routing("1")));
+        assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> indexing on index_1 which is an alias for index with routing [1]");
         client().prepareIndex("index_1", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -307,16 +296,11 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
 
     @Test
     public void testRequiredRoutingMappingWithAlias() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true).endObject().endObject().endObject())
-                .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        run(prepareCreate("test").addMapping(
+                "type1",
+                XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true)
+                        .endObject().endObject().endObject()));
+        ensureGreen();
         logger.info("--> indexing with id [1], and routing [0]");
         client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
         logger.info("--> verifying get with no routing, should not find anything");
@@ -356,19 +340,12 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
 
     @Test
     public void testIndexingAliasesOverTime() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-        client().admin().indices().prepareCreate("test").execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
-
+        createIndex("test");
+        ensureGreen();
         logger.info("--> creating alias with routing [3]");
-        client().admin().indices().prepareAliases()
-                .addAliasAction(newAddAliasAction("test", "alias").routing("3"))
-                .execute().actionGet();
+        IndicesAliasesResponse res = run(admin().indices().prepareAliases()
+                .addAliasAction(newAddAliasAction("test", "alias").routing("3")));
+        assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> indexing with id [0], and routing [3]");
         client().prepareIndex("alias", "type1", "0").setSource("field", "value1").setRefresh(true).execute().actionGet();
@@ -382,9 +359,9 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
         }
 
         logger.info("--> creating alias with routing [4]");
-        client().admin().indices().prepareAliases()
-                .addAliasAction(newAddAliasAction("test", "alias").routing("4"))
-                .execute().actionGet();
+        res = run(admin().indices().prepareAliases()
+                .addAliasAction(newAddAliasAction("test", "alias").routing("4")));
+        assertThat(res.isAcknowledged(), equalTo(true));
 
         logger.info("--> verifying search with wrong routing should not find");
         for (int i = 0; i < 5; i++) {
@@ -408,7 +385,6 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
             assertThat(client().prepareSearch("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(2l));
             assertThat(client().prepareCount("alias").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(2l));
         }
-
     }
 
 }

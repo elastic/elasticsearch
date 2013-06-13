@@ -20,7 +20,6 @@
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
+import org.elasticsearch.indices.TypeMissingException;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
@@ -69,42 +68,35 @@ public class RestGetMappingAction extends BaseRestHandler {
             @Override
             public void onResponse(GetMappingsResponse response) {
                 try {
-                    boolean foundAny = false;
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
                     ImmutableMap<String, ImmutableMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
-
-                    if (indices.length == 1 && mappingsByIndex.isEmpty()) {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                    if (mappingsByIndex.isEmpty()) {
+                        if (indices.length != 0 && types.length != 0) {
+                            channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index(indices[0]), types[0])));
+                        } else if (indices.length != 0) {
+                            channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                        } else if (types.length != 0) {
+                            channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index("_all"), types[0])));
+                        } else {
+                            builder.endObject();
+                            channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                        }
                         return;
                     }
 
-                    ImmutableSet<String> uniqueTypes = ImmutableSet.copyOf(types);
                     for (Map.Entry<String, ImmutableMap<String, MappingMetaData>> indexEntry : mappingsByIndex.entrySet()) {
                         builder.startObject(indexEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
-
                         for (Map.Entry<String, MappingMetaData> typeEntry : indexEntry.getValue().entrySet()) {
-                            if (!uniqueTypes.isEmpty() && !uniqueTypes.contains(typeEntry.getKey())) {
-                                // filter this type out...
-                                continue;
-                            }
-                            foundAny = true;
                             builder.field(typeEntry.getKey());
                             builder.map(typeEntry.getValue().sourceAsMap());
                         }
-
-                        if (indexEntry.getValue().isEmpty() && uniqueTypes.isEmpty()) {
-                            // if no types are specified and no mappings are set for the index, consider this an empty mapping
-                            foundAny = true;
-                        }
-
                         builder.endObject();
                     }
 
                     builder.endObject();
-
-                    channel.sendResponse(new XContentRestResponse(request, foundAny || indices.length == 0 ? OK : NOT_FOUND, builder));
+                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
                 } catch (Throwable e) {
                     onFailure(e);
                 }

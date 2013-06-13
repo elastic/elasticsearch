@@ -1,20 +1,22 @@
 package org.elasticsearch.test.integration.document;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 
 /**
  */
@@ -106,6 +108,53 @@ public class BulkTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    public void testBulkVersioning() throws Exception {
+        createIndex("test");
+        ensureGreen();
+        BulkResponse bulkResponse = run(client().prepareBulk()
+                .add(client().prepareIndex("test", "type", "1").setCreate(true).setSource("field", "1"))
+                .add(client().prepareIndex("test", "type", "2").setCreate(true).setSource("field", "1"))
+                .add(client().prepareIndex("test", "type", "1").setSource("field", "2")));
+
+        assertTrue(((IndexResponse) bulkResponse.getItems()[0].getResponse()).isCreated());
+        assertThat(((IndexResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(1l));
+        assertTrue(((IndexResponse) bulkResponse.getItems()[1].getResponse()).isCreated());
+        assertThat(((IndexResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(1l));
+        assertFalse(((IndexResponse) bulkResponse.getItems()[2].getResponse()).isCreated());
+        assertThat(((IndexResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(2l));
+
+        bulkResponse = run(client().prepareBulk()
+                .add(client().prepareUpdate("test", "type", "1").setVersion(4l).setDoc("field", "2"))
+                .add(client().prepareUpdate("test", "type", "2").setDoc("field", "2"))
+                .add(client().prepareUpdate("test", "type", "1").setVersion(2l).setDoc("field", "3")));
+
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Version"));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(3l));
+
+        bulkResponse = run(client().prepareBulk()
+                .add(client().prepareIndex("test", "type", "e1").setCreate(true).setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
+                .add(client().prepareIndex("test", "type", "e2").setCreate(true).setSource("field", "1").setVersion(10).setVersionType(VersionType.EXTERNAL))
+                .add(client().prepareIndex("test", "type", "e1").setSource("field", "2").setVersion(12).setVersionType(VersionType.EXTERNAL)));
+
+        assertTrue(((IndexResponse) bulkResponse.getItems()[0].getResponse()).isCreated());
+        assertThat(((IndexResponse) bulkResponse.getItems()[0].getResponse()).getVersion(), equalTo(10l));
+        assertTrue(((IndexResponse) bulkResponse.getItems()[1].getResponse()).isCreated());
+        assertThat(((IndexResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(10l));
+        assertFalse(((IndexResponse) bulkResponse.getItems()[2].getResponse()).isCreated());
+        assertThat(((IndexResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(12l));
+
+        bulkResponse = run(client().prepareBulk()
+                .add(client().prepareUpdate("test", "type", "e1").setVersion(4l).setDoc("field", "2").setVersion(10).setVersionType(VersionType.EXTERNAL))
+                .add(client().prepareUpdate("test", "type", "e2").setDoc("field", "2").setVersion(15).setVersionType(VersionType.EXTERNAL))
+                .add(client().prepareUpdate("test", "type", "e1").setVersion(2l).setDoc("field", "3").setVersion(15).setVersionType(VersionType.EXTERNAL)));
+
+        assertThat(bulkResponse.getItems()[0].getFailureMessage(), containsString("Version"));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(15l));
+        assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(15l));
+    }
+
+    @Test
     public void testBulkUpdate_malformedScripts() throws Exception {
         client().admin().indices().prepareDelete().execute().actionGet();
 
@@ -140,7 +189,7 @@ public class BulkTests extends AbstractSharedClusterTest {
 
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getId(), equalTo("2"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
-        assertThat(((Integer)((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().field("field").getValue()), equalTo(2));
+        assertThat(((Integer) ((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().field("field").getValue()), equalTo(2));
         assertThat(bulkResponse.getItems()[1].getFailure(), nullValue());
 
         assertThat(bulkResponse.getItems()[2].getFailure().getId(), equalTo("3"));
@@ -182,7 +231,7 @@ public class BulkTests extends AbstractSharedClusterTest {
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getId(), equalTo(Integer.toString(i)));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(1l));
-            assertThat(((Integer)((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()), equalTo(1));
+            assertThat(((Integer) ((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()), equalTo(1));
 
             for (int j = 0; j < 5; j++) {
                 GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute().actionGet();
@@ -219,7 +268,7 @@ public class BulkTests extends AbstractSharedClusterTest {
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getId(), equalTo(Integer.toString(i)));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(2l));
-            assertThat(((Integer)((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()), equalTo(2));
+            assertThat(((Integer) ((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()), equalTo(2));
         }
 
         builder = client().prepareBulk();

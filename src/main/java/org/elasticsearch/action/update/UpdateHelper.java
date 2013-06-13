@@ -14,8 +14,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -78,7 +80,21 @@ public class UpdateHelper extends AbstractComponent {
                     .refresh(request.refresh())
                     .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
+            if (request.versionType() == VersionType.EXTERNAL) {
+                // in external versioning mode, we want to create the new document using the given version.
+                indexRequest.version(request.version()).versionType(VersionType.EXTERNAL);
+            }
             return new Result(indexRequest, Operation.UPSERT, null, null);
+        }
+
+        if (request.versionType().isVersionConflict(getResult.getVersion(), request.version())) {
+            throw new VersionConflictEngineException(new ShardId(request.index(), request.shardId()), request.type(), request.id(),
+                    getResult.getVersion(), request.version());
+        }
+
+        long updateVersion = getResult.getVersion();
+        if (request.versionType() == VersionType.EXTERNAL) {
+            updateVersion = request.version(); // remember, match_any is excluded by the conflict test
         }
 
         if (getResult.internalSourceRef() == null) {
@@ -148,12 +164,11 @@ public class UpdateHelper extends AbstractComponent {
             }
         }
 
-        // TODO: external version type, does it make sense here? does not seem like it...
-        // TODO: because we use  getResult.getVersion we loose the doc.version. The question is where is the right place?
         if (operation == null || "index".equals(operation)) {
             final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(updatedSourceAsMap, updateSourceContentType)
-                    .version(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
+                    .version(updateVersion).versionType(request.versionType())
+                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
                     .percolate(request.percolate())
                     .refresh(request.refresh());
@@ -161,7 +176,8 @@ public class UpdateHelper extends AbstractComponent {
             return new Result(indexRequest, Operation.INDEX, updatedSourceAsMap, updateSourceContentType);
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
-                    .version(getResult.getVersion()).replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+                    .version(updateVersion).versionType(request.versionType())
+                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
             deleteRequest.operationThreaded(false);
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {

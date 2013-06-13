@@ -29,7 +29,9 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
@@ -39,6 +41,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.testng.AssertJUnit.*;
@@ -163,22 +166,23 @@ public class UpdateTests extends AbstractSharedClusterTest {
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
     }
+
     @Test
     public void testUpsertDoc() throws Exception {
-    	createIndex();
+        createIndex();
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        
+
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
-        		.setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())        		
-        		.setDocAsUpsert(true)
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setDocAsUpsert(true)
                 .setFields("_source")
                 .execute().actionGet();
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
     }
-    
+
     @Test
     public void testUpsertFields() throws Exception {
         createIndex();
@@ -205,6 +209,60 @@ public class UpdateTests extends AbstractSharedClusterTest {
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra").toString(), equalTo("foo"));
+    }
+
+    @Test
+    public void testVersionedUpdate() throws Exception {
+        createIndex("test");
+        ensureGreen();
+
+        index("test", "type", "1", "text", "value"); // version is now 1
+
+        assertThrows(client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v2'").setVersion(2).execute(),
+                VersionConflictEngineException.class);
+
+        run(client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v2'").setVersion(1));
+        assertThat(run(client().prepareGet("test", "type", "1")).getVersion(), equalTo(2l));
+
+        // and again with a higher version..
+        run(client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v3'").setVersion(2));
+
+        assertThat(run(client().prepareGet("test", "type", "1")).getVersion(), equalTo(3l));
+
+        // after delete
+        run(client().prepareDelete("test", "type", "1"));
+        assertThrows(client().prepareUpdate("test", "type", "1").setScript("ctx._source.text = 'v2'").setVersion(3).execute(),
+                DocumentMissingException.class);
+
+        // external versioning
+        run(client().prepareIndex("test", "type", "2").setSource("text", "value").setVersion(10).setVersionType(VersionType.EXTERNAL));
+        assertThrows(client().prepareUpdate("test", "type", "2").setScript("ctx._source.text = 'v2'").setVersion(2).setVersionType(VersionType.EXTERNAL).execute(),
+                VersionConflictEngineException.class);
+
+        run(client().prepareUpdate("test", "type", "2").setScript("ctx._source.text = 'v2'").setVersion(11).setVersionType(VersionType.EXTERNAL));
+
+        assertThat(run(client().prepareGet("test", "type", "2")).getVersion(), equalTo(11l));
+
+        // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
+
+        // With internal versions, tt means "if object is there with version X, update it or explode. If it is not there, index.
+        run(client().prepareUpdate("test", "type", "3").setScript("ctx._source.text = 'v2'").setVersion(10).setUpsertRequest("{ \"text\": \"v0\" }"));
+        GetResponse get = get("test", "type", "3");
+        assertThat(get.getVersion(), equalTo(1l));
+        assertThat((String) get.getSource().get("text"), equalTo("v0"));
+
+        // With external versions, it means - if object is there with version lower than X, update it or explode. If it is not there, insert with new version.
+        run(client().prepareUpdate("test", "type", "4").setScript("ctx._source.text = 'v2'").
+                setVersion(10).setVersionType(VersionType.EXTERNAL).setUpsertRequest("{ \"text\": \"v0\" }"));
+        get = get("test", "type", "4");
+        assertThat(get.getVersion(), equalTo(10l));
+        assertThat((String) get.getSource().get("text"), equalTo("v0"));
+
+
+        // retry on conflict is rejected:
+
+        assertThrows(client().prepareUpdate("test", "type", "1").setVersion(10).setRetryOnConflict(5), ActionRequestValidationException.class);
+
     }
 
     @Test
@@ -390,10 +448,10 @@ public class UpdateTests extends AbstractSharedClusterTest {
             assertThat(e.getMessage(), containsString("can't provide both script and doc"));
         }
     }
-    
+
     @Test
-    public void testUpdateRequestWithScriptAndShouldUpsertDoc() throws Exception{
-    	createIndex();
+    public void testUpdateRequestWithScriptAndShouldUpsertDoc() throws Exception {
+        createIndex();
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));

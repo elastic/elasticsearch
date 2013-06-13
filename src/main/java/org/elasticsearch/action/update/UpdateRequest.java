@@ -31,10 +31,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -59,7 +61,9 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private String[] fields;
 
-    int retryOnConflict = 0;
+    private long version = Versions.MATCH_ANY;
+    private VersionType versionType = VersionType.INTERNAL;
+    private int retryOnConflict = 0;
 
     private String percolate;
 
@@ -69,7 +73,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     private IndexRequest upsertRequest;
-    
+
     private boolean docAsUpsert = false;
 
     @Nullable
@@ -94,14 +98,19 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         if (id == null) {
             validationException = addValidationError("id is missing", validationException);
         }
+
+        if (version != Versions.MATCH_ANY && retryOnConflict > 0) {
+            validationException = addValidationError("can't provide both retry_on_conflict and a specific version", validationException);
+        }
+
         if (script == null && doc == null) {
             validationException = addValidationError("script or doc is missing", validationException);
         }
         if (script != null && doc != null) {
             validationException = addValidationError("can't provide both script and doc", validationException);
         }
-        if(doc == null && docAsUpsert){
-        	validationException = addValidationError("can't say to upsert doc without providing doc", validationException);
+        if (doc == null && docAsUpsert) {
+            validationException = addValidationError("can't say to upsert doc without providing doc", validationException);
         }
         return validationException;
     }
@@ -286,6 +295,31 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
+     * Sets the version, which will cause the index operation to only be performed if a matching
+     * version exists and no changes happened on the doc since then.
+     */
+    public UpdateRequest version(long version) {
+        this.version = version;
+        return this;
+    }
+
+    public long version() {
+        return this.version;
+    }
+
+    /**
+     * Sets the versioning type. Defaults to {@link VersionType#INTERNAL}.
+     */
+    public UpdateRequest versionType(VersionType versionType) {
+        this.versionType = versionType;
+        return this;
+    }
+
+    public VersionType versionType() {
+        return this.versionType;
+    }
+
+    /**
      * Causes the update request document to be percolated. The parameter is the percolate query
      * to use to reduce the percolated queries that are going to run against this doc. Can be
      * set to <tt>*</tt> to indicate that all percolate queries should be run.
@@ -393,6 +427,14 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      */
     public UpdateRequest doc(byte[] source, int offset, int length) {
         safeDoc().source(source, offset, length);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(String field, Object value) {
+        safeDoc().source(field, value);
         return this;
     }
 
@@ -513,8 +555,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
                     safeDoc().source(docBuilder);
-                } else if("doc_as_upsert".equals(currentFieldName)){
-                	docAsUpsert(parser.booleanValue());
+                } else if ("doc_as_upsert".equals(currentFieldName)) {
+                    docAsUpsert(parser.booleanValue());
                 }
             }
         } finally {
@@ -526,9 +568,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     public boolean docAsUpsert() {
         return this.docAsUpsert;
     }
+
     public void docAsUpsert(boolean shouldUpsertDoc) {
         this.docAsUpsert = shouldUpsertDoc;
-        if(this.doc != null && this.upsertRequest == null){
+        if (this.doc != null && this.upsertRequest == null) {
             upsert(doc);
         }
     }
@@ -565,6 +608,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         if (in.getVersion().onOrAfter(Version.V_0_90_2)) {
             docAsUpsert = in.readBoolean();
         }
+        version = in.readLong();
+        versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override
@@ -612,6 +657,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         if (out.getVersion().onOrAfter(Version.V_0_90_2)) {
             out.writeBoolean(docAsUpsert);
         }
+        out.writeLong(version);
+        out.writeByte(versionType.getValue());
     }
 
 }

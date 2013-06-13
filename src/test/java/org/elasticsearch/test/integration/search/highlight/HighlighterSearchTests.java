@@ -94,6 +94,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .put("index.number_of_shards", 1)
                 .put("analysis.tokenizer.autocomplete.max_gram", 20)
                 .put("analysis.tokenizer.autocomplete.min_gram", 1)
+                .put("analysis.tokenizer.autocomplete.token_chars", "letter,digit")
                 .put("analysis.tokenizer.autocomplete.type", "nGram")
                 .put("analysis.filter.wordDelimiter.type", "word_delimiter")
                 .putArray("analysis.filter.wordDelimiter.type_table",
@@ -283,6 +284,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .put("analysis.filter.my_ngram.type", "ngram")
                 .put("analysis.tokenizer.my_ngramt.max_gram", 20)
                 .put("analysis.tokenizer.my_ngramt.min_gram", 1)
+                .put("analysis.tokenizer.my_ngramt.token_chars", "letter,digit")
                 .put("analysis.tokenizer.my_ngramt.type", "ngram")
                 .put("analysis.analyzer.name_index_analyzer.tokenizer", "my_ngramt")
                 .put("analysis.analyzer.name2_index_analyzer.tokenizer", "whitespace")

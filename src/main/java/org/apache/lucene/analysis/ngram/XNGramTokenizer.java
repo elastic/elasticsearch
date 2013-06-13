@@ -17,6 +17,8 @@ package org.apache.lucene.analysis.ngram;
  * limitations under the License.
  */
 
+import org.elasticsearch.common.lucene.Lucene;
+
 import java.io.IOException;
 import java.io.Reader;
 
@@ -25,8 +27,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
+import org.apache.lucene.analysis.util.XCharacterUtils;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.lucene.Lucene;
 
 /**
  * Tokenizes the input into n-grams of the given size(s).
@@ -41,33 +43,52 @@ import org.elasticsearch.common.lucene.Lucene;
  * <tr><th>Offsets</th><td>[0,2[</td><td>[0,3[</td><td>[1,3[</td><td>[1,4[</td><td>[2,4[</td><td>[2,5[</td><td>[3,5[</td></tr>
  * </table>
  * <a name="version"/>
- * <p>Before Lucene 4.4, this class had a different behavior:<ul>
- * <li>It didn't support more than 1024 chars of input, the rest was trashed.</li>
- * <li>The last whitespaces of the 1024 chars block were trimmed.</li>
- * <li>Tokens were emitted in a different order (by increasing lengths).</li></ul>
- * <p>Although highly discouraged, it is still possible to use the old behavior
- * through {@link Lucene43NGramTokenizer}.
+ * <p>This tokenizer changed a lot in Lucene 4.4 in order to:<ul>
+ * <li>tokenize in a streaming fashion to support streams which are larger
+ * than 1024 chars (limit of the previous version),
+ * <li>count grams based on unicode code points instead of java chars (and
+ * never split in the middle of surrogate pairs),
+ * <li>give the ability to {@link #isTokenChar(int) pre-tokenize} the stream
+ * before computing n-grams.</ul>
+ * <p>Additionally, this class doesn't trim trailing whitespaces and emits
+ * tokens in a different order, tokens are now emitted by increasing start
+ * offsets while they used to be emitted by increasing lengths (which prevented
+ * from supporting large input streams).
+ * <p>Although <b style="color:red">highly</b> discouraged, it is still possible
+ * to use the old behavior through {@link Lucene43NGramTokenizer}.
  */
-public final class XNGramTokenizer extends Tokenizer {
+// non-final to allow for overriding isTokenChar, but all other methods should be final
+public class XNGramTokenizer extends Tokenizer {
+
+    static {
+        // LUCENE MONITOR: this should be in Lucene 4.4 copied from Revision: 1492640.
+        assert Lucene.VERSION == Version.LUCENE_43 : "Elasticsearch has upgraded to Lucene Version: [" + Lucene.VERSION + "] this class should be removed";
+    }
+
   public static final int DEFAULT_MIN_NGRAM_SIZE = 1;
   public static final int DEFAULT_MAX_NGRAM_SIZE = 2;
-  
-  static {
-      // LUCENE MONITOR: this should be in Lucene 4.4 copied from Revision: 1476563
-      assert Lucene.VERSION.ordinal() < Version.LUCENE_42.ordinal()+2  : "Elasticsearch has upgraded to Lucene Version: [" + Lucene.VERSION + "] this should can be removed"; 
-  }
 
-  private char[] buffer;
-  private int bufferStart, bufferEnd; // remaining slice of the buffer
+  private XCharacterUtils charUtils;
+  private XCharacterUtils.CharacterBuffer charBuffer;
+  private int[] buffer; // like charBuffer, but converted to code points
+  private int bufferStart, bufferEnd; // remaining slice in buffer
   private int offset;
   private int gramSize;
   private int minGram, maxGram;
   private boolean exhausted;
+  private int lastCheckedChar; // last offset in the buffer that we checked
+  private int lastNonTokenChar; // last offset that we found to not be a token char
+  private boolean edgesOnly; // leading edges n-grams only
 
   private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
   private final PositionIncrementAttribute posIncAtt = addAttribute(PositionIncrementAttribute.class);
   private final PositionLengthAttribute posLenAtt = addAttribute(PositionLengthAttribute.class);
   private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
+
+  XNGramTokenizer(Version version, Reader input, int minGram, int maxGram, boolean edgesOnly) {
+    super(input);
+    init(version, minGram, maxGram, edgesOnly);
+  }
 
   /**
    * Creates NGramTokenizer with given min and max n-grams.
@@ -77,8 +98,12 @@ public final class XNGramTokenizer extends Tokenizer {
    * @param maxGram the largest n-gram to generate
    */
   public XNGramTokenizer(Version version, Reader input, int minGram, int maxGram) {
-    super(input);
-    init(version, minGram, maxGram);
+    this(version, input, minGram, maxGram, false);
+  }
+
+  XNGramTokenizer(Version version, AttributeFactory factory, Reader input, int minGram, int maxGram, boolean edgesOnly) {
+    super(factory, input);
+    init(version, minGram, maxGram, edgesOnly);
   }
 
   /**
@@ -90,8 +115,7 @@ public final class XNGramTokenizer extends Tokenizer {
    * @param maxGram the largest n-gram to generate
    */
   public XNGramTokenizer(Version version, AttributeFactory factory, Reader input, int minGram, int maxGram) {
-    super(factory, input);
-    init(version, minGram, maxGram);
+    this(version, factory, input, minGram, maxGram, false);
   }
 
   /**
@@ -103,10 +127,13 @@ public final class XNGramTokenizer extends Tokenizer {
     this(version, input, DEFAULT_MIN_NGRAM_SIZE, DEFAULT_MAX_NGRAM_SIZE);
   }
 
-  private void init(Version version, int minGram, int maxGram) {
-    if (!version.onOrAfter(Version.LUCENE_42)) {
-      throw new IllegalArgumentException("This class only works with Lucene 4.4+. To emulate the old (broken) behavior of NGramTokenizer, use Lucene43NGramTokenizer");
+  private void init(Version version, int minGram, int maxGram, boolean edgesOnly) {
+    if (!version.onOrAfter(Version.LUCENE_43)) {
+      throw new IllegalArgumentException("This class only works with Lucene 4.4+. To emulate the old (broken) behavior of NGramTokenizer, use Lucene43NGramTokenizer/Lucene43EdgeNGramTokenizer");
     }
+    charUtils = version.onOrAfter(Version.LUCENE_43)
+        ? XCharacterUtils.getInstance(version)
+        : XCharacterUtils.getJava4Instance();
     if (minGram < 1) {
       throw new IllegalArgumentException("minGram must be greater than zero");
     }
@@ -115,66 +142,107 @@ public final class XNGramTokenizer extends Tokenizer {
     }
     this.minGram = minGram;
     this.maxGram = maxGram;
-    buffer = new char[maxGram + 1024];
+    this.edgesOnly = edgesOnly;
+    charBuffer = XCharacterUtils.newCharacterBuffer(2 * maxGram + 1024); // 2 * maxGram in case all code points require 2 chars and + 1024 for buffering to not keep polling the Reader
+    buffer = new int[charBuffer.getBuffer().length];
+    // Make the term att large enough
+    termAtt.resizeBuffer(2 * maxGram);
   }
 
-  /** Returns the next token in the stream, or null at EOS. */
   @Override
-  public boolean incrementToken() throws IOException {
+  public final boolean incrementToken() throws IOException {
     clearAttributes();
 
-    // compact
-    if (bufferStart >= buffer.length - maxGram) {
-      System.arraycopy(buffer, bufferStart, buffer, 0, bufferEnd - bufferStart);
-      bufferEnd -= bufferStart;
-      bufferStart = 0;
+    // termination of this loop is guaranteed by the fact that every iteration
+    // either advances the buffer (calls consumes()) or increases gramSize
+    while (true) {
+      // compact
+      if (bufferStart >= bufferEnd - maxGram - 1 && !exhausted) {
+        System.arraycopy(buffer, bufferStart, buffer, 0, bufferEnd - bufferStart);
+        bufferEnd -= bufferStart;
+        lastCheckedChar -= bufferStart;
+        lastNonTokenChar -= bufferStart;
+        bufferStart = 0;
 
-      // fill in remaining space
-      if (!exhausted) {
-        // TODO: refactor to a shared readFully
-        while (bufferEnd < buffer.length) {
-          final int read = input.read(buffer, bufferEnd, buffer.length - bufferEnd);
-          if (read == -1) {
-            exhausted = true;
-            break;
-          }
-          bufferEnd += read;
+        // fill in remaining space
+        exhausted = !charUtils.fill(charBuffer, input, buffer.length - bufferEnd);
+        // convert to code points
+        bufferEnd += charUtils.toCodePoints(charBuffer.getBuffer(), 0, charBuffer.getLength(), buffer, bufferEnd);
+      }
+
+      // should we go to the next offset?
+      if (gramSize > maxGram || (bufferStart + gramSize) > bufferEnd) {
+        if (bufferStart + 1 + minGram > bufferEnd) {
+          assert exhausted;
+          return false;
+        }
+        consume();
+        gramSize = minGram;
+      }
+
+      updateLastNonTokenChar();
+
+      // retry if the token to be emitted was going to not only contain token chars
+      final boolean termContainsNonTokenChar = lastNonTokenChar >= bufferStart && lastNonTokenChar < (bufferStart + gramSize);
+      final boolean isEdgeAndPreviousCharIsTokenChar = edgesOnly && lastNonTokenChar != bufferStart - 1;
+      if (termContainsNonTokenChar || isEdgeAndPreviousCharIsTokenChar) {
+        consume();
+        gramSize = minGram;
+        continue;
+      }
+
+      final int length = charUtils.toChars(buffer, bufferStart, gramSize, termAtt.buffer(), 0);
+      termAtt.setLength(length);
+      posIncAtt.setPositionIncrement(1);
+      posLenAtt.setPositionLength(1);
+      offsetAtt.setOffset(correctOffset(offset), correctOffset(offset + length));
+      ++gramSize;
+      return true;
+    }
+  }
+
+  private void updateLastNonTokenChar() {
+    final int termEnd = bufferStart + gramSize - 1;
+    if (termEnd > lastCheckedChar) {
+      for (int i = termEnd; i > lastCheckedChar; --i) {
+        if (!isTokenChar(buffer[i])) {
+          lastNonTokenChar = i;
+          break;
         }
       }
+      lastCheckedChar = termEnd;
     }
+  }
 
-    // should we go to the next offset?
-    if (gramSize > maxGram || bufferStart + gramSize > bufferEnd) {
-      bufferStart++;
-      offset++;
-      gramSize = minGram;
-    }
+  /** Consume one code point. */
+  private void consume() {
+    offset += Character.charCount(buffer[bufferStart++]);
+  }
 
-    // are there enough chars remaining?
-    if (bufferStart + gramSize > bufferEnd) {
-      return false;
-    }
-
-    termAtt.copyBuffer(buffer, bufferStart, gramSize);
-    posIncAtt.setPositionIncrement(1);
-    posLenAtt.setPositionLength(1);
-    offsetAtt.setOffset(correctOffset(offset), correctOffset(offset + gramSize));
-    ++gramSize;
+  /** Only collect characters which satisfy this condition. */
+  protected boolean isTokenChar(int chr) {
     return true;
   }
 
   @Override
-  public void end() {
-    final int endOffset = correctOffset(offset + bufferEnd - bufferStart);
+  public final void end() {
+    assert bufferStart <= bufferEnd;
+    int endOffset = offset;
+    for (int i = bufferStart; i < bufferEnd; ++i) {
+      endOffset += Character.charCount(buffer[i]);
+    }
+    endOffset = correctOffset(endOffset);
     offsetAtt.setOffset(endOffset, endOffset);
   }
 
   @Override
-  public void reset() throws IOException {
+  public final void reset() throws IOException {
     super.reset();
     bufferStart = bufferEnd = buffer.length;
+    lastNonTokenChar = lastCheckedChar = bufferStart - 1;
     offset = 0;
     gramSize = minGram;
     exhausted = false;
+    charBuffer.reset();
   }
 }

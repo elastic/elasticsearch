@@ -49,7 +49,7 @@ public class NGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        if (this.version.onOrAfter(Version.LUCENE_42)) {
+        if (this.version.onOrAfter(Version.LUCENE_43)) {
             // LUCENE MONITOR: this token filter is a copy from lucene trunk and should go away once we upgrade to lucene 4.4 
             return new XNGramTokenFilter(version, tokenStream, minGram, maxGram);
         }

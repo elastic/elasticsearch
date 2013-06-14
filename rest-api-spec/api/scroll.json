@@ -1,6 +1,6 @@
 {
   "scroll": {
-    "documentation": "http://www.elasticsearch.org/guide/reference/api/search/",
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/search/scroll/",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_search/scroll",

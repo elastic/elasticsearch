@@ -25,6 +25,7 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.util.*;
 
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -43,7 +44,7 @@ public abstract class MultiOrdinalsTests {
     protected abstract Ordinals creationMultiOrdinals(OrdinalsBuilder builder, ImmutableSettings.Builder settings);
 
     @Test
-    public void testRandomValues() {
+    public void testRandomValues() throws IOException {
         Random random = new Random(100);
         int numDocs = 100 + random.nextInt(1000);
         int numOrdinals = 1 + random.nextInt(200);

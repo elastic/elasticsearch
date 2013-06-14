@@ -20,10 +20,9 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.*;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.packed.GrowableWriter;
+import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -92,10 +91,8 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
             startNumUniqueTerms = 1;
         }
 
-        // TODO: expose this as an option..., have a nice parser for it...
-        float acceptableOverheadRatio = PackedInts.FAST;
-
-        GrowableWriter termOrdToBytesOffset = new GrowableWriter(startBytesBPV, 1 + startNumUniqueTerms, acceptableOverheadRatio);
+        final MonotonicAppendingLongBuffer termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
+        termOrdToBytesOffset.add(0); // first ord is reserved for missing values
         boolean preDefineBitsRequired = regex == null && frequency == null;
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, preDefineBitsRequired, reader.maxDoc());
         try {
@@ -105,13 +102,8 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
             DocsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final int termOrd = builder.nextOrdinal();
-                if (termOrd == termOrdToBytesOffset.size()) {
-                    // NOTE: this code only runs if the incoming
-                    // reader impl doesn't implement
-                    // size (which should be uncommon)
-                    termOrdToBytesOffset = termOrdToBytesOffset.resize(ArrayUtil.oversize(1 + termOrd, 1));
-                }
-                termOrdToBytesOffset.set(termOrd, bytes.copyUsingLengthPrefix(term));
+                assert termOrd == termOrdToBytesOffset.size();
+                termOrdToBytesOffset.add(bytes.copyUsingLengthPrefix(term));
                 docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
                 for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                     builder.addDoc(docId);
@@ -119,10 +111,9 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
             }
             final long sizePointer = bytes.getPointer();
             PagedBytes.Reader bytesReader = bytes.freeze(true);
-            PackedInts.Reader termOrdToBytesOffsetReader = termOrdToBytesOffset.getMutable();
             final Ordinals ordinals = builder.build(fieldDataType.getSettings());
 
-            return new PagedBytesAtomicFieldData(bytesReader, sizePointer, termOrdToBytesOffsetReader, ordinals);
+            return new PagedBytesAtomicFieldData(bytesReader, sizePointer, termOrdToBytesOffset, ordinals);
         } finally {
             builder.close();
         }

@@ -289,14 +289,15 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                 .put("analysis.analyzer.name2_index_analyzer.filter", "my_ngram")
                 .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace"))
         .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
         client().prepareIndex("test", "test", "1")
             .setSource(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("name", "logicacmg ehemals avinci - the know how company")
                         .field("name2", "logicacmg ehemals avinci - the know how company")
                     .endObject())
-            .setRefresh(true).execute().actionGet();
+            .execute().actionGet();
+        refresh();
+        ensureYellow();
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("name", "logica m")).addHighlightedField("name").execute().actionGet();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
         

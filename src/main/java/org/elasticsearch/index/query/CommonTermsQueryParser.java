@@ -51,9 +51,9 @@ public class CommonTermsQueryParser implements QueryParser {
 
     static final float DEFAULT_MAX_TERM_DOC_FREQ = 0.01f;
 
-    static final Occur DEFAULT_HIGH_FREQ_OCCUR = Occur.MUST;
+    static final Occur DEFAULT_HIGH_FREQ_OCCUR = Occur.SHOULD;
 
-    static final Occur DEFAULT_LOW_FREQ_OCCUR = Occur.MUST;
+    static final Occur DEFAULT_LOW_FREQ_OCCUR = Occur.SHOULD;
 
     static final boolean DEFAULT_DISABLE_COORDS = true;
 
@@ -81,7 +81,7 @@ public class CommonTermsQueryParser implements QueryParser {
         String minimumShouldMatch = null;
         boolean disableCoords = DEFAULT_DISABLE_COORDS;
         Occur highFreqOccur = DEFAULT_HIGH_FREQ_OCCUR;
-        Occur lowFreqOccur = DEFAULT_HIGH_FREQ_OCCUR;
+        Occur lowFreqOccur = DEFAULT_LOW_FREQ_OCCUR;
         float maxTermFrequency = DEFAULT_MAX_TERM_DOC_FREQ;
         token = parser.nextToken();
         if (token == XContentParser.Token.START_OBJECT) {

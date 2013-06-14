@@ -19,11 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
@@ -100,7 +96,8 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         float acceptableOverheadRatio = PackedInts.FAST;
 
         GrowableWriter termOrdToBytesOffset = new GrowableWriter(startBytesBPV, 1 + startNumUniqueTerms, acceptableOverheadRatio);
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
+        boolean preDefineBitsRequired = regex == null && frequency == null;
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, preDefineBitsRequired, reader.maxDoc());
         try {
             // 0 is reserved for "unset"
             bytes.copyUsingLengthPrefix(new BytesRef());

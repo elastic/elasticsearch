@@ -17,27 +17,22 @@ package org.elasticsearch.index.fielddata.ordinals;
  * specific language governing permissions and limitations
  * under the License.
  */
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Comparator;
-
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.IntBlockPool;
+import org.apache.lucene.util.*;
 import org.apache.lucene.util.IntBlockPool.Allocator;
 import org.apache.lucene.util.IntBlockPool.DirectAllocator;
-import org.apache.lucene.util.IntsRef;
-import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.packed.GrowableWriter;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 
 /**
  * Simple class to build document ID <-> ordinal mapping. Note: Ordinals are
@@ -46,7 +41,10 @@ import org.elasticsearch.common.settings.Settings;
  */
 public final class OrdinalsBuilder implements Closeable {
 
-    private final int[] ords;
+    private final int maxDoc;
+    private int[] mvOrds;
+    private GrowableWriter svOrds;
+
     private int[] offsets;
     private final IntBlockPool pool;
     private final IntBlockPool.SliceWriter writer;
@@ -57,19 +55,35 @@ public final class OrdinalsBuilder implements Closeable {
     private int numMultiValuedDocs = 0;
     private int totalNumOrds = 0;
 
-    public OrdinalsBuilder(Terms terms, int maxDoc, Allocator allocator) {
-        this.ords = new int[maxDoc];
+    public OrdinalsBuilder(Terms terms, boolean preDefineBitsRequired, int maxDoc, Allocator allocator) throws IOException {
+        this.maxDoc = maxDoc;
+        // TODO: Make configurable...
+        float acceptableOverheadRatio = PackedInts.FAST;
+        if (preDefineBitsRequired) {
+            int numTerms = (int) terms.size();
+            if (numTerms == -1) {
+                svOrds = new GrowableWriter(1, maxDoc, acceptableOverheadRatio);
+            } else {
+                svOrds = new GrowableWriter(PackedInts.bitsRequired(numTerms), maxDoc, acceptableOverheadRatio);
+            }
+        } else {
+            svOrds = new GrowableWriter(1, maxDoc, acceptableOverheadRatio);
+        }
         pool = new IntBlockPool(allocator);
         reader = new IntBlockPool.SliceReader(pool);
         writer = new IntBlockPool.SliceWriter(pool);
     }
     
-    public OrdinalsBuilder(int maxDoc) {
-        this(null, maxDoc);
+    public OrdinalsBuilder(int maxDoc) throws IOException {
+        this(null, false, maxDoc);
     }
 
-    public OrdinalsBuilder(Terms terms, int maxDoc) {
-        this(terms, maxDoc, new DirectAllocator());
+    public OrdinalsBuilder(Terms terms, boolean preDefineBitsRequired, int maxDoc) throws IOException {
+        this(terms, preDefineBitsRequired, maxDoc, new DirectAllocator());
+    }
+
+    public OrdinalsBuilder(Terms terms, int maxDoc) throws IOException {
+        this(terms, true, maxDoc, new DirectAllocator());
     }
 
     /**
@@ -93,25 +107,42 @@ public final class OrdinalsBuilder implements Closeable {
      */
     public OrdinalsBuilder addDoc(int doc) {
         totalNumOrds++;
-        int docsOrd = ords[doc];
-        if (docsOrd == 0) {
-            ords[doc] = currentOrd;
-            numDocsWithValue++;
-        } else if (docsOrd > 0) {
-            numMultiValuedDocs++;
-            int offset = writer.startNewSlice();
-            writer.writeInt(docsOrd);
-            writer.writeInt(currentOrd);
-            if (offsets == null) {
-                offsets = new int[ords.length];
+        if (svOrds != null) {
+            int docsOrd = (int) svOrds.get(doc);
+            if (docsOrd == 0) {
+                svOrds.set(doc, currentOrd);
+                numDocsWithValue++;
+            } else {
+                // Rebuilding ords that supports mv based on sv ords.
+                mvOrds = new int[maxDoc];
+                for (int docId = 0; docId < maxDoc; docId++) {
+                    mvOrds[docId] = (int) svOrds.get(docId);
+                }
+                svOrds = null;
             }
-            offsets[doc] = writer.getCurrentOffset();
-            ords[doc] = (-1 * offset) - 1;
-        } else {
-            assert offsets != null;
-            writer.reset(offsets[doc]);
-            writer.writeInt(currentOrd);
-            offsets[doc] = writer.getCurrentOffset();
+        }
+
+        if (mvOrds != null) {
+            int docsOrd = mvOrds[doc];
+            if (docsOrd == 0) {
+                mvOrds[doc] = currentOrd;
+                numDocsWithValue++;
+            } else if (docsOrd > 0) {
+                numMultiValuedDocs++;
+                int offset = writer.startNewSlice();
+                writer.writeInt(docsOrd);
+                writer.writeInt(currentOrd);
+                if (offsets == null) {
+                    offsets = new int[mvOrds.length];
+                }
+                offsets[doc] = writer.getCurrentOffset();
+                mvOrds[doc] = (-1 * offset) - 1;
+            } else {
+                assert offsets != null;
+                writer.reset(offsets[doc]);
+                writer.writeInt(currentOrd);
+                offsets[doc] = writer.getCurrentOffset();
+            }
         }
         return this;
     }
@@ -163,12 +194,22 @@ public final class OrdinalsBuilder implements Closeable {
      * if every document has an ordinal associated with it this method returns <code>null</code>
      */
     public FixedBitSet buildDocsWithValuesSet() {
-        if (numDocsWithValue == this.ords.length)
+        if (numDocsWithValue == maxDoc) {
             return null;
-        final FixedBitSet bitSet = new FixedBitSet(this.ords.length);
-        for (int i = 0; i < ords.length; i++) {
-            if (ords[i] != 0) {
-                bitSet.set(i);
+        }
+        final FixedBitSet bitSet = new FixedBitSet(maxDoc);
+        if (svOrds != null) {
+            for (int docId = 0; docId < maxDoc; docId++) {
+                int ord = (int) svOrds.get(docId);
+                if (ord != 0) {
+                    bitSet.set(docId);
+                }
+            }
+        } else {
+            for (int docId = 0; docId < maxDoc; docId++) {
+                if (mvOrds[docId] != 0) {
+                    bitSet.set(docId);
+                }
             }
         }
         return bitSet;
@@ -179,15 +220,15 @@ public final class OrdinalsBuilder implements Closeable {
      */
     public Ordinals build(Settings settings) {
         if (numMultiValuedDocs == 0) {
-            return new SingleArrayOrdinals(ords, getNumOrds());
+            return new SinglePackedOrdinals(svOrds.getMutable(), getNumOrds());
         }
         final String multiOrdinals = settings.get("multi_ordinals", "sparse");
         if ("flat".equals(multiOrdinals)) {
             final ArrayList<int[]> ordinalBuffer = new ArrayList<int[]>();
-            for (int i = 0; i < ords.length; i++) {
+            for (int i = 0; i < mvOrds.length; i++) {
                 final IntsRef docOrds = docOrds(i);
                 while (ordinalBuffer.size() < docOrds.length) {
-                    ordinalBuffer.add(new int[ords.length]);
+                    ordinalBuffer.add(new int[mvOrds.length]);
                 }
                 
                 for (int j = docOrds.offset; j < docOrds.offset+docOrds.length; j++) {
@@ -211,24 +252,35 @@ public final class OrdinalsBuilder implements Closeable {
      * Returns a shared {@link IntsRef} instance for the given doc ID holding all ordinals associated with it.
      */
     public IntsRef docOrds(int doc) {
-        int docsOrd = ords[doc];
-        intsRef.offset = 0;
-        if (docsOrd == 0) {
-            intsRef.length = 0;
-        } else if (docsOrd > 0) {
-            intsRef.ints[0] = ords[doc];
-            intsRef.length = 1;
-        } else {
-            assert offsets != null;
-            reader.reset(-1 * (ords[doc] + 1), offsets[doc]);
-            int pos = 0;
-            while (!reader.endOfSlice()) {
-                if (intsRef.ints.length <= pos) {
-                    intsRef.ints = ArrayUtil.grow(intsRef.ints, pos + 1);
-                }
-                intsRef.ints[pos++] = reader.readInt();
+        if (svOrds != null) {
+            int docsOrd = (int) svOrds.get(doc);
+            intsRef.offset = 0;
+            if (docsOrd == 0) {
+                intsRef.length = 0;
+            } else if (docsOrd > 0) {
+                intsRef.ints[0] = docsOrd;
+                intsRef.length = 1;
             }
-            intsRef.length = pos;
+        } else {
+            int docsOrd = mvOrds[doc];
+            intsRef.offset = 0;
+            if (docsOrd == 0) {
+                intsRef.length = 0;
+            } else if (docsOrd > 0) {
+                intsRef.ints[0] = mvOrds[doc];
+                intsRef.length = 1;
+            } else {
+                assert offsets != null;
+                reader.reset(-1 * (mvOrds[doc] + 1), offsets[doc]);
+                int pos = 0;
+                while (!reader.endOfSlice()) {
+                    if (intsRef.ints.length <= pos) {
+                        intsRef.ints = ArrayUtil.grow(intsRef.ints, pos + 1);
+                    }
+                    intsRef.ints[pos++] = reader.readInt();
+                }
+                intsRef.length = pos;
+            }
         }
         return intsRef;
     }
@@ -237,7 +289,7 @@ public final class OrdinalsBuilder implements Closeable {
      * Returns the maximum document ID this builder can associate with an ordinal
      */
     public int maxDoc() {
-        return ords.length;
+        return maxDoc;
     }
     
     /**

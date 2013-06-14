@@ -19,11 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DocsEnum;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.fst.FST;
@@ -67,8 +63,9 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
         PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton(true);
         org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<Long>(INPUT_TYPE.BYTE1, outputs);
         final IntsRef scratch = new IntsRef();
-        
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
+
+        boolean preDefineBitsRequired = regex == null && frequency == null;
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, preDefineBitsRequired, reader.maxDoc());
         try {
             
             // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support

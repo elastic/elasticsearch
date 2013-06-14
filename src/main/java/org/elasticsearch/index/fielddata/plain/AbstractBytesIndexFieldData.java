@@ -18,16 +18,7 @@
  */
 package org.elasticsearch.index.fielddata.plain;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.FilteredTermsEnum;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.UnicodeUtil;
@@ -35,20 +26,20 @@ import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.AbstractIndexFieldData;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 
+import java.io.IOException;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public abstract class AbstractBytesIndexFieldData<FD extends AtomicFieldData.WithOrdinals<ScriptDocValues.Strings>> extends AbstractIndexFieldData<FD> implements IndexFieldData.WithOrdinals<FD> {
 
-    private Settings frequency;
-    private Settings regex;
+    protected Settings frequency;
+    protected Settings regex;
 
     protected AbstractBytesIndexFieldData(Index index, Settings indexSettings, Names fieldNames, FieldDataType fieldDataType,
             IndexFieldDataCache cache) {

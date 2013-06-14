@@ -297,7 +297,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                     .endObject())
             .execute().actionGet();
         refresh();
-        ensureYellow();
+        ensureGreen();
         SearchResponse search = client().prepareSearch().setQuery(matchQuery("name", "logica m")).addHighlightedField("name").execute().actionGet();
         assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
         

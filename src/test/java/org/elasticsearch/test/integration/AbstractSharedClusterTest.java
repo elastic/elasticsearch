@@ -275,7 +275,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     public ClusterHealthStatus ensureGreen() {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID)).actionGet();
+                .health(Requests.clusterHealthRequest().waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
         assertThat(actionGet.isTimedOut(), equalTo(false));
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
         return actionGet.getStatus();
@@ -324,6 +324,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     }
 
     protected RefreshResponse refresh() {
+        waitForRelocation();
         // TODO RANDOMIZE with flush?
         RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();
         assertNoFailures(actionGet);
@@ -331,12 +332,14 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
     }
 
     protected FlushResponse flush() {
+        waitForRelocation();
         FlushResponse actionGet = client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
     }
 
     protected OptimizeResponse optimize() {
+        waitForRelocation();
         OptimizeResponse actionGet = client().admin().indices().prepareOptimize().execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;

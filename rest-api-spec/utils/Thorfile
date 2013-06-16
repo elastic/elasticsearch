@@ -1,0 +1,1 @@
+require File.expand_path('./thor/generate_api')

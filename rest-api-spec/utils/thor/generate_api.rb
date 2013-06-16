@@ -1,3 +1,5 @@
+require 'thor'
+
 require 'pathname'
 require 'active_support/core_ext/hash/deep_merge'
 require 'active_support/inflector/methods'
@@ -7,34 +9,8 @@ require 'pry'
 
 module Elasticsearch
 
-  # Contains a generator which will parse the Elasticsearch *.java source files,
-  # extract information about REST API endpoints (URLs, HTTP methods, URL parameters, etc),
-  # and create a skeleton of the JSON API specification file for each endpoint.
-  #
-  # Usage:
-  #
-  #     $ thor help api:generate:spec
-  #
-  # Example:
-  #
-  # time thor api:generate:spec \
-  #             --force \
-  #             --verbose \
-  #             --crawl \
-  #             --elasticsearch=/path/to/elasticsearch/source/code
-  #
-  # Features:
-  #
-  # * Extract the API name from the source filename (eg. `admin/cluster/health/RestClusterHealthAction.java` -> `cluster.health`)
-  # * Extract the URLs from the `registerHandler` statements
-  # * Extract the URL parts (eg. `{index}`) from the URLs
-  # * Extract the URL parameters (eg. `{timeout}`) from the `request.param("ABC")` statements
-  # * Detect whether HTTP body is allowed for the API from `request.hasContent()` statements
-  # * Search the <http://elasticsearch.org> website to get proper documentation URLs
-  # * Assemble the JSON format for the API spec
-  #
   module API
-      module Utils
+    module Utils
       # controller.registerHandler(RestRequest.Method.GET, "/_cluster/health", this);
       PATTERN_REST = /.*controller.registerHandler\(.*(?<method>GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)\s*,\s*"(?<url>.*)"\s*,\s*.+\);/
       # request.param("index"), request.paramAsBoolean("docs", indicesStatsRequest.docs()), etc
@@ -57,8 +33,7 @@ module Elasticsearch
       #           "body"   => false
       #     }
       #
-      def __parse_java_source(path=nil)
-        path ||= Dir.pwd + '/elasticsearch'
+      def __parse_java_source(path)
         path  += '/' unless path =~ /\/$/ # Add trailing slash if missing
         prefix = "src/main/java/org/elasticsearch/rest/action"
 
@@ -100,29 +75,57 @@ module Elasticsearch
       extend self
     end
 
+    # Contains a generator which will parse the Elasticsearch *.java source files,
+    # extract information about REST API endpoints (URLs, HTTP methods, URL parameters, etc),
+    # and create a skeleton of the JSON API specification file for each endpoint.
+    #
+    # Usage:
+    #
+    #     $ thor help api:generate:spec
+    #
+    # Example:
+    #
+    # time thor api:generate:spec \
+    #             --force \
+    #             --verbose \
+    #             --crawl \
+    #             --elasticsearch=/path/to/elasticsearch/source/code
+    #
+    # Features:
+    #
+    # * Extract the API name from the source filename (eg. `admin/cluster/health/RestClusterHealthAction.java` -> `cluster.health`)
+    # * Extract the URLs from the `registerHandler` statements
+    # * Extract the URL parts (eg. `{index}`) from the URLs
+    # * Extract the URL parameters (eg. `{timeout}`) from the `request.param("ABC")` statements
+    # * Detect whether HTTP body is allowed for the API from `request.hasContent()` statements
+    # * Search the <http://elasticsearch.org> website to get proper documentation URLs
+    # * Assemble the JSON format for the API spec
+    #
     class JsonGenerator < Thor
       namespace 'api:generate'
 
       include Thor::Actions
+
+      __root = Pathname( File.expand_path('../../..', __FILE__) )
 
       # Usage: thor help api:generate:spec
       #
       desc "spec", "Generate JSON API spec files from Elasticsearch source code"
       method_option :force,     type: :boolean, default: false,            desc: 'Overwrite the output'
       method_option :verbose,   type: :boolean, default: false,            desc: 'Output more information'
-      method_option :output,    default: Dir.pwd+'/tmp/out',               desc: 'Path to output directory'
-      method_option :elasticsearch, default: Dir.pwd+'/tmp/elasticsearch', desc: 'Path to directory with Elasticsearch source code'
+      method_option :output,    default: __root.join('tmp/out'),           desc: 'Path to output directory'
+      method_option :elasticsearch, default: __root.join('tmp/elasticsearch'), desc: 'Path to directory with Elasticsearch source code'
       method_option :crawl,     type: :boolean, default: false,            desc: 'Extract URLs from Elasticsearch website'
 
       def spec
         self.class.source_root File.expand_path('../', __FILE__)
 
-        @output = Pathname(options[:output])
+        @output = options[:output]
 
-        rest_actions = Utils.__parse_java_source(options[:elasticsearch])
+        rest_actions = Utils.__parse_java_source(options[:elasticsearch].to_s)
 
         if rest_actions.empty?
-          say_status 'ERROR', 'Cannot find Elasticsearch source in ' + options[:elasticsearch], :red
+          say_status 'ERROR', 'Cannot find Elasticsearch source in ' + options[:elasticsearch].to_s, :red
           exit(1)
         end
 

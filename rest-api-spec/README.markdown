@@ -47,7 +47,8 @@ The `methods` and `url.paths` elements list all possible HTTP methods and URLs f
 it is the responsibility of the developer to use this information for a sensible API on the target platform.
 
 The repository contains a utility script in Ruby which will scan and parse the Elasticsearch source code
-to extract the information from the Java source files. Run `bundle install` and then `thor help api:generate:spec`.
+to extract the information from the Java source files. Run `bundle install` and then `thor help api:generate:spec`
+in the _utils_ folder.
 
 ## License
 

@@ -1,1 +1,2 @@
 require File.expand_path('./thor/generate_api')
+require File.expand_path('./thor/generate_source')

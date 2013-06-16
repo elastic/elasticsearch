@@ -102,7 +102,7 @@ module Elasticsearch
     # * Assemble the JSON format for the API spec
     #
     class JsonGenerator < Thor
-      namespace 'api:generate'
+      namespace 'api:spec'
 
       include Thor::Actions
 
@@ -110,14 +110,14 @@ module Elasticsearch
 
       # Usage: thor help api:generate:spec
       #
-      desc "spec", "Generate JSON API spec files from Elasticsearch source code"
+      desc "generate", "Generate JSON API spec files from Elasticsearch source code"
       method_option :force,     type: :boolean, default: false,            desc: 'Overwrite the output'
       method_option :verbose,   type: :boolean, default: false,            desc: 'Output more information'
       method_option :output,    default: __root.join('tmp/out'),           desc: 'Path to output directory'
       method_option :elasticsearch, default: __root.join('tmp/elasticsearch'), desc: 'Path to directory with Elasticsearch source code'
       method_option :crawl,     type: :boolean, default: false,            desc: 'Extract URLs from Elasticsearch website'
 
-      def spec
+      def generate
         self.class.source_root File.expand_path('../', __FILE__)
 
         @output = options[:output]

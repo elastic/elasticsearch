@@ -11,12 +11,8 @@
         "/_nodes/{node_id}/stats",
         "/_nodes/stats/{metric_family}",
         "/_nodes/{node_id}/stats/{metric_family}",
-        "/_nodes/{metric_family}/stats",
-        "/_nodes/{node_id}/{metric_family}/stats",
         "/_nodes/stats/indices/{metric}/{fields}",
-        "/_nodes/{node_id}/stats/indices/{metric}/{fields}",
-        "/_nodes/indices/{metric}/{fields}/stats",
-        "/_nodes/{node_id}/indices/{metric}/{fields}/stats"
+        "/_nodes/{node_id}/stats/indices/{metric}/{fields}"
       ],
       "parts": {
         "fields" : {

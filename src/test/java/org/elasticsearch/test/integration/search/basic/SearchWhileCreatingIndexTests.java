@@ -43,10 +43,10 @@ public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
     public void searchWhileCreatingIndex() {
         for (int i = 0; i < 20; i++) {
             run(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 10)));
-            run(client().prepareIndex("test", "type1").setSource("field", "test"));
+            run(client().prepareIndex("test", "type1", "id:" + i).setSource("field", "test"));
             refresh();
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).execute().actionGet();
-            assertThat("Found unexpected number of hits ShardFailures:" + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getHits().totalHits(), equalTo(1l));
+            assertThat("Found unexpected number of hits ShardFailures:" + Arrays.toString(searchResponse.getShardFailures()) + " id: " + i, searchResponse.getHits().totalHits(), equalTo(1l));
             wipeIndex("test");
         }
     }

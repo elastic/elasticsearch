@@ -39,10 +39,8 @@ public class IgnoreIndicesTests extends AbstractSharedClusterTest {
     @Test
     public void testMissing() throws Exception {
         client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().prepareCreate("test1").execute().actionGet();
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         try {
             client().prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -138,8 +136,7 @@ public class IgnoreIndicesTests extends AbstractSharedClusterTest {
 
         client().admin().indices().prepareCreate("test2").execute().actionGet();
 
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         client().prepareSearch("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
         client().prepareCount("test1", "test2").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
@@ -158,8 +155,7 @@ public class IgnoreIndicesTests extends AbstractSharedClusterTest {
     public void testAllMissing() throws Exception {
         client().admin().indices().prepareDelete().execute().actionGet();
         client().admin().indices().prepareCreate("test1").execute().actionGet();
-        ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        ensureYellow();
         try {
             client().prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
             fail("Exception should have been thrown.");
@@ -171,7 +167,8 @@ public class IgnoreIndicesTests extends AbstractSharedClusterTest {
             fail("Exception should have been thrown.");
         } catch (IndexMissingException e) {
         }
-
+        
+        
         //you should still be able to run empty searches without things blowing up
         client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).setIgnoreIndices(IgnoreIndices.MISSING).execute().actionGet();
     }

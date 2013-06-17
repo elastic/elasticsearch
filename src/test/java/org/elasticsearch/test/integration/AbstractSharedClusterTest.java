@@ -300,7 +300,7 @@ public abstract class AbstractSharedClusterTest extends ElasticsearchTestCase {
 
     public ClusterHealthStatus ensureYellow() {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest().waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
+                .health(Requests.clusterHealthRequest().waitForRelocatingShards(0).waitForYellowStatus().waitForEvents(Priority.LANGUID)).actionGet();
         assertThat(actionGet.isTimedOut(), equalTo(false));
         return actionGet.getStatus();
     }

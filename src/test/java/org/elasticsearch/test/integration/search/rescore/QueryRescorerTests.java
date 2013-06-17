@@ -194,6 +194,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
                                 .field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
                 .setSettings(ImmutableSettings.settingsBuilder()).execute().actionGet();
+        ensureGreen();
         int numDocs = 1000;
 
         for (int i = 0; i < numDocs; i++) {
@@ -203,6 +204,7 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
         flush();
         optimize(); // make sure we don't have a background merge running
         refresh();
+        ensureGreen();
         for (int i = 0; i < numDocs; i++) {
             String intToEnglish = English.intToEnglish(i);
             String query = intToEnglish.split(" ")[0];
@@ -221,11 +223,11 @@ public class QueryRescorerTests extends AbstractSharedClusterTest {
                                     .setRescoreQueryWeight(0.0f)) // no weigth - so we basically use the same score as the actual query
                     .setRescoreWindow(50).execute().actionGet();
 
-
             SearchResponse plain = client().prepareSearch()
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR)).setFrom(0).setSize(10)
                     .execute().actionGet();
+            
             // check equivalence
             assertEquivalent(plain, rescored);
 

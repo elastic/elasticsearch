@@ -906,7 +906,6 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .endObject().endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        waitForRelocation();
         ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
         refresh();
@@ -944,10 +943,10 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
@@ -983,10 +982,9 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
+        ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
@@ -1022,10 +1020,9 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
+        ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("title", "this is a test").execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
+        refresh();
 
         // simple search on body with standard analyzer with a simple field query
         SearchResponse search = client().prepareSearch()
@@ -1057,11 +1054,13 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "no").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
+        ensureGreen();
 
         for (int i = 0; i < 5; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
                     .setSource("title", "This is a test for the enabling fast vector highlighter").setRefresh(true).execute().actionGet();
         }
+        refresh();
 
         SearchResponse search = client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "this is a test"))
@@ -1087,13 +1086,13 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .startObject("title").field("type", "string").field("store", "yes").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
+        ensureGreen();
+        
         for (int i = 0; i < 5; i++) {
             client().prepareIndex("test", "type1", Integer.toString(i))
-                    .setSource("title", "This is a test for the workaround for the fast vector highlighting SOLR-3724").setRefresh(true).execute().actionGet();
+                    .setSource("title", "This is a test for the workaround for the fast vector highlighting SOLR-3724").execute().actionGet();
         }
-
+        refresh();
         SearchResponse search = client().prepareSearch()
                 .setQuery(matchPhraseQuery("title", "test for the workaround"))
                 .addHighlightedField("title", 50, 1, 10)
@@ -1152,14 +1151,14 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .startObject("tags").field("type", "string").field("term_vector", "with_positions_offsets").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
+        ensureGreen();
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("tags",
                         "this is a really long tag i would like to highlight",
                         "here is another one that is very long and has the tag token near the end").endObject())
-                .setRefresh(true).execute().actionGet();
-
+                .execute().actionGet();
+        refresh();
+        
         SearchResponse response = client().prepareSearch("test")
                 .setQuery(QueryBuilders.matchQuery("tags", "tag"))
                 .addHighlightedField("tags", -1, 0)
@@ -1173,12 +1172,13 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
     
     @Test
     public void testBoostingQuery() {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-
+        createIndex("test");
+        ensureGreen();
         client().prepareIndex("test", "type1")
                 .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-                .setRefresh(true).execute().actionGet();
+                .execute().actionGet();
+        refresh();
+
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
@@ -1196,10 +1196,10 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
     @Test
     public void testBoostingQueryTermVector() throws ElasticSearchException, IOException {
         client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
         client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-                .setRefresh(true).execute().actionGet();
+                .execute().actionGet();
+        refresh();
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
@@ -1219,12 +1219,13 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void testCommonTermsQuery() {
-        client().admin().indices().prepareCreate("test").execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
 
         client().prepareIndex("test", "type1")
                 .setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-                .setRefresh(true).execute().actionGet();
+                .execute().actionGet();
+        refresh();
 
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource()
@@ -1242,11 +1243,11 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
     @Test
     public void testCommonTermsTermVector() throws ElasticSearchException, IOException {
         client().admin().indices().prepareCreate("test").addMapping("type1", type1TermVectorMapping()).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         client().prepareIndex("test", "type1").setSource("field1", "this is a test", "field2", "The quick brown fox jumps over the lazy dog")
-                .setRefresh(true).execute().actionGet();
-
+                .execute().actionGet();
+        refresh();
         logger.info("--> highlighting and searching on field1");
         SearchSourceBuilder source = searchSource().query(commonTerms("field2", "quick brown").cutoffFrequency(100)).from(0).size(60)
                 .explain(true).highlight(highlight().field("field2").order("score").preTags("<x>").postTags("</x>"));
@@ -1279,14 +1280,15 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
 
 
         client().admin().indices().prepareCreate("test").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()).addMapping("type2", type2Mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "0")
                 .setSource("field0", "The quick brown fox jumps over the lazy dog", "field1", "The quick brown fox jumps over the lazy dog")
-                .setRefresh(true).execute().actionGet();
+                .execute().actionGet();
         client().prepareIndex("test", "type1", "1")
                 .setSource("field1", "The quick browse button is a fancy thing, right bro?")
-                .setRefresh(true).execute().actionGet();
+                .execute().actionGet();
+        refresh();
         logger.info("--> highlighting and searching on field0");
         SearchSourceBuilder source = searchSource()
                 .query(matchPhrasePrefixQuery("field0", "quick bro"))
@@ -1366,8 +1368,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .startObject("tags").field("type", "string").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
-
+        ensureGreen();
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject().field("tags",
                         "this is a really long tag i would like to highlight",
@@ -1412,7 +1413,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
                         .startObject("highlight_field").field("type", "string").field("store", "yes").endObject()
                         .endObject().endObject().endObject())
                 .execute().actionGet();
-
+        ensureGreen();
         client().prepareIndex("test", "type1", "1")
                 .setSource(jsonBuilder().startObject()
                     .field("field", "highlight")

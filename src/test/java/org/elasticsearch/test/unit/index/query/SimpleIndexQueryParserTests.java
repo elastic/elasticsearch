@@ -21,6 +21,7 @@ package org.elasticsearch.test.unit.index.query;
 
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermsFilter;
@@ -2190,5 +2191,38 @@ public class SimpleIndexQueryParserTests {
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery csq = (ConstantScoreQuery) parsedQuery;
         assertThat(csq.getFilter(), instanceOf(IntersectsPrefixTreeFilter.class));
+    }
+
+    @Test
+    public void testCommonTermsQuery1() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/commonTerms-query1.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
+        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
+        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatch(), nullValue());
+        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatch(), equalTo("2"));
+    }
+
+    @Test
+    public void testCommonTermsQuery2() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/commonTerms-query2.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
+        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
+        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatch(), equalTo("50%"));
+        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatch(), equalTo("5<20%"));
+    }
+
+    @Test
+    public void testCommonTermsQuery3() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/test/unit/index/query/commonTerms-query3.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
+        ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
+        assertThat(ectQuery.getHighFreqMinimumNumberShouldMatch(), nullValue());
+        assertThat(ectQuery.getLowFreqMinimumNumberShouldMatch(), equalTo("2"));
     }
 }

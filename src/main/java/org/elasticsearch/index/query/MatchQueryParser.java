@@ -166,7 +166,7 @@ public class MatchQueryParser implements QueryParser {
         if (query instanceof BooleanQuery) {
             Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         } else if (query instanceof ExtendedCommonTermsQuery) {
-            ((ExtendedCommonTermsQuery)query).setMinimumNumberShouldMatch(minimumShouldMatch);
+            ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
         }
         query.setBoost(boost);
         return query;

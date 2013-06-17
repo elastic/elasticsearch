@@ -31,6 +31,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -144,6 +145,29 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the huge fox").lowFreqMinimumShouldMatch("2")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
+
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("3")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1).highFreqMinimumShouldMatch("4")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
+
+        searchResponse = client().prepareSearch().setQuery("{ \"common\" : { \"field1\" : { \"query\" : \"the lazy fox brown\", \"cutoff_frequency\" : 1, \"minimum_should_match\" : { \"high_freq\" : 4 } } } }").execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
+
+        // Default
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the lazy fox brown").cutoffFrequency(1)).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("2"));
+
 
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.commonTerms("field1", "the quick brown").cutoffFrequency(3).analyzer("standard")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(3l));

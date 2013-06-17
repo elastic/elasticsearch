@@ -58,7 +58,9 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private Float boost = null;
 
-    private String minimumShouldMatch = null;
+    private String lowFreqMinimumShouldMatch = null;
+
+    private String highFreqMinimumShouldMatch = null;
 
     private Boolean disableCoords = null;
 
@@ -127,11 +129,20 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
     }
 
     /**
-     * Sets the minimum number of query terms that need to match in order to
+     * Sets the minimum number of high frequent query terms that need to match in order to
+     * produce a hit when there are no low frequen terms.
+     */
+    public CommonTermsQueryBuilder highFreqMinimumShouldMatch(String highFreqMinimumShouldMatch) {
+        this.highFreqMinimumShouldMatch = highFreqMinimumShouldMatch;
+        return this;
+    }
+
+    /**
+     * Sets the minimum number of low frequent query terms that need to match in order to
      * produce a hit.
      */
-    public CommonTermsQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
-        this.minimumShouldMatch = minimumShouldMatch;
+    public CommonTermsQueryBuilder lowFreqMinimumShouldMatch(String lowFreqMinimumShouldMatch) {
+        this.lowFreqMinimumShouldMatch = lowFreqMinimumShouldMatch;
         return this;
     }
 
@@ -159,8 +170,15 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
         if (cutoffFrequency != null) {
             builder.field("cutoff_frequency", cutoffFrequency);
         }
-        if (minimumShouldMatch != null) {
-            builder.field("minimum_should_match", minimumShouldMatch);
+        if (lowFreqMinimumShouldMatch != null || highFreqMinimumShouldMatch != null) {
+            builder.startObject("minimum_should_match");
+            if (lowFreqMinimumShouldMatch != null) {
+                builder.field("low_freq", lowFreqMinimumShouldMatch);
+            }
+            if (highFreqMinimumShouldMatch != null) {
+                builder.field("high_freq", highFreqMinimumShouldMatch);
+            }
+            builder.endObject();
         }
 
         builder.endObject();

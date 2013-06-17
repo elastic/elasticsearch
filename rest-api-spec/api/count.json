@@ -28,7 +28,7 @@
         },
         "preference": {
           "type" : "string",
-          "description" : "Specify the node the operation should be performed on (default: random node)"
+          "description" : "Specify the node or shard the operation should be performed on (default: random)"
         },
         "routing": {
           "type" : "string",

@@ -33,7 +33,7 @@
         },
         "preference": {
           "type" : "string",
-          "description" : "Specify the node the operation should be performed on (default: random node)"
+          "description" : "Specify the shard the operation should be performed on (default: random shard)"
         },
         "realtime": {
           "type" : "boolean",

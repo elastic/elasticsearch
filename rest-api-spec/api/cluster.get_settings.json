@@ -1,7 +1,7 @@
 {
-  "cluster.settings": {
+  "cluster.get_settings": {
     "documentation": "http://elasticsearch.org/guide/reference/api/admin-cluster-update-settings/",
-    "methods": ["GET", "PUT"],
+    "methods": ["GET"],
     "url": {
       "path": "/_cluster/settings",
       "paths": ["/_cluster/settings"],
@@ -10,8 +10,6 @@
       "params": {
       }
     },
-    "body": {
-      "description" : "The settings to be updated. Can be either `transient` or `persistent`."
-    }
+    "body": null
   }
 }

@@ -78,7 +78,8 @@ public class CommonTermsQueryParser implements QueryParser {
         Object value = null;
         float boost = 1.0f;
         String queryAnalyzer = null;
-        String minimumShouldMatch = null;
+        String lowFreqMinimumShouldMatch = null;
+        String highFreqMinimumShouldMatch = null;
         boolean disableCoords = DEFAULT_DISABLE_COORDS;
         Occur highFreqOccur = DEFAULT_HIGH_FREQ_OCCUR;
         Occur lowFreqOccur = DEFAULT_LOW_FREQ_OCCUR;
@@ -89,6 +90,23 @@ public class CommonTermsQueryParser implements QueryParser {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
+                        String innerFieldName = null;
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                innerFieldName = parser.currentName();
+                            } else if (token.isValue()) {
+                                if ("low_freq".equals(innerFieldName) || "lowFreq".equals(innerFieldName)) {
+                                    lowFreqMinimumShouldMatch = parser.text();
+                                } else if ("high_freq".equals(innerFieldName) || "highFreq".equals(innerFieldName)) {
+                                    highFreqMinimumShouldMatch = parser.text();
+                                } else {
+                                    throw new QueryParsingException(parseContext.index(), "[common] query does not support [" + innerFieldName + "] for [" + currentFieldName + "]");
+                                }
+                            }
+                        }
+                    }
                 } else if (token.isValue()) {
                     if ("query".equals(currentFieldName)) {
                         value = parser.objectText();
@@ -123,7 +141,7 @@ public class CommonTermsQueryParser implements QueryParser {
                                     "[common] query requires operator to be either 'and' or 'or', not [" + op + "]");
                         }
                     } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
-                        minimumShouldMatch = parser.textOrNull();
+                        lowFreqMinimumShouldMatch = parser.text();
                     } else if ("cutoff_frequency".equals(currentFieldName)) {
                         maxTermFrequency = parser.floatValue();
                     } else {
@@ -148,12 +166,12 @@ public class CommonTermsQueryParser implements QueryParser {
         }
         ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, disableCoords);
         query.setBoost(boost);
-        return parseQueryString(query, value.toString(), fieldName, parseContext, queryAnalyzer, minimumShouldMatch);
+        return parseQueryString(query, value.toString(), fieldName, parseContext, queryAnalyzer, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 
 
     private final Query parseQueryString(ExtendedCommonTermsQuery query, String queryString, String fieldName, QueryParseContext parseContext,
-            String queryAnalyzer, String minimumShouldMatch) throws IOException {
+            String queryAnalyzer, String lowFreqMinimumShouldMatch, String highFreqMinimumShouldMatch) throws IOException {
 
         FieldMapper<?> mapper = null;
         String field;
@@ -199,7 +217,8 @@ public class CommonTermsQueryParser implements QueryParser {
         if (count == 0) {
             return null;
         }
-        query.setMinimumNumberShouldMatch(minimumShouldMatch);
+        query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
+        query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
         return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
     }
 }

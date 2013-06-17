@@ -100,7 +100,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         if (script != null && doc != null) {
             validationException = addValidationError("can't provide both script and doc", validationException);
         }
-        if(doc == null && docAsUpsert == true){
+        if(doc == null && docAsUpsert){
         	validationException = addValidationError("can't say to upsert doc without providing doc", validationException);
         }
         return validationException;

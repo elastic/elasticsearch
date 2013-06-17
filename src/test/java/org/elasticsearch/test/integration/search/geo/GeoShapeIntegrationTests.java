@@ -31,13 +31,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.geo.GeoJSONShapeSerializer;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -45,23 +43,16 @@ import java.util.Map;
 
 public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
 
-    @BeforeTest
-    public void createNodes() throws Exception {
-        cluster().ensureAtLeastNumNodes(2);
-    }
-
     @Test
     public void testIndexPointsFilterRectangle() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
@@ -79,8 +70,7 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
                 .endObject()
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
+        refresh();
         Shape shape = newRectangle().topLeft(-45, 45).bottomRight(45, -45).build();
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -103,7 +93,6 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
 
     @Test
     public void testEdgeCases() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -111,8 +100,8 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        ensureGreen();
 
         client().prepareIndex("test", "type1", "blakely").setSource(jsonBuilder().startObject()
                 .field("name", "Blakely Island")
@@ -145,17 +134,15 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
 
     @Test
     public void testIndexedShapeReference() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
                 .field("tree", "quadtree")
                 .endObject().endObject()
                 .endObject().endObject().string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        ensureGreen();
+        
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
                 .startObject("location")
@@ -164,18 +151,17 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
                 .endObject()
                 .endObject()).execute().actionGet();
 
-        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        refresh();
 
         Shape shape = newRectangle().topLeft(-45, 45).bottomRight(45, -45).build();
         XContentBuilder shapeContent = jsonBuilder().startObject()
                 .startObject("shape");
         GeoJSONShapeSerializer.serialize(shape, shapeContent);
         shapeContent.endObject();
-
+        createIndex("shapes");
+        ensureGreen();
         client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(shapeContent).execute().actionGet();
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
-        client().admin().indices().prepareRefresh("shapes").execute().actionGet();
+        refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(filteredQuery(matchAllQuery(),
@@ -197,8 +183,6 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
 
     @Test // Issue 2944
     public void testThatShapeIsReturnedEvenWhenExclusionsAreSet() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
@@ -208,9 +192,8 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
                 .endObject()
                 .endObject().endObject()
                 .string();
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Document 1")
                 .startObject("location")

@@ -438,6 +438,7 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("truncate", TruncateTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("trim", TrimTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("limit", LimitTokenCountFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("common_grams", CommonGramsTokenFilterFactory.class);
         }
 
         @Override

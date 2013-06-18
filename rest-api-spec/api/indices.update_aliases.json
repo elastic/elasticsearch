@@ -1,0 +1,25 @@
+{
+  "indices.update_aliases": {
+    "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-aliases/",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_aliases",
+      "paths": ["/_aliases", "/{index}/_aliases"],
+      "parts": {
+        "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of index names to filter aliases"
+        }
+      },
+      "params": {
+        "timeout": {
+          "type" : "time",
+          "description" : "Request timeout"
+        }
+      }
+    },
+    "body": {
+      "description" : "The definition of `actions` to perform"
+    }
+  }
+}

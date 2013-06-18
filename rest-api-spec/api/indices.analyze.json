@@ -18,7 +18,7 @@
         },
         "field": {
           "type" : "string",
-          "description" : "The name of the field to "
+          "description" : "Use the analyzer configured for this field (instead of passing the analyzer name)"
         },
         "filters": {
           "type" : "list",

@@ -142,74 +142,51 @@ public class Analysis {
             .put("_turkish_", TurkishAnalyzer.getDefaultStopSet())
             .immutableMap();
 
-    public static CharArraySet parseArticles(Environment env, Settings settings, Version version) {
-        String value = settings.get("articles");
+    public static CharArraySet parseWords(Environment env, Settings settings, String name, CharArraySet defaultWords, ImmutableMap<String, Set<?>> namedWords, Version version, boolean ignoreCase) {
+        String value = settings.get(name);
         if (value != null) {
             if ("_none_".equals(value)) {
                 return CharArraySet.EMPTY_SET;
             } else {
-                return new CharArraySet(version, Strings.commaDelimitedListToSet(value), settings.getAsBoolean("articles_case", false));
+                return resolveNamedWords(Strings.commaDelimitedListToSet(value), namedWords, version, ignoreCase);
             }
         }
-        String[] articles = settings.getAsArray("articles", null);
-        if (articles != null) {
-            return new CharArraySet(version, Arrays.asList(articles), settings.getAsBoolean("articles_case", false));
+        List<String> pathLoadedWords = getWordList(env, settings, name);
+        if (pathLoadedWords != null) {
+            return resolveNamedWords(pathLoadedWords, namedWords, version, ignoreCase);
         }
-        CharArraySet pathLoadedArticles = getWordSet(env, settings, "articles", version);
-        if (pathLoadedArticles != null) {
-            return pathLoadedArticles;
-        }
+        return defaultWords;
+    }
 
-        return null;
+    public static CharArraySet parseCommonWords(Environment env, Settings settings, CharArraySet defaultCommonWords, Version version, boolean ignoreCase) {
+        return parseWords(env, settings, "common_words", defaultCommonWords, namedStopWords, version, ignoreCase);
+    }
+
+    public static CharArraySet parseArticles(Environment env, Settings settings, Version version) {
+        return parseWords(env, settings, "articles", null, null, version, settings.getAsBoolean("articles_case", false));
     }
 
     public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords, Version version) {
         return parseStopWords(env, settings, defaultStopWords, version, settings.getAsBoolean("stopwords_case", false));
     }
 
-    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords, Version version, boolean ignore_case) {
-        String value = settings.get("stopwords");
-        if (value != null) {
-            if ("_none_".equals(value)) {
-                return CharArraySet.EMPTY_SET;
-            } else {
-                return resolveNamedStopWords(Strings.commaDelimitedListToSet(value), version, ignore_case);
-            }
-        }
-        String[] stopWords = settings.getAsArray("stopwords", null);
-        if (stopWords != null) {
-            return resolveNamedStopWords(stopWords, version, ignore_case);
-        }
-        List<String> pathLoadedStopWords = getWordList(env, settings, "stopwords");
-        if (pathLoadedStopWords != null) {
-            return resolveNamedStopWords(pathLoadedStopWords, version, ignore_case);
-        }
-
-        return defaultStopWords;
+    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords, Version version, boolean ignoreCase) {
+        return parseWords(env, settings, "stopwords", defaultStopWords, namedStopWords, version, ignoreCase);
     }
 
-    private static CharArraySet resolveNamedStopWords(Collection<String> words, Version version, boolean ignore_case) {
-        CharArraySet setStopWords = new CharArraySet(version, words.size(), ignore_case);
-        for (String stopWord : words) {
-            if (namedStopWords.containsKey(stopWord)) {
-                setStopWords.addAll(namedStopWords.get(stopWord));
+    private static CharArraySet resolveNamedWords(Collection<String> words, ImmutableMap<String, Set<?>> namedWords, Version version, boolean ignoreCase) {
+        if (namedWords == null) {
+            return new CharArraySet(version, words, ignoreCase);
+        }
+        CharArraySet setWords = new CharArraySet(version, words.size(), ignoreCase);
+        for (String word : words) {
+            if (namedWords.containsKey(word)) {
+                setWords.addAll(namedWords.get(word));
             } else {
-                setStopWords.add(stopWord);
+                setWords.add(word);
             }
         }
-        return setStopWords;
-    }
-
-    private static CharArraySet resolveNamedStopWords(String[] words, Version version, boolean ignore_case) {
-        CharArraySet setStopWords = new CharArraySet(version, words.length, ignore_case);
-        for (String stopWord : words) {
-            if (namedStopWords.containsKey(stopWord)) {
-                setStopWords.addAll(namedStopWords.get(stopWord));
-            } else {
-                setStopWords.add(stopWord);
-            }
-        }
-        return setStopWords;
+        return setWords;
     }
 
     public static CharArraySet getWordSet(Environment env, Settings settings, String settingsPrefix, Version version) {

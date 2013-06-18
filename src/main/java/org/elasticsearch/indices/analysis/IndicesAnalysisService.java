@@ -31,6 +31,7 @@ import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
 import org.apache.lucene.analysis.cjk.CJKAnalyzer;
 import org.apache.lucene.analysis.cn.ChineseAnalyzer;
+import org.apache.lucene.analysis.commongrams.*;
 import org.apache.lucene.analysis.core.*;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
@@ -78,6 +79,7 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -390,6 +392,18 @@ public class IndicesAnalysisService extends AbstractComponent {
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new LengthFilter(true, tokenStream, 0, Integer.MAX_VALUE);
+            }
+        }));
+
+        tokenFilterFactories.put("common_grams", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "common_grams";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new CommonGramsFilter(Lucene.ANALYZER_VERSION, tokenStream, CharArraySet.EMPTY_SET);
             }
         }));
 

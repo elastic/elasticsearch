@@ -95,3 +95,4 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
         }
     }
 }
+

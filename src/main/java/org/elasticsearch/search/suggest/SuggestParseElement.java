@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.suggest;
 
-import java.io.IOException;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
@@ -29,6 +27,7 @@ import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static com.google.common.collect.Maps.newHashMap;
@@ -36,7 +35,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  *
  */
-public class SuggestParseElement implements SearchParseElement {
+public final class SuggestParseElement implements SearchParseElement {
     private Suggesters suggesters;
 
     @Inject
@@ -46,11 +45,11 @@ public class SuggestParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService());
+        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(), context.shardTarget().index(), context.shardTarget().shardId());
         context.suggest(suggestionSearchContext);
     }
 
-    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService) throws IOException {
+    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService, String index, int shardId) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
         BytesRef globalText = null;
         String fieldName = null;
@@ -100,7 +99,8 @@ public class SuggestParseElement implements SearchParseElement {
             for (Map.Entry<String, SuggestionContext> entry : suggestionContexts.entrySet()) {
                 String suggestionName = entry.getKey();
                 SuggestionContext suggestionContext = entry.getValue();
-
+                suggestionContext.setShard(shardId);
+                suggestionContext.setIndex(index);
                 SuggestUtils.verifySuggestion(mapperService, globalText, suggestionContext);
                 suggestionSearchContext.addSuggestion(suggestionName, suggestionContext);
             }

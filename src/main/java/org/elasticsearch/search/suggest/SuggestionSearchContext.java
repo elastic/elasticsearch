@@ -46,6 +46,8 @@ public class SuggestionSearchContext {
         private Analyzer analyzer;
         private int size = 5;
         private int shardSize = -1;
+        private int shardId;
+        private String index;
 
         public BytesRef getText() {
             return text;
@@ -100,6 +102,24 @@ public class SuggestionSearchContext {
             }
             this.shardSize = shardSize;
         }
+        
+        public void setShard(int shardId) {
+            this.shardId = shardId;
+        }
+
+        public void setIndex(String index) {
+            this.index = index;
+        }
+        
+        public String getIndex() {
+            return index;
+        }
+        
+        public int getShard() {
+            return shardId;
+        }
     }
+
+   
 
 }

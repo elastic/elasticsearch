@@ -30,7 +30,7 @@
     </parent>
 
     <properties>
-        <lucene.version>4.3.0</lucene.version>
+        <lucene.version>4.3.1</lucene.version>
     </properties>
 
     <repositories>

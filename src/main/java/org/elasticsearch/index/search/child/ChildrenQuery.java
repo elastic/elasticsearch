@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.search.child;
 
+import org.apache.lucene.util.FixedBitSet;
+
 import gnu.trove.map.TObjectFloatMap;
 import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectFloatHashMap;
@@ -193,9 +195,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     class ParentWeight extends Weight {
 
         final Weight childWeight;
-
+        private int remaining;
+        
         public ParentWeight(Weight childWeight) {
             this.childWeight = childWeight;
+            this.remaining = uidToScore.size();
         }
 
         @Override
@@ -221,7 +225,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
 
         @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
-            DocIdSet parentsSet = parentFilter.getDocIdSet(context, acceptDocs);
+            if (uidToScore == null || uidToScore.size() == 0 || remaining == 0) {
+                return null;   
+            }
+            
+            FixedBitSet parentsSet = (FixedBitSet) parentFilter.getDocIdSet(context, acceptDocs);
             if (parentsSet == null || parentsSet == DocIdSet.EMPTY_DOCIDSET) {
                 return null;
             }
@@ -235,46 +243,70 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
                     return new ParentScorer(this, idTypeCache, uidToScore, parentsIterator);
             }
         }
+        
+        class ParentScorer extends Scorer {
 
-    }
+            final IdReaderTypeCache idTypeCache;
+            final TObjectFloatMap<HashedBytesArray> uidToScore;
+            final DocIdSetIterator parentsIterator;
 
-    static class ParentScorer extends Scorer {
+            int currentDocId = -1;
+            float currentScore;
 
-        final IdReaderTypeCache idTypeCache;
-        final TObjectFloatMap<HashedBytesArray> uidToScore;
-        final DocIdSetIterator parentsIterator;
+            ParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatMap<HashedBytesArray> uidToScore, DocIdSetIterator parentsIterator) {
+                super(weight);
+                this.idTypeCache = idTypeCache;
+                this.uidToScore = uidToScore;
+                this.parentsIterator = parentsIterator;
+            }
 
-        int currentDocId = -1;
-        float currentScore;
+            @Override
+            public float score() throws IOException {
+                return currentScore;
+            }
 
-        ParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatMap<HashedBytesArray> uidToScore, DocIdSetIterator parentsIterator) {
-            super(weight);
-            this.idTypeCache = idTypeCache;
-            this.uidToScore = uidToScore;
-            this.parentsIterator = parentsIterator;
-        }
+            @Override
+            public int freq() throws IOException {
+                // We don't have the original child query hit info here...
+                // But the freq of the children could be collector and returned here, but makes this Scorer more expensive.
+                return 1;
+            }
 
-        @Override
-        public float score() throws IOException {
-            return currentScore;
-        }
+            @Override
+            public int docID() {
+                return currentDocId;
+            }
 
-        @Override
-        public int freq() throws IOException {
-            // We don't have the original child query hit info here...
-            // But the freq of the children could be collector and returned here, but makes this Scorer more expensive.
-            return 1;
-        }
+            @Override
+            public int nextDoc() throws IOException {
+                while (true) {
+                    if (remaining == 0) {
+                        currentDocId = DocIdSetIterator.NO_MORE_DOCS;
+                    } else {
+                        currentDocId = parentsIterator.nextDoc();
+                    }
+                    
+                    if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                        return currentDocId;
+                    }
 
-        @Override
-        public int docID() {
-            return currentDocId;
-        }
+                    HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
+                    currentScore = uidToScore.get(uid);
+                    if (currentScore != 0) {
+                        remaining = remaining - 1;
+                        return currentDocId;
+                    }
+                }
+            }
 
-        @Override
-        public int nextDoc() throws IOException {
-            while (true) {
-                currentDocId = parentsIterator.nextDoc();
+            @Override
+            public int advance(int target) throws IOException {
+                if (remaining == 0) {
+                    currentDocId = DocIdSetIterator.NO_MORE_DOCS;
+                } else {
+                    currentDocId = parentsIterator.advance(target);
+                }
+                
                 if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
                     return currentDocId;
                 }
@@ -282,74 +314,73 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
                 HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
                 currentScore = uidToScore.get(uid);
                 if (currentScore != 0) {
+                    remaining = remaining - 1;
                     return currentDocId;
+                } else {
+                    return nextDoc();
                 }
             }
-        }
 
-        @Override
-        public int advance(int target) throws IOException {
-            currentDocId = parentsIterator.advance(target);
-            if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                return currentDocId;
-            }
-
-            HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
-            currentScore = uidToScore.get(uid);
-            if (currentScore != 0) {
-                return currentDocId;
-            } else {
-                return nextDoc();
+            @Override
+            public long cost() {
+                return parentsIterator.cost();
             }
         }
+        
+        class AvgParentScorer extends ParentScorer {
 
-        @Override
-        public long cost() {
-            return parentsIterator.cost();
-        }
-    }
+            final TObjectIntMap<HashedBytesArray> uidToCount;
+            HashedBytesArray currentUid;
 
-    static class AvgParentScorer extends ParentScorer {
+            AvgParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatMap<HashedBytesArray> uidToScore, TObjectIntMap<HashedBytesArray> uidToCount, DocIdSetIterator parentsIterator) {
+                super(weight, idTypeCache, uidToScore, parentsIterator);
+                this.uidToCount = uidToCount;
+            }
 
-        final TObjectIntMap<HashedBytesArray> uidToCount;
-        HashedBytesArray currentUid;
+            @Override
+            public int nextDoc() throws IOException {
+                while (true) {
+                    if (remaining == 0) {
+                        currentDocId = DocIdSetIterator.NO_MORE_DOCS;
+                    } else {
+                        currentDocId = parentsIterator.nextDoc();
+                    }
+                    
+                    if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
+                        return currentDocId;
+                    }
 
-        AvgParentScorer(Weight weight, IdReaderTypeCache idTypeCache, TObjectFloatMap<HashedBytesArray> uidToScore, TObjectIntMap<HashedBytesArray> uidToCount, DocIdSetIterator parentsIterator) {
-            super(weight, idTypeCache, uidToScore, parentsIterator);
-            this.uidToCount = uidToCount;
-        }
+                    currentUid = idTypeCache.idByDoc(currentDocId);
+                    currentScore = uidToScore.get(currentUid);
+                    if (currentScore != 0) {
+                        remaining = remaining - 1;
+                        currentScore /= uidToCount.get(currentUid);
+                        return currentDocId;
+                    }
+                }
+            }
 
-        @Override
-        public int nextDoc() throws IOException {
-            while (true) {
-                currentDocId = parentsIterator.nextDoc();
+            @Override
+            public int advance(int target) throws IOException {
+                if (remaining == 0) {
+                    currentDocId = DocIdSetIterator.NO_MORE_DOCS;
+                } else {
+                    currentDocId = parentsIterator.advance(target);
+                }
+                
                 if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
                     return currentDocId;
                 }
 
-                currentUid = idTypeCache.idByDoc(currentDocId);
-                currentScore = uidToScore.get(currentUid);
+                HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
+                currentScore = uidToScore.get(uid);
                 if (currentScore != 0) {
+                    remaining = remaining - 1;
                     currentScore /= uidToCount.get(currentUid);
                     return currentDocId;
+                } else {
+                    return nextDoc();
                 }
-            }
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            currentDocId = parentsIterator.advance(target);
-            if (currentDocId == DocIdSetIterator.NO_MORE_DOCS) {
-                return currentDocId;
-            }
-
-            HashedBytesArray uid = idTypeCache.idByDoc(currentDocId);
-            currentScore = uidToScore.get(uid);
-            if (currentScore != 0) {
-                currentScore /= uidToCount.get(currentUid);
-                return currentDocId;
-            } else {
-                return nextDoc();
             }
         }
     }

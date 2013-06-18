@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.suggest;
 
+import org.elasticsearch.search.SearchShardTarget;
+
 import java.io.IOException;
 
 import org.apache.lucene.util.BytesRef;
@@ -32,7 +34,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContex
 /**
  *
  */
-public class SuggestParseElement implements SearchParseElement {
+public final class SuggestParseElement implements SearchParseElement {
     private Suggesters suggesters;
 
     @Inject
@@ -42,11 +44,11 @@ public class SuggestParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService());
+        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(), context.shardTarget().index(), context.shardTarget().shardId());
         context.suggest(suggestionSearchContext);
     }
 
-    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService) throws IOException {
+    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService, String index, int shardId) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
         BytesRef globalText = null;
         String fieldName = null;
@@ -81,7 +83,12 @@ public class SuggestParseElement implements SearchParseElement {
                             throw new ElasticSearchIllegalArgumentException("Suggester[" + fieldName + "] not supported");
                         }
                         final SuggestContextParser contextParser = suggesters.get(fieldName).getContextParser();
-                        parseAndVerify(parser, mapperService, suggestionSearchContext, globalText, suggestionName, suggestText, contextParser);
+                        SuggestionContext suggestion = contextParser.parse(parser, mapperService);
+                        suggestion.setText(suggestText);
+                        suggestion.setShard(shardId);
+                        suggestion.setIndex(index);
+                        SuggestUtils.verifySuggestion(mapperService, globalText, suggestion);
+                        suggestionSearchContext.addSuggestion(suggestionName, suggestion);
                     }
                 }
             }
@@ -89,13 +96,6 @@ public class SuggestParseElement implements SearchParseElement {
         return suggestionSearchContext;
     }
 
-    public void parseAndVerify(XContentParser parser, MapperService mapperService, SuggestionSearchContext suggestionSearchContext,
-            BytesRef globalText, String suggestionName, BytesRef suggestText, SuggestContextParser suggestParser ) throws IOException {
-        SuggestionContext suggestion = suggestParser.parse(parser, mapperService);
-        suggestion.setText(suggestText);
-        SuggestUtils.verifySuggestion(mapperService, globalText, suggestion);
-        suggestionSearchContext.addSuggestion(suggestionName, suggestion);
-    }
 
    
 }

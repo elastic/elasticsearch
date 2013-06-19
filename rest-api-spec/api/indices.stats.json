@@ -20,7 +20,7 @@
         },
         "metric_family" : {
           "type" : "enum",
-          "options" : ["docs", "fielddata", "fields", "filter_cache", "flush", "get", "groups", "id_cache", "ignore_indices", "indexing", "merge", "refresh", "search", "store", "warmer"],
+          "options" : ["docs", "fielddata", "filter_cache", "flush", "get", "groups", "id_cache", "ignore_indices", "indexing", "merge", "refresh", "search", "store", "warmer"],
           "description" : "Limit the information returned to a specific metric"
         },
         "search_groups" : {

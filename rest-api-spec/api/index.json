@@ -27,10 +27,6 @@
           "options" : ["one", "quorum", "all"],
           "description" : "Explicit write consistency setting for the operation"
         },
-        "id": {
-          "type" : "string",
-          "description" : "Specific document ID (when the POST method is used)"
-        },
         "op_type": {
           "type" : "enum",
           "options" : ["index", "create"],

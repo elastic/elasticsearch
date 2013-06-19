@@ -34,7 +34,6 @@ import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.util.Date;
 
-import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -63,7 +62,7 @@ public class HistogramFacetSearchBenchmark {
 
         Client client = node1.client();
 
-        long COUNT = SizeValue.parseSizeValue("5m").singles();
+        long COUNT = SizeValue.parseSizeValue("20m").singles();
         int BATCH = 500;
         int QUERY_WARMUP = 20;
         int QUERY_COUNT = 200;
@@ -76,9 +75,32 @@ public class HistogramFacetSearchBenchmark {
 
         Thread.sleep(10000);
         try {
-            client.admin().indices().create(createIndexRequest("test").settings(
-                    settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0)))
-                    .actionGet();
+            client.admin().indices().prepareCreate("test")
+                    .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                    .addMapping("test", jsonBuilder()
+                        .startObject()
+                            .startObject("test")
+                                .startObject("properties")
+                                    .startObject("name")
+                                        .startObject("fields")
+                                            .startObject("l_value")
+                                                .field("type", "long")
+                                            .endObject()
+                                            .startObject("i_value")
+                                                .field("type", "integer")
+                                            .endObject()
+                                            .startObject("s_value")
+                                                .field("type", "short")
+                                            .endObject()
+                                            .startObject("b_value")
+                                                .field("type", "byte")
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject())
+                    .execute().actionGet();
 
             StopWatch stopWatch = new StopWatch().start();
 
@@ -90,9 +112,13 @@ public class HistogramFacetSearchBenchmark {
                 BulkRequestBuilder request = client.prepareBulk();
                 for (int j = 0; j < BATCH; j++) {
                     counter++;
+                    final long value = lValues[counter % lValues.length];
                     XContentBuilder source = jsonBuilder().startObject()
                             .field("id", Integer.valueOf(counter))
-                            .field("l_value", lValues[counter % lValues.length])
+                            .field("l_value", value)
+                            .field("i_value", (int) value)
+                            .field("s_value", (short) value)
+                            .field("b_value", (byte) value)
                             .field("date", new Date())
                             .endObject();
                     request.add(Requests.indexRequest("test").type("type1").id(Integer.toString(counter))
@@ -125,6 +151,9 @@ public class HistogramFacetSearchBenchmark {
             SearchResponse searchResponse = client.prepareSearch()
                     .setQuery(matchAllQuery())
                     .addFacet(histogramFacet("l_value").field("l_value").interval(4))
+                    .addFacet(histogramFacet("i_value").field("i_value").interval(4))
+                    .addFacet(histogramFacet("s_value").field("s_value").interval(4))
+                    .addFacet(histogramFacet("b_value").field("b_value").interval(4))
                     .addFacet(histogramFacet("date").field("date").interval(1000))
                     .execute().actionGet();
             if (j == 0) {
@@ -137,30 +166,33 @@ public class HistogramFacetSearchBenchmark {
         System.out.println("--> Warmup DONE");
 
         long totalQueryTime = 0;
-        for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch()
-                    .setQuery(matchAllQuery())
-                    .addFacet(histogramFacet("l_value").field("l_value").interval(4))
-                    .execute().actionGet();
-            if (searchResponse.getHits().totalHits() != COUNT) {
-                System.err.println("--> mismatch on hits");
+        for (String field : new String[] {"b_value", "s_value", "i_value", "l_value"}) {
+            totalQueryTime = 0;
+            for (int j = 0; j < QUERY_COUNT; j++) {
+                SearchResponse searchResponse = client.prepareSearch()
+                        .setQuery(matchAllQuery())
+                        .addFacet(histogramFacet(field).field(field).interval(4))
+                        .execute().actionGet();
+                if (searchResponse.getHits().totalHits() != COUNT) {
+                    System.err.println("--> mismatch on hits");
+                }
+                totalQueryTime += searchResponse.getTookInMillis();
             }
-            totalQueryTime += searchResponse.getTookInMillis();
-        }
-        System.out.println("--> Histogram Facet (l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
+            System.out.println("--> Histogram Facet (" + field + ") " + (totalQueryTime / QUERY_COUNT) + "ms");
 
-        totalQueryTime = 0;
-        for (int j = 0; j < QUERY_COUNT; j++) {
-            SearchResponse searchResponse = client.prepareSearch()
-                    .setQuery(matchAllQuery())
-                    .addFacet(histogramFacet("l_value").field("l_value").valueField("l_value").interval(4))
-                    .execute().actionGet();
-            if (searchResponse.getHits().totalHits() != COUNT) {
-                System.err.println("--> mismatch on hits");
+            totalQueryTime = 0;
+            for (int j = 0; j < QUERY_COUNT; j++) {
+                SearchResponse searchResponse = client.prepareSearch()
+                        .setQuery(matchAllQuery())
+                        .addFacet(histogramFacet("l_value").field("l_value").valueField("l_value").interval(4))
+                        .execute().actionGet();
+                if (searchResponse.getHits().totalHits() != COUNT) {
+                    System.err.println("--> mismatch on hits");
+                }
+                totalQueryTime += searchResponse.getTookInMillis();
             }
-            totalQueryTime += searchResponse.getTookInMillis();
+            System.out.println("--> Histogram Facet (" + field + "/" + field + ") " + (totalQueryTime / QUERY_COUNT) + "ms");
         }
-        System.out.println("--> Histogram Facet (l_value/l_value) " + (totalQueryTime / QUERY_COUNT) + "ms");
 
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {

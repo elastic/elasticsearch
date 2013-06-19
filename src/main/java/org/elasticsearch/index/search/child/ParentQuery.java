@@ -227,10 +227,15 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
 
         @Override
         public Scorer scorer(AtomicReaderContext context, boolean scoreDocsInOrder, boolean topScorer, Bits acceptDocs) throws IOException {
+            if (uidToScore.size() == 0) {
+                return null;
+            }
+            
             DocIdSet childrenDocSet = childrenFilter.getDocIdSet(context, acceptDocs);
             if (childrenDocSet == null || childrenDocSet == DocIdSet.EMPTY_DOCIDSET) {
                 return null;
             }
+            
             IdReaderTypeCache idTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
             if (idTypeCache == null) {
                 return null;
@@ -298,7 +303,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
             if (currentChildDoc == DocIdSetIterator.NO_MORE_DOCS) {
                 return currentChildDoc;
             }
-            BytesReference uid = typeCache.idByDoc(currentChildDoc);
+            BytesReference uid = typeCache.parentIdByDoc(currentChildDoc);
             if (uid == null) {
                 return nextDoc();
             }

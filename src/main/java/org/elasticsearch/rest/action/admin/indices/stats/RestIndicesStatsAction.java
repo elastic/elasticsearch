@@ -122,6 +122,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         indicesStatsRequest.filterCache(request.paramAsBoolean("filter_cache", indicesStatsRequest.filterCache()));
         indicesStatsRequest.idCache(request.paramAsBoolean("id_cache", indicesStatsRequest.idCache()));
         indicesStatsRequest.fieldData(request.paramAsBoolean("fielddata", indicesStatsRequest.fieldData()));
+        indicesStatsRequest.fieldDataFields(request.paramAsStringArray("fields", null));
 
         client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
             @Override

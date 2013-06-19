@@ -80,6 +80,11 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
             throw new ElasticSearchIllegalStateException("has_parent filter hasn't executed properly");
         }
 
+        // no parents to match
+        if (parents.size() == 0) {
+            return null;
+        }
+        
         DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(readerContext, null);
         if (DocIdSets.isEmpty(childrenDocIdSet)) {
             return null;

@@ -22,14 +22,6 @@
           "options" : ["none","missing"],
           "default" : "none",
           "description" : "When performed on multiple indices, allows to ignore `missing` ones"
-        },
-        "index": {
-          "type" : "list",
-          "description" : "A comma-separated list of index names to filter aliases"
-        },
-        "name": {
-          "type" : "list",
-          "description" : "A comma-separated list of alias names to return"
         }
       }
     },

@@ -48,6 +48,7 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
     final SearchContext searchContext;
 
     THashSet<HashedBytesArray> collectedUids;
+    int uidSize = -1;
 
     public HasChildFilter(Query childQuery, String parentType, String childType, Filter parentFilter, SearchContext searchContext) {
         this.parentFilter = parentFilter;
@@ -98,7 +99,11 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         if (collectedUids == null) {
             throw new ElasticSearchIllegalStateException("has_child filter hasn't executed properly");
         }
-
+        
+        if (collectedUids.size() == 0) {
+            return null;
+        }
+        
         DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, null);
         if (DocIdSets.isEmpty(parentDocIdSet)) {
             return null;
@@ -134,17 +139,24 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         final IndexReader reader;
         final THashSet<HashedBytesArray> parents;
         final IdReaderTypeCache typeCache;
+        int remaining = 0;
 
         ParentDocSet(IndexReader reader, Bits acceptDocs, THashSet<HashedBytesArray> parents, IdReaderTypeCache typeCache) {
             super(reader.maxDoc(), acceptDocs);
             this.reader = reader;
             this.parents = parents;
             this.typeCache = typeCache;
+            this.remaining = parents.size();
         }
 
         @Override
         protected boolean matchDoc(int doc) {
-            return parents.contains(typeCache.idByDoc(doc));
+            if (remaining != 0 && parents.contains(typeCache.idByDoc(doc))) {
+                remaining = remaining - 1;
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 

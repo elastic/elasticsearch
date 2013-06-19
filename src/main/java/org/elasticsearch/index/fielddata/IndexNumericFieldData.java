@@ -20,6 +20,8 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.TermsEnum;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 
 /**
  */
@@ -94,6 +96,13 @@ public interface IndexNumericFieldData<FD extends AtomicNumericFieldData> extend
 
         public abstract boolean isFloatingPoint();
         public abstract int requiredBits();
+        public final TermsEnum wrapTermsEnum(TermsEnum termsEnum) {
+            if (requiredBits() > 32) {
+                return OrdinalsBuilder.wrapNumeric64Bit(termsEnum);
+            } else {
+                return OrdinalsBuilder.wrapNumeric32Bit(termsEnum);
+            }
+        }
     }
 
     NumericType getNumericType();

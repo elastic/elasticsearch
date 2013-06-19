@@ -24,9 +24,9 @@ import org.apache.lucene.document.IntField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.IntValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
-import org.elasticsearch.index.fielddata.plain.IntArrayIndexFieldData;
 
 /**
  */
@@ -39,7 +39,7 @@ public class IntegerNestedSortingTests extends AbstractNumberNestedSortingTests 
 
     @Override
     protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode, Object missingValue) {
-        IntArrayIndexFieldData fieldData = getForField(fieldName);
+        IndexNumericFieldData fieldData = getForField(fieldName);
         return new IntValuesComparatorSource(fieldData, missingValue, sortMode);
     }
 

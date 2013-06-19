@@ -60,8 +60,6 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
         }
 
         final PagedBytes bytes = new PagedBytes(15);
-        int startBytesBPV;
-        int startNumUniqueTerms;
 
         int maxDoc = reader.maxDoc();
         final int termCountHardLimit;
@@ -82,19 +80,13 @@ public class PagedBytesIndexFieldData extends AbstractBytesIndexFieldData<PagedB
                 // effort to load what we can (see LUCENE-2142)
                 numUniqueTerms = termCountHardLimit;
             }
-
-            startBytesBPV = PackedInts.bitsRequired(numUniqueTerms * 4);
-
-            startNumUniqueTerms = (int) numUniqueTerms;
-        } else {
-            startBytesBPV = 1;
-            startNumUniqueTerms = 1;
         }
 
         final MonotonicAppendingLongBuffer termOrdToBytesOffset = new MonotonicAppendingLongBuffer();
         termOrdToBytesOffset.add(0); // first ord is reserved for missing values
         boolean preDefineBitsRequired = regex == null && frequency == null;
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, preDefineBitsRequired, reader.maxDoc());
+        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, preDefineBitsRequired, reader.maxDoc(), acceptableOverheadRatio);
         try {
             // 0 is reserved for "unset"
             bytes.copyUsingLengthPrefix(new BytesRef());

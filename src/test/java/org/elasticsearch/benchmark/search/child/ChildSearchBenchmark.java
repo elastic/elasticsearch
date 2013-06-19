@@ -204,6 +204,28 @@ public class ChildSearchBenchmark {
         }
         System.out.println("--> has_child filter with match_all child query, Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
 
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(constantScoreQuery(hasChildFilter("child", termFilter("id", Integer.toString(j + 1))))).execute().actionGet();
+            long expected = 1;
+            if (searchResponse.getHits().totalHits() != expected) {
+                System.err.println("mismatch on hits");
+            }
+            totalQueryTime += searchResponse.getTookInMillis();
+        }
+        System.out.println("--> has_child filter with single parent match Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+        
+        totalQueryTime = 0;
+        for (int j = 0; j < QUERY_COUNT; j++) {
+            double expected = Math.pow((j + 1), 3) * CHILD_COUNT;
+            SearchResponse searchResponse = client.prepareSearch(indexName).setQuery(constantScoreQuery(hasChildFilter("child", rangeFilter("num").lte(expected)))).execute().actionGet();
+            if (searchResponse.getHits().totalHits() != expected) {
+                System.err.println("mismatch on hits: " + searchResponse.getHits().totalHits() + " != " + expected);
+            }
+            totalQueryTime += searchResponse.getTookInMillis();
+        }
+        System.out.println("--> has_child filter with exponential parent results Query Avg: " + (totalQueryTime / QUERY_COUNT) + "ms");
+        
         // run parent child constant query
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = client.prepareSearch(indexName)

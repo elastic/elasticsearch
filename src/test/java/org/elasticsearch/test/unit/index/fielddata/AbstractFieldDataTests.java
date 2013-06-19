@@ -20,12 +20,7 @@
 package org.elasticsearch.test.unit.index.fielddata;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
@@ -55,7 +50,8 @@ public abstract class AbstractFieldDataTests {
     @BeforeMethod
     public void setup() throws Exception {
         ifdService = new IndexFieldDataService(new Index("test"));
-        writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)));
+        // LogByteSizeMP to preserve doc ID order
+        writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)).setMergePolicy(new LogByteSizeMergePolicy()));
     }
 
     protected AtomicReaderContext refreshReader() throws Exception {

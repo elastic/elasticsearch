@@ -36,7 +36,7 @@ import java.util.Comparator;
 
 /**
  * Simple class to build document ID <-> ordinal mapping. Note: Ordinals are
- * <tt>1</tt> based monotocially increasing positive integers. <tt>0</tt>
+ * <tt>1</tt> based monotonically increasing positive integers. <tt>0</tt>
  * donates the missing value in this context.
  */
 public final class OrdinalsBuilder implements Closeable {
@@ -55,10 +55,8 @@ public final class OrdinalsBuilder implements Closeable {
     private int numMultiValuedDocs = 0;
     private int totalNumOrds = 0;
 
-    public OrdinalsBuilder(Terms terms, boolean preDefineBitsRequired, int maxDoc, Allocator allocator) throws IOException {
+    public OrdinalsBuilder(Terms terms, boolean preDefineBitsRequired, int maxDoc, Allocator allocator, float acceptableOverheadRatio) throws IOException {
         this.maxDoc = maxDoc;
-        // TODO: Make configurable...
-        float acceptableOverheadRatio = PackedInts.FAST;
         if (preDefineBitsRequired) {
             int numTerms = (int) terms.size();
             if (numTerms == -1) {
@@ -75,15 +73,15 @@ public final class OrdinalsBuilder implements Closeable {
     }
     
     public OrdinalsBuilder(int maxDoc) throws IOException {
-        this(null, false, maxDoc);
+        this(null, false, maxDoc, PackedInts.DEFAULT);
     }
 
-    public OrdinalsBuilder(Terms terms, boolean preDefineBitsRequired, int maxDoc) throws IOException {
-        this(terms, preDefineBitsRequired, maxDoc, new DirectAllocator());
+    public OrdinalsBuilder(Terms terms, boolean preDefineBitsRequired, int maxDoc, float acceptableOverheadRatio) throws IOException {
+        this(terms, preDefineBitsRequired, maxDoc, new DirectAllocator(), acceptableOverheadRatio);
     }
 
-    public OrdinalsBuilder(Terms terms, int maxDoc) throws IOException {
-        this(terms, true, maxDoc, new DirectAllocator());
+    public OrdinalsBuilder(Terms terms, int maxDoc, float acceptableOverheadRatio) throws IOException {
+        this(terms, true, maxDoc, new DirectAllocator(), acceptableOverheadRatio);
     }
 
     /**
@@ -296,7 +294,7 @@ public final class OrdinalsBuilder implements Closeable {
      * A {@link TermsEnum} that iterates only full precision prefix coded 64 bit values.
      * @see #buildFromTerms(TermsEnum, Bits)
      */
-    public TermsEnum wrapNumeric64Bit(TermsEnum termsEnum) {
+    public static TermsEnum wrapNumeric64Bit(TermsEnum termsEnum) {
         return new FilteredTermsEnum(termsEnum, false) {
             @Override
             protected AcceptStatus accept(BytesRef term) throws IOException {
@@ -310,7 +308,7 @@ public final class OrdinalsBuilder implements Closeable {
      * A {@link TermsEnum} that iterates only full precision prefix coded 32 bit values.
      * @see #buildFromTerms(TermsEnum, Bits)
      */
-    public TermsEnum wrapNumeric32Bit(TermsEnum termsEnum) {
+    public static TermsEnum wrapNumeric32Bit(TermsEnum termsEnum) {
         return new FilteredTermsEnum(termsEnum, false) {
             
             @Override

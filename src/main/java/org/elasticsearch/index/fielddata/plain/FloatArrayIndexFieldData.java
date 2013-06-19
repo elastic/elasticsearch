@@ -27,6 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.RamUsage;
@@ -94,9 +95,10 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
 
         values.add(0); // first "t" indicates null value
 
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
+        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
         try {
-            BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric32Bit(terms.iterator(null)), reader.getLiveDocs());
+            BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)), reader.getLiveDocs());
             BytesRef term;
             while ((term = iter.next()) != null) {
                 values.add(NumericUtils.sortableIntToFloat(NumericUtils.prefixCodedToInt(term)));

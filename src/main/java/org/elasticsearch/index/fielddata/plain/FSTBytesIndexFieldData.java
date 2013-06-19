@@ -26,6 +26,7 @@ import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.INPUT_TYPE;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.apache.lucene.util.fst.Util;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -65,7 +66,8 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
         final IntsRef scratch = new IntsRef();
 
         boolean preDefineBitsRequired = regex == null && frequency == null;
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, preDefineBitsRequired, reader.maxDoc());
+        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, preDefineBitsRequired, reader.maxDoc(), acceptableOverheadRatio);
         try {
             
             // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support

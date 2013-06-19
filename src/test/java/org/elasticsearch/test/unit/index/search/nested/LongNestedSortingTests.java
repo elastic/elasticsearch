@@ -26,7 +26,7 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
-import org.elasticsearch.index.fielddata.plain.LongArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.PackedArrayIndexFieldData;
 
 /**
  */
@@ -39,7 +39,7 @@ public class LongNestedSortingTests extends AbstractNumberNestedSortingTests {
 
     @Override
     protected IndexFieldData.XFieldComparatorSource createInnerFieldComparator(String fieldName, SortMode sortMode, Object missingValue) {
-        LongArrayIndexFieldData fieldData = getForField(fieldName);
+        PackedArrayIndexFieldData fieldData = getForField(fieldName);
         return new LongValuesComparatorSource(fieldData, missingValue, sortMode);
     }
 

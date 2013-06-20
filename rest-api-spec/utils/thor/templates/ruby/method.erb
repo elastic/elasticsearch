@@ -14,7 +14,7 @@ module Elasticsearch
       <%= "\n" -%>
       <%- end -%>
 <%# Body -%>
-<%= '  '*(@namespace_depth+3) + '# @option arguments [Hash] :body ' + (@spec['body']['description'] || 'TODO: Description') + "\n" if @spec['body'] -%>
+<%= '  '*(@namespace_depth+3) + '# @option arguments [Hash] :body ' + (@spec['body']['description'] || 'TODO: Description') + (@spec['body']['required'] ? ' (*Required*)' : '') + "\n" if @spec['body'] -%>
 <%# URL parameters -%>
       <%- @spec['url']['params'].each do |name,info| -%>
       <%- info['type'] = 'String' if info['type'] == 'enum' # Rename 'enums' to 'strings' -%>
@@ -31,6 +31,7 @@ module Elasticsearch
       <%- @spec['url']['parts'].select { |name, info| info['required'] }.each do |name, info| -%>
       <%= '  '*(@namespace_depth+1) + "raise ArgumentError, \"Required argument '#{name}' missing\" unless arguments[:#{name}]" + "\n" -%>
       <%- end -%>
+      <%= '  '*(@namespace_depth+1) + "raise ArgumentError, \"Required argument 'body' missing\" unless arguments[:body]" + "\n" if @spec['body'] && @spec['body']['required'] -%>
 <%# Method, path, params, body  -%>
       <%= '  '*@namespace_depth %>  method = '<%= @spec['methods'].first %>'
       <%- unless @spec['url']['parts'].empty?  -%>

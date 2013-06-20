@@ -1,5 +1,9 @@
 package org.elasticsearch.test.integration.search.msearch;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -15,24 +19,25 @@ public class SimpleMultiSearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleMultiSearch() {
-        client().admin().indices().prepareDelete().execute().actionGet();
+        createIndex("test");
+        ensureGreen();
         client().prepareIndex("test", "type", "1").setSource("field", "xxx").execute().actionGet();
         client().prepareIndex("test", "type", "2").setSource("field", "yyy").execute().actionGet();
-
-        client().admin().indices().prepareRefresh().execute().actionGet();
-
+        refresh();
         MultiSearchResponse response = client().prepareMultiSearch()
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "xxx")))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "yyy")))
                 .add(client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()))
                 .execute().actionGet();
-
+        
+        for (MultiSearchResponse.Item item : response) {
+           assertNoFailures(item.getResponse());
+        }
         assertThat(response.getResponses().length, equalTo(3));
-        assertThat(response.getResponses()[0].getResponse().getHits().totalHits(), equalTo(1l));
-        assertThat(response.getResponses()[1].getResponse().getHits().totalHits(), equalTo(1l));
-        assertThat(response.getResponses()[2].getResponse().getHits().totalHits(), equalTo(2l));
-
-        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).id(), equalTo("2"));
+        assertHitCount(response.getResponses()[0].getResponse(), 1l);
+        assertHitCount(response.getResponses()[1].getResponse(), 1l);
+        assertHitCount(response.getResponses()[2].getResponse(), 2l);
+        assertFirstHit(response.getResponses()[0].getResponse(), hasId("1"));
+        assertFirstHit(response.getResponses()[1].getResponse(), hasId("2"));
     }
 }

@@ -35,12 +35,17 @@ import org.testng.annotations.Test;
 public class SearchWhileCreatingIndexTests extends AbstractSharedClusterTest {
 
 
+    protected int numberOfNodes() {
+        return 1;
+    }
+
     /**
      * This test basically verifies that search with a single shard active (cause we indexed to it) and other
      * shards possibly not active at all (cause they haven't allocated) will still work.
      */
     @Test
     public void searchWhileCreatingIndex() {
+        cluster().ensureAtMostNumNodes(1); // this test is very fragile with more than one node...
         for (int i = 0; i < 20; i++) {
             run(prepareCreate("test").setSettings(settingsBuilder().put("index.number_of_shards", 10)));
             run(client().prepareIndex("test", "type1", "id:" + i).setSource("field", "test"));

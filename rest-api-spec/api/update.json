@@ -77,6 +77,10 @@
           "type" : "duration",
           "description" : "Expiration time for the document"
         },
+        "version" : {
+          "type" : "number",
+          "description" : "Explicit version number for concurrency control"
+        },
         "version_type": {
           "type" : "number",
           "description" : "Explicit version number for concurrency control"

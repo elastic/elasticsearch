@@ -14,7 +14,7 @@
       "params": {
         "timeout": {
           "type" : "time",
-          "description" : "Explicit timestamp for the document"
+          "description" : "Explicit operation timeout"
         }
       }
     },

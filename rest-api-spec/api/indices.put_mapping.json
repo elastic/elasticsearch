@@ -3,8 +3,8 @@
     "documentation": "http://www.elasticsearch.org/guide/reference/api/admin-indices-put-mapping/",
     "methods": ["PUT", "POST"],
     "url": {
-      "path": "/{index}/_mapping",
-      "paths": ["/{index}/_mapping", "/{index}/{type}/_mapping"],
+      "path": "/{index}/{type}/_mapping",
+      "paths": ["/{index}/{type}/_mapping"],
       "parts": {
         "index": {
           "type" : "list",
@@ -13,6 +13,7 @@
         },
         "type": {
           "type" : "string",
+          "required" : true,
           "description" : "The name of the document type"
         }
       },

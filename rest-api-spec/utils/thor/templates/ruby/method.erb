@@ -47,6 +47,8 @@ module Elasticsearch
       <%= '  '*@namespace_depth %>  end
       <%= '  '*@namespace_depth %>  # Normalize Ruby 1.8 and Ruby 1.9 Hash#select behaviour
       <%= '  '*@namespace_depth %>  params = Hash[params] unless params.is_a?(Hash)
+      <%- else -%>
+      <%= '  '*@namespace_depth %>  params = {}
       <%- end -%>
       <%= '  '*@namespace_depth %>  body   = <%= @spec['body'].nil? ? 'nil' : 'arguments[:body]' %>
 <%# Perform request %>

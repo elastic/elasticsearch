@@ -157,7 +157,12 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     public void close() {
-        cache.remove();
+        // remove reference to the ThreadLocal which causes it not to be GCed
+        // This is because:
+        // Thread holds a hard reference to the QueryParseContext value, that one holds a reference
+        // to this instance which holds a link to the cache(ThreadLocal instance). This a hard reference which comes on top of the usual
+        // WeakReference in Thread.threadLocals. We need to break the last part of this chain.
+        cache = null;
     }
 
     public String defaultField() {

@@ -438,6 +438,25 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(BytesReference doc) throws Exception {
+        XContentType xContentType = XContentFactory.xContentType(doc);
+        XContentParser parser = XContentFactory.xContent(xContentType).createParser(doc);
+        try {
+            XContentParser.Token t = parser.nextToken();
+            if (t != null) {
+                XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
+                docBuilder.copyCurrentStructure(parser);
+                safeDoc().source(docBuilder);
+            }
+        } finally {
+            parser.close();
+        }
+        return this;
+    }
+
     public IndexRequest doc() {
         return this.doc;
     }

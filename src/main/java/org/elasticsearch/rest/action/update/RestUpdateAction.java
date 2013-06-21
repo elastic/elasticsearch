@@ -52,6 +52,7 @@ public class RestUpdateAction extends BaseRestHandler {
     public RestUpdateAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(POST, "/{index}/{type}/{id}/_update", this);
+        controller.registerHandler(PATCH, "/{index}/{type}/{id}", this);
     }
 
     @Override
@@ -94,7 +95,11 @@ public class RestUpdateAction extends BaseRestHandler {
         // see if we have it in the body
         if (request.hasContent()) {
             try {
-                updateRequest.source(request.content());
+                if (request.method() == PATCH) {
+                    updateRequest.doc(request.content());
+                } else {
+                    updateRequest.source(request.content());
+                }
                 IndexRequest upsertRequest = updateRequest.upsertRequest();
                 if (upsertRequest != null) {
                     upsertRequest.routing(request.param("routing"));

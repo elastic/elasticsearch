@@ -342,10 +342,6 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     public static class NumericIpTokenizer extends NumericTokenizer {
 
-        public NumericIpTokenizer(Reader reader, int precisionStep) throws IOException {
-            super(reader, new NumericTokenStream(precisionStep), null);
-        }
-
         public NumericIpTokenizer(Reader reader, int precisionStep, char[] buffer) throws IOException {
             super(reader, new NumericTokenStream(precisionStep), buffer, null);
         }

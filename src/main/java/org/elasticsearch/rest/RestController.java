@@ -44,6 +44,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     private final PathTrie<RestHandler> getHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> putHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
+    private final PathTrie<RestHandler> patchHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> deleteHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> headHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> optionsHandlers = new PathTrie<RestHandler>(RestUtils.REST_DECODER);
@@ -105,6 +106,9 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
                 break;
             case PUT:
                 putHandlers.insert(path, handler);
+                break;
+            case PATCH:
+                patchHandlers.insert(path, handler);
                 break;
             case OPTIONS:
                 optionsHandlers.insert(path, handler);
@@ -177,6 +181,8 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
             return postHandlers.retrieve(path, request.params());
         } else if (method == RestRequest.Method.PUT) {
             return putHandlers.retrieve(path, request.params());
+        } else if (method == RestRequest.Method.PATCH) {
+            return patchHandlers.retrieve(path, request.params());
         } else if (method == RestRequest.Method.DELETE) {
             return deleteHandlers.retrieve(path, request.params());
         } else if (method == RestRequest.Method.HEAD) {

@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PATCH;
 import static org.elasticsearch.rest.RestStatus.CREATED;
 import static org.elasticsearch.rest.RestStatus.OK;
 

@@ -32,7 +32,7 @@ import java.util.Map;
 public interface RestRequest extends ToXContent.Params {
 
     enum Method {
-        GET, POST, PUT, DELETE, OPTIONS, HEAD
+        GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD
     }
 
     Method method();

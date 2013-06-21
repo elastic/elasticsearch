@@ -74,6 +74,9 @@ public class NettyHttpRequest extends AbstractRestRequest implements HttpRequest
         if (httpMethod == HttpMethod.PUT)
             return Method.PUT;
 
+        if (httpMethod == HttpMethod.PATCH)
+            return Method.PATCH;
+
         if (httpMethod == HttpMethod.DELETE)
             return Method.DELETE;
 

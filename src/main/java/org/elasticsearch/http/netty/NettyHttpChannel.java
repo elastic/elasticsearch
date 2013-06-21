@@ -81,7 +81,7 @@ public class NettyHttpChannel implements HttpChannel {
                 if (request.getMethod() == HttpMethod.OPTIONS) {
                     // Allow Ajax requests based on the CORS "preflight" request
                     resp.addHeader("Access-Control-Max-Age", transport.settings().getAsInt("http.cors.max-age", 1728000));
-                    resp.addHeader("Access-Control-Allow-Methods", transport.settings().get("http.cors.allow-methods", "OPTIONS, HEAD, GET, POST, PUT, DELETE"));
+                    resp.addHeader("Access-Control-Allow-Methods", transport.settings().get("http.cors.allow-methods", "OPTIONS, HEAD, GET, POST, PUT, PATCH, DELETE"));
                     resp.addHeader("Access-Control-Allow-Headers", transport.settings().get("http.cors.allow-headers", "X-Requested-With, Content-Type, Content-Length"));
                 }
             }

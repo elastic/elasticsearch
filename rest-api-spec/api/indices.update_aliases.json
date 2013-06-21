@@ -19,7 +19,8 @@
       }
     },
     "body": {
-      "description" : "The definition of `actions` to perform"
+      "description" : "The definition of `actions` to perform",
+      "required" : true
     }
   }
 }

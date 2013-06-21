@@ -29,10 +29,6 @@ import java.io.Reader;
  */
 public class NumericDoubleTokenizer extends NumericTokenizer {
 
-    public NumericDoubleTokenizer(Reader reader, int precisionStep) throws IOException {
-        super(reader, new NumericTokenStream(precisionStep), null);
-    }
-
     public NumericDoubleTokenizer(Reader reader, int precisionStep, char[] buffer) throws IOException {
         super(reader, new NumericTokenStream(precisionStep), buffer, null);
     }

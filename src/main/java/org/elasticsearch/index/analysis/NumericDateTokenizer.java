@@ -30,10 +30,6 @@ import java.io.Reader;
  */
 public class NumericDateTokenizer extends NumericTokenizer {
 
-    public NumericDateTokenizer(Reader reader, int precisionStep, DateTimeFormatter dateTimeFormatter) throws IOException {
-        super(reader, new NumericTokenStream(precisionStep), dateTimeFormatter);
-    }
-
     public NumericDateTokenizer(Reader reader, int precisionStep, char[] buffer, DateTimeFormatter dateTimeFormatter) throws IOException {
         super(reader, new NumericTokenStream(precisionStep), buffer, dateTimeFormatter);
     }

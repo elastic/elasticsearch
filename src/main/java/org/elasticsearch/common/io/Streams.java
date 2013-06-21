@@ -19,14 +19,12 @@
 
 package org.elasticsearch.common.io;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.CachedStreamOutput;
 
-import com.google.common.base.Charsets;
-
 import java.io.*;
-import java.nio.charset.Charset;
 
 /**
  * Simple utility methods for file and stream copying.
@@ -272,5 +270,37 @@ public abstract class Streams {
             throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
         }
         return copyToByteArray(is);
+    }
+
+    public static int readFully(Reader reader, char[] dest) throws IOException {
+        return readFully(reader, dest, 0, dest.length);
+    }
+
+    public static int readFully(Reader reader, char[] dest, int offset, int len) throws IOException {
+        int read = 0;
+        while (read < len) {
+            final int r = reader.read(dest, offset + read, len - read);
+            if (r == -1) {
+                break;
+            }
+            read += r;
+        }
+        return read;
+    }
+
+    public static int readFully(InputStream reader, byte[] dest) throws IOException {
+        return readFully(reader, dest, 0, dest.length);
+    }
+
+    public static int readFully(InputStream reader, byte[] dest, int offset, int len) throws IOException {
+        int read = 0;
+        while (read < len) {
+            final int r = reader.read(dest, offset + read, len - read);
+            if (r == -1) {
+                break;
+            }
+            read += r;
+        }
+        return read;
     }
 }

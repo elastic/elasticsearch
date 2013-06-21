@@ -1431,4 +1431,70 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
         assertThat(response.getHits().hits()[0].highlightFields().isEmpty(), equalTo(true));
     }
 
+    @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/3211
+    public void testNumericHighlighting() throws Exception {
+        wipeIndex("test");
+        prepareCreate("test")
+        .addMapping("test", jsonBuilder()
+                .startObject()
+                    .startObject("test")
+                        .startObject("properties")
+                            .startObject("text")
+                                .field("type", "string")
+                                .field("index", "analyzed")
+                            .endObject()
+                            .startObject("byte")
+                                .field("type", "byte")
+                            .endObject()
+                            .startObject("short")
+                                .field("type", "short")
+                            .endObject()
+                            .startObject("int")
+                                .field("type", "integer")
+                            .endObject()
+                            .startObject("long")
+                                .field("type", "long")
+                            .endObject()
+                            .startObject("float")
+                                .field("type", "float")
+                            .endObject()
+                            .startObject("double")
+                                .field("type", "double")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject())
+        .execute().actionGet();
+
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1")
+        .setSource(jsonBuilder().startObject()
+            .field("text", "elasticsearch test")
+            .field("byte", 25)
+            .field("short", 42)
+            .field("int", 100)
+            .field("long", -1)
+            .field("float", 3.2f)
+            .field("double", 42.42)
+        .endObject())
+        .setRefresh(true).execute().actionGet();
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("text", "test").type(MatchQueryBuilder.Type.BOOLEAN))
+                .addHighlightedField("text")
+                .addHighlightedField("byte")
+                .addHighlightedField("short")
+                .addHighlightedField("int")
+                .addHighlightedField("long")
+                .addHighlightedField("float")
+                .addHighlightedField("double")
+                .execute().actionGet();
+        assertThat(response.getHits().totalHits(), equalTo(1L));
+        // Highlighting of numeric fields is not supported, but it should not raise errors
+        // (this behavior is consistent with version 0.20)
+        assertThat(response.getFailedShards(), equalTo(0));
+    }
+
 }

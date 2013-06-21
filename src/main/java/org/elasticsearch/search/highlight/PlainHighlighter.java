@@ -23,6 +23,8 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.util.CollectionUtil;
@@ -126,6 +128,10 @@ public class PlainHighlighter implements Highlighter {
                 Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
                 TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), new FastStringReader(text));
                 tokenStream.reset();
+                if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
+                    // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
+                    continue;
+                }
                 TextFragment[] bestTextFragments = entry.getBestTextFragments(tokenStream, text, false, numberOfFragments);
                 for (TextFragment bestTextFragment : bestTextFragments) {
                     if (bestTextFragment != null && bestTextFragment.getScore() > 0) {

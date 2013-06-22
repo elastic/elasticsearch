@@ -1,0 +1,52 @@
+---
+"Analyze API setup":
+    - do:
+        indices.create:
+          index: test
+          body:
+              mappings:
+                test:
+                  properties:
+                    text:
+                      type:     string
+                      analyzer: whitespace
+
+---
+"Analyze API text format":
+    - do:
+        indices.analyze:
+          format: text
+          text: tHE BLACK and white! AND red
+    - is:
+        tokens: "[black:4->9:<ALPHANUM>]\n\n4: \n[white:14->19:<ALPHANUM>]\n\n6: \n[red:25->28:<ALPHANUM>]\n"
+
+---
+"Analyze API JSON format":
+    - do:
+        indices.analyze:
+          text: Foo Bar
+    - length: { tokens: 2 }
+    - is:     { tokens.0.token: foo }
+    - is:     { tokens.1.token: bar }
+
+---
+"Analyze API JSON format - tokenizer and filter":
+    - do:
+        indices.analyze:
+          filters:      lowercase
+          text:         Foo Bar
+          tokenizer:    keyword
+    - length: { tokens: 1 }
+    - is:     { tokens.0.token: foo bar }
+
+---
+"Analyze API JSON format - index and field":
+    - do:
+        indices.analyze:
+          field: text
+          index: test
+          text: Foo Bar!
+    - length: { tokens: 2 }
+    - is:     { tokens.0.token: Foo }
+    - is:     { tokens.1.token: Bar! }
+

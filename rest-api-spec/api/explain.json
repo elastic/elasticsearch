@@ -76,7 +76,6 @@
       }
     },
     "body": {
-      "required" : true,
       "description" : "The query definition using the Query DSL"
     }
   }

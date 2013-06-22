@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -57,7 +56,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
     public int numberOfNodes() {
         return 4;
     }
-    
+
     @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {
         run(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)));
@@ -933,6 +932,12 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getHits()[0].getId(), anyOf(equalTo("2"), equalTo("4")));
         assertThat(searchResponse.getHits().getHits()[1].getId(), anyOf(equalTo("2"), equalTo("4")));
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("not_exists").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))
+                ).execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0l));
     }
 
     @Test

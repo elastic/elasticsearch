@@ -155,8 +155,14 @@ public class TermsFilterParser implements FilterParser {
                 previousTypes = QueryParseContext.setTypesWithPrevious(new String[]{smartNameFieldMappers.docMapper().type()});
             }
         }
-        
+
         if (lookupId != null) {
+            // if there are no mappings, then nothing has been indexing yet against this shard, so we can return
+            // no match (but not cached!), since the Terms Lookup relies on the fact that there are mappings...
+            if (fieldMapper == null) {
+                return Queries.MATCH_NO_FILTER;
+            }
+
             // external lookup, use it
             TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupPath, parseContext);
             if (cacheKey == null) {

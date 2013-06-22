@@ -17,10 +17,24 @@
         }
       },
       "params": {
+        "analyzer": {
+          "type" : "string",
+          "description" : "The analyzer to use for the query string"
+        },
         "consistency": {
           "type" : "enum",
           "options" : ["one", "quorum", "all"],
           "description" : "Specific write consistency setting for the operation"
+        },
+        "default_operator": {
+          "type" : "enum",
+          "options" : ["AND","OR"],
+          "default" : "OR",
+          "description" : "The default operator for query string query (AND or OR)"
+        },
+        "df": {
+          "type" : "string",
+          "description" : "The field to use as default where no field prefix is given in the query string"
         },
         "ignore_indices": {
           "type" : "enum",
@@ -33,6 +47,10 @@
           "options" : ["sync","async"],
           "default" : "sync",
           "description" : "Specific replication type"
+        },
+        "q": {
+          "type" : "string",
+          "description" : "Query in the Lucene query string syntax"
         },
         "routing": {
           "type" : "string",

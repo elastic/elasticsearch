@@ -9,7 +9,7 @@
         "index": {
           "type" : "list",
           "required": true,
-          "description" : "A comma-separated list of indices to restrict the operation"
+          "description" : "A comma-separated list of indices to restrict the operation; use `_all` to perform the operation on all indices"
         },
         "type": {
           "type" : "list",

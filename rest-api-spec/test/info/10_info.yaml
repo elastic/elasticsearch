@@ -1,0 +1,13 @@
+---
+"Info":
+    - do:    {info: {}}
+    - match: { status: 200 }
+    - ok:    ok
+    - ok:    name
+    - ok:    tagline
+    - ok:    version
+    - ok:    version.lucene_version
+    - ok:    version.number
+    - ok:    version.snapshot_build
+
+

@@ -417,6 +417,7 @@ public class AnalysisModule extends AbstractModule {
         @Override
         public void processCharFilters(CharFiltersBindings charFiltersBindings) {
             charFiltersBindings.processCharFilter("html_strip", HtmlStripCharFilterFactory.class);
+            charFiltersBindings.processCharFilter("pattern_replace", PatternReplaceCharFilterFactory.class);
         }
 
         @Override

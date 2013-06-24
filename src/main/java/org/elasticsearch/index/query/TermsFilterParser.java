@@ -76,6 +76,7 @@ public class TermsFilterParser implements FilterParser {
         String lookupType = null;
         String lookupId = null;
         String lookupPath = null;
+        String lookupRouting = null;
 
         CacheKeyFilter.Key cacheKey = null;
         XContentParser.Token token;
@@ -108,7 +109,9 @@ public class TermsFilterParser implements FilterParser {
                         } else if ("id".equals(currentFieldName)) {
                             lookupId = parser.text();
                         } else if ("path".equals(currentFieldName)) {
-                            lookupPath = parser.text();
+                          lookupPath = parser.text();
+                        } else if ("routing".equals(currentFieldName)) {
+                          lookupRouting = parser.text();
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "] within lookup element");
                         }
@@ -122,6 +125,9 @@ public class TermsFilterParser implements FilterParser {
                 }
                 if (lookupPath == null) {
                     throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the path");
+                }
+                if (lookupRouting == null) {
+                    lookupRouting = lookupId;
                 }
             } else if (token.isValue()) {
                 if ("execution".equals(currentFieldName)) {
@@ -164,7 +170,7 @@ public class TermsFilterParser implements FilterParser {
             }
 
             // external lookup, use it
-            TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupPath, parseContext);
+            TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupPath, lookupRouting, parseContext);
             if (cacheKey == null) {
                 cacheKey = new CacheKeyFilter.Key(termsLookup.toString());
             }

@@ -19,27 +19,15 @@
 
 package org.elasticsearch.test.integration.search.geo;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.geoBoundingBoxFilter;
-import static org.elasticsearch.index.query.FilterBuilders.geoDistanceFilter;
-import static org.elasticsearch.index.query.QueryBuilders.fieldQuery;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-
-import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Arrays;
-import java.util.Random;
-import java.util.zip.GZIPInputStream;
-
+import com.spatial4j.core.context.SpatialContext;
+import com.spatial4j.core.distance.DistanceUtils;
+import com.spatial4j.core.exception.InvalidShapeException;
+import com.spatial4j.core.shape.Shape;
+import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
+import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
+import org.apache.lucene.spatial.query.SpatialArgs;
+import org.apache.lucene.spatial.query.SpatialOperation;
+import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -58,20 +46,24 @@ import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
-
-import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
-import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
-import org.apache.lucene.spatial.query.SpatialArgs;
-import org.apache.lucene.spatial.query.SpatialOperation;
-import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
-
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import com.spatial4j.core.context.SpatialContext;
-import com.spatial4j.core.distance.DistanceUtils;
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Shape;
+import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.List;
+import java.util.Random;
+import java.util.zip.GZIPInputStream;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.geoBoundingBoxFilter;
+import static org.elasticsearch.index.query.FilterBuilders.geoDistanceFilter;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -113,59 +105,63 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         try {
             // self intersection polygon
             ShapeBuilder.newPolygon()
-                .point(-10, -10)
-                .point(10, 10)
-                .point(-10, 10)
-                .point(10, -10)
-                .close().build();
+                    .point(-10, -10)
+                    .point(10, 10)
+                    .point(-10, 10)
+                    .point(10, -10)
+                    .close().build();
             assert false : "Self intersection not detected";
-        } catch (InvalidShapeException e) {}
+        } catch (InvalidShapeException e) {
+        }
 
         // polygon with hole
         ShapeBuilder.newPolygon()
-            .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-            .hole()
+                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                .hole()
                 .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-            .close().close().build();
+                .close().close().build();
 
         try {
             // polygon with overlapping hole
             ShapeBuilder.newPolygon()
-                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                .hole()
+                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                    .hole()
                     .point(-5, -5).point(-5, 11).point(5, 11).point(5, -5)
-                .close().close().build();
+                    .close().close().build();
 
             assert false : "Self intersection not detected";
-        } catch (InvalidShapeException e) {}
+        } catch (InvalidShapeException e) {
+        }
 
         try {
             // polygon with intersection holes
             ShapeBuilder.newPolygon()
-                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-                .hole()
+                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                    .hole()
                     .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-                .close()
-                .hole()
+                    .close()
+                    .hole()
                     .point(-5, -6).point(5, -6).point(5, -4).point(-5, -4)
-                .close()
-            .close().build();
+                    .close()
+                    .close().build();
             assert false : "Intersection of holes not detected";
-        } catch (InvalidShapeException e) {}
+        } catch (InvalidShapeException e) {
+        }
 
         try {
             // Common line in polygon
             ShapeBuilder.newPolygon()
-                .point(-10, -10)
-                .point(-10, 10)
-                .point(-5, 10)
-                .point(-5, -5)
-                .point(-5, 20)
-                .point(10, 20)
-                .point(10, -10)
-                .close().build();
+                    .point(-10, -10)
+                    .point(-10, 10)
+                    .point(-5, 10)
+                    .point(-5, -5)
+                    .point(-5, 20)
+                    .point(10, 20)
+                    .point(10, -10)
+                    .close().build();
             assert false : "Self intersection not detected";
-        } catch (InvalidShapeException e) {}
+        } catch (InvalidShapeException e) {
+        }
 
 // Not specified
 //        try {
@@ -185,16 +181,16 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
 
         // Multipolygon: polygon with hole and polygon within the whole
         ShapeBuilder.newMultiPolygon()
-            .polygon()
+                .polygon()
                 .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
                 .hole()
-                    .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
+                .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
                 .close()
-            .close()
-            .polygon()
+                .close()
+                .polygon()
                 .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4)
-            .close()
-            .build();
+                .close()
+                .build();
 
 // Not supported
 //        try {
@@ -218,22 +214,22 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
     @Test
     public void testShapeRelations() throws Exception {
 
-        assert intersectSupport: "Intersect relation is not supported";
-        assert disjointSupport: "Disjoint relation is not supported";
-        assert withinSupport: "within relation is not supported";
+        assert intersectSupport : "Intersect relation is not supported";
+        assert disjointSupport : "Disjoint relation is not supported";
+        assert withinSupport : "within relation is not supported";
 
 
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("polygon")
-                        .startObject("properties")
-                            .startObject("area")
-                                .field("type", "geo_shape")
-                                .field("tree", "geohash")
-                                .field("store", true)
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("polygon")
+                .startObject("properties")
+                .startObject("area")
+                .field("type", "geo_shape")
+                .field("tree", "geohash")
+                .field("store", true)
+                .endObject()
+                .endObject()
+                .endObject()
                 .endObject().string();
 
         CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("shapes").addMapping("polygon", mapping);
@@ -244,15 +240,15 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         // with a hole of size 5x5 equidistant from all sides. This hole in turn contains
         // the second polygon of size 4x4 equidistant from all sites
         MultiPolygonBuilder polygon = ShapeBuilder.newMultiPolygon()
-        .polygon()
-            .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-            .hole()
+                .polygon()
+                .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
+                .hole()
                 .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-            .close()
-        .close()
-        .polygon()
-            .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4)
-        .close();
+                .close()
+                .close()
+                .polygon()
+                .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4)
+                .close();
 
         BytesReference data = polygon.toXContent("area", jsonBuilder().startObject()).endObject().bytes();
         client().prepareIndex("shapes", "polygon", "1").setSource(data).execute().actionGet();
@@ -293,7 +289,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         assertHitCount(result, 1);
         assertFirstHit(result, hasId("1"));
 
-        if(disjointSupport) {
+        if (disjointSupport) {
             // Point not in polygon
             result = client().prepareSearch()
                     .setQuery(matchAllQuery())
@@ -312,11 +308,11 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
 
         // Create a polygon that fills the empty area of the polygon defined above
         PolygonBuilder inverse = ShapeBuilder.newPolygon()
-            .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-            .hole()
+                .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
+                .hole()
                 .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4)
-            .close()
-        .close();
+                .close()
+                .close();
 
         data = inverse.toXContent("area", jsonBuilder().startObject()).endObject().bytes();
         client().prepareIndex("shapes", "polygon", "2").setSource(data).execute().actionGet();
@@ -334,11 +330,11 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         PolygonBuilder builder = ShapeBuilder.newPolygon()
                 .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
                 .hole()
-                    .point(-5, -5).point(-5, 5).point(10, 5).point(10, -5)
+                .point(-5, -5).point(-5, 5).point(10, 5).point(10, -5)
                 .close()
                 .close();
 
-        if(withinSupport) {
+        if (withinSupport) {
             // Polygon WithIn Polygon
             builder = ShapeBuilder.newPolygon()
                     .point(-30, -30).point(-30, 30).point(30, 30).point(30, -30).close();
@@ -358,7 +354,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
  *       first polygon. This approach can also applied to the holes because the
  *       commonline of hole and polygon will not be recognized as intersection.
  */
-        
+
 //        // Create a polygon crossing longitude 180.
 //        builder = ShapeBuilder.newPolygon()
 //            .point(170, -10).point(180, 10).point(170, -10).point(10, -10)
@@ -374,32 +370,32 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
         byte[] bulkAction = unZipData("/org/elasticsearch/test/integration/search/geo/gzippedmap.json");
 
         String mapping = XContentFactory.jsonBuilder()
-            .startObject()
+                .startObject()
                 .startObject("country")
-                    .startObject("properties")
-                        .startObject("pin")
-                            .field("type", "geo_point")
-                            .field("lat_lon", true)
-                            .field("store", true)
-                        .endObject()
-                        .startObject("location")
-                            .field("type", "geo_shape")
-                            .field("lat_lon", true)
-                            .field("store", true)
-                        .endObject()
-                    .endObject()
+                .startObject("properties")
+                .startObject("pin")
+                .field("type", "geo_point")
+                .field("lat_lon", true)
+                .field("store", true)
                 .endObject()
-            .endObject()
-        .string();
+                .startObject("location")
+                .field("type", "geo_shape")
+                .field("lat_lon", true)
+                .field("store", true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .string();
 
         client().admin().indices().prepareCreate("countries").addMapping("country", mapping).execute().actionGet();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, false, null, null).execute().actionGet();
 
-        for(BulkItemResponse item : bulk.getItems()) {
-            assert !item.isFailed(): "unable to index data";
+        for (BulkItemResponse item : bulk.getItems()) {
+            assert !item.isFailed() : "unable to index data";
         }
 
-        client().admin().indices().prepareRefresh().execute().actionGet();        
+        client().admin().indices().prepareRefresh().execute().actionGet();
         String key = "DE";
 
         SearchResponse searchResponse = client().prepareSearch()
@@ -416,8 +412,8 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
                 filteredQuery(
                         matchAllQuery(),
                         geoBoundingBoxFilter("pin")
-                            .topLeft(90, -179.99999)
-                            .bottomRight(-90, 179.99999))
+                                .topLeft(90, -179.99999)
+                                .bottomRight(-90, 179.99999))
         ).execute().actionGet();
 
         assertHitCount(world, 246);
@@ -437,7 +433,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
 
             assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
             assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
-            if(key.equals(name)) {
+            if (key.equals(name)) {
                 assertThat(dist, equalTo(0d));
             }
         }
@@ -446,80 +442,78 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
     @Test
     public void testGeoHashFilter() throws IOException {
         String geohash = randomhash(12);
-        String[] neighbors = GeoHashUtils.neighbors(geohash);
+        List<String> neighbors = GeoHashUtils.neighbors(geohash);
 
         logger.info("Testing geohash boundingbox filter for [{}]", geohash);
-        logger.info("Neighbors {}", Arrays.toString(neighbors));
+        logger.info("Neighbors {}", neighbors);
 
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject("location")
-                        .startObject("properties")
-                            .startObject("pin")
-                                .field("type", "geo_point")
-                                .field("geohash", true)
-                                .field("geohash_prefix", true)
-                                .field("latlon", false)
-                                .field("store", true)
-                            .endObject()
-                        .endObject()
-                    .endObject()
+                .startObject("location")
+                .startObject("properties")
+                .startObject("pin")
+                .field("type", "geo_point")
+                .field("geohash_prefix", true)
+                .field("latlon", false)
                 .endObject()
-            .string();
+                .endObject()
+                .endObject()
+                .endObject()
+                .string();
 
         ensureYellow();
 
         client().admin().indices().prepareCreate("locations").addMapping("location", mapping).execute().actionGet();
 
         // Index a pin
-        client().prepareIndex("locations", "location", "1").setCreate(true).setSource("{\"pin\":\""+geohash+"\"}").execute().actionGet();
+        client().prepareIndex("locations", "location", "1").setCreate(true).setSource("{\"pin\":\"" + geohash + "\"}").execute().actionGet();
 
         // index neighbors
-        for (int i = 0; i < neighbors.length; i++) {
-            client().prepareIndex("locations", "location", "N"+i).setCreate(true).setSource("{\"pin\":\""+neighbors[i]+"\"}").execute().actionGet();
+        for (int i = 0; i < neighbors.size(); i++) {
+            client().prepareIndex("locations", "location", "N" + i).setCreate(true).setSource("{\"pin\":\"" + neighbors.get(i) + "\"}").execute().actionGet();
         }
 
         // Index parent cell
-        client().prepareIndex("locations", "location", "p").setCreate(true).setSource("{\"pin\":\""+geohash.substring(0, geohash.length()-1)+"\"}").execute().actionGet();
+        client().prepareIndex("locations", "location", "p").setCreate(true).setSource("{\"pin\":\"" + geohash.substring(0, geohash.length() - 1) + "\"}").execute().actionGet();
 
         // index neighbors
-        String[] parentNeighbors = GeoHashUtils.neighbors(geohash.substring(0, geohash.length()-1));
-        for (int i = 0; i < parentNeighbors.length; i++) {
-            client().prepareIndex("locations", "location", "p"+i).setCreate(true).setSource("{\"pin\":\""+parentNeighbors[i]+"\"}").execute().actionGet();
+        List<String> parentNeighbors = GeoHashUtils.neighbors(geohash.substring(0, geohash.length() - 1));
+        for (int i = 0; i < parentNeighbors.size(); i++) {
+            client().prepareIndex("locations", "location", "p" + i).setCreate(true).setSource("{\"pin\":\"" + parentNeighbors.get(i) + "\"}").execute().actionGet();
         }
 
         client().admin().indices().prepareRefresh("locations").execute().actionGet();
 
         // Result of this geohash search should contain the geohash only 
-        SearchResponse results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter("{\"geohash_cell\": {\"field\": \"pin\", \"geohash\": \""+geohash+"\", \"neighbors\": false}}").execute().actionGet();
+        SearchResponse results1 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter("{\"geohash_cell\": {\"field\": \"pin\", \"geohash\": \"" + geohash + "\", \"neighbors\": false}}").execute().actionGet();
         assertHitCount(results1, 1);
 
-        SearchResponse results2 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter("{\"geohash_cell\": {\"field\": \"pin\", \"geohash\": \""+geohash.substring(0, geohash.length()-1)+"\", \"neighbors\": true}}").execute().actionGet();
+        SearchResponse results2 = client().prepareSearch("locations").setQuery(QueryBuilders.matchAllQuery()).setFilter("{\"geohash_cell\": {\"field\": \"pin\", \"geohash\": \"" + geohash.substring(0, geohash.length() - 1) + "\", \"neighbors\": true}}").execute().actionGet();
         // Result of the parent query should contain the parent it self, its neighbors, the child and all its neighbors
-        assertHitCount(results2, 2 + neighbors.length + parentNeighbors.length);
+        assertHitCount(results2, 2 + neighbors.size() + parentNeighbors.size());
     }
 
     @Test
     public void testNeighbors() {
         // Simple root case
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("7")), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
+        assertThat(GeoHashUtils.neighbors("7"), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
 
         // Root cases (Outer cells)
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("0")), containsInAnyOrder("1", "2", "3", "p", "r"));
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("b")), containsInAnyOrder("8", "9", "c", "x", "z"));
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("p")), containsInAnyOrder("n", "q", "r", "0", "2"));
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("z")), containsInAnyOrder("8", "b", "w", "x", "y"));
+        assertThat(GeoHashUtils.neighbors("0"), containsInAnyOrder("1", "2", "3", "p", "r"));
+        assertThat(GeoHashUtils.neighbors("b"), containsInAnyOrder("8", "9", "c", "x", "z"));
+        assertThat(GeoHashUtils.neighbors("p"), containsInAnyOrder("n", "q", "r", "0", "2"));
+        assertThat(GeoHashUtils.neighbors("z"), containsInAnyOrder("8", "b", "w", "x", "y"));
 
         // Root crossing dateline
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("2")), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("r")), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
+        assertThat(GeoHashUtils.neighbors("2"), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
+        assertThat(GeoHashUtils.neighbors("r"), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
 
         // level1: simple case
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("dk")), containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
+        assertThat(GeoHashUtils.neighbors("dk"), containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
 
         // Level1: crossing cells
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("d5")), containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
-        assertThat(Arrays.asList(GeoHashUtils.neighbors("d0")), containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
+        assertThat(GeoHashUtils.neighbors("d5"), containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
+        assertThat(GeoHashUtils.neighbors("d0"), containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
     }
 
     public static double distance(double lat1, double lon1, double lat2, double lon2) {
@@ -528,7 +522,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
                 DistanceUtils.toRadians(lon1),
                 DistanceUtils.toRadians(lat2),
                 DistanceUtils.toRadians(lon2)
-                );
+        );
     }
 
     protected static boolean testRelationSupport(SpatialOperation relation) {
@@ -543,7 +537,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
             return false;
         }
     }
-    
+
     protected static String randomhash(int length) {
         return randomhash(new Random(), length);
     }
@@ -551,23 +545,23 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
     protected static String randomhash(Random random) {
         return randomhash(random, 2 + random.nextInt(10));
     }
-    
+
     protected static String randomhash() {
         return randomhash(new Random());
     }
-    
+
     protected static String randomhash(Random random, int length) {
         final char[] BASE_32 = {
-            '0', '1', '2', '3', '4', '5', '6', '7',
-            '8', '9', 'b', 'c', 'd', 'e', 'f', 'g',
-            'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r',
-            's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
-        
+                '0', '1', '2', '3', '4', '5', '6', '7',
+                '8', '9', 'b', 'c', 'd', 'e', 'f', 'g',
+                'h', 'j', 'k', 'm', 'n', 'p', 'q', 'r',
+                's', 't', 'u', 'v', 'w', 'x', 'y', 'z'};
+
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < length; i++) {
             sb.append(BASE_32[random.nextInt(BASE_32.length)]);
         }
-        
+
         return sb.toString();
     }
 }

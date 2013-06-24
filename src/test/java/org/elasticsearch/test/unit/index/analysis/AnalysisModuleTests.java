@@ -136,6 +136,14 @@ public class AnalysisModuleTests {
         analyzer = analysisService.analyzer("alias1").analyzer();
         assertThat(analyzer, instanceOf(StandardAnalyzer.class));
 
+        // check custom pattern replace filter
+        analyzer = analysisService.analyzer("custom3").analyzer();
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer custom3 = (CustomAnalyzer) analyzer;
+        PatternReplaceCharFilterFactory patternReplaceCharFilterFactory = (PatternReplaceCharFilterFactory) custom3.charFilters()[0];
+        assertThat(patternReplaceCharFilterFactory.getPattern().pattern(), equalTo("sample(.*)"));
+        assertThat(patternReplaceCharFilterFactory.getReplacement(), equalTo("replacedSample $1"));
+
         // check custom class name (my)
         analyzer = analysisService.analyzer("custom4").analyzer();
         assertThat(analyzer, instanceOf(CustomAnalyzer.class));

@@ -19,8 +19,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.Filter;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.inject.Inject;
@@ -32,11 +35,8 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
-import org.apache.lucene.queries.BooleanFilter;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.BooleanClause.Occur;
-
 import java.io.IOException;
+import java.util.List;
 
 /**
  * A gehash filter filters {@link GeoPoint}s by their geohashes. Basically the a
@@ -51,7 +51,7 @@ import java.io.IOException;
  *     &quot;geohash&quot;:&quot;u33d8u5dkx8k&quot;,
  *     &quot;neighbors&quot;:false
  * }
- * </pre> 
+ * </pre>
  */
 public class GeohashFilter {
 
@@ -62,38 +62,32 @@ public class GeohashFilter {
 
     /**
      * Create a new geohash filter for a given set of geohashes. In general this method
-     * returns a boolean filter combining the geohashes OR-wise. 
-     *  
-     * @param context Context of the filter
+     * returns a boolean filter combining the geohashes OR-wise.
+     *
+     * @param context     Context of the filter
      * @param fieldMapper field mapper for geopoints
-     * @param geohash mandatory geohash
-     * @param geohashes optional array of additional geohashes
-     * 
+     * @param geohash     mandatory geohash
+     * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Filter create(QueryParseContext context, GeoPointFieldMapper fieldMapper, String geohash, String...geohashes) {
-        if(fieldMapper.geoHashStringMapper() == null) {
-            throw new ElasticSearchIllegalArgumentException("geohash filter needs geohashes to be enabled");
+    public static Filter create(QueryParseContext context, GeoPointFieldMapper fieldMapper, String geohash, @Nullable List<String> geohashes) {
+        if (fieldMapper.geoHashStringMapper() == null) {
+            throw new ElasticSearchIllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
         }
 
-        StringFieldMapper stringMapper = fieldMapper.geoHashStringMapper();
-        if(geohashes == null || geohashes.length == 0) {
-            return stringMapper.termFilter(geohash, context);
+        StringFieldMapper geoHashMapper = fieldMapper.geoHashStringMapper();
+        if (geohashes == null || geohashes.size() == 0) {
+            return geoHashMapper.termFilter(geohash, context);
         } else {
-            BooleanFilter booleanFilter = new BooleanFilter();
-            booleanFilter.add(stringMapper.termFilter(geohash, context), Occur.SHOULD);
-
-            for (int i = 0; i < geohashes.length; i++) {
-                booleanFilter.add(stringMapper.termFilter(geohashes[i], context), Occur.SHOULD);
-            }
-            return booleanFilter;
+            geohashes.add(geohash);
+            return geoHashMapper.termsFilter(geohashes, context);
         }
     }
 
     /**
      * Builder for a geohashfilter. It needs the fields <code>fieldname</code> and
      * <code>geohash</code> to be set. the default for a neighbor filteing is
-     * <code>false</code>. 
+     * <code>false</code>.
      */
     public static class Builder extends BaseFilterBuilder {
 
@@ -136,7 +130,7 @@ public class GeohashFilter {
             builder.startObject(NAME);
             builder.field(FIELDNAME, fieldname);
             builder.field(GEOHASH, geohash);
-            if(neighbors) {
+            if (neighbors) {
                 builder.field(NEIGHBORS, neighbors);
             }
             builder.endObject();
@@ -151,7 +145,7 @@ public class GeohashFilter {
 
         @Override
         public String[] names() {
-            return new String[]{NAME};
+            return new String[]{NAME, Strings.toCamelCase(NAME)};
         }
 
         @Override
@@ -163,15 +157,15 @@ public class GeohashFilter {
             boolean neighbors = false;
 
             XContentParser.Token token;
-            if((token = parser.currentToken()) != Token.START_OBJECT) {
+            if ((token = parser.currentToken()) != Token.START_OBJECT) {
                 throw new ElasticSearchParseException(NAME + " must be an object");
             }
 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if(token == Token.FIELD_NAME) {
+                if (token == Token.FIELD_NAME) {
                     String field = parser.text();
 
-                    if(FIELDNAME.equals(field)) {
+                    if (FIELDNAME.equals(field)) {
                         parser.nextToken();
                         fieldName = parser.text();
                     } else if (GEOHASH.equals(field)) {
@@ -181,10 +175,10 @@ public class GeohashFilter {
                         parser.nextToken();
                         neighbors = parser.booleanValue();
                     } else {
-                        throw new ElasticSearchParseException("unexpected field ["+field+"]");
+                        throw new ElasticSearchParseException("unexpected field [" + field + "]");
                     }
                 } else {
-                    throw new ElasticSearchParseException("unexpected token ["+token+"]");
+                    throw new ElasticSearchParseException("unexpected token [" + token + "]");
                 }
             }
 
@@ -200,10 +194,10 @@ public class GeohashFilter {
 
             GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
 
-            if(neighbors) {
+            if (neighbors) {
                 return create(parseContext, geoMapper, geohash, GeoHashUtils.neighbors(geohash));
             } else {
-                return create(parseContext, geoMapper, geohash);
+                return create(parseContext, geoMapper, geohash, null);
             }
         }
     }

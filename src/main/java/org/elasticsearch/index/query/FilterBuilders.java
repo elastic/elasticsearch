@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.ShapeRelation;
 
 /**
@@ -370,6 +371,18 @@ public abstract class FilterBuilders {
      */
     public static GeohashFilter.Builder geoHashFilter(String fieldname, String geohash) {
         return new GeohashFilter.Builder(fieldname, geohash);
+    }
+
+    /**
+     * A filter based on a bounding box defined by geohash. The field this filter is applied to
+     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
+     * to work.
+     *
+     * @param fieldname The geopoint field name.
+     * @param point a geopoint within the geohash bucket
+     */
+    public static GeohashFilter.Builder geoHashFilter(String fieldname, GeoPoint point) {
+        return new GeohashFilter.Builder(fieldname, point);
     }
 
     /**

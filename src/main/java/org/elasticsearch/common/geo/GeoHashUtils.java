@@ -170,7 +170,12 @@ public class GeoHashUtils {
             if (nx >= 0 && nx <= xLimit && ny >= 0 && ny < yLimit) {
                 return geohash.substring(0, level - 1) + encode(nx, ny);
             } else {
-                return neighbor(geohash, level - 1, dx, dy) + encode(nx, ny);
+                String neighbor = neighbor(geohash, level - 1, dx, dy);
+                if(neighbor != null) {
+                    return neighbor + encode(nx, ny); 
+                } else {
+                    return null;
+                }
             }
         }
     }

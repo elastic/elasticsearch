@@ -22,10 +22,12 @@ package org.elasticsearch.test.unit.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.util.Version;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.Streams;
@@ -78,12 +80,18 @@ public class AnalysisModuleTests {
     }
     
     @Test
-    public void testDefaultFactory() {
+    public void testDefaultFactoryTokenFilters() {
+        assertTokenFilter("keyword_repeat", KeywordRepeatFilter.class);
+        assertTokenFilter("persian_normalization", PersianNormalizationFilter.class);
+        assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
+    }
+
+    private void assertTokenFilter(String name, Class clazz) {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(ImmutableSettings.settingsBuilder().build());
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("keyword_repeat");
-        Tokenizer tokenizer = new WhitespaceTokenizer(Version.LUCENE_36, new StringReader("foo bar"));
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter(name);
+        Tokenizer tokenizer = new WhitespaceTokenizer(Version.CURRENT.luceneVersion, new StringReader("foo bar"));
         TokenStream stream = tokenFilter.create(tokenizer);
-        assertThat(stream, instanceOf(KeywordRepeatFilter.class));
+        assertThat(stream, instanceOf(clazz));
     }
 
     private void testSimpleConfiguration(Settings settings) {

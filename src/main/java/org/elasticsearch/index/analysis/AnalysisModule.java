@@ -499,6 +499,9 @@ public class AnalysisModule extends AbstractModule {
             tokenFiltersBindings.processTokenFilter("keyword_marker", KeywordMarkerTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("stemmer_override", StemmerOverrideTokenFilterFactory.class);
 
+            tokenFiltersBindings.processTokenFilter("arabic_normalization", ArabicNormalizationFilterFactory.class);
+            tokenFiltersBindings.processTokenFilter("persian_normalization", PersianNormalizationFilterFactory.class);
+
             tokenFiltersBindings.processTokenFilter("hunspell", HunspellTokenFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("cjk_bigram", CJKBigramFilterFactory.class);
             tokenFiltersBindings.processTokenFilter("cjk_width", CJKWidthFilterFactory.class);

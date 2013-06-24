@@ -169,7 +169,10 @@ public class TermsFilterParser implements FilterParser {
                 cacheKey = new CacheKeyFilter.Key(termsLookup.toString());
             }
             Filter filter = termsFilterCache.lookupTermsFilter(cacheKey, termsLookup);
-            filter = parseContext.cacheFilter(filter, null); // cacheKey is passed as null, so we don't double cache the key
+            // cache the whole filter by default, or if explicitly told to
+            if (cache == null || cache) {
+                filter = parseContext.cacheFilter(filter, null); // cacheKey is passed as null, so we don't double cache the key
+            }
             return filter;
         }
 

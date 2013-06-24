@@ -28,6 +28,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -227,7 +228,7 @@ public class DocumentMapper implements ToXContent {
     }
 
 
-    private ThreadLocal<ParseContext> cache = new ThreadLocal<ParseContext>() {
+    private CloseableThreadLocal<ParseContext> cache = new CloseableThreadLocal<ParseContext>() {
         @Override
         protected ParseContext initialValue() {
             return new ParseContext(index, indexSettings, docMapperParser, DocumentMapper.this, new ContentPath(0));
@@ -687,7 +688,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public void close() {
-        cache.remove();
+        cache.close();
         rootObjectMapper.close();
         for (RootMapper rootMapper : rootMappersOrdered) {
             rootMapper.close();

@@ -158,6 +158,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
             // only call the terms filter once per execution (across segments per single search request)
             if (!termsFilterCalled) {
+                termsFilterCalled = true;
                 termsFilter = cache.termsFilter(cacheKey, lookup);
             }
             if (termsFilter == null) return null;

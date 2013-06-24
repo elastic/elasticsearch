@@ -416,7 +416,7 @@ public class GeoFilterTests extends AbstractSharedClusterTest {
                                 .bottomRight(-90, 179.99999))
         ).execute().actionGet();
 
-        assertHitCount(world, 246);
+        assertHitCount(world, 53);
 
         SearchResponse distance = client().prepareSearch().addField("pin").setQuery(
                 filteredQuery(

@@ -26,7 +26,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -56,9 +58,8 @@ import java.util.List;
 public class GeohashFilter {
 
     public static final String NAME = "geohash_cell";
-    public static final String FIELDNAME = "field";
-    public static final String GEOHASH = "geohash";
     public static final String NEIGHBORS = "neighbors";
+    public static final String PRECISION = "precision";
 
     /**
      * Create a new geohash filter for a given set of geohashes. In general this method
@@ -90,13 +91,21 @@ public class GeohashFilter {
      * <code>false</code>.
      */
     public static class Builder extends BaseFilterBuilder {
-
+        // we need to store the geohash rather than the corresponding point,
+        // because a transformation from a geohash to a point an back to the
+        // geohash will extend the accuracy of the hash to max precision
+        // i.e. by filing up with z's.
         private String fieldname;
         private String geohash;
+        private int levels = -1;
         private boolean neighbors;
 
         public Builder(String fieldname) {
             this(fieldname, null, false);
+        }
+
+        public Builder(String fieldname, GeoPoint point) {
+            this(fieldname, point.geohash(), false);
         }
 
         public Builder(String fieldname, String geohash) {
@@ -110,11 +119,31 @@ public class GeohashFilter {
             this.neighbors = neighbors;
         }
 
+        public Builder setPoint(GeoPoint point) {
+            this.geohash = point.getGeohash();
+            return this;
+        }
+
+        public Builder setPoint(double lat, double lon) {
+            this.geohash = GeoHashUtils.encode(lat, lon);
+            return this;
+        }
+
         public Builder setGeohash(String geohash) {
             this.geohash = geohash;
             return this;
         }
 
+        public Builder setPrecision(int levels) {
+            this.levels = levels;
+            return this;
+        }
+
+        public Builder setPrecision(String precision) {
+            double meters = DistanceUnit.parse(precision, DistanceUnit.METERS, DistanceUnit.METERS);
+            return setPrecision(GeoUtils.geoHashLevelsForPrecision(meters));
+        }
+        
         public Builder setNeighbors(boolean neighbors) {
             this.neighbors = neighbors;
             return this;
@@ -128,11 +157,14 @@ public class GeohashFilter {
         @Override
         protected void doXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(NAME);
-            builder.field(FIELDNAME, fieldname);
-            builder.field(GEOHASH, geohash);
             if (neighbors) {
                 builder.field(NEIGHBORS, neighbors);
             }
+            if(levels > 0) {
+                builder.field(PRECISION, levels);
+            }
+            builder.field(fieldname, geohash);
+
             builder.endObject();
         }
     }
@@ -154,6 +186,7 @@ public class GeohashFilter {
 
             String fieldName = null;
             String geohash = null;
+            int levels = -1;
             boolean neighbors = false;
 
             XContentParser.Token token;
@@ -161,21 +194,35 @@ public class GeohashFilter {
                 throw new ElasticSearchParseException(NAME + " must be an object");
             }
 
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     String field = parser.text();
 
-                    if (FIELDNAME.equals(field)) {
-                        parser.nextToken();
-                        fieldName = parser.text();
-                    } else if (GEOHASH.equals(field)) {
-                        parser.nextToken();
-                        geohash = parser.text();
+                    if (PRECISION.equals(field)) {
+                        token = parser.nextToken();
+                        if(token == Token.VALUE_NUMBER) {
+                            levels = parser.intValue();
+                        } else if(token == Token.VALUE_STRING) {
+                            double meters = DistanceUnit.parse(parser.text(), DistanceUnit.METERS, DistanceUnit.METERS);
+                            levels = GeoUtils.geoHashLevelsForPrecision(meters);
+                        }
                     } else if (NEIGHBORS.equals(field)) {
                         parser.nextToken();
                         neighbors = parser.booleanValue();
                     } else {
-                        throw new ElasticSearchParseException("unexpected field [" + field + "]");
+                        fieldName = field;
+                        token = parser.nextToken();
+                        if(token == Token.VALUE_STRING) {
+                            // A string indicates either a gehash or a lat/lon string
+                            String location = parser.text();
+                            if(location.indexOf(",")>0) {
+                                geohash = GeoPoint.parse(parser).geohash();
+                            } else {
+                                geohash = location;
+                            }
+                        } else {
+                            geohash = GeoPoint.parse(parser).geohash();
+                        }
                     }
                 } else {
                     throw new ElasticSearchParseException("unexpected token [" + token + "]");
@@ -193,6 +240,11 @@ public class GeohashFilter {
             }
 
             GeoPointFieldMapper geoMapper = ((GeoPointFieldMapper.GeoStringFieldMapper) mapper).geoMapper();
+
+            if(levels > 0) {
+                int len = Math.min(levels, geohash.length());
+                geohash = geohash.substring(0, len);
+            }
 
             if (neighbors) {
                 return create(parseContext, geoMapper, geohash, GeoHashUtils.neighbors(geohash));

@@ -145,6 +145,8 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         private final TermsLookup lookup;
         private final CacheKeyFilter.Key cacheKey;
         private final IndicesTermsFilterCache cache;
+        boolean termsFilterCalled;
+        private Filter termsFilter;
 
         LookupTermsFilter(TermsLookup lookup, CacheKeyFilter.Key cacheKey, IndicesTermsFilterCache cache) {
             this.lookup = lookup;
@@ -154,9 +156,12 @@ public class IndicesTermsFilterCache extends AbstractComponent {
 
         @Override
         public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-            Filter filter = cache.termsFilter(cacheKey, lookup);
-            if (filter == null) return null;
-            return filter.getDocIdSet(context, acceptDocs);
+            // only call the terms filter once per execution (across segments per single search request)
+            if (!termsFilterCalled) {
+                termsFilter = cache.termsFilter(cacheKey, lookup);
+            }
+            if (termsFilter == null) return null;
+            return termsFilter.getDocIdSet(context, acceptDocs);
         }
 
         @Override

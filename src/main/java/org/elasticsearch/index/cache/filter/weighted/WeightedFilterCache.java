@@ -122,6 +122,9 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
 
     @Override
     public Filter cache(Filter filterToCache) {
+        if (filterToCache == null) {
+            return null;
+        }
         if (filterToCache instanceof NoCacheFilter) {
             return filterToCache;
         }

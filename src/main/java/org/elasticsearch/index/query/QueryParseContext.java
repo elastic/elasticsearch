@@ -149,6 +149,9 @@ public class QueryParseContext {
     }
 
     public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {
+        if (filter == null) {
+            return null;
+        }
         if (cacheKey != null) {
             filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
         }

@@ -1399,4 +1399,40 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(1).id(), Matchers.anyOf(equalTo("c3"), equalTo("c4")));
     }
 
+    @Test
+    // See also issue: https://github.com/elasticsearch/elasticsearch/issues/3203
+    public void testHasChildQueryWithMinimumScore() throws Exception {
+        client().admin().indices().prepareDelete().execute().actionGet();
+
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").execute().actionGet();
+        client().prepareIndex("test", "child", "c1").setSource("c_field", "x").setParent("p1").execute().actionGet();
+        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").execute().actionGet();
+        client().prepareIndex("test", "child", "c3").setSource("c_field", "x").setParent("p2").execute().actionGet();
+        client().prepareIndex("test", "child", "c4").setSource("c_field", "x").setParent("p2").execute().actionGet();
+        client().prepareIndex("test", "child", "c5").setSource("c_field", "x").setParent("p2").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchAllQuery()).scoreType("sum"))
+                .setMinScore(2) // Score needs to be above 2.0!
+                .execute().actionGet();
+        assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("p2"));
+        assertThat(searchResponse.getHits().getAt(0).score(), equalTo(3.0f));
+    }
+
 }

@@ -32,6 +32,7 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
     private String lookupIndex;
     private String lookupType;
     private String lookupId;
+    private String lookupRouting;
     private String lookupPath;
 
     private String cacheKey;
@@ -81,6 +82,11 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    public TermsLookupFilterBuilder lookupRouting(String lookupRouting) {
+        this.lookupRouting = lookupRouting;
+        return this;
+    }
+
     public TermsLookupFilterBuilder cacheKey(String cacheKey) {
         this.cacheKey = cacheKey;
         return this;
@@ -96,6 +102,9 @@ public class TermsLookupFilterBuilder extends BaseFilterBuilder {
         }
         builder.field("type", lookupType);
         builder.field("id", lookupId);
+        if (lookupRouting != null) {
+            builder.field("routing", lookupRouting);
+        }
         builder.field("path", lookupPath);
         builder.endObject();
 

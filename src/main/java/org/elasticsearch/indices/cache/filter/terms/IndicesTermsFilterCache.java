@@ -23,6 +23,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.Weigher;
 import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -35,12 +36,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -103,7 +106,16 @@ public class IndicesTermsFilterCache extends AbstractComponent {
                     if (values.isEmpty()) {
                         return NO_TERMS;
                     }
-                    Filter filter = lookup.getFieldMapper().termsFilter(values, lookup.getQueryParseContext());
+                    Filter filter;
+                    if (lookup.getFieldMapper() != null) {
+                        filter = lookup.getFieldMapper().termsFilter(values, lookup.getQueryParseContext());
+                    } else {
+                        BytesRef[] filterValues = new BytesRef[values.size()];
+                        for (int i = 0; i < filterValues.length; i++) {
+                            filterValues[i] = BytesRefs.toBytesRef(values.get(i));
+                        }
+                        filter = new TermsFilter(lookup.getFieldName(), filterValues);
+                    }
                     return new TermsFilterValue(estimateSizeInBytes(values), filter);
                 }
             }).filter;

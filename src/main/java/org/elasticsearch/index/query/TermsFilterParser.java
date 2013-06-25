@@ -170,7 +170,7 @@ public class TermsFilterParser implements FilterParser {
             }
 
             // external lookup, use it
-            TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupPath, lookupRouting, parseContext);
+            TermsLookup termsLookup = new TermsLookup(fieldName, fieldMapper, lookupIndex, lookupType, lookupId, lookupPath, lookupRouting, parseContext);
             if (cacheKey == null) {
                 cacheKey = new CacheKeyFilter.Key(termsLookup.toString());
             }

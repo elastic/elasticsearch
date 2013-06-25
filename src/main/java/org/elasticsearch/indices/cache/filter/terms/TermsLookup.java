@@ -29,6 +29,7 @@ public class TermsLookup {
 
     private final FieldMapper fieldMapper;
 
+    private final String fieldName;
     private final String index;
     private final String type;
     private final String id;
@@ -38,8 +39,9 @@ public class TermsLookup {
     @Nullable
     private final QueryParseContext queryParseContext;
 
-    public TermsLookup(FieldMapper fieldMapper, String index, String type, String id, String path, String routing, @Nullable QueryParseContext queryParseContext) {
+    public TermsLookup(String fieldName, FieldMapper fieldMapper, String index, String type, String id, String path, String routing, @Nullable QueryParseContext queryParseContext) {
         this.fieldMapper = fieldMapper;
+        this.fieldName = fieldName;
         this.index = index;
         this.type = type;
         this.id = id;
@@ -48,8 +50,11 @@ public class TermsLookup {
         this.queryParseContext = queryParseContext;
     }
 
+    public String getFieldName() {
+      return fieldName;
+    }
     public FieldMapper getFieldMapper() {
-        return fieldMapper;
+      return fieldMapper;
     }
 
     public String getIndex() {

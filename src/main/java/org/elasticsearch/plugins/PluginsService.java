@@ -39,6 +39,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.net.URL;
 import java.util.*;
 
@@ -540,17 +541,21 @@ public class PluginsService extends AbstractComponent {
     private Plugin loadPluginFromClassLoader(String pluginClassName, Settings settings, ClassLoader pluginCL) {
         try {
             Class<? extends Plugin> pluginClass = (Class<? extends Plugin>) pluginCL.loadClass(pluginClassName);
+            logger.debug("Having loaded {} from {} classloader", pluginClass, pluginCL);
+            Plugin plugin = null;
             try {
-                return pluginClass.getConstructor(Settings.class).newInstance(settings);
+                plugin = pluginClass.getConstructor(Settings.class).newInstance(settings);
             } catch (NoSuchMethodException nsme) {
                 try {
-                    return pluginClass.getConstructor().newInstance();
+                    plugin = pluginClass.getConstructor().newInstance();
                 } catch (NoSuchMethodException nsme1) {
                     throw new ElasticSearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
                                     "have either an empty default constructor or a single argument constructor accepting a " +
                                      "Settings instance");
                 }
             }
+            logger.debug("Proxying plugin {}", pluginClassName);
+            return (Plugin)Proxy.newProxyInstance(pluginCL, new Class[]{Plugin.class}, new PluginInvocationHandler(plugin));
         } catch (Exception e) {
             throw new ElasticSearchException("Failed to load plugin class [" + pluginClassName + "]", e);
         }

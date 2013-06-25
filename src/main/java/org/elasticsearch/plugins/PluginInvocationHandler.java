@@ -26,7 +26,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 /**
- * 
+ * An invocation handler that sets the current Thread classloader to be the plugin one
+ * during its invocation. 
  * @author Laurent Broudoux
  */
 public class PluginInvocationHandler implements InvocationHandler {

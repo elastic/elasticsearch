@@ -144,10 +144,11 @@ public class ContextIndexSearcher extends IndexSearcher {
             if (queryCollectors != null && !queryCollectors.isEmpty()) {
                 collector = new MultiCollector(collector, queryCollectors.toArray(new Collector[queryCollectors.size()]));
             }
-        }
-        // apply the minimum score after multi collector so we filter facets as well
-        if (searchContext.minimumScore() != null) {
-            collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
+
+            // apply the minimum score after multi collector so we filter facets as well
+            if (searchContext.minimumScore() != null) {
+                collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
+            }
         }
 
         // we only compute the doc id set once since within a context, we execute the same query always...

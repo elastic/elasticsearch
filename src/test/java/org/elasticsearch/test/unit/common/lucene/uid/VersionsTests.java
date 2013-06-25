@@ -211,6 +211,8 @@ public class VersionsTests {
 
         // 1st segment, no _version
         Document document = new Document();
+        // Add a dummy field (enough to trigger #3237)
+        document.add(new StringField("a", "b", Store.NO));
         StringField uid = new StringField(UidFieldMapper.NAME, "1", Store.YES);
         document.add(uid);
         iw.addDocument(document);

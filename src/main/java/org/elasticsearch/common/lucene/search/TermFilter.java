@@ -53,7 +53,7 @@ public class TermFilter extends Filter {
         if (!termsEnum.seekExact(term.bytes(), false)) {
             return null;
         }
-        DocsEnum docsEnum = termsEnum.docs(acceptDocs, null);
+        DocsEnum docsEnum = termsEnum.docs(acceptDocs, null, DocsEnum.FLAG_NONE);
         int docId = docsEnum.nextDoc();
         if (docId == DocsEnum.NO_MORE_DOCS) {
             return null;

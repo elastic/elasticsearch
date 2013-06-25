@@ -117,22 +117,31 @@ public abstract class StreamInput extends InputStream {
 
     /**
      * Reads an int stored in variable-length format.  Reads between one and
-     * five bytes.  Smaller values take fewer bytes.  Negative numbers are not
-     * supported.
+     * five bytes.  Smaller values take fewer bytes.  Negative numbers
+     * will always use all 5 bytes and are therefore better serialized
+     * using {@link #readInt}
      */
     public int readVInt() throws IOException {
         byte b = readByte();
         int i = b & 0x7F;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7F) << 7;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7F) << 14;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7F) << 21;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         assert (b & 0x80) == 0;
         return i | ((b & 0x7F) << 28);
@@ -153,28 +162,44 @@ public abstract class StreamInput extends InputStream {
     public long readVLong() throws IOException {
         byte b = readByte();
         long i = b & 0x7FL;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7FL) << 7;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7FL) << 14;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7FL) << 21;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7FL) << 28;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7FL) << 35;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7FL) << 42;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         i |= (b & 0x7FL) << 49;
-        if ((b & 0x80) == 0) return i;
+        if ((b & 0x80) == 0) {
+            return i;
+        }
         b = readByte();
         assert (b & 0x80) == 0;
         return i | ((b & 0x7FL) << 56);

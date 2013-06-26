@@ -1,6 +1,0 @@
-Eclipse configuration files
-
-You can use them by running
-  mvn eclipse:clean eclipse:eclipse
-and importing the project into Eclipse (File > Import > Existing Project into
-workspace) or refreshing it (F5) if you already imported it.

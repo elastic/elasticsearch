@@ -77,7 +77,11 @@ public class IndicesTermsFilterCache extends AbstractComponent {
     }
 
     @Nullable
-    public Filter termsFilter(final TermsLookup lookup, @Nullable CacheKeyFilter.Key cacheKey) throws RuntimeException {
+    public Filter termsFilter(final TermsLookup lookup, boolean cacheLookup, @Nullable CacheKeyFilter.Key cacheKey) throws RuntimeException {
+        if (!cacheLookup) {
+            return buildTermsFilterValue(lookup).filter;
+        }
+
         BytesRef key;
         if (cacheKey != null) {
             key = new BytesRef(cacheKey.bytes());
@@ -88,16 +92,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
             return cache.get(key, new Callable<TermsFilterValue>() {
                 @Override
                 public TermsFilterValue call() throws Exception {
-                    GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting())).actionGet();
-                    if (!getResponse.isExists()) {
-                        return NO_TERMS;
-                    }
-                    List<Object> values = XContentMapValues.extractRawValues(lookup.getPath(), getResponse.getSourceAsMap());
-                    if (values.isEmpty()) {
-                        return NO_TERMS;
-                    }
-                    Filter filter = lookup.getFieldMapper().termsFilter(values, lookup.getQueryParseContext());
-                    return new TermsFilterValue(estimateSizeInBytes(values), filter);
+                    return buildTermsFilterValue(lookup);
                 }
             }).filter;
         } catch (ExecutionException e) {
@@ -106,6 +101,19 @@ public class IndicesTermsFilterCache extends AbstractComponent {
             }
             throw new ElasticSearchException(e.getMessage(), e.getCause());
         }
+    }
+
+    TermsFilterValue buildTermsFilterValue(TermsLookup lookup) {
+        GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting())).actionGet();
+        if (!getResponse.isExists()) {
+            return NO_TERMS;
+        }
+        List<Object> values = XContentMapValues.extractRawValues(lookup.getPath(), getResponse.getSourceAsMap());
+        if (values.isEmpty()) {
+            return NO_TERMS;
+        }
+        Filter filter = lookup.getFieldMapper().termsFilter(values, lookup.getQueryParseContext());
+        return new TermsFilterValue(estimateSizeInBytes(values), filter);
     }
 
     long estimateSizeInBytes(List<Object> terms) {

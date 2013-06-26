@@ -1,7 +1,7 @@
 ---
 "Routing":
  - do:
-      index:
+      create:
           index:   test_1
           type:    test
           id:      1

@@ -15,7 +15,7 @@
 
 # blank timestamp
  - do:
-      index:
+      create:
           index:     test_1
           type:      test
           id:        1
@@ -32,7 +32,12 @@
 # milliseconds since epoch
 
  - do:
-      index:
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+ - do:
+      create:
           index:     test_1
           type:      test
           id:        1
@@ -50,7 +55,12 @@
 # date format
 
  - do:
-      index:
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+ - do:
+      create:
           index:     test_1
           type:      test
           id:        1

@@ -139,7 +139,6 @@
         <!-- Lucene spatial -->
 
 
-        <!-- START: dependencies that are shaded -->
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
@@ -209,7 +208,6 @@
             <version>0.9.6</version>
             <scope>compile</scope>
         </dependency>
-        <!-- END: dependencies that are shaded -->
 
         <dependency>
             <groupId>log4j</groupId>
@@ -360,87 +358,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>1.5</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <minimizeJar>true</minimizeJar>
-                    <artifactSet>
-                        <includes>
-                            <include>com.google.guava:guava</include>
-                            <include>net.sf.trove4j:trove4j</include>
-                            <include>org.mvel:mvel2</include>
-                            <include>com.fasterxml.jackson.core:jackson-core</include>
-                            <include>com.fasterxml.jackson.dataformat:jackson-dataformat-smile</include>
-                            <include>com.fasterxml.jackson.dataformat:jackson-dataformat-yaml</include>
-                            <include>joda-time:joda-time</include>
-                            <include>io.netty:netty</include>
-                            <include>com.ning:compress-lzf</include>
-                        </includes>
-                    </artifactSet>
-                    <relocations>
-                        <relocation>
-                            <pattern>com.google.common</pattern>
-                            <shadedPattern>org.elasticsearch.common</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>gnu.trove</pattern>
-                            <shadedPattern>org.elasticsearch.common.trove</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>jsr166y</pattern>
-                            <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166y</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>jsr166e</pattern>
-                            <shadedPattern>org.elasticsearch.common.util.concurrent.jsr166e</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>org.mvel2</pattern>
-                            <shadedPattern>org.elasticsearch.common.mvel2</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>com.fasterxml.jackson</pattern>
-                            <shadedPattern>org.elasticsearch.common.jackson</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>org.joda</pattern>
-                            <shadedPattern>org.elasticsearch.common.joda</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>org.jboss.netty</pattern>
-                            <shadedPattern>org.elasticsearch.common.netty</shadedPattern>
-                        </relocation>
-                        <relocation>
-                            <pattern>com.ning.compress</pattern>
-                            <shadedPattern>org.elasticsearch.common.compress</shadedPattern>
-                        </relocation>
-                    </relocations>
-                    <filters>
-                        <filter>
-                            <artifact>*:*</artifact>
-                            <excludes>
-                                <exclude>META-INF/license/**</exclude>
-                                <exclude>META-INF/*</exclude>
-                                <exclude>META-INF/maven/**</exclude>
-                                <exclude>LICENSE</exclude>
-                                <exclude>NOTICE</exclude>
-                                <exclude>/*.txt</exclude>
-                                <exclude>build.properties</exclude>
-                            </excludes>
-                        </filter>
-                    </filters>
-                </configuration>
             </plugin>
             <plugin>
                 <artifactId>maven-resources-plugin</artifactId>

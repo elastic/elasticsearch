@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -36,6 +37,7 @@ import static org.elasticsearch.common.geo.ShapeBuilder.newRectangle;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.geoIntersectionFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -181,6 +183,44 @@ public class GeoShapeIntegrationTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
+    @Test
+    public void testParsingMultipleShapes() throws IOException {
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("type1")
+                        .startObject("properties")
+                            .startObject("location1")
+                                .field("type", "geo_shape")
+                            .endObject()
+                            .startObject("location2")
+                                .field("type", "geo_shape")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .string();
+   
+        prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
+        ensureYellow();
+
+        String p1 = "\"location1\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
+        String p2 = "\"location2\" : {\"type\":\"polygon\", \"coordinates\":[[[-20,-20],[20,-20],[20,20],[-20,20],[-20,-20]]]}";
+        String o1 = "{" + p1 + ", " + p2 + "}";
+
+        client().prepareIndex("test", "type1", "1").setSource(o1).execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+
+        String filter = "{\"geo_shape\": {\"location2\": {\"indexed_shape\": {" 
+                        + "\"id\": \"1\","
+                        + "\"type\": \"type1\","
+                        + "\"index\": \"test\","
+                        + "\"shape_field_name\": \"location2\""
+                        + "}}}}";
+
+        SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setFilter(filter).execute().actionGet();
+        assertHitCount(result, 1);
+    }
+    
     @Test // Issue 2944
     public void testThatShapeIsReturnedEvenWhenExclusionsAreSet() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")

@@ -8,14 +8,15 @@ logs/
 build/
 target/
 
-
-## eclipse ignores (use 'gradle eclipse' to build eclipse projects)
+## eclipse ignores (use 'mvn eclipse:eclipse' to build eclipse projects)
+## The only configuration files which are not ignored are .settings since
+## these files ensure common coding style across Eclipse and IDEA
+## Other files (.project, .classpath) should be generated through Maven which
+## will correctly set the classpath based on the declared dependencies.
 .project
 .classpath
-.settings
 */.project
 */.classpath
-*/.settings
 */eclipse-build
 
 ## netbeans ignores

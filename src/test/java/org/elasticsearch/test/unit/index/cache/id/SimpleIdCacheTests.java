@@ -24,10 +24,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Strings;
@@ -74,6 +71,33 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class SimpleIdCacheTests {
+
+    @Test
+    public void testDeletedDocuments() throws Exception {
+        SimpleIdCache idCache = createSimpleIdCache(Tuple.tuple("child", "parent"));
+        IndexWriter writer = createIndexWriter();
+        // Begins with parent, ends with child docs
+        final Document parent = doc("parent", "1");
+        writer.addDocument(parent);
+        writer.addDocument(childDoc("child", "1", "parent", "1"));
+        writer.addDocument(childDoc("child", "2", "parent", "1"));
+        writer.addDocument(childDoc("child", "3", "parent", "1"));
+        writer.commit();
+
+        final String parentUid = parent.get("_uid");
+        assert parentUid != null;
+        writer.deleteDocuments(new Term("_uid", parentUid));
+
+        writer.close();
+        DirectoryReader topLevelReader = DirectoryReader.open(writer.getDirectory());
+        List<AtomicReaderContext> leaves = topLevelReader.getContext().leaves();
+        idCache.refresh(leaves);
+
+        assertThat(leaves.size(), equalTo(1));
+        IdReaderCache readerCache = idCache.reader(leaves.get(0).reader());
+        IdReaderTypeCache typeCache = readerCache.type("parent");
+        assertThat(typeCache.idByDoc(0).toUtf8(), equalTo("1"));
+    }
 
     @Test
     public void testRefresh() throws Exception {

@@ -334,7 +334,7 @@ public final class OrdinalsBuilder implements Closeable {
      * only full-precision terms.
      * </p>
      */
-    public BytesRefIterator buildFromTerms(final TermsEnum termsEnum, final Bits liveDocs) throws IOException {
+    public BytesRefIterator buildFromTerms(final TermsEnum termsEnum) throws IOException {
         return new BytesRefIterator() {
             private DocsEnum docsEnum = null;
 
@@ -342,7 +342,7 @@ public final class OrdinalsBuilder implements Closeable {
             public BytesRef next() throws IOException {
                 BytesRef ref;
                 if ((ref = termsEnum.next()) != null) {
-                    docsEnum = termsEnum.docs(liveDocs, docsEnum, DocsEnum.FLAG_NONE);
+                    docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
                     nextOrdinal();
                     int docId;
                     while((docId = docsEnum.nextDoc()) != DocsEnum.NO_MORE_DOCS) {

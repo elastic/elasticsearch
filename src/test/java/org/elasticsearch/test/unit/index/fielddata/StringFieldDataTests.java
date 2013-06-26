@@ -24,6 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -79,6 +80,35 @@ public abstract class StringFieldDataTests extends AbstractFieldDataTests {
         d.add(new StringField("_id", "3", Field.Store.NO));
         d.add(new StringField("value", "3", Field.Store.NO));
         writer.addDocument(d);
+    }
+
+    protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
+        Document d = new Document();
+        d.add(new StringField("_id", "1", Field.Store.NO));
+        d.add(new StringField("value", "2", Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "2", Field.Store.NO));
+        d.add(new StringField("value", "4", Field.Store.NO));
+        writer.addDocument(d);
+
+        writer.commit();
+
+        writer.deleteDocuments(new Term("_id", "1"));
+    }
+
+    @Test
+    public void testDeletedDocs() throws Exception {
+        add2SingleValuedDocumentsAndDeleteOneOfThem();
+        IndexFieldData indexFieldData = getForField("value");
+        AtomicReaderContext readerContext = refreshReader();
+        AtomicFieldData fieldData = indexFieldData.load(readerContext);
+        BytesValues values = fieldData.getBytesValues();
+        assertThat(fieldData.getNumDocs(), equalTo(2));
+        for (int i = 0; i < fieldData.getNumDocs(); ++i) {
+            assertThat(values.hasValue(i), equalTo(true));
+        }
     }
 
     @Test

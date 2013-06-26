@@ -113,7 +113,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
         try {
-            BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)), reader.getLiveDocs());
+            BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
             assert !getNumericType().isFloatingPoint();
             final boolean indexedAsLong = getNumericType().requiredBits() > 32;

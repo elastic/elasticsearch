@@ -167,8 +167,9 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
                     }
                 }
                 // we can't pass down acceptedDocs provided, because we are caching the result, and acceptedDocs
-                // might be specific to a query AST, we do pass down the live docs to make sure we optimize the execution
-                cacheValue = DocIdSets.toCacheable(context.reader(), filter.getDocIdSet(context, context.reader().getLiveDocs()));
+                // might be specific to a query. We don't pass the live docs either because a cache built for a specific
+                // generation of a segment might be reused by an older generation which has fewer deleted documents
+                cacheValue = DocIdSets.toCacheable(context.reader(), filter.getDocIdSet(context, null));
                 // we might put the same one concurrently, that's fine, it will be replaced and the removal
                 // will be called
                 ShardId shardId = ShardUtils.extractShardId(context.reader());

@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FloatField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.index.fielddata.FieldDataType;
 
 /**
@@ -50,6 +51,21 @@ public class FloatFieldDataTests extends NumericFieldDataTests {
         return "4.0";
     }
 
+    protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
+        Document d = new Document();
+        d.add(new StringField("_id", "1", Field.Store.NO));
+        d.add(new FloatField("value", 2.0f, Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "2", Field.Store.NO));
+        d.add(new FloatField("value", 4.0f, Field.Store.NO));
+        writer.addDocument(d);
+
+        writer.commit();
+
+        writer.deleteDocuments(new Term("_id", "1"));
+    }
 
     @Override
     protected void fillSingleValueAllSet() throws Exception {

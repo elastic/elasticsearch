@@ -91,7 +91,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
         final CharsRef spare = new CharsRef();
         try {
-            BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null), reader.getLiveDocs());
+            BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null));
             BytesRef term;
             while ((term = iter.next()) != null) {
                 UnicodeUtil.UTF8toUTF16(term, spare);

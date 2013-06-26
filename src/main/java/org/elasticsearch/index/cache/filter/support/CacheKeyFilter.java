@@ -49,7 +49,7 @@ public interface CacheKeyFilter {
         public byte[] bytes() {
             return this.bytes;
         }
-        
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -107,5 +107,5 @@ public interface CacheKeyFilter {
         }
     }
 
-    Key cacheKey();
+    Object cacheKey();
 }

@@ -168,16 +168,15 @@ public class TermsFilterParser implements FilterParser {
 
             // external lookup, use it
             TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
-            if (cacheKey == null) {
-                cacheKey = new CacheKeyFilter.Key(termsLookup.toString());
-            }
-            Filter filter = termsFilterCache.lookupTermsFilter(cacheKey, termsLookup);
+
+            Filter filter = termsFilterCache.termsFilter(termsLookup, cacheKey);
             if (filter == null) {
                 return null;
             }
+
             // cache the whole filter by default, or if explicitly told to
             if (cache == null || cache) {
-                filter = parseContext.cacheFilter(filter, null); // cacheKey is passed as null, so we don't double cache the key
+                filter = parseContext.cacheFilter(filter, cacheKey);
             }
             return filter;
         }

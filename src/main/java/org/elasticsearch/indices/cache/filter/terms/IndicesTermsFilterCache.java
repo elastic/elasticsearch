@@ -22,17 +22,13 @@ package org.elasticsearch.indices.cache.filter.terms;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.Weigher;
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +38,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -56,7 +51,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
 
     private final Client client;
 
-    private final Cache<CacheKeyFilter.Key, TermsFilterValue> cache;
+    private final Cache<BytesRef, TermsFilterValue> cache;
 
     @Inject
     public IndicesTermsFilterCache(Settings settings, Client client) {
@@ -67,7 +62,7 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         TimeValue expireAfterWrite = componentSettings.getAsTime("expire_after_write", null);
         TimeValue expireAfterAccess = componentSettings.getAsTime("expire_after_access", null);
 
-        CacheBuilder<CacheKeyFilter.Key, TermsFilterValue> builder = CacheBuilder.newBuilder()
+        CacheBuilder<BytesRef, TermsFilterValue> builder = CacheBuilder.newBuilder()
                 .maximumWeight(size.bytes())
                 .weigher(new TermsFilterValueWeigher());
 
@@ -81,18 +76,16 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         this.cache = builder.build();
     }
 
-    /**
-     * An external lookup terms filter. Note, already implements the {@link CacheKeyFilter} so no need
-     * to double cache key it.
-     */
-    public Filter lookupTermsFilter(final CacheKeyFilter.Key cacheKey, final TermsLookup lookup) {
-        return new LookupTermsFilter(lookup, cacheKey, this);
-    }
-
     @Nullable
-    private Filter termsFilter(final CacheKeyFilter.Key cacheKey, final TermsLookup lookup) throws RuntimeException {
+    public Filter termsFilter(final TermsLookup lookup, @Nullable CacheKeyFilter.Key cacheKey) throws RuntimeException {
+        BytesRef key;
+        if (cacheKey != null) {
+            key = new BytesRef(cacheKey.bytes());
+        } else {
+            key = new BytesRef(lookup.toString());
+        }
         try {
-            return cache.get(cacheKey, new Callable<TermsFilterValue>() {
+            return cache.get(key, new Callable<TermsFilterValue>() {
                 @Override
                 public TermsFilterValue call() throws Exception {
                     GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting())).actionGet();
@@ -134,70 +127,16 @@ public class IndicesTermsFilterCache extends AbstractComponent {
     }
 
     public void clear(String reason, String[] keys) {
-        final BytesRef spare = new BytesRef();
         for (String key : keys) {
-            cache.invalidate(new CacheKeyFilter.Key(Strings.toUTF8Bytes(key, spare)));
+            cache.invalidate(new BytesRef(key));
         }
     }
 
-    static class LookupTermsFilter extends Filter implements CacheKeyFilter {
-
-        private final TermsLookup lookup;
-        private final CacheKeyFilter.Key cacheKey;
-        private final IndicesTermsFilterCache cache;
-        boolean termsFilterCalled;
-        private Filter termsFilter;
-
-        LookupTermsFilter(TermsLookup lookup, CacheKeyFilter.Key cacheKey, IndicesTermsFilterCache cache) {
-            this.lookup = lookup;
-            this.cacheKey = cacheKey;
-            this.cache = cache;
-        }
+    static class TermsFilterValueWeigher implements Weigher<BytesRef, TermsFilterValue> {
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-            // only call the terms filter once per execution (across segments per single search request)
-            if (!termsFilterCalled) {
-                termsFilterCalled = true;
-                termsFilter = cache.termsFilter(cacheKey, lookup);
-            }
-            if (termsFilter == null) return null;
-            return termsFilter.getDocIdSet(context, acceptDocs);
-        }
-
-        @Override
-        public Key cacheKey() {
-            return this.cacheKey;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            LookupTermsFilter that = (LookupTermsFilter) o;
-
-            if (!cacheKey.equals(that.cacheKey)) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            return cacheKey.hashCode();
-        }
-
-        @Override
-        public String toString() {
-            return "terms(" + lookup.toString() + ")";
-        }
-    }
-
-    static class TermsFilterValueWeigher implements Weigher<CacheKeyFilter.Key, TermsFilterValue> {
-
-        @Override
-        public int weigh(CacheKeyFilter.Key key, TermsFilterValue value) {
-            return (int) (key.bytes().length + value.sizeInBytes);
+        public int weigh(BytesRef key, TermsFilterValue value) {
+            return (int) (key.length + value.sizeInBytes);
         }
     }
 

@@ -77,6 +77,7 @@ public class TermsFilterParser implements FilterParser {
         String lookupId = null;
         String lookupPath = null;
         String lookupRouting = null;
+        boolean lookupCache = true;
 
         CacheKeyFilter.Key cacheKey = null;
         XContentParser.Token token;
@@ -112,6 +113,8 @@ public class TermsFilterParser implements FilterParser {
                             lookupPath = parser.text();
                         } else if ("routing".equals(currentFieldName)) {
                             lookupRouting = parser.textOrNull();
+                        } else if ("cache".equals(currentFieldName)) {
+                            lookupCache = parser.booleanValue();
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "] within lookup element");
                         }
@@ -169,7 +172,7 @@ public class TermsFilterParser implements FilterParser {
             // external lookup, use it
             TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
 
-            Filter filter = termsFilterCache.termsFilter(termsLookup, cacheKey);
+            Filter filter = termsFilterCache.termsFilter(termsLookup, lookupCache, cacheKey);
             if (filter == null) {
                 return null;
             }

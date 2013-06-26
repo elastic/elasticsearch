@@ -7,7 +7,6 @@
           id:       1
           op_type:  create
           body:   { foo: bar }
-
  - do:
       catch:      conflict
       index:
@@ -16,7 +15,6 @@
           id:       1
           op_type:  create
           body:   { foo: bar }
-
  - do:
       index:
           index:    test_1
@@ -24,5 +22,4 @@
           id:       1
           op_type:  index
           body:   { foo: bar }
-
  - match: { _version: 2 }

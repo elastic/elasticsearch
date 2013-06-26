@@ -8,6 +8,5 @@
     - ok:    version
     - ok:    version.lucene_version
     - ok:    version.number
-    - ok:    version.snapshot_build
 
 

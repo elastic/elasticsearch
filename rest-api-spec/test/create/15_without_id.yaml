@@ -1,7 +1,7 @@
 ---
-"Index without ID":
+"Create without ID":
  - do:
-      index:
+      create:
           index:  test_1
           type:   test
           body:   { foo: bar }
@@ -11,6 +11,7 @@
  - match:   { _type:    test   }
  - match:   { _version: 1      }
  - set:     { _id:      id    }
+
  - do:
       get:
           index:  test_1

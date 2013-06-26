@@ -11,21 +11,23 @@
           wait_for_status: yellow
 
  - do:
-      index:
+      create:
           index:   test_1
           type:    test
           id:      1
           body:    { foo: bar }
 
  - do:
-      catch:       missing
-      get:
+      search:
           index:   test_1
           type:    test
-          id:      1
+          body:
+            query:   { term: { _id: 1 }}
+
+ - match: { hits.total: 0 }
 
  - do:
-      index:
+      create:
           index:   test_1
           type:    test
           id:      2
@@ -33,8 +35,10 @@
           body:    { foo: bar }
 
  - do:
-      get:
+      search:
           index:   test_1
           type:    test
-          id:      2
+          body:
+            query:   { term: { _id: 2 }}
 
+ - match: { hits.total: 1 }

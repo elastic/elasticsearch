@@ -16,7 +16,7 @@
 
 # blank ttl
  - do:
-      index:
+      create:
           index:     test_1
           type:      test
           id:        1
@@ -34,7 +34,12 @@
 # milliseconds
 
  - do:
-      index:
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+ - do:
+      create:
           index:     test_1
           type:      test
           id:        1
@@ -52,7 +57,12 @@
 # duration
 
  - do:
-      index:
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+ - do:
+      create:
           index:     test_1
           type:      test
           id:        1
@@ -71,8 +81,13 @@
 # with timestamp
 
  - do:
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
+ - do:
       catch: /AlreadyExpiredException/
-      index:
+      create:
           index:     test_1
           type:      test
           id:        1

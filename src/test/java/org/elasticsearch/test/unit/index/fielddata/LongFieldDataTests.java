@@ -28,6 +28,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.plain.PackedArrayAtomicFieldData;
@@ -52,6 +53,22 @@ public class LongFieldDataTests extends NumericFieldDataTests {
     protected FieldDataType getFieldDataType() {
         // we don't want to optimize the type so it will always be a long...
         return new FieldDataType("long", ImmutableSettings.builder());
+    }
+
+    protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
+        Document d = new Document();
+        d.add(new StringField("_id", "1", Field.Store.NO));
+        d.add(new LongField("value", 2, Field.Store.NO));
+        writer.addDocument(d);
+
+        d = new Document();
+        d.add(new StringField("_id", "2", Field.Store.NO));
+        d.add(new LongField("value", 4, Field.Store.NO));
+        writer.addDocument(d);
+
+        writer.commit();
+
+        writer.deleteDocuments(new Term("_id", "1"));
     }
 
     @Test

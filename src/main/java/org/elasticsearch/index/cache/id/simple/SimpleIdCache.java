@@ -180,7 +180,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                             }
 
                             HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
-                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                            docsEnum = termsEnum.docs(null, docsEnum, 0);
                             for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                                 typeBuilder.idToDoc.put(idAsBytes, docId);
                                 typeBuilder.docToId[docId] = idAsBytes;
@@ -216,7 +216,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                             HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
                             boolean added = false; // optimize for when all the docs are deleted for this id
 
-                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                            docsEnum = termsEnum.docs(null, docsEnum, 0);
                             for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                                 if (!added) {
                                     typeBuilder.parentIdsValues.add(idAsBytes);

@@ -98,7 +98,7 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
         final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
         OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
         try {
-            final BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)), reader.getLiveDocs());
+            final BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
             while ((term = iter.next()) != null) {
                 values.add(NumericUtils.sortableLongToDouble(NumericUtils.prefixCodedToLong(term)));

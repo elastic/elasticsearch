@@ -78,7 +78,7 @@ public class FSTBytesIndexFieldData extends AbstractBytesIndexFieldData<FSTBytes
                 final int termOrd = builder.nextOrdinal();
                 assert termOrd > 0;
                 fstBuilder.add(Util.toIntsRef(term, scratch), (long)termOrd);
-                docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
+                docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
                 for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                     builder.addDoc(docId);
                 }

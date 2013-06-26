@@ -46,6 +46,12 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
  *
  */
 public class PluginManager {
+    public static final class ACTION {
+        public static final int NONE = 0;
+        public static final int INSTALL = 1;
+        public static final int REMOVE = 2;
+        public static final int LIST = 3;
+    }
 
     private final Environment environment;
 
@@ -309,69 +315,80 @@ public class PluginManager {
 
         String url = null;
         boolean verbose = false;
-        for (int i = 0; i < args.length; i++) {
-            String command = args[i];
-            if ("-u".equals(command) || "--url".equals(command)
-                    // Deprecated commands
-                    || "url".equals(command) || "-url".equals(command)) {
-                try {
-                    url = args[i + 1];
-                } catch (Exception e) {
-                    displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() +
-                            ": " + e.getMessage());
-                    System.exit(1);
-                }
-            } else if ("-v".equals(command) || "--v".equals(command)
-                    || "verbose".equals(command) || "-verbose".equals(command)) {
-                verbose = true;
-            }
-        }
-
-
-        PluginManager pluginManager = new PluginManager(initialSettings.v2(), url);
+        String pluginName = null;
+        int action = ACTION.NONE;
 
         if (args.length < 1) {
             displayHelp(null);
         }
-        for (int c = 0; c < args.length; c++) {
-            String command = args[c];
-            if (command.equals("-i") || command.equals("--install")
-                    // Deprecated commands
-                    || command.equals("install") || command.equals("-install")) {
-                String pluginName = null;
-                try {
+
+        try {
+            for (int c = 0; c < args.length; c++) {
+                String command = args[c];
+                if ("-u".equals(command) || "--url".equals(command)
+                        // Deprecated commands
+                        || "url".equals(command) || "-url".equals(command)) {
+                    url = args[++c];
+                } else if ("-v".equals(command) || "--v".equals(command)
+                        || "verbose".equals(command) || "-verbose".equals(command)) {
+                    verbose = true;
+                } else if (command.equals("-i") || command.equals("--install")
+                        // Deprecated commands
+                        || command.equals("install") || command.equals("-install")) {
                     pluginName = args[++c];
-                    System.out.println("-> Installing " + pluginName + "...");
-                    pluginManager.downloadAndExtract(pluginName, verbose);
-                } catch (IOException e) {
-                    System.out.println("Failed to install " + pluginName + ", reason: " + e.getMessage());
-                } catch (Exception e) {
-                    displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() +
-                            ": " + e.getMessage());
+                    action = ACTION.INSTALL;
+
+                } else if (command.equals("-r") || command.equals("--remove")
+                        // Deprecated commands
+                        || command.equals("remove") || command.equals("-remove")) {
+                    pluginName = args[++c];
+                    action = ACTION.REMOVE;
+                } else if (command.equals("-l") || command.equals("--list")) {
+                    action = ACTION.LIST;
+                } else if (command.equals("-h") || command.equals("--help")) {
+                    displayHelp(null);
+                } else {
+                    displayHelp("Command [" + args[c] + "] unknown.");
+                    // Unknown command. We break...
                     System.exit(1);
                 }
-            } else if (command.equals("-r") || command.equals("--remove")
-                    // Deprecated commands
-                    || command.equals("remove") || command.equals("-remove")) {
-                String pluginName = null;
-                try {
-                    pluginName = args[++c];
-                    System.out.println("-> Removing " + pluginName + " ");
-                    pluginManager.removePlugin(pluginName);
-                } catch (IOException e) {
-                    System.out.println("Failed to remove " + pluginName + ", reason: " + e.getMessage());
-                } catch (Exception e) {
-                    displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() +
-                            ": " + e.getMessage());
-                }
-            } else if (command.equals("-l") || command.equals("--list")) {
-                pluginManager.listInstalledPlugins();
-            } else if (command.equals("-h") || command.equals("--help")) {
-                displayHelp(null);
-            } else {
-                displayHelp("Command [" + args[c] + "] unknown.");
-                // Unknown command. We break...
-                System.exit(1);
+            }
+        } catch (Exception e) {
+            displayHelp("Error while parsing options: " + e.getClass().getSimpleName() +
+                    ": " + e.getMessage());
+            System.exit(1);
+        }
+
+        if (action > ACTION.NONE) {
+            PluginManager pluginManager = new PluginManager(initialSettings.v2(), url);
+
+            switch (action) {
+                case ACTION.INSTALL:
+                    try {
+                        System.out.println("-> Installing " + pluginName + "...");
+                        pluginManager.downloadAndExtract(pluginName, verbose);
+                    } catch (IOException e) {
+                        System.out.println("Failed to install " + pluginName + ", reason: " + e.getMessage());
+                    } catch (Exception e) {
+                        displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() +
+                                ": " + e.getMessage());
+                        System.exit(1);
+                    }
+                    break;
+                case ACTION.REMOVE:
+                    try {
+                        System.out.println("-> Removing " + pluginName + " ");
+                        pluginManager.removePlugin(pluginName);
+                    } catch (IOException e) {
+                        System.out.println("Failed to remove " + pluginName + ", reason: " + e.getMessage());
+                    } catch (Exception e) {
+                        displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() +
+                                ": " + e.getMessage());
+                    }
+                    break;
+                case ACTION.LIST:
+                    pluginManager.listInstalledPlugins();
+                    break;
             }
         }
     }

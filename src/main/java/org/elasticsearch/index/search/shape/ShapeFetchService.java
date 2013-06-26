@@ -73,6 +73,7 @@ public class ShapeFetchService extends AbstractComponent {
                         parser.nextToken();
                         return GeoJSONShapeParser.parse(parser);
                     } else {
+                        parser.nextToken();
                         parser.skipChildren();
                     }
                 }

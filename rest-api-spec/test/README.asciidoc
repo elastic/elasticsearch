@@ -1,0 +1,120 @@
+Test Suite:
+===========
+
+The tests in each YAML file should be run in order as a single set of dependent tests.  
+Before each file, the test cluster should be "reset" (eg deleting indices etc), 
+the `response` var and the `stash` should be cleared (see below).
+
+Dot notation:
+-------------
+Dot notation is used for (1) method calls and (2) hierarchical data structures.  For 
+instance, a method call like `cluster.health` would do the equivalent of:
+
+	client.cluster.health(...params...)
+
+A test against `_tokens.1.token` would examine the `token` key, in the second element
+of the `tokens` array, inside the `response` var (see below):
+
+	$val = $response->{tokens}[1]{token}  # Perl syntax roolz!
+
+If one of the levels (eg `tokens`) does not exist, it should return an undefined value.
+
+
+Required operators:
+-------------------
+
+=== `do`
+
+The `do` operator calls a method on the client. For instance:
+
+	- do:
+	    cluster.health:
+	    	level: shards
+
+The response from the `do` operator should be stored in the `response` var, which 
+is reset (1) at the beginning of a file or (2) on the next `do`.
+
+If the arguments to `do` include `catch`, then we are expecting an error, which should 
+be caught and tested.  For instance:
+
+	- do:
+		catch:		missing
+		get:
+			index:	test
+			type:	test
+			id:		1
+
+The argument to `catch` can be any of:
+
+`missing`:: 	a 404 response from ES
+`conflict`:: 	a 409 response from ES
+`request`::		a generic error response from ES
+`param`::       a client-side error indicating an unknown parameter has been passed
+                to the method
+`/foo bar/`::   the text of the error message matches this regular expression
+
+If `catch` is specified, then the `response` var must be cleared, and the test
+should fail if no error is thrown.
+
+=== `set`
+
+For some tests, it is necessary to extract a value from the previous `response`, in
+order to reuse it in a subsequent `do` and other tests.  For instance, when 
+testing indexing a document without a specified ID:
+
+	- do:
+		index:
+			index: test
+			type:  test
+	- set:  { _id: id }   # stash the value of `response._id` as `id`
+	- do:
+		get:
+			index: test
+			type:  test
+			id:    $id    # replace `$id` with the stashed value
+    - match: { _id: $id } # the returned `response._id` matches the stashed `id`
+
+The stash should be reset at the beginning of each test file.
+
+=== `ok`
+
+The specified key exists and has a true value (ie not `0`, `false`, `undefined`, `null` 
+or the empty string), eg:
+
+	- ok:  fields._parent  # the _parent key exists in the fields hash and is "true"
+
+=== `not_ok`
+
+The specified key doesn't exist or has a false value (ie `0`, `false`, `undefined`, 
+`null` or the empty string), eg:
+
+	- not_ok:  fields._source  # the _source key doesn't exist in the fields hash
+
+=== `match`
+
+Used to compare two variables (could be scalars, arrays or hashes).  The two variables 
+should be identical, eg:
+
+	- 
+
+=== `lt` and `gt`
+
+Compares two numeric values, eg:
+
+	- lt: { fields._ttl: 10000 }  # the `_ttl` value is less than 10,000
+
+=== `length`
+
+This depends on the datatype of the value being examined, eg:
+
+	- length: { _id: 22    }   # the `_id` string is 22 chars long
+	- length: { _tokens: 3 }   # the `_tokens` array has 3 elements
+	- length: { _source: 5 }   # the `_source` hash has 5 keys
+
+
+
+
+
+
+
+

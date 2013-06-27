@@ -297,12 +297,12 @@ public class PluginManager {
     public void listInstalledPlugins() {
         File[] plugins = environment.pluginsFile().listFiles();
         System.out.println("Installed plugins:");
-        if (plugins.length == 0) {
+        if (plugins == null || plugins.length == 0) {
             System.out.println("    - No plugin detected in " + environment.pluginsFile().getAbsolutePath());
-        }
-
-        for (int i = 0; i < plugins.length; i++) {
-            System.out.println("    - " + plugins[i].getName());
+        } else {
+            for (int i = 0; i < plugins.length; i++) {
+                System.out.println("    - " + plugins[i].getName());
+            }
         }
     }
 

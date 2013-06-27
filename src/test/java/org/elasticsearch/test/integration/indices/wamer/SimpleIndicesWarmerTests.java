@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.integration.indices.wamer;
 
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Priority;
@@ -32,6 +33,8 @@ import org.testng.annotations.Test;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 /**
  */
@@ -175,4 +178,33 @@ public class SimpleIndicesWarmerTests extends AbstractSharedClusterTest {
         }
     }
 
+    @Test // issue 3246
+    public void ensureThatIndexWarmersCanBeChangedOnRuntime() throws Exception {
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
+                .execute().actionGet();
+
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        client().admin().indices().preparePutWarmer("custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
+                .execute().actionGet();
+
+        client().prepareIndex("test", "test", "1").setSource("{ \"foo\" : \"bar\"}").setRefresh(true).execute().actionGet();
+
+        client().admin().indices().prepareUpdateSettings("test").setSettings("{ \"index.warmer.enabled\": false}").execute().actionGet();
+
+        long warmerRunsAfterDisabling = getWarmerRuns();
+        assertThat(warmerRunsAfterDisabling, is(greaterThan(1L)));
+
+        client().prepareIndex("test", "test", "2").setSource("{ \"foo2\" : \"bar2\"}").setRefresh(true).execute().actionGet();
+
+        assertThat(warmerRunsAfterDisabling, is(getWarmerRuns()));
+    }
+
+    private long getWarmerRuns() {
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats("test").clear().setWarmer(true).execute().actionGet();
+        return indicesStatsResponse.getIndex("test").getPrimaries().warmer.total();
+    }
 }

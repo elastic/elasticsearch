@@ -1,0 +1,5 @@
+Tests missing for:
+
+# preference
+# refresh - what does this mean in get context?
+# realtime - should we support this?

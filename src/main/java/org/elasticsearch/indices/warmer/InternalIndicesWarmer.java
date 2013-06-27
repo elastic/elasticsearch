@@ -38,6 +38,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class InternalIndicesWarmer extends AbstractComponent implements IndicesWarmer {
 
+    public static final String INDEX_WARMER_ENABLED = "index.warmer.enabled";
+
     private final ThreadPool threadPool;
 
     private final ClusterService clusterService;
@@ -69,7 +71,7 @@ public class InternalIndicesWarmer extends AbstractComponent implements IndicesW
         if (indexMetaData == null) {
             return;
         }
-        if (!indexMetaData.settings().getAsBoolean("index.warmer.enabled", settings.getAsBoolean("index.warmer.enabled", true))) {
+        if (!indexMetaData.settings().getAsBoolean(INDEX_WARMER_ENABLED, settings.getAsBoolean(INDEX_WARMER_ENABLED, true))) {
             return;
         }
         IndexService indexService = indicesService.indexService(context.shardId().index().name());

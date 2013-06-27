@@ -345,6 +345,7 @@
                         <es.transport.tcp.compress>${env.ES_TEST_COMPRESS}</es.transport.tcp.compress>
                         <es.action.wait_on_mapping_change>${env.ES_WAIT_ON_MAPPING_CHANGE}
                         </es.action.wait_on_mapping_change>
+                        <java.awt.headless>true</java.awt.headless>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

@@ -842,7 +842,7 @@
                                 <signaturesFile>core-signatures.txt</signaturesFile>
                             </signaturesFiles>
                         </configuration>
-                        <phase>test</phase>
+                        <phase>compile</phase>
                         <goals>
                             <goal>check</goal>
                         </goals>
@@ -861,7 +861,7 @@
                                 <bundledSignature>jdk-deprecated</bundledSignature>
                             </bundledSignatures>
                         </configuration>
-                        <phase>test</phase>
+                        <phase>test-compile</phase>
                         <goals>
                             <goal>testCheck</goal>
                         </goals>

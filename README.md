@@ -1,4 +1,4 @@
-Google Compute Engine Cloud Plugin for ElasticSearch
+Google Compute Engine Cloud Plugin for Elasticsearch
 ====================================================
 
 The GCE Cloud plugin allows to use GCE API for the unicast discovery mechanism.
@@ -6,7 +6,7 @@ The GCE Cloud plugin allows to use GCE API for the unicast discovery mechanism.
 In order to install the plugin, simply run: `bin/plugin -install elasticsearch/elasticsearch-cloud-gce/1.0.0-SNAPSHOT`.
 
     ----------------------------------------------
-    |     GCE Cloud Plugin    | ElasticSearch    |
+    |     GCE Cloud Plugin    | Elasticsearch    |
     ----------------------------------------------
     | 1.0.0-SNAPSHOT (master) | 0.90 -> master   |
     ----------------------------------------------
@@ -80,10 +80,7 @@ Table of resources:
 +-----------+--------------+-------+---------+--------------+----------------+----------------+----------------+---------+----------------+
 ```
 
-Note your external ip address.
-
-Now, your first instance is started. You need to install Elasticsearch on it.
-You can now connect to your machine:
+You can now connect to your machine using the external IP address in order to install Elasticsearch:
 
 ```
 ssh -i ~/.ssh/google_compute_engine 192.158.29.199
@@ -204,7 +201,7 @@ gcutil --project=es-cloud addimage elasticsearch-0-90-2 \
 
 ### Start new instances
 
-As you have now an image, you can create as many instance as you need:
+As you have now an image, you can create as many instances as you need:
 
 ```sh
 # Just change node name (here myesnode2)

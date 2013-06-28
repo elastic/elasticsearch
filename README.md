@@ -44,10 +44,8 @@ How to start (long story)
 
 Before starting, you should have:
 
-* [GCUtil](https://developers.google.com/compute/docs/gcutil/#install)
-* Your Google service account name. Generally, the account name has the format `123845678986@project.gserviceaccount.com`.
-You can get it from [Google APIS Console](https://code.google.com/apis/console/)
 * Your project ID. Let's say here `es-cloud`. Get it from [Google APIS Console](https://code.google.com/apis/console/).
+* [GCUtil](https://developers.google.com/compute/docs/gcutil/#install)
 
 
 ### Creating your first instance

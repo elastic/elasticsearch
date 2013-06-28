@@ -1,0 +1,31 @@
+---
+"Basic":
+ - do:
+      catch:      missing
+      delete:
+          index:  test_1
+          type:   test
+          id:     1
+
+ - do:
+      delete:
+          index:          test_1
+          type:           test
+          id:             1
+          ignore_missing: 1
+
+ - do:
+      index:
+          index:  test_1
+          type:   test
+          id:     1
+          body:   { foo: bar }
+ - ok:      ok
+ - match:   { _version: 3}
+
+ - do:
+      delete:
+          index:  test_1
+          type:   test
+          id:     1
+ - match:   { _version: 4}

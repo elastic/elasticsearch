@@ -24,3 +24,5 @@
           zone: europe-west1-a
   discovery:
           type: gce
+          gce:
+                tags: elasticsearch, dev

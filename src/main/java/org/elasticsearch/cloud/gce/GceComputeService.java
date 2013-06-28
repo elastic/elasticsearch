@@ -63,6 +63,8 @@ public class GceComputeService extends AbstractLifecycleComponent<GceComputeServ
     private NetworkService networkService;
     private Compute compute;
 
+    private final String[] tags;
+
     /** Global instance of the HTTP transport. */
     private static HttpTransport HTTP_TRANSPORT;
 
@@ -76,6 +78,11 @@ public class GceComputeService extends AbstractLifecycleComponent<GceComputeServ
         settingsFilter.addFilter(new GceSettingsFilter());
         this.transportService = transportService;
         this.networkService = networkService;
+
+        this.tags = settings.getAsArray("discovery.gce.tags");
+        if (logger.isDebugEnabled()) {
+            logger.debug("using tags {}", Lists.newArrayList(this.tags));
+        }
     }
 
     /**
@@ -105,6 +112,37 @@ public class GceComputeService extends AbstractLifecycleComponent<GceComputeServ
             String type = instance.getMachineType();
             String image = instance.getImage();
 
+            String status = instance.getStatus();
+
+            // see if we need to filter by tag
+            boolean filterByTag = false;
+            if (tags.length > 0) {
+                if (instance.getTags() == null || instance.getTags().isEmpty()) {
+                    // If this instance have no tag, we filter it
+                    filterByTag = true;
+                } else {
+                    // check that all tags listed are there on the instance
+                    for (String tag : tags) {
+                        boolean found = false;
+                        for (String instancetag : instance.getTags().getItems()) {
+                            if (instancetag.equals(tag)) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) {
+                            filterByTag = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (filterByTag) {
+                logger.trace("filtering out instance {} based tags {}, not part of {}", name, tags,
+                        instance.getTags().getItems());
+                continue;
+            }
+
             String ip_public = null;
             String ip_private = null;
 
@@ -133,12 +171,13 @@ public class GceComputeService extends AbstractLifecycleComponent<GceComputeServ
                 if (ip_private.equals(ipAddress)) {
                     // We found the current node.
                     // We can ignore it in the list of DiscoveryNode
-                    logger.debug("current node found. Ignoring {}", ip_private);
+                    logger.debug("current node found. Ignoring {} - {}", name, ip_private);
                 } else {
                     TransportAddress[] addresses = transportService.addressesFromString(ip_private);
                     // we only limit to 1 addresses, makes no sense to ping 100 ports
                     for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
-                        logger.trace("adding {}, address {}, transport_address {}", name, ip_private, addresses[i]);
+                        logger.trace("adding {}, type {}, image {}, address {}, transport_address {}, status {}", name, type,
+                                image, ip_private, addresses[i], status);
                         discoNodes.add(new DiscoveryNode("#cloud-" + name + "-" + i, addresses[i]));
                     }
                 }

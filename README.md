@@ -243,6 +243,54 @@ gcutil --project=es-cloud deleteinstance myesnode1 myesnode2 --zone=europe-west1
 gcutil --project=es-cloud deletedisk boot-myesnode1 boot-myesnode2 --zone=europe-west1-a
 ```
 
+Filtering by tags
+-----------------
+
+The GCE discovery can also filter machines to include in the cluster based on tags using `discovery.gce.tags` settings.
+For example, setting `discovery.gce.tags` to `dev` will only filter instances having a tag set to `dev`. Several tags
+set will require all of those tags to be set for the instance to be included.
+
+One practical use for tag filtering is when an GCE cluster contains many nodes that are not running
+elasticsearch. In this case (particularly with high ping_timeout values) there is a risk that a new node's discovery
+phase will end before it has found the cluster (which will result in it declaring itself master of a new cluster
+with the same name - highly undesirable). Adding tag on elasticsearch GCE nodes and then filtering by that
+tag will resolve this issue.
+
+Add your tag when building the new instance:
+
+```sh
+gcutil --project=es-cloud addinstance myesnode1 --service_account_scope=compute-rw --persistent_boot_disk \
+       --tags=elasticsearch,dev
+```
+
+Then, define it in `elasticsearch.yml`:
+
+```yaml
+  cloud:
+      gce:
+          project_id: es-cloud
+          zone: europe-west1-a
+  discovery:
+          type: gce
+          gce:
+                tags: elasticsearch, dev
+```
+
+Tips
+----
+
+If you don't want to repeat the project id each time, you can save it in `~/.gcutil.flags` file using:
+
+```sh
+gcutil getproject --project=es-cloud --cache_flag_values
+```
+
+`~/.gcutil.flags` file now contains:
+
+```
+--project=es-cloud
+```
+
 License
 -------
 

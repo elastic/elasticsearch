@@ -107,11 +107,8 @@ sudo apt-get install java7-runtime-headless
 
 # Prepare Elasticsearch installation
 sudo dpkg -i elasticsearch-0.90.2.deb
-```
 
-Check that elasticsearch is running:
-
-```sh
+# Check that elasticsearch is running:
 curl http://localhost:9200/
 ```
 
@@ -132,21 +129,13 @@ This command should give you a JSON result:
 
 ### Install elasticsearch cloud gce plugin
 
-Stop elasticsearch:
-
-```sh
-sudo service elasticsearch stop
-```
-
 Install the plugin:
 
 ```sh
+# Use Plugin Manager to install it
 sudo /usr/share/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-gce/1.0.0-SNAPSHOT
-```
 
-Configure it:
-
-```sh
+# Configure it:
 sudo vi /etc/elasticsearch/elasticsearch.yml
 ```
 
@@ -161,54 +150,47 @@ And add the following lines:
           type: gce
 ```
 
+
 Restart elasticsearch:
 
 ```sh
-sudo service elasticsearch start
+sudo /etc/init.d/elasticsearch restart
 ```
 
 ### Cloning your existing machine
 
-First create an image of your running instance:
+In order to build a cluster on many nodes, you can clone your configured instance to new nodes.
+You won't have to reinstall everything!
+
+First create an image of your running instance and upload it to Google Cloud Storage:
 
 ```sh
+# Create an image of yur current instance
 sudo python /usr/share/imagebundle/image_bundle.py \
   -r / -o /tmp/ --log_file=/tmp/abc.log
-```
 
-An image has been created in `/tmp` directory:
-
-```sh
-$ ls /tmp
+# An image has been created in `/tmp` directory:
+ls /tmp
 e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz
-```
 
-Upload your image to Google Cloud Storage:
-
-```sh
+# Upload your image to Google Cloud Storage:
 # Launch this command and follow instructions to give your instance an access to your storage
 gsutil config
-```
 
-Create a bucket to hold your image, let's say `esimage`:
-
-```sh
+# Create a bucket to hold your image, let's say `esimage`:
 gsutil mb gs://esimage
-```
 
-Copy your image to this bucket:
-
-```sh
+# Copy your image to this bucket:
 gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://esimage
+
+# You can logout
+exit
 ```
 
-Add your image to images collection:
-
-First, exit from your SSH session: `exit`.
-
-Then, run locally:
+Then add your image to images collection:
 
 ```sh
+# From your own computer (not from google compute engine instance!)
 gcutil listkernels --project es-cloud
 +----------------------------------------------+--------------------------------------------------+-------------+
 |                     name                     |                   description                    | deprecation |
@@ -216,22 +198,25 @@ gcutil listkernels --project es-cloud
 | projects/google/global/kernels/gce-20120621  | 2.6.39-gcg built 2012-03-29 01:07:00             | DEPRECATED  |
 | projects/google/global/kernels/gce-v20130603 | SCSI-enabled 3.3.8-gcg built 2013-05-29 01:04:00 |             |
 +----------------------------------------------+--------------------------------------------------+-------------+
-# Note the kernel you prefer to use
+# Note the kernel you prefer to use and add your image to your catalog:
 gcutil --project=es-cloud addimage elasticsearch-0-90-2 \
        gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz \
        --preferred_kernel=projects/google/global/kernels/gce-v20130603
 ```
 
-Create as many instance as you need:
+### Start new instances
+
+As you have now an image, you can create as many instance as you need:
 
 ```sh
+# Just change node name (here myesnode2)
 gcutil --project=es-cloud addinstance --image=elasticsearch-0-90-2 \
        --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
        --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
        --persistent_boot_disk
 ```
 
-### Remove a node
+### Remove an instance (aka shut it down)
 
 You can use [Google Cloud Console](https://cloud.google.com/console) or CLI to manage your instances:
 

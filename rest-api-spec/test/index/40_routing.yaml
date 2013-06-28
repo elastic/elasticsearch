@@ -7,9 +7,7 @@
           id:      1
           routing: 5
           body:    { foo: bar }
- - do:
-      cluster.health:
-          wait_for_status: yellow
+
  - do:
       get:
           index:   test_1

@@ -1,0 +1,19 @@
+---
+"Metadata Fields":
+
+  - do:
+      update:
+          index:  test_1
+          type:   test
+          id:     1
+          fields: foo,bar,_source
+          body:
+            doc:    { foo: baz }
+            upsert: { foo: bar }
+
+  - match:  { get._source.foo: bar }
+  - match:  { get.fields.foo:  bar }
+  - not_ok:   get.fields.bar
+
+
+#### ADD _routing etc

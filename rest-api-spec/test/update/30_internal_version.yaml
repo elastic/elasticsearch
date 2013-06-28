@@ -1,0 +1,50 @@
+---
+"Internal version":
+ - skip:
+      version:      "0 - 0.90.9"
+      reason:       "Versions not supported by update API before 1.0.0"
+
+ - do:
+      catch:        conflict
+      update:
+          index:    test_1
+          type:     test
+          id:       1
+          version:  1
+          body:
+            doc:    { foo: baz }
+            upsert: { foo: bar }
+
+ - do:
+      update:
+          index:    test_1
+          type:     test
+          id:       1
+          body:
+            doc:    { foo: baz }
+            upsert: { foo: bar }
+
+ - match:   { _version: 1}
+
+ - do:
+      catch:        conflict
+      update:
+          index:    test_1
+          type:     test
+          id:       1
+          version:  2
+          body:
+            doc:    { foo: baz }
+            upsert: { foo: bar }
+
+ - do:
+      update:
+          index:    test_1
+          type:     test
+          id:       1
+          version:  1
+          body:
+            doc:    { foo: baz }
+            upsert: { foo: bar }
+
+ - match:   { _version: 2}

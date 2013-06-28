@@ -287,7 +287,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             public void run() {
                 currentJoinThread = Thread.currentThread();
                 try {
-                    innterJoinCluster();
+                    innerJoinCluster();
                 } finally {
                     currentJoinThread = null;
                 }
@@ -295,7 +295,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         });
     }
 
-    private void innterJoinCluster() {
+    private void innerJoinCluster() {
         boolean retry = true;
         while (retry) {
             if (lifecycle.stoppedOrClosed()) {

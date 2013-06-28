@@ -320,7 +320,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> {
                 }
 
                 if ("delete".equals(action)) {
-                    add(new DeleteRequest(index, type, id).parent(parent).version(version).versionType(versionType).routing(routing), payload);
+                    add(new DeleteRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType), payload);
                 } else {
                     nextMarker = findNextMarker(marker, from, data, length);
                     if (nextMarker == -1) {

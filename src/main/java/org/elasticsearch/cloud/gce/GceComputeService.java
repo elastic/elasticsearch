@@ -58,6 +58,10 @@ public class GceComputeService extends AbstractLifecycleComponent<GceComputeServ
         private static final String VERSION = "Elasticsearch/GceCloud/1.0";
     }
 
+    static final class Status {
+        private static final String TERMINATED = "TERMINATED";
+    }
+
     private List<DiscoveryNode> discoNodes;
     private TransportService transportService;
     private NetworkService networkService;
@@ -113,6 +117,13 @@ public class GceComputeService extends AbstractLifecycleComponent<GceComputeServ
             String image = instance.getImage();
 
             String status = instance.getStatus();
+
+            // We don't want to connect to TERMINATED status instances
+            // See https://github.com/elasticsearch/elasticsearch-cloud-gce/issues/3
+            if (Status.TERMINATED.equals(status)) {
+                logger.debug("node {} is TERMINATED. Ignoring", name);
+                continue;
+            }
 
             // see if we need to filter by tag
             boolean filterByTag = false;

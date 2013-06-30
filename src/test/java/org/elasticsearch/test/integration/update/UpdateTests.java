@@ -184,6 +184,20 @@ public class UpdateTests extends AbstractSharedClusterTest {
     }
 
     @Test
+    public void testNotUpsertDoc() throws Exception {
+        createIndex();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+
+        assertThrows(client().prepareUpdate("test", "type1", "1")
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setDocAsUpsert(false)
+                .setFields("_source")
+                .execute(), DocumentMissingException.class);
+    }
+
+    @Test
     public void testUpsertFields() throws Exception {
         createIndex();
         ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();

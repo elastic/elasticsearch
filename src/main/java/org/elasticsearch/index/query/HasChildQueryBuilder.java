@@ -36,6 +36,8 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
 
     private String scoreType;
 
+    private Integer shortCircuitCutoff;
+
     public HasChildQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
         this.queryBuilder = queryBuilder;
@@ -58,6 +60,15 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         return this;
     }
 
+    /**
+     * Configures at what cut off point only to evaluate parent documents that contain the matching parent id terms
+     * instead of evaluating all parent docs.
+     */
+    public HasChildQueryBuilder setShortCircuitCutoff(int shortCircuitCutoff) {
+        this.shortCircuitCutoff = shortCircuitCutoff;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasChildQueryParser.NAME);
@@ -69,6 +80,9 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
         }
         if (scoreType != null) {
             builder.field("score_type", scoreType);
+        }
+        if (shortCircuitCutoff != null) {
+            builder.field("short_circuit_cutoff", shortCircuitCutoff);
         }
         builder.endObject();
     }

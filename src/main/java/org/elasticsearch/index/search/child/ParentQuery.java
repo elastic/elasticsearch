@@ -31,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -136,6 +137,10 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         if (uidToScore == null) {
             throw new ElasticSearchIllegalStateException("has_parent query hasn't executed properly");
         }
+        if (uidToScore.isEmpty()) {
+            return Queries.NO_MATCH_QUERY.createWeight(searcher);
+        }
+
         return new ChildWeight(rewrittenParentQuery.createWeight(searcher));
     }
 

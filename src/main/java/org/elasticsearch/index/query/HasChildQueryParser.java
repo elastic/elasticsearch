@@ -59,6 +59,7 @@ public class HasChildQueryParser implements QueryParser {
         float boost = 1.0f;
         String childType = null;
         ScoreType scoreType = null;
+        int shortCircuitParentDocSet = 8192;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -96,6 +97,8 @@ public class HasChildQueryParser implements QueryParser {
                     }
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
+                } else if ("short_circuit_cutoff".equals(currentFieldName)) {
+                    shortCircuitParentDocSet = parser.intValue();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[has_child] query does not support [" + currentFieldName + "]");
                 }
@@ -135,11 +138,11 @@ public class HasChildQueryParser implements QueryParser {
         Query query;
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         if (scoreType != null) {
-            ChildrenQuery childrenQuery = new ChildrenQuery(searchContext, parentType, childType, parentFilter, innerQuery, scoreType);
+            ChildrenQuery childrenQuery = new ChildrenQuery(searchContext, parentType, childType, parentFilter, innerQuery, scoreType, shortCircuitParentDocSet);
             searchContext.addRewrite(childrenQuery);
             query = childrenQuery;
         } else {
-            HasChildFilter hasChildFilter = new HasChildFilter(innerQuery, parentType, childType, parentFilter, searchContext);
+            HasChildFilter hasChildFilter = new HasChildFilter(innerQuery, parentType, childType, parentFilter, searchContext, shortCircuitParentDocSet);
             searchContext.addRewrite(hasChildFilter);
             query = new XConstantScoreQuery(hasChildFilter);
         }

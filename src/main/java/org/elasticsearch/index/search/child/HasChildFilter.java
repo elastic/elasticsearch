@@ -22,15 +22,21 @@ package org.elasticsearch.index.search.child;
 import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.lucene.search.TermFilter;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -45,15 +51,19 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
     final String childType;
     final Filter parentFilter;
     final SearchContext searchContext;
+    final int shortCircuitParentDocSet;
 
+    Filter shortCircuitFilter;
+    int remaining;
     THashSet<HashedBytesArray> collectedUids;
 
-    public HasChildFilter(Query childQuery, String parentType, String childType, Filter parentFilter, SearchContext searchContext) {
+    public HasChildFilter(Query childQuery, String parentType, String childType, Filter parentFilter, SearchContext searchContext, int shortCircuitParentDocSet) {
         this.parentFilter = parentFilter;
         this.searchContext = searchContext;
         this.parentType = parentType;
         this.childType = childType;
         this.childQuery = childQuery;
+        this.shortCircuitParentDocSet = shortCircuitParentDocSet;
     }
 
     @Override
@@ -93,6 +103,12 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         if (collectedUids == null) {
             throw new ElasticSearchIllegalStateException("has_child filter hasn't executed properly");
         }
+        if (remaining == 0) {
+            return null;
+        }
+        if (shortCircuitFilter != null) {
+            return shortCircuitFilter.getDocIdSet(context, acceptDocs);
+        }
 
         DocIdSet parentDocIdSet = this.parentFilter.getDocIdSet(context, null);
         if (DocIdSets.isEmpty(parentDocIdSet)) {
@@ -114,6 +130,15 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         collectedUids = searchContext.cacheRecycler().popHashSet();
         UidCollector collector = new UidCollector(parentType, searchContext, collectedUids);
         searchContext.searcher().search(childQuery, collector);
+        remaining = collectedUids.size();
+        if (remaining == 0) {
+            shortCircuitFilter = Queries.MATCH_NO_FILTER;
+        } else if (remaining == 1) {
+            BytesRef id = collectedUids.iterator().next().toBytesRef();
+            shortCircuitFilter = new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+        } else if (remaining <= shortCircuitParentDocSet) {
+            shortCircuitFilter = new ParentIdsFilter(parentType, collectedUids);
+        }
     }
 
     @Override
@@ -122,9 +147,10 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
             searchContext.cacheRecycler().pushHashSet(collectedUids);
         }
         collectedUids = null;
+        shortCircuitFilter = null;
     }
 
-    final static class ParentDocSet extends MatchDocIdSet {
+    final class ParentDocSet extends MatchDocIdSet {
 
         final IndexReader reader;
         final THashSet<HashedBytesArray> parents;
@@ -139,7 +165,16 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
 
         @Override
         protected boolean matchDoc(int doc) {
-            return parents.contains(typeCache.idByDoc(doc));
+            if (remaining == 0) {
+                shortCircuit();
+                return false;
+            }
+
+            boolean match = parents.contains(typeCache.idByDoc(doc));
+            if (match) {
+                remaining--;
+            }
+            return match;
         }
     }
 

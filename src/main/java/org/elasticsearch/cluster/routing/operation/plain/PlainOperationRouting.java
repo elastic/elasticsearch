@@ -131,6 +131,10 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                         // we might get duplicates, but that's ok, its an estimated count? (we just want to know if its 1 or not)
                         set.add(indexShard.shardId());
                     }
+                } else {
+                    for (IndexShardRoutingTable indexShard : indexRouting) {
+                        set.add(indexShard.shardId());
+                    }
                 }
             }
             return set.size();

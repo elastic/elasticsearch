@@ -79,15 +79,7 @@ public abstract class FieldDataTermsFilter extends Filter {
     }
 
     @Override
-    public boolean equals(Object obj) {
-        if (this == obj) return true;
-        if (obj == null || !(obj instanceof FieldDataTermsFilter)) return false;
-
-        FieldDataTermsFilter that = (FieldDataTermsFilter) obj;
-        if (!fieldData.getFieldNames().indexName().equals(that.fieldData.getFieldNames().indexName())) return false;
-        if (this.hashCode() != obj.hashCode()) return false;
-        return true;
-    }
+    public abstract boolean equals(Object obj);
 
     @Override
     public abstract int hashCode();
@@ -101,6 +93,7 @@ public abstract class FieldDataTermsFilter extends Filter {
     protected static class BytesFieldDataFilter extends FieldDataTermsFilter {
 
         final ObjectOpenHashSet<BytesRef> terms;
+        Integer hashCode;
 
         protected BytesFieldDataFilter(IndexFieldData fieldData, ObjectOpenHashSet<BytesRef> terms) {
             super(fieldData);
@@ -108,10 +101,24 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || !(obj instanceof BytesFieldDataFilter)) return false;
+
+            BytesFieldDataFilter that = (BytesFieldDataFilter) obj;
+            if (!fieldData.getFieldNames().indexName().equals(that.fieldData.getFieldNames().indexName())) return false;
+            if (!terms.equals(that.terms)) return false;
+
+            return true;
+        }
+
+        @Override
         public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
-            return hashcode;
+            if (hashCode == null) {
+                hashCode = fieldData.getFieldNames().indexName().hashCode() + (terms != null ? terms.hashCode() : 0);
+            }
+
+            return hashCode;
         }
 
         @Override
@@ -152,6 +159,7 @@ public abstract class FieldDataTermsFilter extends Filter {
     protected static class LongsFieldDataFilter extends FieldDataTermsFilter {
 
         final LongOpenHashSet terms;
+        Integer hashCode;
 
         protected LongsFieldDataFilter(IndexNumericFieldData fieldData, LongOpenHashSet terms) {
             super(fieldData);
@@ -159,10 +167,24 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || !(obj instanceof LongsFieldDataFilter)) return false;
+
+            LongsFieldDataFilter that = (LongsFieldDataFilter) obj;
+            if (!fieldData.getFieldNames().indexName().equals(that.fieldData.getFieldNames().indexName())) return false;
+            if (!terms.equals(that.terms)) return false;
+
+            return true;
+        }
+
+        @Override
         public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
-            return hashcode;
+            if (hashCode == null) {
+                hashCode = fieldData.getFieldNames().indexName().hashCode() + (terms != null ? terms.hashCode() : 0);
+            }
+
+            return hashCode;
         }
 
         @Override
@@ -210,6 +232,7 @@ public abstract class FieldDataTermsFilter extends Filter {
     protected static class DoublesFieldDataFilter extends FieldDataTermsFilter {
 
         final DoubleOpenHashSet terms;
+        Integer hashCode;
 
         protected DoublesFieldDataFilter(IndexNumericFieldData fieldData, DoubleOpenHashSet terms) {
             super(fieldData);
@@ -217,10 +240,24 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || !(obj instanceof DoublesFieldDataFilter)) return false;
+
+            DoublesFieldDataFilter that = (DoublesFieldDataFilter) obj;
+            if (!fieldData.getFieldNames().indexName().equals(that.fieldData.getFieldNames().indexName())) return false;
+            if (!terms.equals(that.terms)) return false;
+
+            return true;
+        }
+
+        @Override
         public int hashCode() {
-            int hashcode = fieldData.getFieldNames().indexName().hashCode();
-            hashcode += terms != null ? terms.hashCode() : 0;
-            return hashcode;
+            if (hashCode == null) {
+                hashCode = fieldData.getFieldNames().indexName().hashCode() + (terms != null ? terms.hashCode() : 0);
+            }
+
+            return hashCode;
         }
 
         @Override

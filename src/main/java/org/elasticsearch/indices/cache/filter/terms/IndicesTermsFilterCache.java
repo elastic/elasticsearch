@@ -25,8 +25,6 @@ import com.google.common.cache.Weigher;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -36,10 +34,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 
-import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -49,10 +45,13 @@ import java.util.concurrent.TimeUnit;
 public class IndicesTermsFilterCache extends AbstractComponent {
 
     private static TermsFilterValue NO_TERMS = new TermsFilterValue(0, Queries.MATCH_NO_FILTER);
-
     private final Client client;
-
     private final Cache<BytesRef, TermsFilterValue> cache;
+
+    /**
+     * This cache will not actually cache any values.
+     */
+    private final Cache<BytesRef, TermsFilterValue> shardSyncCache;
 
     @Inject
     public IndicesTermsFilterCache(Settings settings, Client client) {
@@ -75,12 +74,28 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         }
 
         this.cache = builder.build();
+        this.shardSyncCache = CacheBuilder.newBuilder().maximumSize(0).build();
     }
 
     @Nullable
     public Filter termsFilter(final TermsLookup lookup, boolean cacheLookup, @Nullable CacheKeyFilter.Key cacheKey) throws RuntimeException {
+        // TODO: figure out how to inject client into abstract terms lookup
+        lookup.setClient(client);
+
+        final Cache<BytesRef, TermsFilterValue> lookupCache;
         if (!cacheLookup) {
-            return buildTermsFilterValue(lookup).filter;
+            /*
+                Use the shardSyncCache which never actually caches a response.  The reason we use this is to prevent
+                duplicate lookup requests (ie. from multiple shards on the same machine).  This works because a cache will
+                block threads requesting a cache value that is already being loaded.  So the first shard requests a lookup
+                value which triggers TermsLookup#getFilter which is  responsible for doing the heavy term gathering
+                via GetRequest, Query, etc.  The other shards will request the same lookup value and the cache will
+                block those requests until the original request is finished and then send response to all threads
+                waiting for the same lookup value.
+             */
+            lookupCache = shardSyncCache;
+        } else {
+            lookupCache = cache;
         }
 
         BytesRef key;
@@ -89,8 +104,9 @@ public class IndicesTermsFilterCache extends AbstractComponent {
         } else {
             key = new BytesRef(lookup.toString());
         }
+
         try {
-            return cache.get(key, new Callable<TermsFilterValue>() {
+            return lookupCache.get(key, new Callable<TermsFilterValue>() {
                 @Override
                 public TermsFilterValue call() throws Exception {
                     return buildTermsFilterValue(lookup);
@@ -105,30 +121,12 @@ public class IndicesTermsFilterCache extends AbstractComponent {
     }
 
     TermsFilterValue buildTermsFilterValue(TermsLookup lookup) {
-        GetResponse getResponse = client.get(new GetRequest(lookup.getIndex(), lookup.getType(), lookup.getId()).preference("_local").routing(lookup.getRouting())).actionGet();
-        if (!getResponse.isExists()) {
+        Filter filter = lookup.getFilter();
+        if (filter == null) {
             return NO_TERMS;
         }
-        List<Object> values = XContentMapValues.extractRawValues(lookup.getPath(), getResponse.getSourceAsMap());
-        if (values.isEmpty()) {
-            return NO_TERMS;
-        }
-        Filter filter = lookup.getFieldMapper().termsFilter(values, lookup.getQueryParseContext());
-        return new TermsFilterValue(estimateSizeInBytes(values), filter);
-    }
 
-    long estimateSizeInBytes(List<Object> terms) {
-        long size = 8;
-        for (Object term : terms) {
-            if (term instanceof BytesRef) {
-                size += ((BytesRef) term).length;
-            } else if (term instanceof String) {
-                size += ((String) term).length() / 2;
-            } else {
-                size += 4;
-            }
-        }
-        return size;
+        return new TermsFilterValue(lookup.estimateSizeInBytes(), filter);
     }
 
     public void clear(String reason) {

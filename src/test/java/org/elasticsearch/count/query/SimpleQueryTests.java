@@ -631,47 +631,46 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type", "4").setSource("term", "4"));
 
         CountResponse countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("1").path("terms"))).get();
         assertHitCount(countResponse, 2l);
 
         // same as above, just on the _id...
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("_id").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("_id").index("lookup").type("type").id("1").path("terms"))).get();
         assertHitCount(countResponse, 2l);
 
         // another search with same parameters...
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("1").path("terms"))).get();
         assertHitCount(countResponse, 2l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("2").lookupPath("terms"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("2").path("terms"))).get();
         assertHitCount(countResponse, 1l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("3").lookupPath("terms"))
-                ).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("3").path("terms"))).get();
         assertNoFailures(countResponse);
         assertHitCount(countResponse, 2l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("4").lookupPath("terms"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("4").path("terms"))).get();
         assertHitCount(countResponse, 0l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("1").lookupPath("arr.term"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup2").type("type").id("1").path("arr.term"))).get();
         assertHitCount(countResponse, 2l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("2").lookupPath("arr.term"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup2").type("type").id("2").path("arr.term"))).get();
         assertHitCount(countResponse, 1l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup2").type("type").id("3").path("arr.term"))).get();
         assertHitCount(countResponse, 2l);
 
         countResponse = client().prepareCount("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("not_exists").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))).get();
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("not_exists").index("lookup2").type("type").id("3").path("arr.term"))).get();
         assertHitCount(countResponse, 0l);
     }
 

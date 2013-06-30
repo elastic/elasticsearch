@@ -1003,6 +1003,10 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("arr").startObject("properties").startObject("term").field("type", "string")
                         .endObject().endObject().endObject().endObject().endObject().endObject()));
+        assertAcked(prepareCreate("lookup3").addMapping("type",
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("terms").field("type", "string").endObject()
+                        .endObject().endObject().endObject()));
         assertAcked(prepareCreate("test").addMapping("type", "term", "type=string"));
 
         ensureGreen();
@@ -1032,65 +1036,92 @@ public class SimpleQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type", "1").setSource("term", "1"),
                 client().prepareIndex("test", "type", "2").setSource("term", "2"),
                 client().prepareIndex("test", "type", "3").setSource("term", "3"),
-                client().prepareIndex("test", "type", "4").setSource("term", "4") );
+                client().prepareIndex("test", "type", "4").setSource("term", "4"),
+                client().prepareIndex("test", "type", "5").setSource("term", "5"),
+                client().prepareIndex("lookup3", "type", "5").setSource("terms", new String[]{"5"}) );
 
+        // terms lookup by filter
         SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").path("terms")
+                        .lookupFilter(termsFilter("terms", "2", "4")).lookupCache(false))
+                ).get();
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "2", "4");
+
+        // terms lookup by query
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").path("terms")
+                        .lookupFilter(matchAllFilter()).lookupCache(false))
+                ).get();
+        assertHitCount(searchResponse, 4l);
+        assertSearchHits(searchResponse, "1", "2", "3", "4");
+
+        // terms lookup multi-index search
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").indices("lookup", "lookup3")
+                        .type("type").path("terms").lookupFilter(termsFilter("terms", "1", "3", "5")).lookupCache(false))
+                ).get();
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "1", "3", "5");
+
+        // terms lookup from terms stored in an indexed doc
+        searchResponse = client().prepareSearch("test")
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("1").path("terms"))
                 ).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
         // same as above, just on the _id...
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("_id").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("_id").index("lookup").type("type").id("1").path("terms"))
                 ).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
         // another search with same parameters...
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("1").lookupPath("terms"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("1").path("terms"))
                 ).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("2").lookupPath("terms"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("2").path("terms"))
                 ).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("3").lookupPath("terms"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("3").path("terms"))
                 ).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "2", "4");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup").lookupType("type").lookupId("4").lookupPath("terms"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup").type("type").id("4").path("terms"))
                 ).get();
         assertHitCount(searchResponse, 0l);
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("1").lookupPath("arr.term"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup2").type("type").id("1").path("arr.term"))
                 ).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "1", "3");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("2").lookupPath("arr.term"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup2").type("type").id("2").path("arr.term"))
                 ).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("2"));
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("term").index("lookup2").type("type").id("3").path("arr.term"))
                 ).get();
         assertHitCount(searchResponse, 2l);
         assertSearchHits(searchResponse, "2", "4");
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("not_exists").lookupIndex("lookup2").lookupType("type").lookupId("3").lookupPath("arr.term"))
+                .setQuery(filteredQuery(matchAllQuery(), termsLookupFilter("not_exists").index("lookup2").type("type").id("3").path("arr.term"))
                 ).get();
         assertHitCount(searchResponse, 0l);
     }

@@ -258,9 +258,29 @@ public class BloomFilter {
         return bits.bitSize() + 8;
     }
 
+    public boolean isEmpty() {
+        return bits.bitCount == 0;
+    }
+
+    /**
+     * Merge with another {@link BloomFilter}.  The other bloom filter must have the same size, number of hash 
+     * functions, and hashing type.
+     *
+     * @param other the other {@link BloomFilter} to merge with.
+     */
+    public void merge(BloomFilter other) {
+        if (bits.data.length != other.bits.data.length ||
+                numHashFunctions != other.getNumHashFunctions() ||
+                hashing.type() != other.hashing.type()) {
+            throw new IllegalArgumentException("BloomFilters must have same size, number of hash functions, and hash type");
+        }
+
+        bits.or(other.bits);
+    }
+
     @Override
     public int hashCode() {
-        return bits.hashCode() + numHashFunctions;
+        return bits.hashCode() + numHashFunctions + hashing.type();
     }
 
   /*
@@ -336,6 +356,18 @@ public class BloomFilter {
                 return true;
             }
             return false;
+        }
+
+        /**
+         * Union.  BitArray's must be the same length.
+         */
+        void or(BitArray other) {
+            assert data.length == other.data.length : "BitArrays must be same length";
+            bitCount = 0;
+            for (int i = 0; i < data.length; i++) {
+                data[i] |= other.data[i];
+                bitCount += Long.bitCount(data[i]);
+            }
         }
 
         boolean get(long index) {

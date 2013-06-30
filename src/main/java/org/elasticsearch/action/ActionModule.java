@@ -19,6 +19,9 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.terms.TermsByQueryAction;
+import org.elasticsearch.action.terms.TransportTermsByQueryAction;
+
 import com.google.common.collect.Maps;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
@@ -258,6 +261,7 @@ public class ActionModule extends AbstractModule {
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,
                 TransportIndexDeleteAction.class, TransportShardDeleteAction.class);
         registerAction(CountAction.INSTANCE, TransportCountAction.class);
+        registerAction(TermsByQueryAction.INSTANCE, TransportTermsByQueryAction.class);
         registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,

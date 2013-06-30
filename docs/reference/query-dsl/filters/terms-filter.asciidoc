@@ -136,6 +136,97 @@ across all nodes if the "reference" terms data is not large. The lookup
 terms filter will prefer to execute the get request on a local node if
 possible, reducing the need for networking.
 
+[float]
+==== Terms lookup by query mechanism
+
+The terms filter by query feature allows the lookup of terms from
+documents matching a query/filter.  This functionality is similar to
+the "<<query-dsl-has-child-filter,HasChild>>" and "<<query-dsl-has-parent-filter,HasParent>>"
+functionality without the limiations.  The lookup query can be executed
+over multiple indices, shards, and types.
+
+The terms lookup by query mechanism supports the following options:
+
+[horizontal]
+`indices` or `index`:: 
+    One or more indices to execute the lookup query against. Default's
+    to all indices if not specified.
+
+`types` or `type`:: 
+    One or more types to execute against.  Default's to all types of
+    the configured indices.
+
+`path`:: 
+    The field to fetch the actual values from the documents matching
+    the lookup query.
+
+`filter`::
+    The query filter documents must match for their terms to be collected
+    as part of the query lookup.
+    
+`routing`:: 
+    A custom routing value to be used when executing the lookup query.
+
+`cache`:: 
+    Whether to cache the filter built from the retrieved terms
+    (`true` - default) or whether to fetch and rebuild the filter on every
+    request (`false`). See "<<query-dsl-terms-filter-lookup-bloom,Terms lookup caching>>" 
+    below.
+
+`bloom_filter`::
+    Configures the query lookup to gather terms within a bloom filter for
+    more compact term representation at the cost of lookup precision.  See 
+    the "<<query-dsl-terms-filter-lookup-caching,Bloom Filter>>" section below.
+    
+The values for the `terms` filter will be fetched from the `path` field of 
+documents matching the lookup filter.  If the source field is a text based field,
+the cost of gathering a large number of terms can be quite expensive due to
+network latency.  In this situation it is best to use numeric fields or configure
+the lookup to use a "<<query-dsl-terms-filter-lookup-bloom,Bloom Filter>>".
+
+The terms lookup currently only uses the `fielddata` exection mode so proper "<<indices-warmers,Warming>>" is recommended.  Since the filter uses the 
+fielddata cache by default, the resulting filter is not cached unless configured
+to do so.
+
+["float",id="query-dsl-terms-filter-lookup-bloom"]
+==== Bloom filter support
+
+When performing a lookup query against a set of text based terms with a high 
+cardinality the cost of transfering these terms over the network can be
+quite expensive resulting in slow response times.  If precision is not
+critical, performance can be considerably better by using a 
+http://en.wikipedia.org/wiki/Bloom_filter[Bloom Filter]
+for the lookup terms.  To enable the use of the bloom filter, set any of
+the following configuration options on the `bloom_filter` option:
+
+[horizontal]
+`expected_insertions`:: 
+    The expected number of terms to be inserted into the bloom filter.  This 
+    value must be greater than 0 and is REQUIRED.
+    
+`fpp`::
+    The false positive probability.  This is the acceptable percentage of
+    terms that can potentially be considered a valid lookup term even though
+    it was not found in any documents matching the lookup query.   This value
+    must be between 0 and 1 and defaults to 0.03 (3%).
+
+`hash_functions`::
+    The number of times a value should be hashed before being inserted into the
+    bloom filter.  This value must be between 1 and 255 and by default has an
+    optimal value calculated based on the `expected_insertions` and `fpp`.
+    
+The optimal bloom filter configuration is very dependent on the number of terms
+gathered from matching documents and the number of terms the filter will actually
+compare against the bloom filter.  For a higher precision (less false positives)
+you can increase the number of `expected_insertions`, lower the `fpp`, or increase 
+the number of `hash_functions`.  As you get a higher precision your response times
+will get slower due to resulting bloom filter getting larger and/or using more CPU
+to calculate the hashes.  Increasing the `fpp` value is typically the only thing
+required to get faster response times.
+
+The bloom filter support is an advanced feature and will require some trial and error
+to find optimal values.
+
 ["float",id="query-dsl-terms-filter-lookup-caching"]
 ==== Terms lookup caching
 
@@ -225,3 +316,96 @@ curl -XPUT localhost:9200/users/user/2 -d '{
 --------------------------------------------------
 
 In which case, the lookup path will be `followers.id`.
+
+[float]
+==== Terms lookup by query example
+
+In the following example we are replicating the 
+"<<query-dsl-has-child-filter,HasChild Filter>>" by looking up the 
+"pid" values from children documents with the tag "something" and 
+then filtering only parent documents that have an "id" matching one 
+of the children's "pid" values.
+
+In this example, parents and children are stored in their own indices.
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/parentIndex/_search' -d '{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "terms": {
+          "id": {
+            "index": "childIndex",
+            "type": "childType",
+            "path": "pid",
+            "filter": {
+              "term": {
+                "tag": "something"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+--------------------------------------------------
+
+Using the "<<query-dsl-terms-filter-lookup-bloom,Bloom Filter>>" support:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/parentIndex/_search' -d '{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "terms": {
+          "id": {
+            "index": "childIndex",
+            "type": "childType",
+            "path": "pid",
+            "filter": {
+              "term": {
+                "tag": "something"
+              }
+            },
+            "bloom_filter": {
+              "expected_insertions": 10000
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+--------------------------------------------------
+
+Here is another example where we are searching for products or services
+mentioning "elasticsearch".  Products, Services, and Companies are all stored
+in their own index and contain a numeric "company_id" field.  Both products
+and services have a "description" field.
+
+[source,js]
+--------------------------------------------------
+curl -XPOST 'http://localhost:9200/companies/_search' -d '{
+  "query": {
+    "constant_score": {
+      "filter": {
+        "terms": {
+          "company_id": {
+            "indices": ["products", "services"],
+            "path": "company_id",
+            "filter": {
+              "term": {
+                "description": "elasticsearch"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}'
+--------------------------------------------------
+

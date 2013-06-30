@@ -26,17 +26,22 @@ import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.terms.TermsByQueryRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.OrFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.indices.cache.filter.terms.FieldTermsLookup;
 import org.elasticsearch.indices.cache.filter.terms.IndicesTermsFilterCache;
+import org.elasticsearch.indices.cache.filter.terms.QueryTermsLookup;
 import org.elasticsearch.indices.cache.filter.terms.TermsLookup;
 
 import java.io.IOException;
@@ -75,11 +80,16 @@ public class TermsFilterParser implements FilterParser {
         String filterName = null;
         String currentFieldName = null;
 
-        String lookupIndex = parseContext.index().name();
-        String lookupType = null;
         String lookupId = null;
         String lookupPath = null;
         String lookupRouting = null;
+        List<String> lookupIndices = Lists.newArrayList();
+        List<String> lookupTypes = Lists.newArrayList();
+        XContentBuilder lookupFilter = null;
+        boolean lookupUseBloomFilter = false;
+        Double lookupBloomFpp = null;
+        Integer lookupBloomExpectedInsertions = null;
+        Integer lookupBloomHashFunctions = null;
         boolean lookupCache = true;
 
         CacheKeyFilter.Key cacheKey = null;
@@ -105,11 +115,64 @@ public class TermsFilterParser implements FilterParser {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
+                    } else if (token == XContentParser.Token.START_ARRAY) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            String value = parser.text();
+                            if ("indices".equals(currentFieldName) || "index".equals(currentFieldName)) {
+                                if (value != null) {
+                                    lookupIndices.add(value);
+                                }
+                            } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
+                                if (value != null) {
+                                    lookupTypes.add(value);
+                                }
+                            }
+                        }
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        if ("filter".equals(currentFieldName)) {
+                            lookupFilter = XContentFactory.contentBuilder(parser.contentType());
+                            lookupFilter.copyCurrentStructure(parser);
+                        } else if ("bloom_filter".equals(currentFieldName)) {
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                lookupUseBloomFilter = true;
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    currentFieldName = parser.currentName();
+                                } else if (token.isValue()) {
+                                    if ("fpp".equals(currentFieldName) ||
+                                            "false_positive_probability".equals(currentFieldName) ||
+                                            "falsePositiveProbability".equals(currentFieldName)) {
+                                        lookupBloomFpp = parser.doubleValue();
+                                        if (lookupBloomFpp <= 0 || lookupBloomFpp >= 1) {
+                                            throw new QueryParsingException(parseContext.index(), "bloom fpp must be between 0 and 1");
+                                        }
+                                    } else if ("expected_insertions".equals(currentFieldName) ||
+                                            "expectedInsertions".equals(currentFieldName)) {
+                                        lookupBloomExpectedInsertions = parser.intValue();
+                                        if (lookupBloomExpectedInsertions <= 0) {
+                                            throw new QueryParsingException(parseContext.index(), "bloom expected insertions greater than 0");
+                                        }
+                                    } else if ("hash_functions".equals(currentFieldName) ||
+                                            "hashFunctions".equals(currentFieldName)) {
+                                        lookupBloomHashFunctions = parser.intValue();
+                                        if (lookupBloomHashFunctions < 1 || lookupBloomHashFunctions > 255) {
+                                            throw new QueryParsingException(parseContext.index(), "bloom hash functions must be between 1 and 255");
+                                        }
+                                    } else {
+                                        throw new QueryParsingException(parseContext.index(),
+                                                "[terms] filter does not support [" + currentFieldName + "] within bloom element");
+                                    }
+                                }
+                            }
+                        } else {
+                            throw new QueryParsingException(parseContext.index(), "[terms] filter does not support [" + currentFieldName + "] within lookup element");
+                        }
                     } else if (token.isValue()) {
-                        if ("index".equals(currentFieldName)) {
-                            lookupIndex = parser.text();
-                        } else if ("type".equals(currentFieldName)) {
-                            lookupType = parser.text();
+                        if ("index".equals(currentFieldName) || "indices".equals(currentFieldName)) {
+                            lookupIndices.clear();
+                            lookupIndices.add(parser.text());
+                        } else if ("type".equals(currentFieldName) || "types".equals(currentFieldName)) {
+                            lookupTypes.clear();
+                            lookupTypes.add(parser.text());
                         } else if ("id".equals(currentFieldName)) {
                             lookupId = parser.text();
                         } else if ("path".equals(currentFieldName)) {
@@ -123,14 +186,28 @@ public class TermsFilterParser implements FilterParser {
                         }
                     }
                 }
-                if (lookupType == null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the type");
+
+                if (lookupFilter == null) {
+                    if (lookupIndices.size() == 0) {
+                        lookupIndices.add(parseContext.index().name());
+                    }
+
+                    if (lookupTypes == null || lookupTypes.size() == 0) {
+                        throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the type");
+                    }
+
+                    if (lookupId == null) {
+                        throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the id");
+                    }
                 }
-                if (lookupId == null) {
-                    throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the id");
-                }
+
                 if (lookupPath == null) {
                     throw new QueryParsingException(parseContext.index(), "[terms] filter lookup element requires specifying the path");
+                }
+
+                if (lookupUseBloomFilter && lookupBloomExpectedInsertions == null) {
+                    throw new QueryParsingException(parseContext.index(),
+                            "[terms] filter lookup with bloom filter requires the expected number of insertions");
                 }
             } else if (token.isValue()) {
                 if ("execution".equals(currentFieldName)) {
@@ -148,7 +225,7 @@ public class TermsFilterParser implements FilterParser {
         }
 
         if (fieldName == null) {
-            throw new QueryParsingException(parseContext.index(), "terms filter requires a field name, followed by array of terms");
+            throw new QueryParsingException(parseContext.index(), "terms filter requires a field name");
         }
 
         FieldMapper fieldMapper = null;
@@ -165,7 +242,7 @@ public class TermsFilterParser implements FilterParser {
             }
         }
 
-        if (lookupId != null) {
+        if (lookupId != null || lookupFilter != null) {
             // if there are no mappings, then nothing has been indexing yet against this shard, so we can return
             // no match (but not cached!), since the Terms Lookup relies on the fact that there are mappings...
             if (fieldMapper == null) {
@@ -173,7 +250,34 @@ public class TermsFilterParser implements FilterParser {
             }
 
             // external lookup, use it
-            TermsLookup termsLookup = new TermsLookup(fieldMapper, lookupIndex, lookupType, lookupId, lookupRouting, lookupPath, parseContext);
+            TermsLookup termsLookup;
+            if (lookupFilter != null) {
+                final TermsByQueryRequest termsByQueryReq = new TermsByQueryRequest(lookupIndices.toArray(new String[lookupIndices.size()]))
+                        .types(lookupTypes.toArray(new String[lookupTypes.size()])).field(lookupPath)
+                        .routing(lookupRouting).filter(lookupFilter).useBloomFilter(lookupUseBloomFilter);
+
+                if (lookupUseBloomFilter && lookupBloomFpp != null) {
+                    termsByQueryReq.bloomFpp(lookupBloomFpp);
+                }
+
+                if (lookupUseBloomFilter && lookupBloomExpectedInsertions != null) {
+                    termsByQueryReq.bloomExpectedInsertions(lookupBloomExpectedInsertions);
+                }
+
+                if (lookupUseBloomFilter && lookupBloomHashFunctions != null) {
+                    termsByQueryReq.bloomHashFunctions(lookupBloomHashFunctions);
+                }
+
+                // default to no caching for query terms lookup
+                if (cache == null) {
+                    cache = false;
+                }
+
+                termsLookup = new QueryTermsLookup(termsByQueryReq, parseContext.fieldData().getForField(fieldMapper));
+            } else {
+                termsLookup = new FieldTermsLookup(fieldMapper, lookupIndices.get(0), lookupTypes.get(0),
+                        lookupId, lookupRouting, lookupPath, parseContext);
+            }
 
             Filter filter = termsFilterCache.termsFilter(termsLookup, lookupCache, cacheKey);
             if (filter == null) {
@@ -184,6 +288,7 @@ public class TermsFilterParser implements FilterParser {
             if (cache == null || cache) {
                 filter = parseContext.cacheFilter(filter, cacheKey);
             }
+
             return filter;
         }
 

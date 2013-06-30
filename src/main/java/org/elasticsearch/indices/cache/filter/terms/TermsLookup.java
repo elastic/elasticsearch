@@ -19,65 +19,44 @@
 
 package org.elasticsearch.indices.cache.filter.terms;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.apache.lucene.search.Filter;
+import org.elasticsearch.client.Client;
+
+import java.util.Collection;
+import java.util.Iterator;
 
 /**
+ * Abstract {@link TermsLookup}.
  */
-public class TermsLookup {
+public abstract class TermsLookup {
 
-    private final FieldMapper fieldMapper;
+    protected Client client;
 
-    private final String index;
-    private final String type;
-    private final String id;
-    private final String routing;
-    private final String path;
-
-    @Nullable
-    private final QueryParseContext queryParseContext;
-
-    public TermsLookup(FieldMapper fieldMapper, String index, String type, String id, String routing, String path, @Nullable QueryParseContext queryParseContext) {
-        this.fieldMapper = fieldMapper;
-        this.index = index;
-        this.type = type;
-        this.id = id;
-        this.routing = routing;
-        this.path = path;
-        this.queryParseContext = queryParseContext;
+    // TODO: Can this be injected?
+    /**
+     * Sets the client
+     * @param client the {@link Client}
+     */
+    public void setClient(Client client) {
+        this.client = client;
     }
 
-    public FieldMapper getFieldMapper() {
-        return fieldMapper;
-    }
+    /**
+     * Returns the lookup filter
+     * @return the filter
+     */
+    public abstract Filter getFilter();
 
-    public String getIndex() {
-        return index;
-    }
+    /**
+     * Used for cache key when not specified
+     * @return the lookup string representation
+     */
+    public abstract String toString();
 
-    public String getType() {
-        return type;
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public String getRouting() {
-        return this.routing;
-    }
-
-    public String getPath() {
-        return path;
-    }
-
-    @Nullable
-    public QueryParseContext getQueryParseContext() {
-        return queryParseContext;
-    }
-
-    public String toString() {
-        return fieldMapper.names().fullName() + ":" + index + "/" + type + "/" + id + "/" + path;
-    }
+    /**
+     * The size of the lookup in bytes to be used in
+     * cache size calculations
+     * @return the size of the lookup in bytes
+     */
+    public abstract long estimateSizeInBytes();
 }

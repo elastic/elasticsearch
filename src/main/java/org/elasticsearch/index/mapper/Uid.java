@@ -19,13 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.BytesRefs;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  *
@@ -133,6 +134,12 @@ public final class Uid {
         ref.offset = 0;
         ref.length = ref.bytes.length;
         return ref;
+    }
+
+    public static void createUidAsBytes(BytesRef type, BytesRef id, BytesRef spare) {
+        spare.copyBytes(type);
+        spare.append(DELIMITER_BYTES);
+        spare.append(id);
     }
 
     public static BytesRef[] createTypeUids(Collection<String> types, Object ids) {

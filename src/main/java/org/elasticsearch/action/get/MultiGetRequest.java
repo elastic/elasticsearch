@@ -259,6 +259,9 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                         id = parser.text();
                                     } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
                                         routing = parser.text();
+                                    } else if ("fields".equals(currentFieldName)) {
+                                        fields = new ArrayList<String>();
+                                        fields.add(parser.text());
                                     }
                                 } else if (token == XContentParser.Token.START_ARRAY) {
                                     if ("fields".equals(currentFieldName)) {

@@ -528,9 +528,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
     public void docAsUpsert(boolean shouldUpsertDoc) {
         this.docAsUpsert = shouldUpsertDoc;
-        if(this.doc != null && this.upsertRequest == null){
-            upsert(doc);
-        }
     }
 
     @Override

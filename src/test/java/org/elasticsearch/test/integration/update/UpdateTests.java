@@ -20,13 +20,10 @@
 package org.elasticsearch.test.integration.update;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -135,9 +132,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
     @Test
     public void testUpsert() throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
@@ -161,26 +156,23 @@ public class UpdateTests extends AbstractSharedClusterTest {
     }
     @Test
     public void testUpsertDoc() throws Exception {
-    	createIndex();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
-        
+        createIndex();
+        ensureGreen();
+
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
-        		.setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())        		
-        		.setDocAsUpsert(true)
+                .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setDocAsUpsert(true)
                 .setFields("_source")
                 .execute().actionGet();
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
     }
-    
+
     @Test(expectedExceptions = DocumentMissingException.class)
+    // See: https://github.com/elasticsearch/elasticsearch/issues/3265
     public void testNotUpsertDoc() throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         client().prepareUpdate("test", "type1", "1")
                 .setDoc(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
@@ -192,9 +184,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
     @Test
     public void testUpsertFields() throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
@@ -219,12 +209,6 @@ public class UpdateTests extends AbstractSharedClusterTest {
 
     @Test
     public void testIndexAutoCreation() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
@@ -239,9 +223,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
     @Test
     public void testUpdate() throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         try {
             client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field++").execute().actionGet();
@@ -295,9 +277,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
                         .endObject())
                 .setRefresh(true)
                 .execute().actionGet();
-        clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
         updateResponse = client().prepareUpdate("test", "type1", "1").setScript("ctx._source.field += 1").setPercolate("*").execute().actionGet();
         assertThat(updateResponse.getMatches().size(), equalTo(1));
 
@@ -380,9 +360,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
     @Test
     public void testUpdateRequestWithBothScriptAndDoc() throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         try {
             client().prepareUpdate("test", "type1", "1")
@@ -398,11 +376,9 @@ public class UpdateTests extends AbstractSharedClusterTest {
     }
     
     @Test
-    public void testUpdateRequestWithScriptAndShouldUpsertDoc() throws Exception{
-    	createIndex();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+    public void testUpdateRequestWithScriptAndShouldUpsertDoc() throws Exception {
+        createIndex();
+        ensureGreen();
         try {
             client().prepareUpdate("test", "type1", "1")
                     .setScript("ctx._source.field += 1")
@@ -411,8 +387,8 @@ public class UpdateTests extends AbstractSharedClusterTest {
             fail("Should have thrown ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors().size(), equalTo(1));
-            assertThat(e.validationErrors().get(0), containsString("can't say to upsert doc without providing doc"));
-            assertThat(e.getMessage(), containsString("can't say to upsert doc without providing doc"));
+            assertThat(e.validationErrors().get(0), containsString("doc must be specified if doc_as_upsert is enabled"));
+            assertThat(e.getMessage(), containsString("doc must be specified if doc_as_upsert is enabled"));
         }
     }
 
@@ -428,9 +404,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
 
     private void concurrentUpdateWithRetryOnConflict(final boolean useBulkApi) throws Exception {
         createIndex();
-        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         int numberOfThreads = 5;
         final CountDownLatch latch = new CountDownLatch(numberOfThreads);

@@ -19,10 +19,8 @@
 
 package org.elasticsearch.discovery.gce;
 
-import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.AccessConfig;
 import com.google.api.services.compute.model.Instance;
-import com.google.api.services.compute.model.InstanceList;
 import com.google.api.services.compute.model.NetworkInterface;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -40,6 +38,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -125,11 +124,9 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         }
 
         try {
-            Compute.Instances.List list = gceComputeService.client().instances().list(project, zone);
+            Collection<Instance> instances = gceComputeService.instances();
 
-            InstanceList instanceList = list.execute();
-
-            for (Instance instance : instanceList.getItems()) {
+            for (Instance instance : instances) {
                 String name = instance.getName();
                 String type = instance.getMachineType();
                 String image = instance.getImage();
@@ -215,7 +212,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 }
 
             }
-        } catch (IOException e) {
+        } catch (Throwable e) {
             logger.warn("Exception caught during discovery {} : {}", e.getClass().getName(), e.getMessage());
             logger.trace("Exception caught during discovery", e);
         }

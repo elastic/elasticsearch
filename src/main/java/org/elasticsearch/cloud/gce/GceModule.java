@@ -28,6 +28,6 @@ public class GceModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(GceComputeService.class).asEagerSingleton();
+        bind(GceComputeService.class).to(GceComputeServiceImpl.class).asEagerSingleton();
     }
 }

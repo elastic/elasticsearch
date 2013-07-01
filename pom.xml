@@ -99,6 +99,14 @@ governing permissions and limitations under the License. -->
     </dependencies>
 
     <build>
+        <extensions>
+            <extension>
+                <groupId>org.kuali.maven.wagons</groupId>
+                <artifactId>maven-s3-wagon</artifactId>
+                <version>1.1.19</version>
+            </extension>
+        </extensions>
+
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -149,6 +157,25 @@ governing permissions and limitations under the License. -->
                         <phase>package</phase>
                         <goals>
                             <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>wagon-maven-plugin</artifactId>
+                <version>1.0-beta-4</version>
+                <configuration>
+                    <serverId>elasticsearch.download</serverId>
+                    <fromFile>${project.build.directory}/releases/${project.build.finalName}.zip</fromFile>
+                    <url>s3://test.elasticsearch.org/elasticsearch/${project.artifactId}/</url>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>upload-zip-to-server</id>
+                        <phase>deploy</phase>
+                        <goals>
+                            <goal>upload-single</goal>
                         </goals>
                     </execution>
                 </executions>

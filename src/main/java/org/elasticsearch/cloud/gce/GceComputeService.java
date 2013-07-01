@@ -19,88 +19,20 @@
 
 package org.elasticsearch.cloud.gce;
 
-import com.google.api.client.googleapis.compute.ComputeCredential;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.HttpTransport;
-import com.google.api.client.json.JsonFactory;
-import com.google.api.client.json.jackson2.JacksonFactory;
-import com.google.api.services.compute.Compute;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.DiscoveryException;
+import com.google.api.services.compute.model.Instance;
+
+import java.util.Collection;
 
 /**
  *
  */
-public class GceComputeService extends AbstractLifecycleComponent<GceComputeService> {
-
-    static final class Fields {
-        private static final String VERSION = "Elasticsearch/GceCloud/1.0";
+public interface GceComputeService {
+    static final public class Fields {
+        public static final String PROJECT = "project_id";
+        public static final String ZONE = "zone";
+        public static final String REFRESH = "refresh_interval";
+        public static final String VERSION = "Elasticsearch/GceCloud/1.0";
     }
 
-    private Compute client;
-    private TimeValue refreshInterval = null;
-    private long lastRefresh;
-
-    /** Global instance of the HTTP transport. */
-    private static HttpTransport HTTP_TRANSPORT;
-
-    /** Global instance of the JSON factory. */
-    private static JsonFactory JSON_FACTORY;
-
-    @Inject
-    public GceComputeService(Settings settings, SettingsFilter settingsFilter) {
-        super(settings);
-        settingsFilter.addFilter(new GceSettingsFilter());
-    }
-
-    public synchronized Compute client() {
-        if (refreshInterval != null && refreshInterval.millis() != 0) {
-            if (client != null &&
-                    (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
-                if (logger.isTraceEnabled()) logger.trace("using cache to retrieve client");
-                return client;
-            }
-            lastRefresh = System.currentTimeMillis();
-        }
-
-        try {
-            HTTP_TRANSPORT = GoogleNetHttpTransport.newTrustedTransport();
-            JSON_FACTORY = new JacksonFactory();
-
-            logger.debug("starting GCE discovery service");
-            ComputeCredential credential = new ComputeCredential.Builder(HTTP_TRANSPORT, JSON_FACTORY).build();
-            credential.refreshToken();
-
-            logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
-            refreshInterval = TimeValue.timeValueSeconds(credential.getExpiresInSeconds()-1);
-
-            // Once done, let's use this token
-            this.client = new Compute.Builder(HTTP_TRANSPORT, JSON_FACTORY, null)
-                    .setApplicationName(Fields.VERSION)
-                    .setHttpRequestInitializer(credential)
-                    .build();
-        } catch (Exception e) {
-            logger.warn("unable to start GCE discovery service: {} : {}", e.getClass().getName(), e.getMessage());
-            throw new DiscoveryException("unable to start GCE discovery service", e);
-        }
-
-        return this.client;
-    }
-
-    @Override
-    protected void doStart() throws ElasticSearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticSearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticSearchException {
-    }
+    public Collection<Instance> instances();
 }

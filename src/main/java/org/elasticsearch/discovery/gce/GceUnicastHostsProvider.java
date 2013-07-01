@@ -79,7 +79,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
         this.networkService = networkService;
 
         this.refreshInterval = componentSettings.getAsTime(Fields.REFRESH,
-                settings.getAsTime("cloud.gce." + Fields.REFRESH, TimeValue.timeValueSeconds(5)));
+                settings.getAsTime("cloud.gce." + Fields.REFRESH, TimeValue.timeValueSeconds(0)));
 
         this.project = componentSettings.get(Fields.PROJECT, settings.get("cloud.gce." + Fields.PROJECT));
         this.zone = componentSettings.get(Fields.ZONE, settings.get("cloud.gce." + Fields.ZONE));
@@ -96,9 +96,9 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
 
     /**
      * We build the list of Nodes from GCE Management API
-     * Information are cached for 5 seconds by default. Modify `plugins.refresh_interval` property if needed.
+     * Information can be cached using `plugins.refresh_interval` property if needed.
      * Setting `plugins.refresh_interval` to `-1` will cause infinite caching.
-     * Setting `plugins.refresh_interval` to `0` will disable caching.
+     * Setting `plugins.refresh_interval` to `0` will disable caching (default).
      */
     @Override
     public List<DiscoveryNode> buildDynamicNodes() {

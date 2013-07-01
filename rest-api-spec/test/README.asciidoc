@@ -18,6 +18,8 @@ of the `tokens` array, inside the `response` var (see below):
     $val = $response->{tokens}[1]{token}  # Perl syntax roolz!
 
 If one of the levels (eg `tokens`) does not exist, it should return an undefined value.
+If no field name is given (ie the empty string) then return the current
+$val -- used for testing the whole response body.
 
 Skipping tests:
 ---------------

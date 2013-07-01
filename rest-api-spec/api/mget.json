@@ -20,10 +20,6 @@
           "type": "list",
           "description" : "A comma-separated list of fields to return in the response"
         },
-        "parent": {
-          "type" : "string",
-          "description" : "The ID of the parent document"
-        },
         "preference": {
           "type" : "string",
           "description" : "Specify the node or shard the operation should be performed on (default: random)"
@@ -35,10 +31,6 @@
         "refresh": {
           "type" : "boolean",
           "description" : "Refresh the shard containing the document before performing the operation"
-        },
-        "routing": {
-          "type" : "string",
-          "description" : "Specific routing value"
         }
       }
     },

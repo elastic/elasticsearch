@@ -51,4 +51,57 @@ public class SimpleMgetTests extends AbstractSharedClusterTest {
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("[nonExistingIndex] missing"));
     }
+
+    @Test
+    public void testThatParentPerDocumentIsSupported()  throws Exception {
+        createIndex("test");
+        ensureYellow();
+        client().admin().indices().preparePutMapping("test").setType("test").setSource(jsonBuilder()
+            .startObject()
+                .startObject("test")
+                    .startObject("_parent")
+                        .field("type", "foo")
+                    .endObject()
+                .endObject().
+            endObject()
+        ).execute().actionGet();
+
+        client().prepareIndex("test", "test", "1").setParent("4").setRefresh(true)
+                .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+                .execute().actionGet();
+
+        MultiGetResponse mgetResponse = client().prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "test", "1").parent("4"))
+                .add(new MultiGetRequest.Item("test", "test", "1"))
+                .execute().actionGet();
+
+        assertThat(mgetResponse.getResponses().length, is(2));
+        assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
+        assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
+
+        assertThat(mgetResponse.getResponses()[1].isFailed(), is(false));
+        assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(false));
+    }
+
+    @Test
+    public void testThatRoutingPerDocumentIsSupported() throws Exception {
+        createIndex("test");
+        ensureYellow();
+
+        client().prepareIndex("test", "test", "1").setRefresh(true).setRouting("bar")
+                .setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+                .execute().actionGet();
+
+        MultiGetResponse mgetResponse = client().prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "test", "1").routing("bar"))
+                .add(new MultiGetRequest.Item("test", "test", "1"))
+                .execute().actionGet();
+
+        assertThat(mgetResponse.getResponses().length, is(2));
+        assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
+        assertThat(mgetResponse.getResponses()[0].getResponse().isExists(), is(true));
+
+        assertThat(mgetResponse.getResponses()[1].isFailed(), is(false));
+        assertThat(mgetResponse.getResponses()[1].getResponse().isExists(), is(false));
+    }
 }

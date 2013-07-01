@@ -1,5 +1,6 @@
 ---
 "External version":
+
  - skip:
       version:      "0 - 0.90.9"
       reason:       "Versions not supported by update API before 1.0.0"

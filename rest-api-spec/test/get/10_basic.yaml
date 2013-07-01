@@ -1,5 +1,6 @@
 ---
 "Basic GET":
+
   - do:
       catch:   missing
       get:

@@ -1,5 +1,6 @@
 ---
 "TTL":
+
  - do:
       indices.create:
           index:    test_1
@@ -30,6 +31,7 @@
           type:    test
           id:      1
           fields:  _ttl
+
  - lt:    { fields._ttl: 10000}
  - gt:    { fields._ttl: 0}
 
@@ -44,12 +46,14 @@
             doc:        { foo: baz }
             upsert:     { foo: bar }
           ttl:       100000
+
  - do:
       get:
           index:   test_1
           type:    test
           id:      1
           fields:  _ttl
+
  - lt:    { fields._ttl: 100000}
  - gt:    { fields._ttl: 10000}
 
@@ -71,6 +75,7 @@
           type:    test
           id:      1
           fields:  _ttl
+
  - lt:    { fields._ttl: 20000}
  - gt:    { fields._ttl: 10000}
 

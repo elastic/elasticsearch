@@ -1,5 +1,6 @@
 ---
 "Timestamp":
+
  - do:
       indices.create:
           index:    test_1
@@ -29,7 +30,8 @@
           type:    test
           id:      1
           fields:  _timestamp
- - ok:    fields._timestamp
+
+ - is_true: fields._timestamp
 
 # milliseconds since epoch
 
@@ -49,6 +51,7 @@
           type:    test
           id:      1
           fields:  _timestamp
+
  - match: { fields._timestamp: 1372011280000 }
 
 # date format
@@ -69,5 +72,6 @@
           type:    test
           id:      1
           fields:  _timestamp
+
  - match: { fields._timestamp: 1372011280000 }
 

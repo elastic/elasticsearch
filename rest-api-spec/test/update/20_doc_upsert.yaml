@@ -17,7 +17,7 @@
           id:     1
 
   - match:  { _source.foo:        baz }
-  - not_ok:   _source.count
+  - is_false:   _source.count
 
 
   - do:

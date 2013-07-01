@@ -101,19 +101,19 @@ testing indexing a document without a specified ID:
 
 The stash should be reset at the beginning of each test file.
 
-=== `ok`
+=== `is_true`
 
 The specified key exists and has a true value (ie not `0`, `false`, `undefined`, `null`
 or the empty string), eg:
 
-    - ok:  fields._parent  # the _parent key exists in the fields hash and is "true"
+    - is_true:  fields._parent  # the _parent key exists in the fields hash and is "true"
 
-=== `not_ok`
+=== `is_false`
 
 The specified key doesn't exist or has a false value (ie `0`, `false`, `undefined`,
 `null` or the empty string), eg:
 
-    - not_ok:  fields._source  # the _source key doesn't exist in the fields hash
+    - is_false:  fields._source  # the _source key doesn't exist in the fields hash
 
 === `match`
 

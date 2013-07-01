@@ -1,5 +1,6 @@
 ---
 "Routing":
+
  - do:
       index:
           index:   test_1
@@ -17,6 +18,7 @@
           id:      1
           routing: 5
           fields:  [_routing]
+
  - match:   { _id:              1}
  - match:   { fields._routing:  5}
 

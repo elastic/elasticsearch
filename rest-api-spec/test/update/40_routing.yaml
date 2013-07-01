@@ -1,5 +1,6 @@
 ---
 "Routing":
+
  - do:
       update:
           index:   test_1

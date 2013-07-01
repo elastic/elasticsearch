@@ -1,12 +1,12 @@
 ---
 "Info":
-    - do:    {info: {}}
-    - match: { status: 200 }
-    - ok:    ok
-    - ok:    name
-    - ok:    tagline
-    - ok:    version
-    - ok:    version.lucene_version
-    - ok:    version.number
+    - do:         {info: {}}
+    - match:      {status: 200}
+    - is_true:    ok
+    - is_true:    name
+    - is_true:    tagline
+    - is_true:    version
+    - is_true:    version.lucene_version
+    - is_true:    version.number
 
 

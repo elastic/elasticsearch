@@ -1,5 +1,6 @@
 ---
 "External version":
+
  - do:
       index:
           index:          test_1
@@ -8,6 +9,7 @@
           body:           { foo: bar }
           version_type:   external
           version:        5
+
  - match:   { _version: 5}
 
  - do:
@@ -26,4 +28,5 @@
           id:             1
           version_type:   external
           version:        6
+
  - match:   { _version: 6}

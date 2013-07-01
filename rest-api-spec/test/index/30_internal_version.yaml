@@ -1,5 +1,6 @@
 ---
 "Internal version":
+
  - do:
       index:
           index:  test_1

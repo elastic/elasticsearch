@@ -6,7 +6,8 @@
           type:   test
           id:     1
           body:   { foo: bar }
- - ok:      ok
+
+ - is_true:   ok
  - match:   { _index:   test_1 }
  - match:   { _type:    test }
  - match:   { _id:      1}
@@ -17,6 +18,7 @@
           index:  test_1
           type:   test
           id:     1
+
  - match:   { _index:   test_1 }
  - match:   { _type:    test }
  - match:   { _id:      1}

@@ -1,5 +1,6 @@
 ---
 "Parent with routing":
+
  - do:
       indices.create:
           index: test_1

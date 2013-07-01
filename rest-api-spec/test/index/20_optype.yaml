@@ -1,5 +1,6 @@
 ---
 "Optype":
+
  - do:
       index:
           index:    test_1

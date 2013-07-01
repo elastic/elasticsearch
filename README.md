@@ -52,7 +52,7 @@ Before starting, you should have:
 
 
 ```sh
-gcutil --project=es-cloud addinstance myesnode1 --service_account_scope=compute-rw --persistent_boot_disk
+gcutil --project=es-cloud addinstance myesnode1 --service_account_scope=compute-rw,storage-full --persistent_boot_disk
 ```
 
 You will be asked to open a link in your browser. Login and allow access to listed services.
@@ -178,14 +178,7 @@ gsutil mb gs://esimage
 # Copy your image to this bucket:
 gsutil cp /tmp/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz gs://esimage
 
-# You can logout
-exit
-```
-
-Then add your image to images collection:
-
-```sh
-# From your own computer (not from google compute engine instance!)
+# Then add your image to images collection:
 gcutil listkernels --project es-cloud
 +----------------------------------------------+--------------------------------------------------+-------------+
 |                     name                     |                   description                    | deprecation |

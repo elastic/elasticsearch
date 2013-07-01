@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
@@ -42,7 +43,8 @@ public class GceDiscovery extends ZenDiscovery {
     @Inject
     public GceDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool, TransportService transportService,
                         ClusterService clusterService, NodeSettingsService nodeSettingsService, ZenPingService pingService,
-                        DiscoveryNodeService discoveryNodeService, GceComputeService gceComputeService) {
+                        DiscoveryNodeService discoveryNodeService, GceComputeService gceComputeService,
+                        NetworkService networkService) {
         super(settings, clusterName, threadPool, transportService, clusterService, nodeSettingsService, discoveryNodeService, pingService);
         if (settings.getAsBoolean("cloud.enabled", true)) {
             ImmutableList<? extends ZenPing> zenPings = pingService.zenPings();
@@ -57,7 +59,8 @@ public class GceDiscovery extends ZenDiscovery {
             if (unicastZenPing != null) {
                 // update the unicast zen ping to add cloud hosts provider
                 // and, while we are at it, use only it and not the multicast for example
-                unicastZenPing.addHostsProvider(new GceUnicastHostsProvider(settings, gceComputeService.nodes()));
+                unicastZenPing.addHostsProvider(new GceUnicastHostsProvider(settings, gceComputeService,
+                        transportService, networkService));
                 pingService.zenPings(ImmutableList.of(unicastZenPing));
             } else {
                 logger.warn("failed to apply gce unicast discovery, no unicast ping found");

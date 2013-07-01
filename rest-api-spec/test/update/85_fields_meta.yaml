@@ -2,7 +2,7 @@
 "Fields":
 
   - skip:
-      version:  "0 - 0.90.3"
+      version:  "0 - 0.90.2"
       reason:   "Update doesn't return metadata fields"
 
   - do:

@@ -51,8 +51,8 @@ public class RestHeadAction extends BaseRestHandler {
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
+        getRequest.routing(request.param("routing"));  // order is important, set it after routing, so it will set the routing
         getRequest.parent(request.param("parent"));
-        getRequest.routing(request.param("routing"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBooleanOptional("realtime", null));
         // don't get any fields back...

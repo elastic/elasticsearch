@@ -1,5 +1,6 @@
 ---
 "Parent":
+
  - skip:
       version:     "0 - 0.90.2"
       reason:      Delete ignores the parent param
@@ -22,6 +23,13 @@
           id:      1
           parent:  5
           body:    { foo: bar }
+
+ - do:
+      catch:      missing
+      delete:
+          index:   test_1
+          type:    test
+          id:      1
 
  - do:
       catch:      missing

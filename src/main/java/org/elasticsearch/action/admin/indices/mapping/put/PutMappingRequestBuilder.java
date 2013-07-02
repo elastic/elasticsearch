@@ -77,6 +77,15 @@ public class PutMappingRequestBuilder extends MasterNodeOperationRequestBuilder<
     }
 
     /**
+     * A specialized simplified mapping source method, takes the form of simple properties definition:
+     * ("field1", "type=string,store=true").
+     */
+    public PutMappingRequestBuilder setSource(Object... source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
      * Timeout to wait till the put mapping gets acknowledged of all current cluster nodes. Defaults to
      * <tt>10s</tt>.
      */

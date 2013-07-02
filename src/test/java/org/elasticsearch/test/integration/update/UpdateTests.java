@@ -139,7 +139,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         ensureGreen();
 
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
         assertTrue(updateResponse.isCreated());
@@ -150,7 +150,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         }
 
         updateResponse = client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
         assertFalse(updateResponse.isCreated());
@@ -195,7 +195,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         ensureGreen();
 
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
                 .execute().actionGet();
@@ -205,7 +205,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra"), nullValue());
 
         updateResponse = client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
                 .execute().actionGet();
@@ -250,14 +250,14 @@ public class UpdateTests extends AbstractSharedClusterTest {
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
 
         // With internal versions, tt means "if object is there with version X, update it or explode. If it is not there, index.
-        run(client().prepareUpdate("test", "type", "3").setScript("ctx._source.text = 'v2'").setVersion(10).setUpsertRequest("{ \"text\": \"v0\" }"));
+        run(client().prepareUpdate("test", "type", "3").setScript("ctx._source.text = 'v2'").setVersion(10).setUpsert("{ \"text\": \"v0\" }"));
         GetResponse get = get("test", "type", "3");
         assertThat(get.getVersion(), equalTo(1l));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));
 
         // With external versions, it means - if object is there with version lower than X, update it or explode. If it is not there, insert with new version.
         run(client().prepareUpdate("test", "type", "4").setScript("ctx._source.text = 'v2'").
-                setVersion(10).setVersionType(VersionType.EXTERNAL).setUpsertRequest("{ \"text\": \"v0\" }"));
+                setVersion(10).setVersionType(VersionType.EXTERNAL).setUpsert("{ \"text\": \"v0\" }"));
         get = get("test", "type", "4");
         assertThat(get.getVersion(), equalTo(10l));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));
@@ -272,7 +272,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
     @Test
     public void testIndexAutoCreation() throws Exception {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
                 .execute().actionGet();
@@ -486,12 +486,12 @@ public class UpdateTests extends AbstractSharedClusterTest {
                                 UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "type1", Integer.toString(i))
                                         .setScript("ctx._source.field += 1")
                                         .setRetryOnConflict(Integer.MAX_VALUE)
-                                        .setUpsertRequest(jsonBuilder().startObject().field("field", 1).endObject());
+                                        .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
                                 client().prepareBulk().add(updateRequestBuilder).execute().actionGet();
                             } else {
                                 client().prepareUpdate("test", "type1", Integer.toString(i)).setScript("ctx._source.field += 1")
                                         .setRetryOnConflict(Integer.MAX_VALUE)
-                                        .setUpsertRequest(jsonBuilder().startObject().field("field", 1).endObject())
+                                        .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                                         .execute().actionGet();
                             }
                         }

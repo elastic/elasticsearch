@@ -76,7 +76,7 @@ public class BulkTests extends AbstractSharedClusterTest {
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate().setIndex("test").setType("type1").setId("6").setScript("ctx._source.field += 1")
-                        .setUpsertRequest(jsonBuilder().startObject().field("field", 0).endObject()))
+                        .setUpsert(jsonBuilder().startObject().field("field", 0).endObject()))
                 .add(client().prepareUpdate().setIndex("test").setType("type1").setId("7").setScript("ctx._source.field += 1"))
                 .add(client().prepareUpdate().setIndex("test").setType("type1").setId("2").setScript("ctx._source.field += 1"))
                 .execute().actionGet();
@@ -167,7 +167,7 @@ public class BulkTests extends AbstractSharedClusterTest {
                     client().prepareUpdate()
                             .setIndex("test").setType("type1").setId(Integer.toString(i))
                             .setScript("ctx._source.counter += 1").setFields("counter")
-                            .setUpsertRequest(jsonBuilder().startObject().field("counter", 1).endObject())
+                            .setUpsert(jsonBuilder().startObject().field("counter", 1).endObject())
             );
         }
 

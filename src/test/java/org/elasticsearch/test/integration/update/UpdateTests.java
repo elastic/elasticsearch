@@ -134,8 +134,8 @@ public class UpdateTests extends AbstractSharedClusterTest {
         createIndex();
         ensureGreen();
 
-        client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+        UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
 
@@ -144,8 +144,8 @@ public class UpdateTests extends AbstractSharedClusterTest {
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("1"));
         }
 
-        client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+        updateResponse = client().prepareUpdate("test", "type1", "1")
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field += 1")
                 .execute().actionGet();
 
@@ -154,6 +154,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
             assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo("2"));
         }
     }
+
     @Test
     public void testUpsertDoc() throws Exception {
         createIndex();
@@ -187,7 +188,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         ensureGreen();
 
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
                 .execute().actionGet();
@@ -197,7 +198,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra"), nullValue());
 
         updateResponse = client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
                 .execute().actionGet();
@@ -207,10 +208,9 @@ public class UpdateTests extends AbstractSharedClusterTest {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra").toString(), equalTo("foo"));
     }
 
-    @Test
     public void testIndexAutoCreation() throws Exception {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
                 .setScript("ctx._source.extra = \"foo\"")
                 .setFields("_source")
                 .execute().actionGet();
@@ -374,7 +374,7 @@ public class UpdateTests extends AbstractSharedClusterTest {
             assertThat(e.getMessage(), containsString("can't provide both script and doc"));
         }
     }
-    
+
     @Test
     public void testUpdateRequestWithScriptAndShouldUpsertDoc() throws Exception {
         createIndex();
@@ -420,12 +420,12 @@ public class UpdateTests extends AbstractSharedClusterTest {
                                 UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate("test", "type1", Integer.toString(i))
                                         .setScript("ctx._source.field += 1")
                                         .setRetryOnConflict(Integer.MAX_VALUE)
-                                        .setUpsertRequest(jsonBuilder().startObject().field("field", 1).endObject());
+                                        .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
                                 client().prepareBulk().add(updateRequestBuilder).execute().actionGet();
                             } else {
                                 client().prepareUpdate("test", "type1", Integer.toString(i)).setScript("ctx._source.field += 1")
                                         .setRetryOnConflict(Integer.MAX_VALUE)
-                                        .setUpsertRequest(jsonBuilder().startObject().field("field", 1).endObject())
+                                        .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                                         .execute().actionGet();
                             }
                         }

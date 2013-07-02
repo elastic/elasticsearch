@@ -525,6 +525,17 @@ public class ImmutableSettings implements Settings {
         }
 
         /**
+         * Puts tuples of key value pairs of settings. Simplified version instead of repeating calling
+         * put for each one.
+         */
+        public Builder put(Object... settings) {
+            for (int i = 0; i < settings.length; i++) {
+                put(settings[i++].toString(), settings[i].toString());
+            }
+            return this;
+        }
+
+        /**
          * Sets a setting with the provided setting key and value.
          *
          * @param key   The setting key

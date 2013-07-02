@@ -410,6 +410,21 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         }
     }
 
+    @Required
+    public IndexRequest source(Object... source) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.startObject();
+            for (int i = 0; i < source.length; i++) {
+                builder.field(source[i++].toString(), source[i]);
+            }
+            builder.endObject();
+            return source(builder);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate", e);
+        }
+    }
+
     /**
      * Sets the document to index in bytes form.
      */

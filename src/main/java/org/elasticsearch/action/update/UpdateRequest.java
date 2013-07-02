@@ -69,7 +69,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     private IndexRequest upsertRequest;
-    
+
     private boolean docAsUpsert = false;
 
     @Nullable
@@ -396,6 +396,23 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    /**
+     * Sets the doc to use for updates when a script is not specified, the doc provided
+     * is a field and value pairs.
+     */
+    public UpdateRequest doc(Object... source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified.
+     */
+    public UpdateRequest doc(String field, Object value) {
+        safeDoc().source(field, value);
+        return this;
+    }
+
     public IndexRequest doc() {
         return this.doc;
     }
@@ -464,6 +481,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this;
     }
 
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists. The doc
+     * includes field and value pairs.
+     */
+    public UpdateRequest upsert(Object... source) {
+        safeUpsertRequest().source(source);
+        return this;
+    }
+
     public IndexRequest upsertRequest() {
         return this.upsertRequest;
     }
@@ -513,8 +539,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
                     docBuilder.copyCurrentStructure(parser);
                     safeDoc().source(docBuilder);
-                } else if("doc_as_upsert".equals(currentFieldName)){
-                	docAsUpsert(parser.booleanValue());
+                } else if ("doc_as_upsert".equals(currentFieldName)) {
+                    docAsUpsert(parser.booleanValue());
                 }
             }
         } finally {
@@ -526,6 +552,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     public boolean docAsUpsert() {
         return this.docAsUpsert;
     }
+
     public void docAsUpsert(boolean shouldUpsertDoc) {
         this.docAsUpsert = shouldUpsertDoc;
     }

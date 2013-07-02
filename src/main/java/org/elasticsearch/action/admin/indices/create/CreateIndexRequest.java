@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -123,6 +124,14 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
      */
     String cause() {
         return cause;
+    }
+
+    /**
+     * A simplified version of settings that takes key value pairs settings.
+     */
+    public CreateIndexRequest settings(Object... settings) {
+        this.settings = ImmutableSettings.builder().put(settings).build();
+        return this;
     }
 
     /**
@@ -227,6 +236,15 @@ public class CreateIndexRequest extends MasterNodeOperationRequest<CreateIndexRe
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate [" + source + "]", e);
         }
+    }
+
+    /**
+     * A specialized simplified mapping source method, takes the form of simple properties definition:
+     * ("field1", "type=string,store=true").
+     */
+    public CreateIndexRequest mapping(String type, Object... source) {
+        mapping(type, PutMappingRequest.buildFromSimplifiedDef(type, source));
+        return this;
     }
 
     /**

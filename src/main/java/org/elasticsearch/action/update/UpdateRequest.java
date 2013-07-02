@@ -431,6 +431,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
+     * Sets the doc to use for updates when a script is not specified, the doc provided
+     * is a field and value pairs.
+     */
+    public UpdateRequest doc(Object... source) {
+        safeDoc().source(source);
+        return this;
+    }
+
+    /**
      * Sets the doc to use for updates when a script is not specified.
      */
     public UpdateRequest doc(String field, Object value) {
@@ -503,6 +512,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      */
     public UpdateRequest upsert(byte[] source, int offset, int length) {
         safeUpsertRequest().source(source, offset, length);
+        return this;
+    }
+
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists. The doc
+     * includes field and value pairs.
+     */
+    public UpdateRequest upsert(Object... source) {
+        safeUpsertRequest().source(source);
         return this;
     }
 

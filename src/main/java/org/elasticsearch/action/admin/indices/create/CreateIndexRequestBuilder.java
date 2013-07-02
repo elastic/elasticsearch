@@ -82,6 +82,14 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
     }
 
     /**
+     * A simplified version of settings that takes key value pairs settings.
+     */
+    public CreateIndexRequestBuilder setSettings(Object... settings) {
+        request.settings(settings);
+        return this;
+    }
+
+    /**
      * The settings to crete the index with (either json/yaml/properties format)
      */
     public CreateIndexRequestBuilder setSettings(Map<String, Object> source) {
@@ -126,6 +134,15 @@ public class CreateIndexRequestBuilder extends MasterNodeOperationRequestBuilder
      * @param source The mapping source
      */
     public CreateIndexRequestBuilder addMapping(String type, Map<String, Object> source) {
+        request.mapping(type, source);
+        return this;
+    }
+
+    /**
+     * A specialized simplified mapping source method, takes the form of simple properties definition:
+     * ("field1", "type=string,store=true").
+     */
+    public CreateIndexRequestBuilder addMapping(String type, Object... source) {
         request.mapping(type, source);
         return this;
     }

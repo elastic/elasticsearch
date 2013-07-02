@@ -91,7 +91,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
 
     @Test
     public void passQueryAsStringTest() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+        client().admin().indices().prepareCreate("test").setSettings("index.number_of_shards", 1).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).execute().actionGet();
 
@@ -102,16 +102,16 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
     @Test
     public void testIndexOptions() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+                .addMapping("type1", "field1", "type=string,index_options=docs")
+                .setSettings("index.number_of_shards", 1).get();
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         try {
-            client().prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
+            client().prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
         } catch (SearchPhaseExecutionException e) {
             assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
         }
@@ -120,7 +120,7 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
     @Test
     public void testCommonTermsQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
+                .addMapping("type1", "field1", "type=string,analyzer=whitespace")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
@@ -206,11 +206,11 @@ public class SimpleQueryTests extends AbstractSharedClusterTest {
     public void testOmitTermFreqsAndPositions() throws Exception {
         // backwards compat test!
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1").field("omit_term_freq_and_positions", true).field("type", "string").endObject().endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).execute().actionGet();
+                .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1)).get();
 
-        client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").get();
+        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).get();
 
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();

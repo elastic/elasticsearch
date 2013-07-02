@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Required;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -121,6 +122,45 @@ public class PutMappingRequest extends MasterNodeOperationRequest<PutMappingRequ
      */
     public String source() {
         return source;
+    }
+
+    /**
+     * A specialized simplified mapping source method, takes the form of simple properties definition:
+     * ("field1", "type=string,store=true").
+     */
+    public PutMappingRequest source(Object... source) {
+        return source(buildFromSimplifiedDef(type, source));
+    }
+
+    public static XContentBuilder buildFromSimplifiedDef(String type, Object... source) {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            builder.startObject();
+            if (type != null) {
+                builder.startObject(type);
+            }
+            builder.startObject("properties");
+            for (int i = 0; i < source.length; i++) {
+                builder.startObject(source[i++].toString());
+                String[] s1 = Strings.splitStringByCommaToArray(source[i].toString());
+                for (String s : s1) {
+                    String[] s2 = Strings.split(s, "=");
+                    if (s2.length != 2) {
+                        throw new ElasticSearchIllegalArgumentException("malformed " + s);
+                    }
+                    builder.field(s2[0], s2[1]);
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            if (type != null) {
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        } catch (Exception e) {
+            throw new ElasticSearchIllegalArgumentException("failed to generate simplified mapping definition", e);
+        }
     }
 
     /**

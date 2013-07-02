@@ -19,10 +19,9 @@
 
 package org.elasticsearch.test.integration.routing;
 
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
-
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -66,7 +65,7 @@ public class AliasRoutingTests extends AbstractSharedClusterTest {
 
         logger.info("--> updating with id [1] and routing through alias");
         client().prepareUpdate("alias0", "type1", "1")
-                .setUpsertRequest(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
+                .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
                 .setScript("ctx._source.field = 'value2'")
                 .execute().actionGet();
         for (int i = 0; i < 5; i++) {

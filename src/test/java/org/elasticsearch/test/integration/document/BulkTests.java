@@ -1,11 +1,5 @@
 package org.elasticsearch.test.integration.document;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
-
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -15,6 +9,10 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -140,7 +138,7 @@ public class BulkTests extends AbstractSharedClusterTest {
 
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getId(), equalTo("2"));
         assertThat(((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getVersion(), equalTo(2l));
-        assertThat(((Integer)((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().field("field").getValue()), equalTo(2));
+        assertThat(((Integer) ((UpdateResponse) bulkResponse.getItems()[1].getResponse()).getGetResult().field("field").getValue()), equalTo(2));
         assertThat(bulkResponse.getItems()[1].getFailure(), nullValue());
 
         assertThat(bulkResponse.getItems()[2].getFailure().getId(), equalTo("3"));
@@ -182,7 +180,7 @@ public class BulkTests extends AbstractSharedClusterTest {
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getId(), equalTo(Integer.toString(i)));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(1l));
-            assertThat(((Integer)((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()), equalTo(1));
+            assertThat(((Integer) ((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()), equalTo(1));
 
             for (int j = 0; j < 5; j++) {
                 GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).setFields("counter").execute().actionGet();
@@ -219,7 +217,7 @@ public class BulkTests extends AbstractSharedClusterTest {
             assertThat(response.getItems()[i].getOpType(), equalTo("update"));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getId(), equalTo(Integer.toString(i)));
             assertThat(((UpdateResponse) response.getItems()[i].getResponse()).getVersion(), equalTo(2l));
-            assertThat(((Integer)((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()), equalTo(2));
+            assertThat(((Integer) ((UpdateResponse) response.getItems()[i].getResponse()).getGetResult().field("counter").getValue()), equalTo(2));
         }
 
         builder = client().prepareBulk();

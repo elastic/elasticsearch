@@ -132,6 +132,11 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
     ShardIterator shardsIt();
 
     /**
+     * String identifier to uniquely refer to this shard routing (once it's assigned).
+     */
+    String globalId();
+
+    /**
      * Does not write index name and shard id
      */
     void writeToThin(StreamOutput out) throws IOException;

@@ -85,6 +85,29 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     }
 
     @Override
+    public String globalId() {
+        String pri = "r";
+        if (this.primary()) {
+            pri = "p";
+        }
+
+        String node = "unassigned";
+        if (null != this.currentNodeId()) {
+            node = this.currentNodeId();
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(getIndex());
+        sb.append("/");
+        sb.append(this.shardId().id());
+        sb.append("/");
+        sb.append(pri);
+        sb.append("/");
+        sb.append(node);
+        return sb.toString();
+    }
+
+    @Override
     public String index() {
         return this.index;
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -43,6 +44,8 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
 
     private ShardStats[] shards;
 
+    private ImmutableMap<String, CommonStats> shardStatsMap;
+
     IndicesStatsResponse() {
 
     }
@@ -50,6 +53,21 @@ public class IndicesStatsResponse extends BroadcastOperationResponse implements 
     IndicesStatsResponse(ShardStats[] shards, ClusterState clusterState, int totalShards, int successfulShards, int failedShards, List<ShardOperationFailedException> shardFailures) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
+        this.shardStatsMap = buildShardsStatsMap();
+    }
+
+    private ImmutableMap<String, CommonStats> buildShardsStatsMap() {
+        ImmutableMap.Builder<String, CommonStats> mb = ImmutableMap.builder();
+
+        for (ShardStats ss : shards) {
+             mb.put(ss.getShardRouting().globalId(), ss.getStats());
+        }
+
+        return mb.build();
+    }
+
+    public ImmutableMap<String, CommonStats> asMap() {
+        return this.shardStatsMap;
     }
 
     public ShardStats[] getShards() {

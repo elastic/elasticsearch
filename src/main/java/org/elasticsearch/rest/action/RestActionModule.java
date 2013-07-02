@@ -67,6 +67,7 @@ import org.elasticsearch.rest.action.admin.indices.warmer.delete.RestDeleteWarme
 import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerAction;
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
+import org.elasticsearch.rest.action.cat.RestShardsAction;
 import org.elasticsearch.rest.action.count.RestCountAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.deletebyquery.RestDeleteByQueryAction;
@@ -83,7 +84,9 @@ import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.rest.action.suggest.RestSuggestAction;
+
 import org.elasticsearch.rest.action.termvector.RestTermVectorAction;
+
 import org.elasticsearch.rest.action.update.RestUpdateAction;
 
 import java.util.List;
@@ -180,5 +183,7 @@ public class RestActionModule extends AbstractModule {
         bind(RestMoreLikeThisAction.class).asEagerSingleton();
 
         bind(RestExplainAction.class).asEagerSingleton();
+
+        bind(RestShardsAction.class).asEagerSingleton();
     }
 }

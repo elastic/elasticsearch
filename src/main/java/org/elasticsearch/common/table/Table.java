@@ -86,7 +86,7 @@ public class Table {
             out.append(row.toString().trim());
             out.append("\n");
         }
-        return out.toString().trim();
+        return out.toString();
     }
 
     private class Column {

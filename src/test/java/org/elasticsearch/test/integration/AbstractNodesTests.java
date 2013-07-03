@@ -27,6 +27,7 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.node.Node;
 
 import java.util.Map;
@@ -140,5 +141,19 @@ public abstract class AbstractNodesTests extends ElasticsearchTestCase {
         }
         while (!blocks.isEmpty() && (System.currentTimeMillis() - start) < timeout.millis());
         return blocks;
+    }
+
+    public void createIndices(Client client, String... indices) {
+        for (String index : indices) {
+            client.admin().indices().prepareCreate(index).execute().actionGet();
+        }
+    }
+
+    public void wipeIndices(Client client, String... names) {
+        try {
+            client.admin().indices().prepareDelete(names).execute().actionGet();
+        } catch (IndexMissingException e) {
+            // ignore
+        }
     }
 }

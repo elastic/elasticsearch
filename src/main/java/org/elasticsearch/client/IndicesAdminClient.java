@@ -295,14 +295,14 @@ public interface IndicesAdminClient {
     void close(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener);
 
     /**
-     * Closes an index based on the index name.
+     * Closes one or more indices based on their index name.
      *
-     * @param index The index name to close
+     * @param indices The name of the indices to close
      */
-    CloseIndexRequestBuilder prepareClose(String index);
+    CloseIndexRequestBuilder prepareClose(String... indices);
 
     /**
-     * OPen an index based on the index name.
+     * Open an index based on the index name.
      *
      * @param request The close index request
      * @return The result future
@@ -320,11 +320,11 @@ public interface IndicesAdminClient {
     void open(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener);
 
     /**
-     * Opens an index based on the index name.
+     * Opens one or more indices based on their index name.
      *
-     * @param index The index name to close
+     * @param indices The name of the indices to close
      */
-    OpenIndexRequestBuilder prepareOpen(String index);
+    OpenIndexRequestBuilder prepareOpen(String... indices);
 
     /**
      * Explicitly refresh one or more indices (making the content indexed since the last refresh searchable).

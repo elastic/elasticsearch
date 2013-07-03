@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -34,12 +35,17 @@ public class OpenIndexRequestBuilder extends MasterNodeOperationRequestBuilder<O
         super((InternalIndicesAdminClient) indicesClient, new OpenIndexRequest());
     }
 
-    public OpenIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
-        super((InternalIndicesAdminClient) indicesClient, new OpenIndexRequest(index));
+    public OpenIndexRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
+        super((InternalIndicesAdminClient) indicesClient, new OpenIndexRequest(indices));
     }
 
-    public OpenIndexRequestBuilder setIndex(String index) {
-        request.index(index);
+    /**
+     * Sets the indices to be opened
+     * @param indices the indices to be opened
+     * @return the request itself
+     */
+    public OpenIndexRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
         return this;
     }
 
@@ -58,6 +64,16 @@ public class OpenIndexRequestBuilder extends MasterNodeOperationRequestBuilder<O
      */
     public OpenIndexRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * @param ignoreIndices the desired behaviour regarding indices to ignore
+     * @return the request itself
+     */
+    public OpenIndexRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request.ignoreIndices(ignoreIndices);
         return this;
     }
 

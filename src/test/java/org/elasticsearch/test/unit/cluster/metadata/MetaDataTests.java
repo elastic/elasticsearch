@@ -104,4 +104,157 @@ public class MetaDataTests {
          MetaData md = mdBuilder.build();
         assertThat(newHashSet(md.concreteIndices(new String[]{}, IgnoreIndices.MISSING, true)), equalTo(Sets.<String>newHashSet("kuku","testXXX")));
     }
+
+    @Test
+    public void testIsAllIndices_null() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isAllIndices(null), equalTo(true));
+    }
+
+    @Test
+    public void testIsAllIndices_empty() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isAllIndices(new String[0]), equalTo(true));
+    }
+
+    @Test
+    public void testIsAllIndices_explicitAll() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isAllIndices(new String[]{"_all"}), equalTo(true));
+    }
+
+    @Test
+    public void testIsAllIndices_explicitAllPlusOther() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isAllIndices(new String[]{"_all", "other"}), equalTo(false));
+    }
+
+    @Test
+    public void testIsAllIndices_normalIndexes() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isAllIndices(new String[]{"index1", "index2", "index3"}), equalTo(false));
+    }
+
+    @Test
+    public void testIsAllIndices_wildcard() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isAllIndices(new String[]{"*"}), equalTo(false));
+    }
+
+    @Test
+    public void testIsExplicitAllIndices_null() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isExplicitAllIndices(null), equalTo(false));
+    }
+
+    @Test
+    public void testIsExplicitAllIndices_empty() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isExplicitAllIndices(new String[0]), equalTo(false));
+    }
+
+    @Test
+    public void testIsExplicitAllIndices_explicitAll() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isExplicitAllIndices(new String[]{"_all"}), equalTo(true));
+    }
+
+    @Test
+    public void testIsExplicitAllIndices_explicitAllPlusOther() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isExplicitAllIndices(new String[]{"_all", "other"}), equalTo(false));
+    }
+
+    @Test
+    public void testIsExplicitAllIndices_normalIndexes() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isExplicitAllIndices(new String[]{"index1", "index2", "index3"}), equalTo(false));
+    }
+
+    @Test
+    public void testIsExplicitAllIndices_wildcard() throws Exception {
+        MetaData metaData = MetaData.builder().build();
+        assertThat(metaData.isExplicitAllIndices(new String[]{"*"}), equalTo(false));
+    }
+
+    @Test
+    public void testIsPatternMatchingAllIndices_explicitList() throws Exception {
+        //even though it does identify all indices, it's not a pattern but just an explicit list of them
+        String[] concreteIndices = new String[]{"index1", "index2", "index3"};
+        String[] indicesOrAliases = concreteIndices;
+        String[] allConcreteIndices = concreteIndices;
+        MetaData metaData = metaDataBuilder(allConcreteIndices);
+        assertThat(metaData.isPatternMatchingAllIndices(indicesOrAliases, concreteIndices), equalTo(false));
+    }
+
+    @Test
+    public void testIsPatternMatchingAllIndices_onlyWildcard() throws Exception {
+        String[] indicesOrAliases = new String[]{"*"};
+        String[] concreteIndices = new String[]{"index1", "index2", "index3"};
+        String[] allConcreteIndices = concreteIndices;
+        MetaData metaData = metaDataBuilder(allConcreteIndices);
+        assertThat(metaData.isPatternMatchingAllIndices(indicesOrAliases, concreteIndices), equalTo(true));
+    }
+
+    @Test
+    public void testIsPatternMatchingAllIndices_matchingTrailingWildcard() throws Exception {
+        String[] indicesOrAliases = new String[]{"index*"};
+        String[] concreteIndices = new String[]{"index1", "index2", "index3"};
+        String[] allConcreteIndices = concreteIndices;
+        MetaData metaData = metaDataBuilder(allConcreteIndices);
+        assertThat(metaData.isPatternMatchingAllIndices(indicesOrAliases, concreteIndices), equalTo(true));
+    }
+
+    @Test
+    public void testIsPatternMatchingAllIndices_nonMatchingTrailingWildcard() throws Exception {
+        String[] indicesOrAliases = new String[]{"index*"};
+        String[] concreteIndices = new String[]{"index1", "index2", "index3"};
+        String[] allConcreteIndices = new String[]{"index1", "index2", "index3", "a", "b"};
+        MetaData metaData = metaDataBuilder(allConcreteIndices);
+        assertThat(metaData.isPatternMatchingAllIndices(indicesOrAliases, concreteIndices), equalTo(false));
+    }
+
+    @Test
+    public void testIsPatternMatchingAllIndices_matchingSingleExclusion() throws Exception {
+        String[] indicesOrAliases = new String[]{"-index1", "+index1"};
+        String[] concreteIndices = new String[]{"index1", "index2", "index3"};
+        String[] allConcreteIndices = concreteIndices;
+        MetaData metaData = metaDataBuilder(allConcreteIndices);
+        assertThat(metaData.isPatternMatchingAllIndices(indicesOrAliases, concreteIndices), equalTo(true));
+    }
+
+    @Test
+    public void testIsPatternMatchingAllIndices_nonMatchingSingleExclusion() throws Exception {
+        String[] indicesOrAliases = new String[]{"-index1"};
+        String[] concreteIndices = new String[]{"index2", "index3"};
+        String[] allConcreteIndices = new String[]{"index1", "index2", "index3"};
+        MetaData metaData = metaDataBuilder(allConcreteIndices);
+        assertThat(metaData.isPatternMatchingAllIndices(indicesOrAliases, concreteIndices), equalTo(false));
+    }
+
+    @Test
+    public void testIsPatternMatchingAllIndices_matchingTrailingWildcardAndExclusion() throws Exception {
+        String[] indicesOrAliases = new String[]{"index*", "-index1", "+index1"};
+        String[] concreteIndices = new String[]{"index1", "index2", "index3"};
+        String[] allConcreteIndices = concreteIndices;
+        MetaData metaData = metaDataBuilder(allConcreteIndices);
+        assertThat(metaData.isPatternMatchingAllIndices(indicesOrAliases, concreteIndices), equalTo(true));
+    }
+
+    @Test
+    public void testIsPatternMatchingAllIndices_nonMatchingTrailingWildcardAndExclusion() throws Exception {
+        String[] indicesOrAliases = new String[]{"index*", "-index1"};
+        String[] concreteIndices = new String[]{"index2", "index3"};
+        String[] allConcreteIndices = new String[]{"index1", "index2", "index3"};
+        MetaData metaData = metaDataBuilder(allConcreteIndices);
+        assertThat(metaData.isPatternMatchingAllIndices(indicesOrAliases, concreteIndices), equalTo(false));
+    }
+
+    private MetaData metaDataBuilder(String... indices) {
+        MetaData.Builder mdBuilder = MetaData.builder();
+        for (String concreteIndex : indices) {
+            mdBuilder.put(indexBuilder(concreteIndex));
+        }
+        return mdBuilder.build();
+    }
 }

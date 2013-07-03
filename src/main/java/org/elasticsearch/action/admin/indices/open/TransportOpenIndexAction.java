@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.open;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -69,9 +70,14 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
     }
 
     @Override
+    protected void doExecute(OpenIndexRequest request, ActionListener<OpenIndexResponse> listener) {
+        request.indices(clusterService.state().metaData().concreteIndices(request.indices(), request.ignoreIndices(), false));
+        super.doExecute(request, listener);
+    }
+
+    @Override
     protected ClusterBlockException checkBlock(OpenIndexRequest request, ClusterState state) {
-        request.index(clusterService.state().metaData().concreteIndex(request.index()));
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
     @Override
@@ -79,7 +85,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeOperationAction
         final AtomicReference<OpenIndexResponse> responseRef = new AtomicReference<OpenIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        stateIndexService.openIndex(new MetaDataStateIndexService.Request(request.index()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
+        stateIndexService.openIndex(new MetaDataStateIndexService.Request(request.indices()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
             @Override
             public void onResponse(MetaDataStateIndexService.Response response) {
                 responseRef.set(new OpenIndexResponse(response.acknowledged()));

@@ -90,11 +90,10 @@ public class InternalSearchHit implements SearchHit {
 
     }
 
-    public InternalSearchHit(int docId, String id, Text type, BytesReference source, Map<String, SearchHitField> fields) {
+    public InternalSearchHit(int docId, String id, Text type, Map<String, SearchHitField> fields) {
         this.docId = docId;
         this.id = new StringAndBytesText(id);
         this.type = type;
-        this.source = source;
         this.fields = fields;
     }
 
@@ -177,6 +176,16 @@ public class InternalSearchHit implements SearchHit {
         }
     }
 
+    /**
+     * Sets representation, might be compressed....
+     */
+    public InternalSearchHit sourceRef(BytesReference source) {
+        this.source = source;
+        this.sourceAsBytes = null;
+        this.sourceAsMap = null;
+        return this;
+    }
+
     @Override
     public BytesReference getSourceRef() {
         return sourceRef();
@@ -188,6 +197,7 @@ public class InternalSearchHit implements SearchHit {
     public BytesReference internalSourceRef() {
         return source;
     }
+
 
     @Override
     public byte[] source() {

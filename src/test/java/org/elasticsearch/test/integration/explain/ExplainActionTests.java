@@ -44,7 +44,8 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
         cluster().ensureAtLeastNumNodes(2);
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)
         ).execute().actionGet();
@@ -103,12 +104,14 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
         assertFalse(response.isMatch());
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void testExplainWithFields() throws Exception {
         cluster().ensureAtLeastNumNodes(2);
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         client().admin().indices().prepareCreate("test").execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
@@ -116,10 +119,10 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
                 .setSource(
                         jsonBuilder().startObject()
                                 .startObject("obj1")
-                                    .field("field1", "value1")
-                                    .field("field2", "value2")
+                                .field("field1", "value1")
+                                .field("field2", "value2")
                                 .endObject()
-                        .endObject()
+                                .endObject()
                 ).execute().actionGet();
 
         client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -136,6 +139,24 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
         assertThat(response.getGetResult().getId(), equalTo("1"));
         assertThat(response.getGetResult().getFields().size(), equalTo(1));
         assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
+        assertThat(response.getGetResult().isSourceEmpty(), equalTo(true));
+
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareExplain("test", "test", "1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setFields("obj1.field1")
+                .setFetchSource(true)
+                .get();
+        assertNotNull(response);
+        assertTrue(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertTrue(response.getExplanation().isMatch());
+        assertThat(response.getExplanation().getValue(), equalTo(1.0f));
+        assertThat(response.getGetResult().isExists(), equalTo(true));
+        assertThat(response.getGetResult().getId(), equalTo("1"));
+        assertThat(response.getGetResult().getFields().size(), equalTo(1));
+        assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
+        assertThat(response.getGetResult().isSourceEmpty(), equalTo(false));
 
         response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
@@ -150,12 +171,59 @@ public class ExplainActionTests extends AbstractSharedClusterTest {
         assertThat(fields.get("field2"), equalTo("value2"));
     }
 
+    @SuppressWarnings("unchecked")
+    @Test
+    public void testExplainWitSource() throws Exception {
+        cluster().ensureAtLeastNumNodes(2);
+        try {
+            client().admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (IndexMissingException e) {
+        }
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+
+        client().prepareIndex("test", "test", "1")
+                .setSource(
+                        jsonBuilder().startObject()
+                                .startObject("obj1")
+                                .field("field1", "value1")
+                                .field("field2", "value2")
+                                .endObject()
+                                .endObject()
+                ).execute().actionGet();
+
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        ExplainResponse response = client().prepareExplain("test", "test", "1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setFetchSource("obj1.field1", null)
+                .get();
+        assertNotNull(response);
+        assertTrue(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertTrue(response.getExplanation().isMatch());
+        assertThat(response.getExplanation().getValue(), equalTo(1.0f));
+        assertThat(response.getGetResult().isExists(), equalTo(true));
+        assertThat(response.getGetResult().getId(), equalTo("1"));
+        assertThat(response.getGetResult().getSource().size(), equalTo(1));
+        assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
+
+        response = client().prepareExplain("test", "test", "1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .setFetchSource(null, "obj1.field2")
+                .execute().actionGet();
+        assertNotNull(response);
+        assertTrue(response.isMatch());
+        assertThat(((Map<String, Object>) response.getGetResult().getSource().get("obj1")).get("field1").toString(), equalTo("value1"));
+    }
+
+
     @Test
     public void testExplainWithAlias() throws Exception {
         cluster().ensureAtLeastNumNodes(2);
         try {
             client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (IndexMissingException e) {}
+        } catch (IndexMissingException e) {
+        }
         client().admin().indices().prepareCreate("test")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();

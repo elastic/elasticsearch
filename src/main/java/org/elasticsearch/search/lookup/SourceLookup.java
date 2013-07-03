@@ -24,7 +24,9 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 
@@ -36,7 +38,6 @@ import java.util.Set;
 /**
  *
  */
-// TODO: If we are processing it in the per hit fetch phase, we cna initialize it with a source if it was loaded..
 public class SourceLookup implements Map {
 
     private AtomicReader reader;
@@ -45,9 +46,14 @@ public class SourceLookup implements Map {
 
     private BytesReference sourceAsBytes;
     private Map<String, Object> source;
+    private XContentType sourceContentType;
 
     public Map<String, Object> source() {
         return source;
+    }
+
+    public XContentType sourceContentType() {
+        return sourceContentType;
     }
 
     private Map<String, Object> loadSourceIfNeeded() {
@@ -55,7 +61,9 @@ public class SourceLookup implements Map {
             return source;
         }
         if (sourceAsBytes != null) {
-            source = sourceAsMap(sourceAsBytes);
+            Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(sourceAsBytes);
+            sourceContentType = tuple.v1();
+            source = tuple.v2();
             return source;
         }
         try {
@@ -64,8 +72,11 @@ public class SourceLookup implements Map {
             BytesReference source = sourceFieldVisitor.source();
             if (source == null) {
                 this.source = ImmutableMap.of();
+                this.sourceContentType = null;
             } else {
-                this.source = sourceAsMap(source);
+                Tuple<XContentType, Map<String, Object>> tuple = sourceAsMapAndType(source);
+                this.sourceContentType = tuple.v1();
+                this.source = tuple.v2();
             }
         } catch (Exception e) {
             throw new ElasticSearchParseException("failed to parse / load source", e);
@@ -73,12 +84,20 @@ public class SourceLookup implements Map {
         return this.source;
     }
 
+    public static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(BytesReference source) throws ElasticSearchParseException {
+        return XContentHelper.convertToMap(source, false);
+    }
+
     public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticSearchParseException {
-        return XContentHelper.convertToMap(source, false).v2();
+        return sourceAsMapAndType(source).v2();
+    }
+
+    public static Tuple<XContentType, Map<String, Object>> sourceAsMapAndType(byte[] bytes, int offset, int length) throws ElasticSearchParseException {
+        return XContentHelper.convertToMap(bytes, offset, length, false);
     }
 
     public static Map<String, Object> sourceAsMap(byte[] bytes, int offset, int length) throws ElasticSearchParseException {
-        return XContentHelper.convertToMap(bytes, offset, length, false).v2();
+        return sourceAsMapAndType(bytes, offset, length).v2();
     }
 
     public void setNextReader(AtomicReaderContext context) {
@@ -106,6 +125,13 @@ public class SourceLookup implements Map {
 
     public void setNextSource(Map<String, Object> source) {
         this.source = source;
+    }
+
+    /**
+     * Internal source representation, might be compressed....
+     */
+    public BytesReference internalSourceRef() {
+        return sourceAsBytes;
     }
 
     /**

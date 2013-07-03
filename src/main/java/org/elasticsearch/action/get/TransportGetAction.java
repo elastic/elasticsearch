@@ -100,7 +100,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         }
 
         GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),
-                request.realtime(), request.version(), request.versionType());
+                request.realtime(), request.version(), request.versionType(), request.fetchSourceContext());
         return new GetResponse(result);
     }
 

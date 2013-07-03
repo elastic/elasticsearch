@@ -35,6 +35,8 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.junit.Test;
 
+import java.util.Map;
+
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
@@ -46,15 +48,13 @@ public class GetActionTests extends AbstractSharedClusterTest {
 
         client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)).execute().actionGet();
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(false));
 
         logger.info("--> index doc 1");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
 
         logger.info("--> realtime get 1");
         response = client().prepareGet("test", "type1", "1").execute().actionGet();
@@ -62,11 +62,18 @@ public class GetActionTests extends AbstractSharedClusterTest {
         assertThat(response.getSourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(response.getSourceAsMap().get("field2").toString(), equalTo("value2"));
 
-        logger.info("--> realtime get 1 (no source)");
-        response = client().prepareGet("test", "type1", "1").setFields(Strings.EMPTY_ARRAY).execute().actionGet();
+        logger.info("--> realtime get 1 (no source, implicit)");
+        response = client().prepareGet("test", "type1", "1").setFields(Strings.EMPTY_ARRAY).get();
         assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getFields().size(), equalTo(0));
         assertThat(response.getSourceAsBytes(), nullValue());
-        
+
+        logger.info("--> realtime get 1 (no source, explicit)");
+        response = client().prepareGet("test", "type1", "1").setFetchSource(false).get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getFields().size(), equalTo(0));
+        assertThat(response.getSourceAsBytes(), nullValue());
+
         logger.info("--> realtime get 1 (no type)");
         response = client().prepareGet("test", null, "1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
@@ -81,6 +88,14 @@ public class GetActionTests extends AbstractSharedClusterTest {
         response = client().prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
+        assertThat(response.getField("field2"), nullValue());
+
+        logger.info("--> realtime fetch of field & source (requires fetching parsing source)");
+        response = client().prepareGet("test", "type1", "1").setFields("field1").setFetchSource("field1", null).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getSourceAsMap(), hasKey("field1"));
+        assertThat(response.getSourceAsMap(), not(hasKey("field2")));
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
@@ -103,6 +118,13 @@ public class GetActionTests extends AbstractSharedClusterTest {
         response = client().prepareGet("test", "type1", "1").setFields("field1").execute().actionGet();
         assertThat(response.isExists(), equalTo(true));
         assertThat(response.getSourceAsBytes(), nullValue());
+        assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
+        assertThat(response.getField("field2"), nullValue());
+
+        logger.info("--> realtime fetch of field & source (loaded from index)");
+        response = client().prepareGet("test", "type1", "1").setFields("field1").setFetchSource(true).execute().actionGet();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getSourceAsBytes(), not(nullValue()));
         assertThat(response.getField("field1").getValues().get(0).toString(), equalTo("value1"));
         assertThat(response.getField("field2"), nullValue());
 
@@ -455,6 +477,7 @@ public class GetActionTests extends AbstractSharedClusterTest {
         assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void testThatGetFromTranslogShouldWorkWithIncludeExcludeAndFields() throws Exception {
         client().admin().indices().prepareDelete().execute().actionGet();
@@ -480,21 +503,37 @@ public class GetActionTests extends AbstractSharedClusterTest {
         client().prepareIndex(index, type, "1")
                 .setSource(jsonBuilder().startObject()
                         .field("field", "1", "2")
-                        .field("included", "should be seen")
-                        .field("excluded", "should not be seen")
+                        .startObject("included").field("field", "should be seen").field("field2", "extra field to remove").endObject()
+                        .startObject("excluded").field("field", "should not be seen").field("field2", "should not be seen").endObject()
                         .endObject())
                 .execute().actionGet();
 
         GetResponse responseBeforeFlush = client().prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
-        client().admin().indices().prepareFlush(index).execute().actionGet();
-        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
-
         assertThat(responseBeforeFlush.isExists(), is(true));
-        assertThat(responseAfterFlush.isExists(), is(true));
         assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("excluded")));
         assertThat(responseBeforeFlush.getSourceAsMap(), not(hasKey("field")));
         assertThat(responseBeforeFlush.getSourceAsMap(), hasKey("included"));
+
+        // now tests that extra source filtering works as expected
+        GetResponse responseBeforeFlushWithExtraFilters = client().prepareGet(index, type, "1").setFields("included", "excluded")
+                .setFetchSource(new String[]{"field", "*.field"}, new String[]{"*.field2"}).get();
+        assertThat(responseBeforeFlushWithExtraFilters.isExists(), is(true));
+        assertThat(responseBeforeFlushWithExtraFilters.getSourceAsMap(), not(hasKey("excluded")));
+        assertThat(responseBeforeFlushWithExtraFilters.getSourceAsMap(), not(hasKey("field")));
+        assertThat(responseBeforeFlushWithExtraFilters.getSourceAsMap(), hasKey("included"));
+        assertThat((Map<String, Object>) responseBeforeFlushWithExtraFilters.getSourceAsMap().get("included"), hasKey("field"));
+        assertThat((Map<String, Object>) responseBeforeFlushWithExtraFilters.getSourceAsMap().get("included"), not(hasKey("field2")));
+
+        client().admin().indices().prepareFlush(index).execute().actionGet();
+        GetResponse responseAfterFlush = client().prepareGet(index, type, "1").setFields("_source", "included", "excluded").execute().actionGet();
+        GetResponse responseAfterFlushWithExtraFilters = client().prepareGet(index, type, "1").setFields("included", "excluded")
+                .setFetchSource("*.field", "*.field2").get();
+
+        assertThat(responseAfterFlush.isExists(), is(true));
         assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
+
+        assertThat(responseAfterFlushWithExtraFilters.isExists(), is(true));
+        assertThat(responseBeforeFlushWithExtraFilters.getSourceAsString(), is(responseAfterFlushWithExtraFilters.getSourceAsString()));
     }
 
     @Test

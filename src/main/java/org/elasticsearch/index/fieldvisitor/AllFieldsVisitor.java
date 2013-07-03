@@ -20,37 +20,18 @@
 package org.elasticsearch.index.fieldvisitor;
 
 import org.apache.lucene.index.FieldInfo;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
- * A field visitor that allows to load a selection of the stored fields.
- * The Uid field is always loaded.
- * The class is optimized for source loading as it is a common use case.
  */
-public class CustomFieldsVisitor extends FieldsVisitor {
+public class AllFieldsVisitor extends FieldsVisitor {
 
-    private final boolean loadSource;
-    private final Set<String> fields;
-
-    public CustomFieldsVisitor(Set<String> fields, boolean loadSource) {
-        this.loadSource = loadSource;
-        this.fields = fields;
+    public AllFieldsVisitor() {
     }
 
     @Override
     public Status needsField(FieldInfo fieldInfo) throws IOException {
-
-        if (loadSource && SourceFieldMapper.NAME.equals(fieldInfo.name)) {
-            return Status.YES;
-        }
-        if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
-            return Status.YES;
-        }
-
-        return fields.contains(fieldInfo.name) ? Status.YES : Status.NO;
+        return Status.YES;
     }
 }

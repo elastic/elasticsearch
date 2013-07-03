@@ -160,7 +160,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                             GetField getField = getResponse.getField(field);
                             if (getField != null) {
                                 for (Object value : getField.getValues()) {
-                                    addMoreLikeThis(request, boolBuilder, getField.getName(), value.toString());
+                                    addMoreLikeThis(request, boolBuilder, getField.getName(), value.toString(), true);
                                 }
                                 it.remove();
                             }
@@ -282,7 +282,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 }
 
                 if (fields.isEmpty() || fields.contains(field.name())) {
-                    addMoreLikeThis(request, boolBuilder, fieldMapper, field);
+                    addMoreLikeThis(request, boolBuilder, fieldMapper, field, !fields.isEmpty());
                 }
 
                 return false;
@@ -302,11 +302,11 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         }
     }
 
-    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Field field) {
-        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.value(convertField(field)).toString());
+    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, FieldMapper fieldMapper, Field field, boolean failOnUnsupportedField) {
+        addMoreLikeThis(request, boolBuilder, field.name(), fieldMapper.value(convertField(field)).toString(), failOnUnsupportedField);
     }
 
-    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText) {
+    private void addMoreLikeThis(MoreLikeThisRequest request, BoolQueryBuilder boolBuilder, String fieldName, String likeText, boolean failOnUnsupportedField) {
         MoreLikeThisFieldQueryBuilder mlt = moreLikeThisFieldQuery(fieldName)
                 .likeText(likeText)
                 .percentTermsToMatch(request.percentTermsToMatch())
@@ -317,7 +317,8 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 .maxWordLen(request.maxWordLen())
                 .minTermFreq(request.minTermFreq())
                 .maxQueryTerms(request.maxQueryTerms())
-                .stopWords(request.stopWords());
+                .stopWords(request.stopWords())
+                .failOnUnsupportedField(failOnUnsupportedField);
         boolBuilder.should(mlt);
     }
 

@@ -19,23 +19,24 @@
 
 package org.elasticsearch.test.integration.mlt;
 
-import static org.elasticsearch.client.Requests.indexAliasesRequest;
-import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.client.Requests.moreLikeThisRequest;
-import static org.elasticsearch.client.Requests.refreshRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.termFilter;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
+
+import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisFieldQuery;
+import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.testng.Assert.fail;
 
 /**
  *
@@ -149,6 +150,69 @@ public class MoreLikeThisActionTests extends AbstractSharedClusterTest {
         client().admin().indices().prepareRefresh("foo").execute().actionGet();
         SearchResponse searchResponse = client().prepareMoreLikeThis("foo", "bar", "1").setRouting("4000").execute().actionGet();
         assertThat(searchResponse, notNullValue());
+    }
+
+    @Test
+    // See issue https://github.com/elasticsearch/elasticsearch/issues/3252
+    public void testNumericField() throws Exception {
+        prepareCreate("test").execute().actionGet();
+        ensureGreen();
+        client().prepareIndex("test", "type", "1")
+                .setSource(jsonBuilder().startObject().field("string_value", "lucene index").field("int_value", 1).endObject())
+                .execute().actionGet();
+        client().prepareIndex("test", "type", "2")
+                .setSource(jsonBuilder().startObject().field("string_value", "elasticsearch index").field("int_value", 42).endObject())
+                .execute().actionGet();
+
+        refresh();
+
+        // Implicit list of fields -> ignore numeric fields
+        SearchResponse searchResponse = client().prepareMoreLikeThis("test", "type", "1").setMinDocFreq(1).setMinTermFreq(1).execute().actionGet();
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+
+        // Explicit list of fields including numeric fields -> fail
+        try {
+            searchResponse = client().prepareMoreLikeThis("test", "type", "1").setField("string_value", "int_value").execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            // OK
+        }
+
+        // mlt query with no field -> OK
+        searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery().likeText("index").minTermFreq(1).minDocFreq(1)).execute().actionGet();
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+
+        // mlt query with string fields
+        searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery("string_value").likeText("index").minTermFreq(1).minDocFreq(1)).execute().actionGet();
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+
+        // mlt query with at least a numeric field -> fail
+        try {
+            searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery("string_value", "int_value").likeText("index")).execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            // OK
+        }
+
+        // mlt query with at least a numeric field but fail_on_unsupported_field set to false
+        searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery("string_value", "int_value").likeText("index").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).execute().actionGet();
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
+
+        // mlt field query on a numeric field -> failure
+        try {
+            searchResponse = client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1)).execute().actionGet();
+        } catch (SearchPhaseExecutionException e) {
+            // OK
+        }
+
+        // mlt field query on a numeric field but fail_on_unsupported_field set to false
+        searchResponse = client().prepareSearch().setQuery(moreLikeThisFieldQuery("int_value").likeText("42").minTermFreq(1).minDocFreq(1).failOnUnsupportedField(false)).execute().actionGet();
+        assertThat(searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(0L));
     }
 
 }

@@ -22,6 +22,9 @@ package org.elasticsearch.index.analysis;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.NumericTokenStream;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -48,6 +51,7 @@ import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
 import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
@@ -61,10 +65,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import java.io.*;
 import java.net.URL;
 import java.util.*;
 
@@ -275,4 +276,32 @@ public class Analysis {
 
         return reader;
     }
+
+    /**
+     * Check whether the provided token stream is able to provide character
+     * terms.
+     * <p>Although most analyzers generate character terms (CharTermAttribute),
+     * some token only contain binary terms (BinaryTermAttribute,
+     * CharTermAttribute being a special type of BinaryTermAttribute), such as
+     * {@link NumericTokenStream} and unsuitable for highlighting and
+     * more-like-this queries which expect character terms.</p>
+     */
+    public static boolean isCharacterTokenStream(TokenStream tokenStream) {
+        try {
+            tokenStream.addAttribute(CharTermAttribute.class);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check whether {@link TokenStream}s generated with <code>analyzer</code>
+     * provide with character terms.
+     * @see #isCharacterTokenStream(TokenStream)
+     */
+    public static boolean generatesCharacterTokenStream(Analyzer analyzer, String fieldName) throws IOException {
+        return isCharacterTokenStream(analyzer.tokenStream(fieldName, new StringReader("")));
+    }
+
 }

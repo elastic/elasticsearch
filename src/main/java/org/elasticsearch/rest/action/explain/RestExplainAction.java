@@ -26,6 +26,7 @@ import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.explain.ExplainSourceBuilder;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 
@@ -99,6 +101,8 @@ public class RestExplainAction extends BaseRestHandler {
                 explainRequest.fields(sFields);
             }
         }
+
+        explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
         client.explain(explainRequest, new ActionListener<ExplainResponse>() {
 

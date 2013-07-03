@@ -25,10 +25,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.JustUidFieldsVisitor;
-import org.elasticsearch.index.fieldvisitor.UidAndSourceFieldsVisitor;
+import org.elasticsearch.index.fieldvisitor.*;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
@@ -39,6 +36,8 @@ import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedfilters.MatchedFiltersFetchSubPhase;
 import org.elasticsearch.search.fetch.partial.PartialFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -60,8 +59,10 @@ public class FetchPhase implements SearchPhase {
 
     @Inject
     public FetchPhase(HighlightPhase highlightPhase, ScriptFieldsFetchSubPhase scriptFieldsPhase, PartialFieldsFetchSubPhase partialFieldsPhase,
-                      MatchedFiltersFetchSubPhase matchFiltersPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase) {
-        this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, partialFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase, versionPhase};
+                      MatchedFiltersFetchSubPhase matchFiltersPhase, ExplainFetchSubPhase explainPhase, VersionFetchSubPhase versionPhase,
+                      FetchSourceSubPhase fetchSourceSubPhase) {
+        this.fetchSubPhases = new FetchSubPhase[]{scriptFieldsPhase, partialFieldsPhase, matchFiltersPhase, explainPhase, highlightPhase,
+                fetchSourceSubPhase, versionPhase};
     }
 
     @Override
@@ -81,20 +82,24 @@ public class FetchPhase implements SearchPhase {
     public void execute(SearchContext context) {
         FieldsVisitor fieldsVisitor;
         List<String> extractFieldNames = null;
-        boolean sourceRequested = false;
+
         if (!context.hasFieldNames()) {
             if (context.hasPartialFields()) {
-                // partial fields need the source, so fetch it, but don't return it
+                // partial fields need the source, so fetch it
                 fieldsVisitor = new UidAndSourceFieldsVisitor();
-            } else if (context.hasScriptFields()) {
-                // we ask for script fields, and no field names, don't load the source
-                fieldsVisitor = new JustUidFieldsVisitor();
             } else {
-                sourceRequested = true;
-                fieldsVisitor = new UidAndSourceFieldsVisitor();
+                // no fields specified, default to return source if no explicit indication
+                if (!context.hasScriptFields() && !context.hasFetchSourceContext()) {
+                    context.fetchSourceContext(new FetchSourceContext(true));
+                }
+                fieldsVisitor = context.sourceRequested() ? new UidAndSourceFieldsVisitor() : new JustUidFieldsVisitor();
             }
         } else if (context.fieldNames().isEmpty()) {
-            fieldsVisitor = new JustUidFieldsVisitor();
+            if (context.sourceRequested()) {
+                fieldsVisitor = new UidAndSourceFieldsVisitor();
+            } else {
+                fieldsVisitor = new JustUidFieldsVisitor();
+            }
         } else {
             boolean loadAllStored = false;
             Set<String> fieldNames = null;
@@ -104,7 +109,11 @@ public class FetchPhase implements SearchPhase {
                     continue;
                 }
                 if (fieldName.equals(SourceFieldMapper.NAME)) {
-                    sourceRequested = true;
+                    if (context.hasFetchSourceContext()) {
+                        context.fetchSourceContext().fetchSource(true);
+                    } else {
+                        context.fetchSourceContext(new FetchSourceContext(true));
+                    }
                     continue;
                 }
                 FieldMappers x = context.smartNameFieldMappers(fieldName);
@@ -121,15 +130,11 @@ public class FetchPhase implements SearchPhase {
                 }
             }
             if (loadAllStored) {
-                if (sourceRequested || extractFieldNames != null) {
-                    fieldsVisitor = new CustomFieldsVisitor(true, true); // load everything, including _source
-                } else {
-                    fieldsVisitor = new CustomFieldsVisitor(true, false);
-                }
+                fieldsVisitor = new AllFieldsVisitor(); // load everything, including _source
             } else if (fieldNames != null) {
-                boolean loadSource = extractFieldNames != null || sourceRequested;
+                boolean loadSource = extractFieldNames != null || context.sourceRequested();
                 fieldsVisitor = new CustomFieldsVisitor(fieldNames, loadSource);
-            } else if (extractFieldNames != null || sourceRequested) {
+            } else if (extractFieldNames != null || context.sourceRequested()) {
                 fieldsVisitor = new UidAndSourceFieldsVisitor();
             } else {
                 fieldsVisitor = new JustUidFieldsVisitor();
@@ -158,7 +163,7 @@ public class FetchPhase implements SearchPhase {
             } else {
                 typeText = documentMapper.typeText();
             }
-            InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, sourceRequested ? fieldsVisitor.source() : null, searchFields);
+            InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
 
             hits[index] = searchHit;
 

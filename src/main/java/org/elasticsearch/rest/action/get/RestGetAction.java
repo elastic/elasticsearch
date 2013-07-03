@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 
@@ -71,6 +73,7 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.version(RestActions.parseVersion(request));
         getRequest.versionType(VersionType.fromString(request.param("version_type"), getRequest.versionType()));
 
+        getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
         client.get(getRequest, new ActionListener<GetResponse>() {
             @Override

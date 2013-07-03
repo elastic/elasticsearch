@@ -23,11 +23,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 
@@ -57,6 +59,23 @@ public class RestGetSourceAction extends BaseRestHandler {
         getRequest.parent(request.param("parent"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBooleanOptional("realtime", null));
+
+        String[] includes = null, excludes = null;
+        String sIncludes = request.param("include");
+        sIncludes = request.param("includes", sIncludes);
+        if (sIncludes != null) {
+            includes = Strings.splitStringByCommaToArray(sIncludes);
+        }
+
+        String sExcludes = request.param("exclude");
+        sExcludes = request.param("excludes", sExcludes);
+        if (sExcludes != null) {
+            excludes = Strings.splitStringByCommaToArray(sExcludes);
+        }
+
+        if (includes != null || excludes != null) {
+            getRequest.fetchSourceContext(new FetchSourceContext(includes, excludes));
+        }
 
         client.get(getRequest, new ActionListener<GetResponse>() {
             @Override

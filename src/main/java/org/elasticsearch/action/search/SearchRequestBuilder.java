@@ -370,6 +370,42 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Indicates whether the response should contain the stored _source for every hit
+     *
+     * @param fetch
+     * @return
+     */
+    public SearchRequestBuilder setFetchSource(boolean fetch) {
+        sourceBuilder().fetchSource(fetch);
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned with every hit, with an "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param include An optional include (optionally wildcarded) pattern to filter the returned _source
+     * @param exclude An optional exclude (optionally wildcarded) pattern to filter the returned _source
+     */
+    public SearchRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
+        sourceBuilder().fetchSource(include, exclude);
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned with every hit, with an "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param includes An optional list of include (optionally wildcarded) pattern to filter the returned _source
+     * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
+     */
+    public SearchRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+        sourceBuilder().fetchSource(includes, excludes);
+        return this;
+    }
+
+
+    /**
      * Adds a field to load and return (note, it must be stored) as part of the search request.
      * If none are specified, the source of the document will be return.
      */

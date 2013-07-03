@@ -36,6 +36,7 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -225,8 +226,15 @@ public class RestSearchAction extends BaseRestHandler {
                 }
             }
         }
+        FetchSourceContext fetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
+        if (fetchSourceContext != null) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.fetchSource(fetchSourceContext);
+        }
 
-        if(request.hasParam("track_scores")) {
+        if (request.hasParam("track_scores")) {
             if (searchSourceBuilder == null) {
                 searchSourceBuilder = new SearchSourceBuilder();
             }

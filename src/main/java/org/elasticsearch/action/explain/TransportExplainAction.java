@@ -119,14 +119,11 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
             } else {
                 explanation = context.searcher().explain(context.query(), topLevelDocId);
             }
-            if (request.fields() != null) {
-                if (request.fields().length == 1 && "_source".equals(request.fields()[0])) {
-                    request.fields(null); // Load the _source field
-                }
+            if (request.fields() != null || (request.fetchSourceContext() != null && request.fetchSourceContext().fetchSource())) {
                 // Advantage is that we're not opening a second searcher to retrieve the _source. Also
                 // because we are working in the same searcher in engineGetResult we can be sure that a
                 // doc isn't deleted between the initial get and this call.
-                GetResult getResult = indexShard.getService().get(result, request.id(), request.type(), request.fields());
+                GetResult getResult = indexShard.getService().get(result, request.id(), request.type(), request.fields(), request.fetchSourceContext());
                 return new ExplainResponse(true, explanation, getResult);
             } else {
                 return new ExplainResponse(true, explanation);

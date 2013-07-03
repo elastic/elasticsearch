@@ -23,11 +23,13 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 
@@ -43,8 +45,9 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
     private String routing;
     private String preference;
     private BytesReference source;
-    private String[] fields;
     private boolean sourceUnsafe;
+    private String[] fields;
+    private FetchSourceContext fetchSourceContext;
 
     private String[] filteringAlias = Strings.EMPTY_ARRAY;
 
@@ -121,6 +124,19 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         return this;
     }
 
+    /**
+     * Allows setting the {@link FetchSourceContext} for this request, controlling if and how _source should be returned.
+     */
+    public ExplainRequest fetchSourceContext(FetchSourceContext context) {
+        this.fetchSourceContext = context;
+        return this;
+    }
+
+    public FetchSourceContext fetchSourceContext() {
+        return fetchSourceContext;
+    }
+
+
     public String[] fields() {
         return fields;
     }
@@ -178,6 +194,8 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         if (in.readBoolean()) {
             fields = in.readStringArray();
         }
+
+        fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
     }
 
     @Override
@@ -195,5 +213,7 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         } else {
             out.writeBoolean(false);
         }
+
+        FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
     }
 }

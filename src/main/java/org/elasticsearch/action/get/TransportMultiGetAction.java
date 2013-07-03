@@ -82,7 +82,7 @@ public class TransportMultiGetAction extends TransportAction<MultiGetRequest, Mu
 
                 shardRequests.put(shardId, shardRequest);
             }
-            shardRequest.add(i, item.type(), item.id(), item.fields(), item.version(), item.versionType());
+            shardRequest.add(i, item.type(), item.id(), item.fields(), item.version(), item.versionType(), item.fetchSourceContext());
         }
 
         if (shardRequests.size() == 0) {

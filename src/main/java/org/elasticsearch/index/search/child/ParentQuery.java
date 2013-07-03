@@ -102,8 +102,8 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
             return false;
         }
 
-        HasParentFilter that = (HasParentFilter) obj;
-        if (!originalParentQuery.equals(that.parentQuery)) {
+        ParentQuery that = (ParentQuery) obj;
+        if (!originalParentQuery.equals(that.originalParentQuery)) {
             return false;
         }
         if (!parentType.equals(that.parentType)) {

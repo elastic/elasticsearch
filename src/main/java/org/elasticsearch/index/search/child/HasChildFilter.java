@@ -73,16 +73,12 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         if (!childType.equals(that.childType)) {
             return false;
         }
-        if (!parentType.equals(that.parentType)) {
-            return false;
-        }
         return true;
     }
 
     @Override
     public int hashCode() {
         int result = childQuery.hashCode();
-        result = 31 * result + parentType.hashCode();
         result = 31 * result + childType.hashCode();
         return result;
     }

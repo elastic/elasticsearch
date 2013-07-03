@@ -216,7 +216,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                     closeRiver(riverName);
                     // also, double check and delete the river content if it was deleted (_meta does not exists)
                     try {
-                        client.prepareGet(riverIndexName, riverName.name(), "_meta").setListenerThreaded(true).execute(new ActionListener<GetResponse>() {
+                        client.prepareGet(riverIndexName, riverName.name(), "_meta").setPreference("_primary").setListenerThreaded(true).execute(new ActionListener<GetResponse>() {
                             @Override
                             public void onResponse(GetResponse getResponse) {
                                 if (!getResponse.isExists()) {
@@ -261,7 +261,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                 if (rivers.containsKey(routing.riverName())) {
                     continue;
                 }
-                client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setListenerThreaded(true).execute(new ActionListener<GetResponse>() {
+                client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setPreference("_primary").setListenerThreaded(true).execute(new ActionListener<GetResponse>() {
                     @Override
                     public void onResponse(GetResponse getResponse) {
                         if (!rivers.containsKey(routing.riverName())) {
@@ -284,7 +284,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
                             threadPool.schedule(TimeValue.timeValueSeconds(5), ThreadPool.Names.SAME, new Runnable() {
                                 @Override
                                 public void run() {
-                                    client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setListenerThreaded(true).execute(listener);
+                                    client.prepareGet(riverIndexName, routing.riverName().name(), "_meta").setPreference("_primary").setListenerThreaded(true).execute(listener);
                                 }
                             });
                         } else {

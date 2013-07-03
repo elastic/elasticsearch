@@ -356,7 +356,7 @@ public class ByteFieldMapper extends NumberFieldMapper<Byte> {
         private final NumberFieldMapper mapper;
 
         public CustomByteNumericField(NumberFieldMapper mapper, byte number, FieldType fieldType) {
-            super(mapper, mapper.fieldType.stored() ? number : null, fieldType);
+            super(mapper, number, fieldType);
             this.mapper = mapper;
             this.number = number;
         }

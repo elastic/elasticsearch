@@ -350,7 +350,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         private final NumberFieldMapper mapper;
 
         public CustomFloatNumericField(NumberFieldMapper mapper, float number, FieldType fieldType) {
-            super(mapper, mapper.fieldType().stored() ? number : null, fieldType);
+            super(mapper, number, fieldType);
             this.mapper = mapper;
             this.number = number;
         }

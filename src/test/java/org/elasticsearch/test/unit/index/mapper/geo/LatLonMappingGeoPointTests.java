@@ -185,9 +185,9 @@ public class LatLonMappingGeoPointTests {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
-        assertThat(doc.rootDoc().getField("point.lat").numericValue(), nullValue());
+        assertThat(doc.rootDoc().getField("point.lat").fieldType().stored(), is(false));
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().getField("point.lon").numericValue(), nullValue());
+        assertThat(doc.rootDoc().getField("point.lon").fieldType().stored(), is(false));
         assertThat(doc.rootDoc().getField("point.geohash"), nullValue());
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }

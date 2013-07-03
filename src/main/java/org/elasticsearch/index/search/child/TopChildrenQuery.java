@@ -261,14 +261,14 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
             return false;
         }
 
-        HasChildFilter that = (HasChildFilter) obj;
-        if (!originalChildQuery.equals(that.childQuery)) {
+        TopChildrenQuery that = (TopChildrenQuery) obj;
+        if (!originalChildQuery.equals(that.originalChildQuery)) {
             return false;
         }
         if (!childType.equals(that.childType)) {
             return false;
         }
-        if (!parentType.equals(that.parentType)) {
+        if (incrementalFactor != that.incrementalFactor) {
             return false;
         }
         return true;
@@ -278,7 +278,7 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
     public int hashCode() {
         int result = originalChildQuery.hashCode();
         result = 31 * result + parentType.hashCode();
-        result = 31 * result + childType.hashCode();
+        result = 31 * result + incrementalFactor;
         return result;
     }
 

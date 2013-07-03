@@ -108,15 +108,21 @@ public class RestShardsAction extends BaseRestHandler {
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
             Row row = new Row();
             String pri = "r";
-            String host = "";
+            StringBuilder host = new StringBuilder();
             String docs = "";
             String size = "";
             String bytes = "";
             String nodeName = "";
 
             if (shard.assignedToNode()) {
-                host = ((InetSocketTransportAddress) state.getState().nodes().get(shard.currentNodeId()).address()).address().getHostString();
+                host.append(((InetSocketTransportAddress) state.getState().nodes().get(shard.currentNodeId()).address()).address().getHostString());
                 nodeName = state.getState().nodes().get(shard.currentNodeId()).name();
+            }
+
+            if (shard.relocating()) {
+                host.append(" -> ");
+                host.append(((InetSocketTransportAddress) state.getState().nodes().get(shard.relocatingNodeId()).address()).address().getHostString());
+                host.append(state.getState().nodes().get(shard.relocatingNodeId()).name());
             }
 
             if (null != stats.asMap().get(shard.globalId())) {
@@ -136,7 +142,7 @@ public class RestShardsAction extends BaseRestHandler {
                     .addCell(docs)
                     .addCell(size)
                     .addCell(bytes)
-                    .addCell(host)
+                    .addCell(host.toString())
                     .addCell(nodeName);
             tab.addRow(row);
         }

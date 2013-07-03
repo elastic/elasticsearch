@@ -87,7 +87,7 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
     /**
      * Returns <code>true</code> iff the this shard is currently relocating to
      * another node. Otherwise <code>false</code>
-     * 
+     *
      * @see ShardRoutingState#RELOCATING
      */
     boolean relocating();
@@ -130,11 +130,6 @@ public interface ShardRouting extends Streamable, Serializable, ToXContent {
      * A shard iterator with just this shard in it.
      */
     ShardIterator shardsIt();
-
-    /**
-     * String identifier to uniquely refer to this shard routing (once it's assigned).
-     */
-    String globalId();
 
     /**
      * Does not write index name and shard id

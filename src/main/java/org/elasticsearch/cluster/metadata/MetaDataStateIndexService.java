@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
@@ -37,7 +38,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 
-import static org.elasticsearch.cluster.ClusterState.newClusterStateBuilder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  *
@@ -58,37 +61,51 @@ public class MetaDataStateIndexService extends AbstractComponent {
     }
 
     public void closeIndex(final Request request, final Listener listener) {
-        clusterService.submitStateUpdateTask("close-index [" + request.index + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        if (request.indices == null || request.indices.length == 0) {
+            throw new ElasticSearchIllegalArgumentException("Index name is required");
+        }
+
+        final String indicesAsString = Arrays.toString(request.indices);
+        clusterService.submitStateUpdateTask("close-indices " + indicesAsString, Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-
-                IndexMetaData indexMetaData = currentState.metaData().index(request.index);
-                if (indexMetaData == null) {
-                    listener.onFailure(new IndexMissingException(new Index(request.index)));
-                    return currentState;
+                List<String> indicesToClose = new ArrayList<String>();
+                for (String index : request.indices) {
+                    IndexMetaData indexMetaData = currentState.metaData().index(index);
+                    if (indexMetaData == null) {
+                        listener.onFailure(new IndexMissingException(new Index(index)));
+                        return currentState;
+                    }
+                    if (indexMetaData.state() != IndexMetaData.State.CLOSE) {
+                        indicesToClose.add(index);
+                    }
                 }
 
-                if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
+                if (indicesToClose.isEmpty()) {
                     listener.onResponse(new Response(true));
                     return currentState;
                 }
 
-                logger.info("[{}] closing index", request.index);
+                logger.info("closing indices [{}]", indicesAsString);
 
                 MetaData.Builder mdBuilder = MetaData.builder()
-                        .metaData(currentState.metaData())
-                        .put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(request.index)).state(IndexMetaData.State.CLOSE));
+                        .metaData(currentState.metaData());
+                ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
+                        .blocks(currentState.blocks());
+                for (String index : indicesToClose) {
+                    mdBuilder.put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(index)).state(IndexMetaData.State.CLOSE));
+                    blocksBuilder.addIndexBlock(index, INDEX_CLOSED_BLOCK);
+                }
 
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
-                        .addIndexBlock(request.index, INDEX_CLOSED_BLOCK);
-
-                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocks).build();
+                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
                 RoutingTable.Builder rtBuilder = RoutingTable.builder()
-                        .routingTable(currentState.routingTable())
-                        .remove(request.index);
+                        .routingTable(currentState.routingTable());
+                for (String index : indicesToClose) {
+                    rtBuilder.remove(index);
+                }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder().state(updatedState).routingTable(rtBuilder).build());
 
                 return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
             }
@@ -101,36 +118,51 @@ public class MetaDataStateIndexService extends AbstractComponent {
     }
 
     public void openIndex(final Request request, final Listener listener) {
-        clusterService.submitStateUpdateTask("open-index [" + request.index + "]", Priority.URGENT, new ProcessedClusterStateUpdateTask() {
+        if (request.indices == null || request.indices.length == 0) {
+            throw new ElasticSearchIllegalArgumentException("Index name is required");
+        }
+
+        final String indicesAsString = Arrays.toString(request.indices);
+        clusterService.submitStateUpdateTask("open-indices " + indicesAsString, Priority.URGENT, new ProcessedClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-
-                IndexMetaData indexMetaData = currentState.metaData().index(request.index);
-                if (indexMetaData == null) {
-                    listener.onFailure(new IndexMissingException(new Index(request.index)));
-                    return currentState;
+                List<String> indicesToOpen = new ArrayList<String>();
+                for (String index : request.indices) {
+                    IndexMetaData indexMetaData = currentState.metaData().index(index);
+                    if (indexMetaData == null) {
+                        listener.onFailure(new IndexMissingException(new Index(index)));
+                        return currentState;
+                    }
+                    if (indexMetaData.state() != IndexMetaData.State.OPEN) {
+                        indicesToOpen.add(index);
+                    }
                 }
 
-                if (indexMetaData.state() == IndexMetaData.State.OPEN) {
+                if (indicesToOpen.isEmpty()) {
                     listener.onResponse(new Response(true));
                     return currentState;
                 }
 
-                logger.info("[{}] opening index", request.index);
+                logger.info("opening indices [{}]", indicesAsString);
 
                 MetaData.Builder mdBuilder = MetaData.builder()
-                        .metaData(currentState.metaData())
-                        .put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(request.index)).state(IndexMetaData.State.OPEN));
+                        .metaData(currentState.metaData());
+                ClusterBlocks.Builder blocksBuilder = ClusterBlocks.builder()
+                        .blocks(currentState.blocks());
+                for (String index : indicesToOpen) {
+                    mdBuilder.put(IndexMetaData.newIndexMetaDataBuilder(currentState.metaData().index(index)).state(IndexMetaData.State.OPEN));
+                    blocksBuilder.removeIndexBlock(index, INDEX_CLOSED_BLOCK);
+                }
 
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks())
-                        .removeIndexBlock(request.index, INDEX_CLOSED_BLOCK);
+                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocksBuilder).build();
 
-                ClusterState updatedState = ClusterState.builder().state(currentState).metaData(mdBuilder).blocks(blocks).build();
+                RoutingTable.Builder rtBuilder = RoutingTable.builder()
+                        .routingTable(updatedState.routingTable());
+                for (String index : indicesToOpen) {
+                    rtBuilder.addAsRecovery(updatedState.metaData().index(index));
+                }
 
-                RoutingTable.Builder rtBuilder = RoutingTable.builder().routingTable(updatedState.routingTable())
-                        .addAsRecovery(updatedState.metaData().index(request.index));
-
-                RoutingAllocation.Result routingResult = allocationService.reroute(newClusterStateBuilder().state(updatedState).routingTable(rtBuilder).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder().state(updatedState).routingTable(rtBuilder).build());
 
                 return ClusterState.builder().state(updatedState).routingResult(routingResult).build();
             }
@@ -151,12 +183,12 @@ public class MetaDataStateIndexService extends AbstractComponent {
 
     public static class Request {
 
-        final String index;
+        final String[] indices;
 
         TimeValue timeout = TimeValue.timeValueSeconds(10);
 
-        public Request(String index) {
-            this.index = index;
+        public Request(String[] indices) {
+            this.indices = indices;
         }
 
         public Request timeout(TimeValue timeout) {

@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.admin.indices.open;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 
 /**
  *
@@ -43,14 +45,18 @@ public class RestOpenIndexAction extends BaseRestHandler {
     @Inject
     public RestOpenIndexAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
+        controller.registerHandler(RestRequest.Method.POST, "/_open", this);
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_open", this);
     }
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        OpenIndexRequest openIndexRequest = new OpenIndexRequest(request.param("index"));
+        OpenIndexRequest openIndexRequest = new OpenIndexRequest(splitIndices(request.param("index")));
         openIndexRequest.listenerThreaded(false);
         openIndexRequest.timeout(request.paramAsTime("timeout", timeValueSeconds(10)));
+        if (request.hasParam("ignore_indices")) {
+            openIndexRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
+        }
         client.admin().indices().open(openIndexRequest, new ActionListener<OpenIndexResponse>() {
             @Override
             public void onResponse(OpenIndexResponse response) {

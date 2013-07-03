@@ -875,10 +875,54 @@ public class MetaData implements Iterable<IndexMetaData> {
         return filteringAliases.toArray(new String[filteringAliases.size()]);
     }
 
-    private boolean isAllIndices(String[] aliasesOrIndices) {
-        return (aliasesOrIndices == null || aliasesOrIndices.length == 0 || (aliasesOrIndices.length == 1 && "_all".equals(aliasesOrIndices[0])));
+    /**
+     * Identifies whether the array containing index names given as argument refers to all indices
+     * The empty or null array identifies all indices
+     *
+     * @param aliasesOrIndices the array containing index names
+     * @return true if the provided array maps to all indices, false otherwise
+     */
+    public boolean isAllIndices(String[] aliasesOrIndices) {
+        return aliasesOrIndices == null || aliasesOrIndices.length == 0 || isExplicitAllIndices(aliasesOrIndices);
     }
 
+    /**
+     * Identifies whether the array containing index names given as argument explicitly refers to all indices
+     * The empty or null array doesn't explicitly map to all indices
+     *
+     * @param aliasesOrIndices the array containing index names
+     * @return true if the provided array explicitly maps to all indices, false otherwise
+     */
+    public boolean isExplicitAllIndices(String[] aliasesOrIndices) {
+        return aliasesOrIndices != null && aliasesOrIndices.length == 1 && "_all".equals(aliasesOrIndices[0]);
+    }
+
+    /**
+     * Identifies whether the first argument (an array containing index names) is a pattern that matches all indices
+     *
+     * @param indicesOrAliases the array containing index names
+     * @param concreteIndices array containing the concrete indices that the first argument refers to
+     * @return true if the first argument is a pattern that maps to all available indices, false otherwise
+     */
+    public boolean isPatternMatchingAllIndices(String[] indicesOrAliases, String[] concreteIndices) {
+        // if we end up matching on all indices, check, if its a wildcard parameter, or a "-something" structure
+        if (concreteIndices.length == concreteAllIndices().length && indicesOrAliases.length > 0) {
+
+            //we might have something like /-test1,+test1 that would identify all indices
+            //or something like /-test1 with test1 index missing and IgnoreIndices.MISSING
+            if (indicesOrAliases[0].charAt(0) == '-') {
+                return true;
+            }
+
+            //otherwise we check if there's any simple regex
+            for (String indexOrAlias : indicesOrAliases) {
+                if (Regex.isSimpleMatchPattern(indexOrAlias)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
     @Override
     public UnmodifiableIterator<IndexMetaData> iterator() {

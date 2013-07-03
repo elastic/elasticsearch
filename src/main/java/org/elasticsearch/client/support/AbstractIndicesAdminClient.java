@@ -276,8 +276,8 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
-    public CloseIndexRequestBuilder prepareClose(String index) {
-        return new CloseIndexRequestBuilder(this, index);
+    public CloseIndexRequestBuilder prepareClose(String... indices) {
+        return new CloseIndexRequestBuilder(this, indices);
     }
 
     @Override
@@ -291,8 +291,8 @@ public abstract class AbstractIndicesAdminClient implements InternalIndicesAdmin
     }
 
     @Override
-    public OpenIndexRequestBuilder prepareOpen(String index) {
-        return new OpenIndexRequestBuilder(this, index);
+    public OpenIndexRequestBuilder prepareOpen(String... indices) {
+        return new OpenIndexRequestBuilder(this, indices);
     }
 
     @Override

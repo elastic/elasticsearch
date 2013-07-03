@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,12 +42,15 @@ import java.util.concurrent.atomic.AtomicReference;
 public class TransportCloseIndexAction extends TransportMasterNodeOperationAction<CloseIndexRequest, CloseIndexResponse> {
 
     private final MetaDataStateIndexService stateIndexService;
+    private final boolean disableCloseAllIndices;
+
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataStateIndexService stateIndexService) {
         super(settings, transportService, clusterService, threadPool);
         this.stateIndexService = stateIndexService;
+        this.disableCloseAllIndices = settings.getAsBoolean("action.disable_close_all_indices", false);
     }
 
     @Override
@@ -69,9 +74,24 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
     }
 
     @Override
+    protected void doExecute(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
+        ClusterState state = clusterService.state();
+        String[] indicesOrAliases = request.indices();
+        request.indices(state.metaData().concreteIndices(indicesOrAliases, request.ignoreIndices(), false));
+
+        if (disableCloseAllIndices) {
+            if (state.metaData().isExplicitAllIndices(indicesOrAliases) ||
+                    state.metaData().isPatternMatchingAllIndices(indicesOrAliases, request.indices())) {
+                throw new ElasticSearchIllegalArgumentException("closing all indices is disabled");
+            }
+        }
+
+        super.doExecute(request, listener);
+    }
+
+    @Override
     protected ClusterBlockException checkBlock(CloseIndexRequest request, ClusterState state) {
-        request.index(clusterService.state().metaData().concreteIndex(request.index()));
-        return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA, request.index());
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA, request.indices());
     }
 
     @Override
@@ -79,7 +99,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeOperationActio
         final AtomicReference<CloseIndexResponse> responseRef = new AtomicReference<CloseIndexResponse>();
         final AtomicReference<Throwable> failureRef = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(1);
-        stateIndexService.closeIndex(new MetaDataStateIndexService.Request(request.index()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
+        stateIndexService.closeIndex(new MetaDataStateIndexService.Request(request.indices()).timeout(request.timeout()), new MetaDataStateIndexService.Listener() {
             @Override
             public void onResponse(MetaDataStateIndexService.Response response) {
                 responseRef.set(new CloseIndexResponse(response.acknowledged()));

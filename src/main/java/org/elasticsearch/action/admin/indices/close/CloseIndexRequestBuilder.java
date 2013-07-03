@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.client.internal.InternalIndicesAdminClient;
@@ -34,12 +35,17 @@ public class CloseIndexRequestBuilder extends MasterNodeOperationRequestBuilder<
         super((InternalIndicesAdminClient) indicesClient, new CloseIndexRequest());
     }
 
-    public CloseIndexRequestBuilder(IndicesAdminClient indicesClient, String index) {
-        super((InternalIndicesAdminClient) indicesClient, new CloseIndexRequest(index));
+    public CloseIndexRequestBuilder(IndicesAdminClient indicesClient, String... indices) {
+        super((InternalIndicesAdminClient) indicesClient, new CloseIndexRequest(indices));
     }
 
-    public CloseIndexRequestBuilder setIndex(String index) {
-        request.index(index);
+    /**
+     * Sets the indices to be closed
+     * @param indices the indices to be closed
+     * @return the request itself
+     */
+    public CloseIndexRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
         return this;
     }
 
@@ -58,6 +64,16 @@ public class CloseIndexRequestBuilder extends MasterNodeOperationRequestBuilder<
      */
     public CloseIndexRequestBuilder setTimeout(String timeout) {
         request.timeout(timeout);
+        return this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     * @param ignoreIndices the desired behaviour regarding indices to ignore
+     * @return the request itself
+     */
+    public CloseIndexRequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request.ignoreIndices(ignoreIndices);
         return this;
     }
 

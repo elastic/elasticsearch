@@ -115,13 +115,13 @@ public class RestShardsAction extends BaseRestHandler {
             String nodeName = "";
 
             if (shard.assignedToNode()) {
-                host.append(((InetSocketTransportAddress) state.getState().nodes().get(shard.currentNodeId()).address()).address().getHostString());
+                host.append(((InetSocketTransportAddress) state.getState().nodes().get(shard.currentNodeId()).address()).address().getAddress().getHostAddress());
                 nodeName = state.getState().nodes().get(shard.currentNodeId()).name();
             }
 
             if (shard.relocating()) {
                 host.append(" -> ");
-                host.append(((InetSocketTransportAddress) state.getState().nodes().get(shard.relocatingNodeId()).address()).address().getHostString());
+                host.append(((InetSocketTransportAddress) state.getState().nodes().get(shard.relocatingNodeId()).address()).address().getAddress().getHostAddress());
                 host.append(state.getState().nodes().get(shard.relocatingNodeId()).name());
             }
 

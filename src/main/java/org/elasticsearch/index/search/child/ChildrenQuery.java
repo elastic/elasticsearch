@@ -93,14 +93,11 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
             return false;
         }
 
-        HasChildFilter that = (HasChildFilter) obj;
-        if (!originalChildQuery.equals(that.childQuery)) {
+        ChildrenQuery that = (ChildrenQuery) obj;
+        if (!originalChildQuery.equals(that.originalChildQuery)) {
             return false;
         }
         if (!childType.equals(that.childType)) {
-            return false;
-        }
-        if (!parentType.equals(that.parentType)) {
             return false;
         }
         return true;
@@ -109,7 +106,6 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     @Override
     public int hashCode() {
         int result = originalChildQuery.hashCode();
-        result = 31 * result + parentType.hashCode();
         result = 31 * result + childType.hashCode();
         return result;
     }

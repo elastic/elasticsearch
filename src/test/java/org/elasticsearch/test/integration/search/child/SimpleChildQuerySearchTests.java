@@ -169,8 +169,6 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleChildQuery() throws Exception {
-        client().admin().indices().prepareDelete().execute().actionGet();
-
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         ImmutableSettings.settingsBuilder()
@@ -350,6 +348,48 @@ public class SimpleChildQuerySearchTests extends AbstractSharedClusterTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("c1"));
         assertThat(searchResponse.getHits().getAt(1).id(), equalTo("c2"));
+
+
+    }
+
+    @Test
+    // See: https://github.com/elasticsearch/elasticsearch/issues/3290
+    public void testCachingBug_withFqueryFilter() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .setSettings(
+                        ImmutableSettings.settingsBuilder()
+                                .put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)
+                ).execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().preparePutMapping("test").setType("child").setSource(jsonBuilder().startObject().startObject("type")
+                .startObject("_parent").field("type", "parent").endObject()
+                .endObject().endObject()).execute().actionGet();
+
+        // index simple data
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("test", "parent", Integer.toString(i)).setSource("p_field", i).execute().actionGet();
+        }
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("test", "child", Integer.toString(i)).setSource("c_field", i).setParent("" + 0).execute().actionGet();
+        }
+        for (int i = 0; i < 10; i++) {
+            client().prepareIndex("test", "child", Integer.toString(i + 10)).setSource("c_field", i + 10).setParent(Integer.toString(i)).execute().actionGet();
+        }
+        client().admin().indices().prepareFlush().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        for (int i = 0; i < 10; i++) {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(queryFilter(topChildrenQuery("child", matchAllQuery())).cache(true)))
+                    .execute().actionGet();
+            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+            searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(queryFilter(hasChildQuery("child", matchAllQuery()).scoreType("max")).cache(true)))
+                    .execute().actionGet();
+            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+            searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(queryFilter(hasParentQuery("parent", matchAllQuery()).scoreType("score")).cache(true)))
+                    .execute().actionGet();
+            assertThat("Failures " + Arrays.toString(searchResponse.getShardFailures()), searchResponse.getShardFailures().length, equalTo(0));
+        }
     }
 
     @Test

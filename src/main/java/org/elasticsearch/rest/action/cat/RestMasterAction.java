@@ -63,7 +63,7 @@ public class RestMasterAction extends BaseRestHandler {
                     tab.addRow(new Row()
                             .addCell(clusterStateResponse.getState().nodes().masterNode().id())
                             .addCell(((InetSocketTransportAddress)clusterStateResponse.getState().nodes()
-                                     .masterNode().address()).address().getHostString())
+                                     .masterNode().address()).address().getAddress().getHostAddress())
                             .addCell(clusterStateResponse.getState().nodes().masterNode().name()));
 
                     channel.sendResponse(new StringRestResponse(status, tab.render(verbose)));

@@ -58,6 +58,7 @@ import org.elasticsearch.search.facet.SearchContextFacets;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -142,6 +143,7 @@ public class SearchContext implements Releasable {
     private List<String> fieldNames;
     private ScriptFieldsContext scriptFields;
     private PartialFieldsContext partialFields;
+    private FetchSourceContext fetchSourceContext;
 
     private int from = -1;
 
@@ -259,7 +261,6 @@ public class SearchContext implements Releasable {
         }
     }
 
-
     public long id() {
         return this.id;
     }
@@ -368,6 +369,28 @@ public class SearchContext implements Releasable {
             partialFields = new PartialFieldsContext();
         }
         return this.partialFields;
+    }
+
+    /**
+     * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.
+     *
+     * @return
+     */
+    public boolean sourceRequested() {
+        return fetchSourceContext != null && fetchSourceContext.fetchSource();
+    }
+
+    public boolean hasFetchSourceContext() {
+        return fetchSourceContext != null;
+    }
+
+    public FetchSourceContext fetchSourceContext() {
+        return this.fetchSourceContext;
+    }
+
+    public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
+        this.fetchSourceContext = fetchSourceContext;
+        return this;
     }
 
     public ContextIndexSearcher searcher() {

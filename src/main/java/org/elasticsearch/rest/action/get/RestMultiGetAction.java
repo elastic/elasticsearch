@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 
@@ -64,8 +65,10 @@ public class RestMultiGetAction extends BaseRestHandler {
             sFields = Strings.splitStringByCommaToArray(sField);
         }
 
+        FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
+
         try {
-            multiGetRequest.add(request.param("index"), request.param("type"), sFields, request.content());
+            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource, request.content());
         } catch (Exception e) {
             try {
                 XContentBuilder builder = restContentBuilder(request);

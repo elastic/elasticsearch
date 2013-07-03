@@ -26,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,6 +45,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
     List<String[]> fields;
     TLongArrayList versions;
     List<VersionType> versionTypes;
+    List<FetchSourceContext> fetchSourceContexts;
 
     MultiGetShardRequest() {
 
@@ -58,6 +60,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         fields = new ArrayList<String[]>();
         versions = new TLongArrayList();
         versionTypes = new ArrayList<VersionType>();
+        fetchSourceContexts = new ArrayList<FetchSourceContext>();
     }
 
     public int shardId() {
@@ -96,13 +99,14 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         return this;
     }
 
-    public void add(int location, @Nullable String type, String id, String[] fields, long version, VersionType versionType) {
+    public void add(int location, @Nullable String type, String id, String[] fields, long version, VersionType versionType, FetchSourceContext fetchSourceContext) {
         this.locations.add(location);
         this.types.add(type);
         this.ids.add(id);
         this.fields.add(fields);
         this.versions.add(version);
         this.versionTypes.add(versionType);
+        this.fetchSourceContexts.add(fetchSourceContext);
     }
 
     @Override
@@ -115,6 +119,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         fields = new ArrayList<String[]>(size);
         versions = new TLongArrayList(size);
         versionTypes = new ArrayList<VersionType>(size);
+        fetchSourceContexts = new ArrayList<FetchSourceContext>(size);
         for (int i = 0; i < size; i++) {
             locations.add(in.readVInt());
             if (in.readBoolean()) {
@@ -135,6 +140,8 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
             }
             versions.add(in.readVLong());
             versionTypes.add(VersionType.fromValue(in.readByte()));
+
+            fetchSourceContexts.add(FetchSourceContext.optionalReadFromStream(in));
         }
 
         preference = in.readOptionalString();
@@ -170,6 +177,8 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
             }
             out.writeVLong(versions.get(i));
             out.writeByte(versionTypes.get(i).getValue());
+            FetchSourceContext fetchSourceContext = fetchSourceContexts.get(i);
+            FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
         }
 
         out.writeOptionalString(preference);
@@ -181,5 +190,7 @@ public class MultiGetShardRequest extends SingleShardOperationRequest<MultiGetSh
         } else {
             out.writeByte((byte) 1);
         }
+
+
     }
 }

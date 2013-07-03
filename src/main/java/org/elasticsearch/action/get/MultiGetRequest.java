@@ -20,10 +20,12 @@
 package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.ElasticSearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +35,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,6 +54,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
         private String[] fields;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
+        private FetchSourceContext fetchSourceContext;
 
         Item() {
 
@@ -132,6 +136,18 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
             return this;
         }
 
+        public FetchSourceContext fetchSourceContext() {
+            return this.fetchSourceContext;
+        }
+
+        /**
+         * Allows setting the {@link FetchSourceContext} for this request, controlling if and how _source should be returned.
+         */
+        public Item fetchSourceContext(FetchSourceContext fetchSourceContext) {
+            this.fetchSourceContext = fetchSourceContext;
+            return this;
+        }
+
         public static Item readItem(StreamInput in) throws IOException {
             Item item = new Item();
             item.readFrom(in);
@@ -153,6 +169,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
             }
             version = in.readVLong();
             versionType = VersionType.fromValue(in.readByte());
+
+            fetchSourceContext = FetchSourceContext.optionalReadFromStream(in);
         }
 
         @Override
@@ -169,8 +187,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                     out.writeString(field);
                 }
             }
+
             out.writeVLong(version);
             out.writeByte(versionType.getValue());
+
+            FetchSourceContext.optionalWriteToStream(fetchSourceContext, out);
         }
     }
 
@@ -243,11 +264,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
         return this;
     }
 
-    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, byte[] data, int from, int length) throws Exception {
-        add(defaultIndex, defaultType, defaultFields, new BytesArray(data, from, length));
+    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, byte[] data, int from, int length) throws Exception {
+        add(defaultIndex, defaultType, defaultFields, defaultFetchSource, new BytesArray(data, from, length));
     }
 
-    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, BytesReference data) throws Exception {
+    public void add(@Nullable String defaultIndex, @Nullable String defaultType, @Nullable String[] defaultFields, @Nullable FetchSourceContext defaultFetchSource, BytesReference data) throws Exception {
         XContentParser parser = XContentFactory.xContent(data).createParser(data);
         try {
             XContentParser.Token token;
@@ -270,6 +291,8 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             long version = Versions.MATCH_ANY;
                             VersionType versionType = VersionType.INTERNAL;
 
+                            FetchSourceContext fetchSourceContext = null;
+
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     currentFieldName = parser.currentName();
@@ -291,6 +314,12 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                         version = parser.longValue();
                                     } else if ("_version_type".equals(currentFieldName) || "_versionType".equals(currentFieldName) || "version_type".equals(currentFieldName) || "versionType".equals(currentFieldName)) {
                                         versionType = VersionType.fromString(parser.text());
+                                    } else if ("_source".equals(currentFieldName)) {
+                                        if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                                            fetchSourceContext = new FetchSourceContext(parser.booleanValue());
+                                        } else if (token == XContentParser.Token.VALUE_STRING) {
+                                            fetchSourceContext = new FetchSourceContext(new String[]{parser.text()});
+                                        }
                                     }
                                 } else if (token == XContentParser.Token.START_ARRAY) {
                                     if ("fields".equals(currentFieldName)) {
@@ -298,6 +327,42 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                             fields.add(parser.text());
                                         }
+                                    } else if ("_source".equals(currentFieldName)) {
+                                        ArrayList<String> includes = new ArrayList<String>();
+                                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                            includes.add(parser.text());
+                                        }
+                                        fetchSourceContext = new FetchSourceContext(includes.toArray(Strings.EMPTY_ARRAY));
+                                    }
+
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    if ("_source".equals(currentFieldName)) {
+                                        List<String> currentList = null, includes = null, excludes = null;
+
+                                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                            if (token == XContentParser.Token.FIELD_NAME) {
+                                                currentFieldName = parser.currentName();
+                                                if ("includes".equals(currentFieldName) || "include".equals(currentFieldName)) {
+                                                    currentList = includes != null ? includes : (includes = new ArrayList<String>(2));
+                                                } else if ("excludes".equals(currentFieldName) || "exclude".equals(currentFieldName)) {
+                                                    currentList = excludes != null ? excludes : (excludes = new ArrayList<String>(2));
+                                                } else {
+                                                    throw new ElasticSearchParseException("Source definition may not contain " + parser.text());
+                                                }
+                                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                                    currentList.add(parser.text());
+                                                }
+                                            } else if (token.isValue()) {
+                                                currentList.add(parser.text());
+                                            } else {
+                                                throw new ElasticSearchParseException("unexpected token while parsing source settings");
+                                            }
+                                        }
+
+                                        fetchSourceContext = new FetchSourceContext(
+                                                includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[includes.size()]),
+                                                excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()]));
                                     }
                                 }
                             }
@@ -307,14 +372,15 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             } else {
                                 aFields = defaultFields;
                             }
-                            add(new Item(index, type, id).routing(routing).fields(aFields).parent(parent).version(version).versionType(versionType));
+                            add(new Item(index, type, id).routing(routing).fields(aFields).parent(parent).version(version).versionType(versionType)
+                                    .fetchSourceContext(fetchSourceContext == null ? defaultFetchSource : fetchSourceContext));
                         }
                     } else if ("ids".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (!token.isValue()) {
                                 throw new ElasticSearchIllegalArgumentException("ids array element should only contain ids");
                             }
-                            add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields));
+                            add(new Item(defaultIndex, defaultType, parser.text()).fields(defaultFields).fetchSourceContext(defaultFetchSource));
                         }
                     }
                 }

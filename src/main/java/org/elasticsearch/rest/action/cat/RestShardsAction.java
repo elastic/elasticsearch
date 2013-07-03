@@ -22,22 +22,24 @@ package org.elasticsearch.rest.action.cat;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.table.Row;
-import org.elasticsearch.common.table.Table;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.action.support.RestTable;
 
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestShardsAction extends BaseRestHandler {
+
     @Inject
     public RestShardsAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
@@ -46,12 +48,10 @@ public class RestShardsAction extends BaseRestHandler {
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
-        final boolean verbose = request.paramAsBoolean("verbose", false);
-        final StringBuilder out = new StringBuilder();
-
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();                                                                                                     clusterStateRequest.listenerThreaded(false);
+        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.filterMetaData(true);
-        clusterStateRequest.local(false);
+        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
 
         client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
@@ -60,9 +60,8 @@ public class RestShardsAction extends BaseRestHandler {
                 client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                     @Override
                     public void onResponse(IndicesStatsResponse indicesStatsResponse) {
-                        RestStatus status = RestStatus.OK;
                         try {
-                            channel.sendResponse(new StringRestResponse(status, process(clusterStateResponse, indicesStatsResponse, verbose)));
+                            channel.sendResponse(RestTable.buildResponse(buildTable(clusterStateResponse, indicesStatsResponse), request, channel));
                         } catch (Throwable e) {
                             onFailure(e);
                         }
@@ -90,64 +89,41 @@ public class RestShardsAction extends BaseRestHandler {
         });
     }
 
-    private String process(ClusterStateResponse state, IndicesStatsResponse stats, boolean headers) {
-        Table tab = new Table();
-        if (headers) {
-            tab.addRow(new Row()
-                    .addCell("index")
-                    .addCell("shard")
-                    .addCell("replica")
-                    .addCell("state")
-                    .addCell("docs")
-                    .addCell("size")
-                    .addCell("bytes")
-                    .addCell("host")
-                    .addCell("node"), true);
-        }
+    private Table buildTable(ClusterStateResponse state, IndicesStatsResponse stats) {
+        Table table = new Table();
+        table.startHeaders()
+                .addCell("index", "default=true;")
+                .addCell("shard", "default=true;")
+                .addCell("p/r", "default=true;")
+                .addCell("state", "default=true;")
+                .addCell("docs", "default=true;")
+                .addCell("store", "default=true;")
+                .addCell("ip", "default=true;")
+                .addCell("node", "default=true;")
+                .endHeaders();
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {
-            Row row = new Row();
-            String pri = "r";
-            StringBuilder host = new StringBuilder();
-            String docs = "";
-            String size = "";
-            String bytes = "";
-            String nodeName = "";
+            CommonStats shardStats = stats.asMap().get(shard);
 
+            table.startRow();
+
+            table.addCell(shard.index());
+            table.addCell(shard.id());
+            table.addCell(shard.primary() ? "p" : "r");
+            table.addCell(shard.state());
+            table.addCell(shardStats == null ? null : shardStats.getDocs().getCount());
+            table.addCell(shardStats == null ? null : shardStats.getStore().getSize());
             if (shard.assignedToNode()) {
-                host.append(((InetSocketTransportAddress) state.getState().nodes().get(shard.currentNodeId()).address()).address().getAddress().getHostAddress());
-                nodeName = state.getState().nodes().get(shard.currentNodeId()).name();
+                table.addCell(((InetSocketTransportAddress) state.getState().nodes().get(shard.currentNodeId()).address()).address().getAddress().getHostAddress());
+                table.addCell(state.getState().nodes().get(shard.currentNodeId()).name());
+            } else {
+                table.addCell(null);
+                table.addCell(null);
             }
 
-            if (shard.relocating()) {
-                host.append(" -> ");
-                host.append(((InetSocketTransportAddress) state.getState().nodes().get(shard.relocatingNodeId()).address()).address().getAddress().getHostAddress());
-                host.append(state.getState().nodes().get(shard.relocatingNodeId()).name());
-            }
-
-            if (null != stats.asMap().get(shard.globalId())) {
-                size = stats.asMap().get(shard.globalId()).getStore().size().toString();
-                bytes = new Long(stats.asMap().get(shard.globalId()).getStore().getSizeInBytes()).toString();
-                docs = new Long(stats.asMap().get(shard.globalId()).getDocs().getCount()).toString();
-            }
-
-            if (shard.primary()) {
-                pri = "p";
-            }
-
-            row.addCell(shard.index())
-                    .addCell(new Integer(shard.shardId().id()).toString())
-                    .addCell(pri)
-                    .addCell(shard.state().toString())
-                    .addCell(docs)
-                    .addCell(size)
-                    .addCell(bytes)
-                    .addCell(host.toString())
-                    .addCell(nodeName);
-            tab.addRow(row);
+            table.endRow();
         }
 
-        return tab.render(headers);
+        return table;
     }
-
 }

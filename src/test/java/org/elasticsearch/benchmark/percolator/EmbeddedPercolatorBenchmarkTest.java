@@ -19,11 +19,13 @@
 
 package org.elasticsearch.benchmark.percolator;
 
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.codec.CodecModule;
 import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.percolator.PercolatorExecutor;
@@ -74,10 +77,12 @@ public class EmbeddedPercolatorBenchmarkTest {
                 new SimilarityModule(settings),
                 new IndexQueryParserModule(settings),
                 new IndexNameModule(index),
+                new CodecModule(settings),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
                         bind(PercolatorExecutor.class).asEagerSingleton();
+                        bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
                     }
                 }
         ).createInjector();

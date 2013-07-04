@@ -71,19 +71,6 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
         this.scoreType = scoreType;
     }
 
-    private ChildrenQuery(ChildrenQuery unProcessedQuery, Query rewrittenChildQuery) {
-        this.searchContext = unProcessedQuery.searchContext;
-        this.parentType = unProcessedQuery.parentType;
-        this.childType = unProcessedQuery.childType;
-        this.parentFilter = unProcessedQuery.parentFilter;
-        this.scoreType = unProcessedQuery.scoreType;
-        this.originalChildQuery = unProcessedQuery.originalChildQuery;
-        this.rewrittenChildQuery = rewrittenChildQuery;
-
-        this.uidToScore = unProcessedQuery.uidToScore;
-        this.uidToCount = unProcessedQuery.uidToCount;
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -119,22 +106,12 @@ public class ChildrenQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
+    // See TopChildrenQuery#rewrite
     public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten;
         if (rewrittenChildQuery == null) {
-            rewritten = originalChildQuery.rewrite(reader);
-        } else {
-            rewritten = rewrittenChildQuery;
+            rewrittenChildQuery = originalChildQuery.rewrite(reader);
         }
-        if (rewritten == rewrittenChildQuery) {
-            return this;
-        }
-
-        // See TopChildrenQuery#rewrite
-        int index = searchContext.rewrites().indexOf(this);
-        ChildrenQuery rewrite = new ChildrenQuery(this, rewritten);
-        searchContext.rewrites().set(index, rewrite);
-        return rewrite;
+        return this;
     }
 
     @Override

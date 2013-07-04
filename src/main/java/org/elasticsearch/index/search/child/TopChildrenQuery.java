@@ -53,7 +53,6 @@ import java.util.Set;
  */
 public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
 
-    private final SearchContext searchContext;
     private final String parentType;
     private final String childType;
     private final ScoreType scoreType;
@@ -61,12 +60,12 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
     private final int incrementalFactor;
     private final Query originalChildQuery;
 
+    // This field will hold the rewritten form of originalChildQuery, so that we can reuse it
     private Query rewrittenChildQuery;
     private ExtTHashMap<Object, ParentDoc[]> parentDocs;
 
     // Note, the query is expected to already be filtered to only child type docs
-    public TopChildrenQuery(SearchContext searchContext, Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
-        this.searchContext = searchContext;
+    public TopChildrenQuery(Query childQuery, String childType, String parentType, ScoreType scoreType, int factor, int incrementalFactor) {
         this.originalChildQuery = childQuery;
         this.childType = childType;
         this.parentType = parentType;
@@ -75,46 +74,20 @@ public class TopChildrenQuery extends Query implements SearchContext.Rewrite {
         this.incrementalFactor = incrementalFactor;
     }
 
-    private TopChildrenQuery(TopChildrenQuery existing, Query rewrittenChildQuery) {
-        this.searchContext = existing.searchContext;
-        this.originalChildQuery = existing.originalChildQuery;
-        this.parentType = existing.parentType;
-        this.childType = existing.childType;
-        this.scoreType = existing.scoreType;
-        this.factor = existing.factor;
-        this.incrementalFactor = existing.incrementalFactor;
-        this.parentDocs = existing.parentDocs;
-        this.rewrittenChildQuery = rewrittenChildQuery;
-    }
-
-
-    // Rewrite logic:
+    // Rewrite invocation logic:
     // 1) query_then_fetch (default): First contextRewrite and then rewrite is executed
     // 2) dfs_query_then_fetch:: First rewrite and then contextRewrite is executed. During query phase rewrite isn't
     // executed any more because searchContext#queryRewritten() returns true.
-
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten;
         if (rewrittenChildQuery == null) {
-            rewritten = originalChildQuery.rewrite(reader);
-        } else {
-            rewritten = rewrittenChildQuery;
+            rewrittenChildQuery = originalChildQuery.rewrite(reader);
         }
-        if (rewritten == rewrittenChildQuery) {
-            return this;
-        }
-        // We need to update the rewritten query also in the SearchContext#rewrites b/c we can run into this situation:
-        // 1) During parsing we set SearchContext#rewrites with queries that implement Rewrite.
-        // 2) Then during the dfs phase, the main query (which included this query and its child query) gets rewritten
-        // and updated in SearchContext. So different TopChildrenQuery instances are in SearchContext#rewrites and in the main query.
-        // 3) Then during the query phase first the queries that impl. Rewrite are executed, which will update their own data
-        // parentDocs Map. Then when the main query is executed, 0 results are found, b/c the main query holds a different
-        // TopChildrenQuery instance then in SearchContext#rewrites
-        int index = searchContext.rewrites().indexOf(this);
-        TopChildrenQuery rewrite = new TopChildrenQuery(this, rewritten);
-        searchContext.rewrites().set(index, rewrite);
-        return rewrite;
+        // We can always return the current instance, and we can do this b/c the child query is executed separately
+        // before the main query (other scope) in a different IS#search() invocation than the main query.
+        // In fact we only need override the rewrite method because for the dfs phase, to get also global document
+        // frequency for the child query.
+        return this;
     }
 
     @Override

@@ -28,11 +28,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.testng.annotations.Test;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
@@ -73,7 +76,7 @@ public class XContentMapValuesTests {
 
         source = XContentFactory.xContent(XContentType.JSON).createParser(builder.string()).mapAndClose();
         filter = XContentMapValues.filter(source, new String[]{"path1"}, Strings.EMPTY_ARRAY);
-        assertThat(filter.size(), equalTo(0));
+        assertThat(filter.size(), equalTo(1));
 
         filter = XContentMapValues.filter(source, new String[]{"path1*"}, Strings.EMPTY_ARRAY);
         assertThat(filter.get("path1"), equalTo(source.get("path1")));
@@ -202,13 +205,125 @@ public class XContentMapValuesTests {
     public void testThatFilteringWithNestedArrayAndExclusionWorks() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startArray("coordinates")
-                    .startArray().value("foo").endArray()
+                .startArray().value("foo").endArray()
                 .endArray()
-            .endObject();
+                .endObject();
 
         Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(builder.bytes(), true);
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[]{"nonExistingField"});
 
         assertThat(mapTuple.v2(), equalTo(filteredSource));
+    }
+
+    @Test
+    public void prefixedNamesFilteringTest() {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("obj", "value");
+        map.put("obj_name", "value_name");
+        Map<String, Object> filterdMap = XContentMapValues.filter(map, new String[]{"obj_name"}, Strings.EMPTY_ARRAY);
+        assertThat(filterdMap.size(), equalTo(1));
+        assertThat((String) filterdMap.get("obj_name"), equalTo("value_name"));
+    }
+
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void nestedFilteringTest() {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("field", "value");
+        map.put("array",
+                Arrays.asList(
+                        1,
+                        new HashMap<String, Object>() {{
+                            put("nested", 2);
+                            put("nested_2", 3);
+                        }}));
+        Map<String, Object> falteredMap = XContentMapValues.filter(map, new String[]{"array.nested"}, Strings.EMPTY_ARRAY);
+        assertThat(falteredMap.size(), equalTo(1));
+
+        // Selecting members of objects within arrays (ex. [ 1, { nested: "value"} ])  always returns all values in the array (1 in the ex)
+        // this is expected behavior as this types of objects are not supported in ES
+        assertThat((Integer) ((List) falteredMap.get("array")).get(0), equalTo(1));
+        assertThat(((Map<String, Object>) ((List) falteredMap.get("array")).get(1)).size(), equalTo(1));
+        assertThat((Integer) ((Map<String, Object>) ((List) falteredMap.get("array")).get(1)).get("nested"), equalTo(2));
+
+        falteredMap = XContentMapValues.filter(map, new String[]{"array.*"}, Strings.EMPTY_ARRAY);
+        assertThat(falteredMap.size(), equalTo(1));
+        assertThat((Integer) ((List) falteredMap.get("array")).get(0), equalTo(1));
+        assertThat(((Map<String, Object>) ((List) falteredMap.get("array")).get(1)).size(), equalTo(2));
+
+        map.clear();
+        map.put("field", "value");
+        map.put("obj",
+                new HashMap<String, Object>() {{
+                    put("field", "value");
+                    put("field2", "value2");
+                }});
+        falteredMap = XContentMapValues.filter(map, new String[]{"obj.field"}, Strings.EMPTY_ARRAY);
+        assertThat(falteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) falteredMap.get("obj")).size(), equalTo(1));
+        assertThat((String) ((Map<String, Object>) falteredMap.get("obj")).get("field"), equalTo("value"));
+
+        falteredMap = XContentMapValues.filter(map, new String[]{"obj.*"}, Strings.EMPTY_ARRAY);
+        assertThat(falteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) falteredMap.get("obj")).size(), equalTo(2));
+        assertThat((String) ((Map<String, Object>) falteredMap.get("obj")).get("field"), equalTo("value"));
+        assertThat((String) ((Map<String, Object>) falteredMap.get("obj")).get("field2"), equalTo("value2"));
+
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    public void completeObjectFilteringTest() {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("field", "value");
+        map.put("obj",
+                new HashMap<String, Object>() {{
+                    put("field", "value");
+                    put("field2", "value2");
+                }});
+        map.put("array",
+                Arrays.asList(
+                        1,
+                        new HashMap<String, Object>() {{
+                            put("field", "value");
+                            put("field2", "value2");
+                        }}));
+
+        Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[]{"obj"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(2));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).get("field").toString(), equalTo("value"));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).get("field2").toString(), equalTo("value2"));
+
+
+        filteredMap = XContentMapValues.filter(map, new String[]{"obj"}, new String[]{"*.field2"});
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).get("field").toString(), equalTo("value"));
+
+
+        filteredMap = XContentMapValues.filter(map, new String[]{"array"}, new String[]{});
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((List) filteredMap.get("array")).size(), equalTo(2));
+        assertThat((Integer) ((List) filteredMap.get("array")).get(0), equalTo(1));
+        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(1)).size(), equalTo(2));
+
+        filteredMap = XContentMapValues.filter(map, new String[]{"array"}, new String[]{"*.field2"});
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((List) filteredMap.get("array")).size(), equalTo(2));
+        assertThat((Integer) ((List) filteredMap.get("array")).get(0), equalTo(1));
+        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(1)).size(), equalTo(1));
+        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(1)).get("field").toString(), equalTo("value"));
+    }
+
+    @Test
+    public void filterWithEmptyIncludesExcludes() {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("field", "value");
+        Map<String, Object> filteredMap = XContentMapValues.filter(map, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(filteredMap.get("field").toString(), equalTo("value"));
+
     }
 }

@@ -25,10 +25,12 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermsFilter;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.TermFilter;
 import org.testng.annotations.Test;
 
@@ -64,11 +66,13 @@ public class TermsFilterTests {
         assertThat(bits, nullValue());
 
         tf = new TermFilter(new Term(fieldName, "20"));
-        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        DocIdSet result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(1));
 
         tf = new TermFilter(new Term("all", "xxx"));
-        bits = (FixedBitSet) tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        result = tf.getDocIdSet(reader.getContext(), reader.getLiveDocs());
+        bits = DocIdSets.toFixedBitSet(result.iterator(), reader.maxDoc());
         assertThat(bits.cardinality(), equalTo(100));
 
         reader.close();

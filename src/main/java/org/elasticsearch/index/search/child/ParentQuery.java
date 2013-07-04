@@ -61,16 +61,6 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
         this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
     }
 
-    private ParentQuery(ParentQuery unwritten, Query rewrittenParentQuery) {
-        this.searchContext = unwritten.searchContext;
-        this.originalParentQuery = unwritten.originalParentQuery;
-        this.parentType = unwritten.parentType;
-        this.childrenFilter = unwritten.childrenFilter;
-
-        this.rewrittenParentQuery = rewrittenParentQuery;
-        this.uidToScore = unwritten.uidToScore;
-    }
-
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
@@ -129,22 +119,12 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
+    // See TopChildrenQuery#rewrite
     public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten;
         if (rewrittenParentQuery == null) {
-            rewritten = originalParentQuery.rewrite(reader);
-        } else {
-            rewritten = rewrittenParentQuery;
+            rewrittenParentQuery = originalParentQuery.rewrite(reader);
         }
-        if (rewritten == rewrittenParentQuery) {
-            return this;
-        }
-
-        // See TopChildrenQuery#rewrite
-        ParentQuery rewrite = new ParentQuery(this, rewritten);
-        int index = searchContext.rewrites().indexOf(this);
-        searchContext.rewrites().set(index, rewrite);
-        return rewrite;
+        return this;
     }
 
     @Override

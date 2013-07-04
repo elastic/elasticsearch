@@ -127,7 +127,7 @@ public class TopChildrenQueryParser implements QueryParser {
         if (searchContext == null) {
             throw new ElasticSearchIllegalStateException("[top_children] Can't execute, search context not set.");
         }
-        TopChildrenQuery childQuery = new TopChildrenQuery(searchContext, query, childType, parentType, scoreType, factor, incrementalFactor);
+        TopChildrenQuery childQuery = new TopChildrenQuery(query, childType, parentType, scoreType, factor, incrementalFactor);
         searchContext.addRewrite(childQuery);
         return childQuery;
     }

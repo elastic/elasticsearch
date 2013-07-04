@@ -57,6 +57,7 @@ public class RestShardsAction extends BaseRestHandler {
             @Override
             public void onResponse(final ClusterStateResponse clusterStateResponse) {
                 IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+                indicesStatsRequest.clear().docs(true).store(true);
                 client.admin().indices().stats(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
                     @Override
                     public void onResponse(IndicesStatsResponse indicesStatsResponse) {

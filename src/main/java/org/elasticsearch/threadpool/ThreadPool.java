@@ -479,7 +479,9 @@ public class ThreadPool extends AbstractComponent {
     private BlockingQueue<Runnable> newQueue(SizeValue queueSize, String queueType) {
         if (queueSize == null) {
             return ConcurrentCollections.newBlockingQueue();
-        } else if ((int) queueSize.singles() > 0) {
+        } else if (queueSize.singles() == 0) {
+            return new SynchronousQueue<Runnable>();
+        } else if (queueSize.singles() > 0) {
             if ("linked".equals(queueType)) {
                 return new LinkedBlockingQueue<Runnable>((int) queueSize.singles());
             } else if ("array".equals(queueType)) {
@@ -487,8 +489,8 @@ public class ThreadPool extends AbstractComponent {
             } else {
                 throw new ElasticSearchIllegalArgumentException("illegal queue_type set to [" + queueType + "], should be either linked or array");
             }
-        } else {
-            return new SynchronousQueue<Runnable>();
+        } else { // queueSize.singles() < 0, just treat it as unbounded queue
+            return ConcurrentCollections.newBlockingQueue();
         }
     }
 

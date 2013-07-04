@@ -73,10 +73,7 @@ public class DocIdSets {
      * always either return {@link DocIdSet#EMPTY_DOCIDSET} or {@link FixedBitSet}.
      */
     public static DocIdSet toCacheable(AtomicReader reader, @Nullable DocIdSet set) throws IOException {
-        if (set == null) {
-            return DocIdSet.EMPTY_DOCIDSET;
-        }
-        if (set == DocIdSet.EMPTY_DOCIDSET) {
+        if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
             return DocIdSet.EMPTY_DOCIDSET;
         }
         DocIdSetIterator it = set.iterator();

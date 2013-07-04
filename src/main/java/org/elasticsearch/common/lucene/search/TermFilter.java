@@ -21,9 +21,9 @@ package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
 
 import java.io.IOException;
 
@@ -43,27 +43,23 @@ public class TermFilter extends Filter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(AtomicReaderContext context, final Bits acceptDocs) throws IOException {
         Terms terms = context.reader().terms(term.field());
         if (terms == null) {
             return null;
         }
 
-        TermsEnum termsEnum = terms.iterator(null);
+        final TermsEnum termsEnum = terms.iterator(null);
         if (!termsEnum.seekExact(term.bytes(), false)) {
             return null;
         }
-        DocsEnum docsEnum = termsEnum.docs(acceptDocs, null, DocsEnum.FLAG_NONE);
-        int docId = docsEnum.nextDoc();
-        if (docId == DocsEnum.NO_MORE_DOCS) {
-            return null;
-        }
+        return new DocIdSet() {
+            @Override
+            public DocIdSetIterator iterator() throws IOException {
+                return termsEnum.docs(acceptDocs, null, DocsEnum.FLAG_NONE);
+            }
 
-        final FixedBitSet result = new FixedBitSet(context.reader().maxDoc());
-        for (; docId < DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-            result.set(docId);
-        }
-        return result;
+        };
     }
 
     @Override

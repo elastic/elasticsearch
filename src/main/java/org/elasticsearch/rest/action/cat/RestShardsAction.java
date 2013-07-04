@@ -93,14 +93,14 @@ public class RestShardsAction extends BaseRestHandler {
     private Table buildTable(ClusterStateResponse state, IndicesStatsResponse stats) {
         Table table = new Table();
         table.startHeaders()
-                .addCell("index", "default=true;")
-                .addCell("shard", "default=true;")
-                .addCell("p/r", "default=true;")
-                .addCell("state", "default=true;")
-                .addCell("docs", "default=true;")
-                .addCell("store", "default=true;")
-                .addCell("ip", "default=true;")
-                .addCell("node", "default=true;")
+                .addCell("index", "default:true;")
+                .addCell("shard", "default:true;")
+                .addCell("p/r", "default:true;")
+                .addCell("state", "default:true;")
+                .addCell("docs", "default:true;")
+                .addCell("store", "default:true;")
+                .addCell("ip", "default:true;")
+                .addCell("node", "default:true;")
                 .endHeaders();
 
         for (ShardRouting shard : state.getState().routingTable().allShards()) {

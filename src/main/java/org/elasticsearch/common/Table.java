@@ -97,7 +97,7 @@ public class Table {
                 if (sAttr.length() == 0) {
                     continue;
                 }
-                int idx = sAttr.indexOf('=');
+                int idx = sAttr.indexOf(':');
                 mAttr.put(sAttr.substring(0, idx), sAttr.substring(idx + 1));
             }
         }

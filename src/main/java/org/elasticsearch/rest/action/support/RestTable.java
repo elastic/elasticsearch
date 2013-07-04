@@ -66,10 +66,10 @@ public class RestTable {
     }
 
     public static RestResponse buildTextPlainResponse(Table table, RestRequest request, RestChannel channel) {
-        int[] width = buildWidths(table, request);
+        boolean verbose = request.paramAsBoolean("v", true);
+        int[] width = buildWidths(table, request, verbose);
         Set<String> displayHeaders = buildDisplayHeaders(table, request);
 
-        boolean verbose = request.paramAsBoolean("v", true);
         StringBuilder out = new StringBuilder();
         if (verbose) {
             // print the headers
@@ -113,13 +113,16 @@ public class RestTable {
         return display;
     }
 
-    private static int[] buildWidths(Table table, RestRequest request) {
+    private static int[] buildWidths(Table table, RestRequest request, boolean verbose) {
         int[] width = new int[table.getHeaders().size()];
-        for (int col = 0; col < width.length; col++) {
-            String v = renderValue(request, table.getHeaders().get(col).value);
-            int vWidth = v == null ? 0 : v.length();
-            if (width[col] < vWidth) {
-                width[col] = vWidth;
+
+        if (verbose) {
+            for (int col = 0; col < width.length; col++) {
+                String v = renderValue(request, table.getHeaders().get(col).value);
+                int vWidth = v == null ? 0 : v.length();
+                if (width[col] < vWidth) {
+                    width[col] = vWidth;
+                }
             }
         }
 

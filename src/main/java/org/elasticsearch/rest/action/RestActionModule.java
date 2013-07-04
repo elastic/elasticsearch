@@ -68,6 +68,7 @@ import org.elasticsearch.rest.action.admin.indices.warmer.get.RestGetWarmerActio
 import org.elasticsearch.rest.action.admin.indices.warmer.put.RestPutWarmerAction;
 import org.elasticsearch.rest.action.bulk.RestBulkAction;
 import org.elasticsearch.rest.action.cat.RestMasterAction;
+import org.elasticsearch.rest.action.cat.RestNodesAction;
 import org.elasticsearch.rest.action.cat.RestShardsAction;
 import org.elasticsearch.rest.action.count.RestCountAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
@@ -185,5 +186,6 @@ public class RestActionModule extends AbstractModule {
 
         bind(RestShardsAction.class).asEagerSingleton();
         bind(RestMasterAction.class).asEagerSingleton();
+        bind(RestNodesAction.class).asEagerSingleton();
     }
 }

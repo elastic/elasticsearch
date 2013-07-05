@@ -5,6 +5,7 @@ Documentation=http://www.elasticsearch.org
 [Service]
 Type=forking
 EnvironmentFile=/etc/sysconfig/elasticsearch
+LimitNOFILE=65535
 User=elasticsearch
 Group=elasticsearch
 PIDFile=/var/run/elasticsearch/elasticsearch.pid

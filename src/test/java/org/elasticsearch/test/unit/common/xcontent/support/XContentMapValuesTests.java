@@ -317,6 +317,7 @@ public class XContentMapValuesTests {
         assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(1)).get("field").toString(), equalTo("value"));
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     public void filterIncludesUsingStarPrefix() {
         Map<String, Object> map = new HashMap<String, Object>();
@@ -335,16 +336,16 @@ public class XContentMapValuesTests {
         Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[]{"*.field2"}, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(1));
         assertThat(filteredMap, hasKey("obj"));
-        assertThat(((Map) filteredMap.get("obj")).size(), equalTo(1));
-        assertThat(((Map) filteredMap.get("obj")), hasKey("field2"));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")), hasKey("field2"));
 
         // only objects
         filteredMap = XContentMapValues.filter(map, new String[]{"*.*"}, Strings.EMPTY_ARRAY);
         assertThat(filteredMap.size(), equalTo(2));
         assertThat(filteredMap, hasKey("obj"));
-        assertThat(((Map) filteredMap.get("obj")).size(), equalTo(2));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(2));
         assertThat(filteredMap, hasKey("n_obj"));
-        assertThat(((Map) filteredMap.get("n_obj")).size(), equalTo(2));
+        assertThat(((Map<String, Object>) filteredMap.get("n_obj")).size(), equalTo(2));
 
 
         filteredMap = XContentMapValues.filter(map, new String[]{"*"}, new String[]{"*.*2"});
@@ -352,10 +353,10 @@ public class XContentMapValuesTests {
         assertThat(filteredMap, hasKey("field"));
         assertThat(filteredMap, hasKey("obj"));
         assertThat(((Map) filteredMap.get("obj")).size(), equalTo(1));
-        assertThat(((Map) filteredMap.get("obj")), hasKey("field"));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")), hasKey("field"));
         assertThat(filteredMap, hasKey("n_obj"));
-        assertThat(((Map) filteredMap.get("n_obj")).size(), equalTo(1));
-        assertThat(((Map) filteredMap.get("n_obj")), hasKey("n_field"));
+        assertThat(((Map<String, Object>) filteredMap.get("n_obj")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("n_obj")), hasKey("n_field"));
 
     }
 

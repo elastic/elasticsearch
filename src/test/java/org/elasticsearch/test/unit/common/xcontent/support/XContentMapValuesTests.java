@@ -318,6 +318,48 @@ public class XContentMapValuesTests {
     }
 
     @Test
+    public void filterIncludesUsingStarPrefix() {
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("field", "value");
+        map.put("obj",
+                new HashMap<String, Object>() {{
+                    put("field", "value");
+                    put("field2", "value2");
+                }});
+        map.put("n_obj",
+                new HashMap<String, Object>() {{
+                    put("n_field", "value");
+                    put("n_field2", "value2");
+                }});
+
+        Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[]{"*.field2"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(filteredMap, hasKey("obj"));
+        assertThat(((Map) filteredMap.get("obj")).size(), equalTo(1));
+        assertThat(((Map) filteredMap.get("obj")), hasKey("field2"));
+
+        // only objects
+        filteredMap = XContentMapValues.filter(map, new String[]{"*.*"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(2));
+        assertThat(filteredMap, hasKey("obj"));
+        assertThat(((Map) filteredMap.get("obj")).size(), equalTo(2));
+        assertThat(filteredMap, hasKey("n_obj"));
+        assertThat(((Map) filteredMap.get("n_obj")).size(), equalTo(2));
+
+
+        filteredMap = XContentMapValues.filter(map, new String[]{"*"}, new String[]{"*.*2"});
+        assertThat(filteredMap.size(), equalTo(3));
+        assertThat(filteredMap, hasKey("field"));
+        assertThat(filteredMap, hasKey("obj"));
+        assertThat(((Map) filteredMap.get("obj")).size(), equalTo(1));
+        assertThat(((Map) filteredMap.get("obj")), hasKey("field"));
+        assertThat(filteredMap, hasKey("n_obj"));
+        assertThat(((Map) filteredMap.get("n_obj")).size(), equalTo(1));
+        assertThat(((Map) filteredMap.get("n_obj")), hasKey("n_field"));
+
+    }
+
+    @Test
     public void filterWithEmptyIncludesExcludes() {
         Map<String, Object> map = new HashMap<String, Object>();
         map.put("field", "value");

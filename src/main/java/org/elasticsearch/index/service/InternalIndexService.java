@@ -192,7 +192,7 @@ public class InternalIndexService extends AbstractIndexComponent implements Inde
 
     @Override
     public ImmutableSet<Integer> shardIds() {
-        return ImmutableSet.copyOf(shards.keySet());
+        return shards.keySet();
     }
 
     @Override

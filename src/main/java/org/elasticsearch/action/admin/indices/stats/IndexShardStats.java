@@ -37,16 +37,8 @@ public class IndexShardStats implements Iterable<ShardStats> {
         this.shards = shards;
     }
 
-    public ShardId shardId() {
-        return this.shardId;
-    }
-
     public ShardId getShardId() {
-        return shardId();
-    }
-
-    public ShardStats[] shards() {
-        return shards;
+        return this.shardId;
     }
 
     public ShardStats[] getShards() {
@@ -64,13 +56,13 @@ public class IndexShardStats implements Iterable<ShardStats> {
 
     private CommonStats total = null;
 
-    public CommonStats total() {
+    public CommonStats getTotal() {
         if (total != null) {
             return total;
         }
         CommonStats stats = new CommonStats();
         for (ShardStats shard : shards) {
-            stats.add(shard.stats());
+            stats.add(shard.getStats());
         }
         total = stats;
         return stats;
@@ -78,14 +70,14 @@ public class IndexShardStats implements Iterable<ShardStats> {
 
     private CommonStats primary = null;
 
-    public CommonStats primary() {
+    public CommonStats getPrimary() {
         if (primary != null) {
             return primary;
         }
         CommonStats stats = new CommonStats();
         for (ShardStats shard : shards) {
-            if (shard.shardRouting().primary()) {
-                stats.add(shard.stats());
+            if (shard.getShardRouting().primary()) {
+                stats.add(shard.getStats());
             }
         }
         primary = stats;

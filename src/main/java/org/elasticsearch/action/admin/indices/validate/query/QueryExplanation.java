@@ -49,36 +49,20 @@ public class QueryExplanation  implements Streamable {
         this.error = error;
     }
 
-    public String index() {
+    public String getIndex() {
         return this.index;
     }
 
-    public String getIndex() {
-        return index();
-    }
-
-    public boolean valid() {
+    public boolean isValid() {
         return this.valid;
     }
 
-    public boolean getValid() {
-        return valid();
-    }
-
-    public String error() {
+    public String getError() {
         return this.error;
     }
 
-    public String getError() {
-        return error();
-    }
-
-    public String explanation() {
-        return this.explanation;
-    }
-
     public String getExplanation() {
-        return explanation();
+        return this.explanation;
     }
 
     @Override

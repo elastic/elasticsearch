@@ -45,7 +45,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
-import static org.elasticsearch.search.suggest.SuggestBuilder.fuzzySuggestion;
+import static org.elasticsearch.search.suggest.SuggestBuilder.termSuggestion;
 
 /**
  *
@@ -226,6 +226,13 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
+        if(request.hasParam("track_scores")) {
+            if (searchSourceBuilder == null) {
+                searchSourceBuilder = new SearchSourceBuilder();
+            }
+            searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
+        }
+
         String sSorts = request.param("sort");
         if (sSorts != null) {
             if (searchSourceBuilder == null) {
@@ -286,8 +293,8 @@ public class RestSearchAction extends BaseRestHandler {
             }
             String suggestMode = request.param("suggest_mode");
             searchSourceBuilder.suggest().addSuggestion(
-                    fuzzySuggestion(suggestField).setField(suggestField).setText(suggestText).setSize(suggestSize)
-                            .setSuggestMode(suggestMode)
+                    termSuggestion(suggestField).field(suggestField).text(suggestText).size(suggestSize)
+                            .suggestMode(suggestMode)
             );
         }
 

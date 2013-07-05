@@ -19,6 +19,32 @@
 
 package org.elasticsearch.test.unit;
 
+import org.testng.annotations.Test;
+
+import static org.elasticsearch.Version.V_0_20_0;
+import static org.elasticsearch.Version.V_0_90_0;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+
 public class VersionTests {
+
+    @Test
+    public void testVersions() throws Exception {
+        assertThat(V_0_20_0.before(V_0_90_0), is(true));
+        assertThat(V_0_20_0.before(V_0_20_0), is(false));
+        assertThat(V_0_90_0.before(V_0_20_0), is(false));
+
+        assertThat(V_0_20_0.onOrBefore(V_0_90_0), is(true));
+        assertThat(V_0_20_0.onOrBefore(V_0_20_0), is(true));
+        assertThat(V_0_90_0.onOrBefore(V_0_20_0), is(false));
+
+        assertThat(V_0_20_0.after(V_0_90_0), is(false));
+        assertThat(V_0_20_0.after(V_0_20_0), is(false));
+        assertThat(V_0_90_0.after(V_0_20_0), is(true));
+
+        assertThat(V_0_20_0.onOrAfter(V_0_90_0), is(false));
+        assertThat(V_0_20_0.onOrAfter(V_0_20_0), is(true));
+        assertThat(V_0_90_0.onOrAfter(V_0_20_0), is(true));
+    }
 
 }

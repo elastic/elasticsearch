@@ -45,73 +45,38 @@ public class MultiGetItemResponse implements Streamable {
     /**
      * The index name of the document.
      */
-    public String index() {
-        if (failure != null) {
-            return failure.index();
-        }
-        return response.index();
-    }
-
-    /**
-     * The index name of the document.
-     */
     public String getIndex() {
-        return index();
-    }
-
-    /**
-     * The type of the document.
-     */
-    public String type() {
         if (failure != null) {
-            return failure.type();
+            return failure.getIndex();
         }
-        return response.type();
+        return response.getIndex();
     }
 
     /**
      * The type of the document.
      */
     public String getType() {
-        return type();
-    }
-
-    /**
-     * The id of the document.
-     */
-    public String id() {
         if (failure != null) {
-            return failure.id();
+            return failure.getType();
         }
-        return response.id();
+        return response.getType();
     }
 
     /**
      * The id of the document.
      */
     public String getId() {
-        return id();
-    }
-
-    /**
-     * Is this a failed execution?
-     */
-    public boolean failed() {
-        return failure != null;
+        if (failure != null) {
+            return failure.getId();
+        }
+        return response.getId();
     }
 
     /**
      * Is this a failed execution?
      */
     public boolean isFailed() {
-        return failed();
-    }
-
-    /**
-     * The actual get response, <tt>null</tt> if its a failure.
-     */
-    public GetResponse response() {
-        return this.response;
+        return failure != null;
     }
 
     /**
@@ -124,15 +89,8 @@ public class MultiGetItemResponse implements Streamable {
     /**
      * The failure if relevant.
      */
-    public MultiGetResponse.Failure failure() {
-        return this.failure;
-    }
-
-    /**
-     * The failure if relevant.
-     */
     public MultiGetResponse.Failure getFailure() {
-        return failure();
+        return this.failure;
     }
 
     public static MultiGetItemResponse readItemResponse(StreamInput in) throws IOException {

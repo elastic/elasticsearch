@@ -62,6 +62,9 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     @Nullable
     protected String routing;
 
+    @Nullable
+    private String preference;
+
     private BytesReference querySource;
     private boolean querySourceUnsafe;
 
@@ -220,11 +223,21 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         return this;
     }
 
+    public CountRequest preference(String preference) {
+        this.preference = preference;
+        return this;
+    }
+
+    public String preference() {
+        return this.preference;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         minScore = in.readFloat();
         routing = in.readOptionalString();
+        preference = in.readOptionalString();
         querySourceUnsafe = false;
         querySource = in.readBytesReference();
         types = in.readStringArray();
@@ -235,6 +248,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         super.writeTo(out);
         out.writeFloat(minScore);
         out.writeOptionalString(routing);
+        out.writeOptionalString(preference);
         out.writeBytesReference(querySource);
         out.writeStringArray(types);
     }

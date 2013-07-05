@@ -84,5 +84,11 @@ public class AllDocIdSet extends DocIdSet {
             }
             return doc = NO_MORE_DOCS;
         }
+
+        @Override
+        public long cost() {
+            
+            return maxDoc;
+        }
     }
 }

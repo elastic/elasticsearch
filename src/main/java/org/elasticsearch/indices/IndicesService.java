@@ -20,6 +20,7 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
@@ -43,6 +44,8 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
      */
     NodeIndicesStats stats(boolean includePrevious);
 
+    NodeIndicesStats stats(boolean includePrevious, CommonStatsFlags flags);
+
     boolean hasIndex(String index);
 
     IndicesLifecycle indicesLifecycle();
@@ -55,10 +58,5 @@ public interface IndicesService extends Iterable<IndexService>, LifecycleCompone
 
     IndexService createIndex(String index, Settings settings, String localNodeId) throws ElasticSearchException;
 
-    void deleteIndex(String index, String reason) throws ElasticSearchException;
-
-    /**
-     * Cleans the index without actually deleting any content for it.
-     */
-    void cleanIndex(String index, String reason) throws ElasticSearchException;
+    void removeIndex(String index, String reason) throws ElasticSearchException;
 }

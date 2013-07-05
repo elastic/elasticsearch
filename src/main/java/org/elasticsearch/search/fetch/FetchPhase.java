@@ -22,7 +22,6 @@ package org.elasticsearch.search.fetch;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
@@ -145,7 +144,7 @@ public class FetchPhase implements SearchPhase {
             fieldsVisitor.postProcess(context.mapperService());
 
             Map<String, SearchHitField> searchFields = null;
-            if (fieldsVisitor.fields() != null) {
+            if (!fieldsVisitor.fields().isEmpty()) {
                 searchFields = new HashMap<String, SearchHitField>(fieldsVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
                     searchFields.put(entry.getKey(), new InternalSearchHitField(entry.getKey(), entry.getValue()));
@@ -170,8 +169,8 @@ public class FetchPhase implements SearchPhase {
             // go over and extract fields that are not mapped / stored
             context.lookup().setNextReader(subReaderContext);
             context.lookup().setNextDocId(subDoc);
-            if (searchHit.source() != null) {
-                context.lookup().source().setNextSource(new BytesArray(searchHit.source()));
+            if (fieldsVisitor.source() != null) {
+                context.lookup().source().setNextSource(fieldsVisitor.source());
             }
             if (extractFieldNames != null) {
                 for (String extractFieldName : extractFieldNames) {

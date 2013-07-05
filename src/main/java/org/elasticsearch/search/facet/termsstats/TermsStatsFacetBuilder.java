@@ -22,15 +22,16 @@ package org.elasticsearch.search.facet.termsstats;
 import com.google.common.collect.Maps;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facet.FacetBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 
 /**
  *
  */
-public class TermsStatsFacetBuilder extends AbstractFacetBuilder {
+public class TermsStatsFacetBuilder extends FacetBuilder {
 
     private String keyField;
     private String valueField;
@@ -139,7 +140,7 @@ public class TermsStatsFacetBuilder extends AbstractFacetBuilder {
         }
 
         if (comparatorType != null) {
-            builder.field("order", comparatorType.name().toLowerCase());
+            builder.field("order", comparatorType.name().toLowerCase(Locale.ROOT));
         }
 
         if (size != -1) {

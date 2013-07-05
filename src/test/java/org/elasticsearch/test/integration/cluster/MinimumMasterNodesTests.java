@@ -24,7 +24,9 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
@@ -79,21 +81,21 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         startNode("node1", settings);
 
         logger.info("--> should be blocked, no master...");
-        ClusterState state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        ClusterState state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
 
         logger.info("--> start second node, cluster should be formed");
         startNode("node2", settings);
 
-        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
-        state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
 
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
         assertThat(state.metaData().indices().containsKey("test"), equalTo(false));
 
@@ -102,13 +104,15 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         for (int i = 0; i < 100; i++) {
             client("node1").prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
+        // make sure that all shards recovered before trying to flush
+        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForActiveShards(2).execute().actionGet().getActiveShards(), equalTo(2));
         // flush for simpler debugging
         client("node1").admin().indices().prepareFlush().execute().actionGet();
 
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
 
         String masterNodeName = state.nodes().masterNode().name();
@@ -116,35 +120,40 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> closing master node {}", masterNodeName);
         closeNode(masterNodeName);
 
-        Thread.sleep(200);
-
-        state = client(nonMasterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        long time = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(5).millis()) {
+            state = client(nonMasterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+                break;
+            }
+        }
+        state = client(nonMasterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
 
         logger.info("--> starting the previous master node again...");
         startNode(masterNodeName, settings);
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
-        state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
 
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
         assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
 
         masterNodeName = state.nodes().masterNode().name();
@@ -152,37 +161,40 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         logger.info("--> closing non master node {}", nonMasterNodeName);
         closeNode(nonMasterNodeName);
 
-        Thread.sleep(200);
-
-        state = client(masterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        time = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(5).millis()) {
+            state = client(masterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+                break;
+            }
+        }
+        state = client(masterNodeName).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
 
         logger.info("--> starting the previous master node again...");
         startNode(nonMasterNodeName, settings);
 
-        Thread.sleep(200);
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
-
-        state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
-        state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(false));
 
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(2));
         assertThat(state.metaData().indices().containsKey("test"), equalTo(true));
 
         logger.info("Running Cluster Health");
         clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
     }
 
@@ -208,21 +220,36 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         startNode("node1", settings);
         startNode("node2", settings);
 
-        Thread.sleep(500);
+        ClusterState state;
 
-        ClusterState state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        long time = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(5).millis()) {
+            state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+                break;
+            }
+        }
+        time = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(5).millis()) {
+            state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            if (state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK)) {
+                break;
+            }
+        }
+
+        state = client("node1").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
-        state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        state = client("node2").admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
 
         logger.info("--> start two more nodes");
         startNode("node3", settings);
         startNode("node4", settings);
 
-        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(4));
         String masterNode = state.nodes().masterNode().name();
         LinkedList<String> nonMasterNodes = new LinkedList<String>();
@@ -236,13 +263,15 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
         for (int i = 0; i < 100; i++) {
             client("node1").prepareIndex("test", "type1", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
+        // make sure that all shards recovered before trying to flush
+        assertThat(client("node1").admin().cluster().prepareHealth("test").setWaitForActiveShards(10).execute().actionGet().isTimedOut(), equalTo(false));
         // flush for simpler debugging
         client("node1").admin().indices().prepareFlush().execute().actionGet();
 
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
 
         Set<String> nodesToShutdown = Sets.newHashSet();
@@ -253,13 +282,22 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
             closeNode(nodeToShutdown);
         }
 
-        Thread.sleep(1000);
-
         String lastNonMasterNodeUp = nonMasterNodes.removeLast();
         logger.info("--> verify that there is no master anymore on remaining nodes");
-        state = client(masterNode).admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        // spin here to wait till the state is set
+        time = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(20).millis()) {
+            state = client(masterNode).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            boolean firstNoMasterLock = state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+            state = client(lastNonMasterNodeUp).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            boolean secondNoMasterLock = state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK);
+            if (firstNoMasterLock && secondNoMasterLock) {
+                break;
+            }
+        }
+        state = client(masterNode).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
-        state = client(lastNonMasterNodeUp).admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        state = client(lastNonMasterNodeUp).admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
 
         logger.info("--> start back the nodes {}", nodesToShutdown);
@@ -267,21 +305,21 @@ public class MinimumMasterNodesTests extends AbstractZenNodesTests {
             startNode(nodeToShutdown, settings);
         }
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("Running Cluster Health");
         ClusterHealthResponse clusterHealth = client("node1").admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.status());
-        assertThat(clusterHealth.timedOut(), equalTo(false));
-        assertThat(clusterHealth.status(), equalTo(ClusterHealthStatus.GREEN));
+        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
-        state = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        state = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(state.nodes().size(), equalTo(4));
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+            assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
         }
     }
 }

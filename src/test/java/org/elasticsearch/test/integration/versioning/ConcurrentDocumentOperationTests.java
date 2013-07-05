@@ -2,9 +2,8 @@ package org.elasticsearch.test.integration.versioning;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.node.Node;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterMethod;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.util.Map;
@@ -20,24 +19,19 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 @Test
-public class ConcurrentDocumentOperationTests extends AbstractNodesTests {
+public class ConcurrentDocumentOperationTests extends AbstractSharedClusterTest {
 
-    @AfterMethod
+    @BeforeTest
     public void closeNodes() {
-        closeAllNodes();
+        cluster().ensureAtLeastNumNodes(3);
     }
 
     @Test
     public void concurrentOperationOnSameDocTest() throws Exception {
-        // start 5 nodes
-        Node[] nodes = new Node[5];
-        for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = startNode(Integer.toString(i));
-        }
 
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
-        nodes[0].client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", nodes.length - 1))
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", cluster().numNodes()-1))
                 .execute().actionGet();
 
         logger.info("execute concurrent updates on the same doc");
@@ -45,7 +39,7 @@ public class ConcurrentDocumentOperationTests extends AbstractNodesTests {
         final AtomicReference<Throwable> failure = new AtomicReference<Throwable>();
         final CountDownLatch latch = new CountDownLatch(numberOfUpdates);
         for (int i = 0; i < numberOfUpdates; i++) {
-            nodes[0].client().prepareIndex("test", "type1", "1").setSource("field1", i).execute(new ActionListener<IndexResponse>() {
+            client().prepareIndex("test", "type1", "1").setSource("field1", i).execute(new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse response) {
                     latch.countDown();
@@ -64,12 +58,12 @@ public class ConcurrentDocumentOperationTests extends AbstractNodesTests {
 
         assertThat(failure.get(), nullValue());
 
-        nodes[0].client().admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("done indexing, check all have the same field value");
-        Map masterSource = nodes[0].client().prepareGet("test", "type1", "1").execute().actionGet().sourceAsMap();
-        for (int i = 0; i < (nodes.length * 5); i++) {
-            assertThat(nodes[0].client().prepareGet("test", "type1", "1").execute().actionGet().sourceAsMap(), equalTo(masterSource));
+        Map masterSource = client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap();
+        for (int i = 0; i < (cluster().numNodes() * 5); i++) {
+            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
         }
     }
 }

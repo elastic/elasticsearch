@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 
 import java.io.IOException;
@@ -442,6 +443,9 @@ public class MappingMetaData {
             boolean incLocationTimestamp = false;
             if (context.idParsingStillNeeded() && fieldName.equals(idPart)) {
                 if (context.locationId + 1 == id.pathElements().length) {
+                    if (!t.isValue()) {
+                        throw new MapperParsingException("id field must be a value but was either an object or an array");
+                    }
                     context.id = parser.textOrNull();
                     context.idResolved = true;
                 } else {

@@ -60,6 +60,9 @@ public class PreBuiltPostingsFormatProvider implements PostingsFormatProvider {
     }
 
     public PreBuiltPostingsFormatProvider(String name, PostingsFormat postingsFormat) {
+        if (postingsFormat == null) {
+            throw new IllegalArgumentException("PostingsFormat must not be null");
+        }
         this.name = name;
         this.postingsFormat = postingsFormat;
     }

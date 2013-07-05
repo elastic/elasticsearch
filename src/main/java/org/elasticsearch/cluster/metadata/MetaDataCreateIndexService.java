@@ -19,10 +19,12 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import com.google.common.io.Closeables;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -61,8 +63,9 @@ import org.elasticsearch.river.RiverIndexName;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.File;
-import java.io.FileReader;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -140,7 +143,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 try {
                     try {
                         validate(request, currentState);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         listener.onFailure(e);
                         return currentState;
                     }
@@ -365,7 +368,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     logger.warn("[{}] failed to create", e, request.index);
                     if (indexCreated) {
                         // Index was already partially created - need to clean up
-                        indicesService.deleteIndex(request.index, failureReason != null ? failureReason : "failed to create index");
+                        indicesService.removeIndex(request.index, failureReason != null ? failureReason : "failed to create index");
                     }
                     listener.onFailure(e);
                     return currentState;
@@ -433,7 +436,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             int lastDotIndex = mappingFile.getName().lastIndexOf('.');
             String mappingType = lastDotIndex != -1 ? mappingFile.getName().substring(0, lastDotIndex) : mappingFile.getName();
             try {
-                String mappingSource = Streams.copyToString(new FileReader(mappingFile));
+                String mappingSource = Streams.copyToString(new InputStreamReader(new FileInputStream(mappingFile), Charsets.UTF_8));
                 if (mappings.containsKey(mappingType)) {
                     XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
                 } else {
@@ -476,7 +479,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        Collections.sort(templates, new Comparator<IndexTemplateMetaData>() {
+        CollectionUtil.quickSort(templates, new Comparator<IndexTemplateMetaData>() {
             @Override
             public int compare(IndexTemplateMetaData o1, IndexTemplateMetaData o2) {
                 return o2.order() - o1.order();
@@ -504,7 +507,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (!request.index.equals(riverIndexName) && !request.index.equals(PercolatorService.INDEX_NAME) && request.index.charAt(0) == '_') {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "must not start with '_'");
         }
-        if (!request.index.toLowerCase().equals(request.index)) {
+        if (!request.index.toLowerCase(Locale.ROOT).equals(request.index)) {
             throw new InvalidIndexNameException(new Index(request.index), request.index, "must be lowercase");
         }
         if (!Strings.validFileName(request.index)) {

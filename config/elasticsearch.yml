@@ -280,9 +280,9 @@
 #
 # cluster.routing.allocation.node_concurrent_recoveries: 2
 
-# Set to throttle throughput when recovering (eg. 100mb, by default unlimited):
+# Set to throttle throughput when recovering (eg. 100mb, by default 20mb):
 #
-# indices.recovery.max_size_per_sec: 0
+# indices.recovery.max_bytes_per_sec: 20mb
 
 # Set to limit the number of open concurrent streams when
 # recovering a shard from a peer:

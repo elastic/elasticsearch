@@ -21,7 +21,6 @@ package org.elasticsearch.index.cache.query.parser.resident;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticSearchException;
@@ -50,8 +49,8 @@ public class ResidentQueryParserCache extends AbstractIndexComponent implements 
     public ResidentQueryParserCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
 
-        this.maxSize = indexSettings.getAsInt("index.cache.field.max_size", componentSettings.getAsInt("max_size", 100));
-        this.expire = indexSettings.getAsTime("index.cache.field.expire", componentSettings.getAsTime("expire", null));
+        this.maxSize = componentSettings.getAsInt("max_size", 100);
+        this.expire = componentSettings.getAsTime("expire", null);
         logger.debug("using [resident] query cache with max_size [{}], expire [{}]", maxSize, expire);
 
         CacheBuilder cacheBuilder = CacheBuilder.newBuilder().maximumSize(maxSize);
@@ -69,7 +68,9 @@ public class ResidentQueryParserCache extends AbstractIndexComponent implements 
 
     @Override
     public void put(QueryParserSettings queryString, Query query) {
-        cache.put(queryString, query);
+        if (queryString.isCacheable()) {
+            cache.put(queryString, query);
+        }
     }
 
     @Override

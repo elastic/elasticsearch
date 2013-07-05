@@ -37,6 +37,7 @@ public class UpdateResponse extends ActionResponse {
     private String id;
     private String type;
     private long version;
+    private boolean created;
     private List<String> matches;
     private GetResult getResult;
 
@@ -44,74 +45,40 @@ public class UpdateResponse extends ActionResponse {
 
     }
 
-    public UpdateResponse(String index, String type, String id, long version) {
+    public UpdateResponse(String index, String type, String id, long version, boolean created) {
         this.index = index;
         this.id = id;
         this.type = type;
         this.version = version;
-    }
-
-    /**
-     * The index the document was indexed into.
-     */
-    public String index() {
-        return this.index;
+        this.created = created;
     }
 
     /**
      * The index the document was indexed into.
      */
     public String getIndex() {
-        return index;
-    }
-
-    /**
-     * The type of the document indexed.
-     */
-    public String type() {
-        return this.type;
+        return this.index;
     }
 
     /**
      * The type of the document indexed.
      */
     public String getType() {
-        return type;
-    }
-
-    /**
-     * The id of the document indexed.
-     */
-    public String id() {
-        return this.id;
+        return this.type;
     }
 
     /**
      * The id of the document indexed.
      */
     public String getId() {
-        return id;
+        return this.id;
     }
 
     /**
-     * Returns the version of the doc indexed.
-     */
-    public long version() {
-        return this.version;
-    }
-
-    /**
-     * Returns the version of the doc indexed.
+     * Returns the current version of the doc indexed.
      */
     public long getVersion() {
-        return version();
-    }
-
-    /**
-     * Returns the percolate queries matches. <tt>null</tt> if no percolation was requested.
-     */
-    public List<String> matches() {
-        return this.matches;
+        return this.version;
     }
 
     /**
@@ -121,22 +88,26 @@ public class UpdateResponse extends ActionResponse {
         return this.matches;
     }
 
-    void getResult(GetResult getResult) {
+    public void setGetResult(GetResult getResult) {
         this.getResult = getResult;
-    }
-
-    public GetResult getResult() {
-        return this.getResult;
     }
 
     public GetResult getGetResult() {
         return this.getResult;
     }
 
+
+    /**
+     * Returns true if document was created due to an UPSERT operation
+     */
+    public boolean isCreated() {
+        return this.created;
+
+    }
     /**
      * Internal.
      */
-    public void matches(List<String> matches) {
+    public void setMatches(List<String> matches) {
         this.matches = matches;
     }
 
@@ -147,6 +118,7 @@ public class UpdateResponse extends ActionResponse {
         id = in.readString();
         type = in.readString();
         version = in.readLong();
+        created = in.readBoolean();
         if (in.readBoolean()) {
             int size = in.readVInt();
             if (size == 0) {
@@ -180,6 +152,7 @@ public class UpdateResponse extends ActionResponse {
         out.writeString(id);
         out.writeString(type);
         out.writeLong(version);
+        out.writeBoolean(created);
         if (matches == null) {
             out.writeBoolean(false);
         } else {

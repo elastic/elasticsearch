@@ -95,11 +95,13 @@ public class TransportClusterStateAction extends TransportMasterNodeOperationAct
             }
 
             if (request.filteredIndices().length > 0) {
-                String[] indices = currentState.metaData().concreteIndicesIgnoreMissing(request.filteredIndices());
-                for (String filteredIndex : indices) {
-                    IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
-                    if (indexMetaData != null) {
-                        mdBuilder.put(indexMetaData, false);
+                if (!(request.filteredIndices().length == 1 && ClusterStateRequest.NONE.equals(request.filteredIndices()[0]))) {
+                    String[] indices = currentState.metaData().concreteIndicesIgnoreMissing(request.filteredIndices());
+                    for (String filteredIndex : indices) {
+                        IndexMetaData indexMetaData = currentState.metaData().index(filteredIndex);
+                        if (indexMetaData != null) {
+                            mdBuilder.put(indexMetaData, false);
+                        }
                     }
                 }
             }

@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.facet.terms;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.search.facet.Facet;
 
@@ -30,8 +28,6 @@ import java.util.List;
 
 /**
  * Terms facet allows to return facets of the most popular terms within the search query.
- *
- *
  */
 public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
 
@@ -42,15 +38,9 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
 
     public interface Entry extends Comparable<Entry> {
 
-        Text term();
-
         Text getTerm();
 
-        Number termAsNumber();
-
         Number getTermAsNumber();
-
-        int count();
 
         int getCount();
     }
@@ -66,7 +56,7 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
 
             @Override
             public int compare(Entry o1, Entry o2) {
-                int i = o2.count() - o1.count();
+                int i = o2.getCount() - o1.getCount();
                 if (i == 0) {
                     i = o2.compareTo(o1);
                     if (i == 0) {
@@ -154,17 +144,7 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
     /**
      * The number of docs missing a value.
      */
-    long missingCount();
-
-    /**
-     * The number of docs missing a value.
-     */
     long getMissingCount();
-
-    /**
-     * The total count of terms.
-     */
-    long totalCount();
 
     /**
      * The total count of terms.
@@ -174,17 +154,7 @@ public interface TermsFacet extends Facet, Iterable<TermsFacet.Entry> {
     /**
      * The count of terms other than the one provided by the entries.
      */
-    long otherCount();
-
-    /**
-     * The count of terms other than the one provided by the entries.
-     */
     long getOtherCount();
-
-    /**
-     * The terms and counts.
-     */
-    List<? extends TermsFacet.Entry> entries();
 
     /**
      * The terms and counts.

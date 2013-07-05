@@ -46,6 +46,12 @@ import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_
  *
  */
 public class PluginManager {
+    public static final class ACTION {
+        public static final int NONE = 0;
+        public static final int INSTALL = 1;
+        public static final int REMOVE = 2;
+        public static final int LIST = 3;
+    }
 
     private final Environment environment;
 
@@ -288,6 +294,18 @@ public class PluginManager {
         }
     }
 
+    public void listInstalledPlugins() {
+        File[] plugins = environment.pluginsFile().listFiles();
+        System.out.println("Installed plugins:");
+        if (plugins == null || plugins.length == 0) {
+            System.out.println("    - No plugin detected in " + environment.pluginsFile().getAbsolutePath());
+        } else {
+            for (int i = 0; i < plugins.length; i++) {
+                System.out.println("    - " + plugins[i].getName());
+            }
+        }
+    }
+
     public static void main(String[] args) {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPerparer.prepareSettings(EMPTY_SETTINGS, true);
 
@@ -297,46 +315,102 @@ public class PluginManager {
 
         String url = null;
         boolean verbose = false;
-        for (int i = 0; i < args.length; i++) {
-            if ("url".equals(args[i]) || "-url".equals(args[i])) {
-                url = args[i + 1];
-            } else if ("verbose".equals(args[i]) || "-verbose".equals(args[i])) {
-                verbose = true;
-            }
-        }
-
-
-        PluginManager pluginManager = new PluginManager(initialSettings.v2(), url);
+        String pluginName = null;
+        int action = ACTION.NONE;
 
         if (args.length < 1) {
-            System.out.println("Usage:");
-            System.out.println("    -url     [plugin location]   : Set exact URL to download the plugin from");
-            System.out.println("    -install [plugin name]       : Downloads and installs listed plugins");
-            System.out.println("    -remove  [plugin name]       : Removes listed plugins");
-            System.out.println("    -verbose                     : Prints verbose messages");
+            displayHelp(null);
         }
-        for (int c = 0; c < args.length; c++) {
-            String command = args[c];
-            if (command.equals("install") || command.equals("-install")) {
-                String pluginName = args[++c];
-                System.out.println("-> Installing " + pluginName + "...");
-                try {
-                    pluginManager.downloadAndExtract(pluginName, verbose);
-                } catch (IOException e) {
-                    System.out.println("Failed to install " + pluginName + ", reason: " + e.getMessage());
+
+        try {
+            for (int c = 0; c < args.length; c++) {
+                String command = args[c];
+                if ("-u".equals(command) || "--url".equals(command)
+                        // Deprecated commands
+                        || "url".equals(command) || "-url".equals(command)) {
+                    url = args[++c];
+                } else if ("-v".equals(command) || "--v".equals(command)
+                        || "verbose".equals(command) || "-verbose".equals(command)) {
+                    verbose = true;
+                } else if (command.equals("-i") || command.equals("--install")
+                        // Deprecated commands
+                        || command.equals("install") || command.equals("-install")) {
+                    pluginName = args[++c];
+                    action = ACTION.INSTALL;
+
+                } else if (command.equals("-r") || command.equals("--remove")
+                        // Deprecated commands
+                        || command.equals("remove") || command.equals("-remove")) {
+                    pluginName = args[++c];
+                    action = ACTION.REMOVE;
+                } else if (command.equals("-l") || command.equals("--list")) {
+                    action = ACTION.LIST;
+                } else if (command.equals("-h") || command.equals("--help")) {
+                    displayHelp(null);
+                } else {
+                    displayHelp("Command [" + args[c] + "] unknown.");
+                    // Unknown command. We break...
+                    System.exit(1);
                 }
-            } else if (command.equals("remove") || command.equals("-remove")) {
-                String pluginName = args[++c];
-                System.out.println("-> Removing " + pluginName + " ");
-                try {
-                    pluginManager.removePlugin(pluginName);
-                } catch (IOException e) {
-                    System.out.println("Failed to remove " + pluginName + ", reason: " + e.getMessage());
-                }
-            } else {
-                // not install or remove, continue
-                c++;
             }
+        } catch (Exception e) {
+            displayHelp("Error while parsing options: " + e.getClass().getSimpleName() +
+                    ": " + e.getMessage());
+            System.exit(1);
+        }
+
+        if (action > ACTION.NONE) {
+            PluginManager pluginManager = new PluginManager(initialSettings.v2(), url);
+
+            switch (action) {
+                case ACTION.INSTALL:
+                    try {
+                        System.out.println("-> Installing " + pluginName + "...");
+                        pluginManager.downloadAndExtract(pluginName, verbose);
+                    } catch (IOException e) {
+                        System.out.println("Failed to install " + pluginName + ", reason: " + e.getMessage());
+                    } catch (Exception e) {
+                        displayHelp("Error while installing plugin, reason: " + e.getClass().getSimpleName() +
+                                ": " + e.getMessage());
+                        System.exit(1);
+                    }
+                    break;
+                case ACTION.REMOVE:
+                    try {
+                        System.out.println("-> Removing " + pluginName + " ");
+                        pluginManager.removePlugin(pluginName);
+                    } catch (IOException e) {
+                        System.out.println("Failed to remove " + pluginName + ", reason: " + e.getMessage());
+                    } catch (Exception e) {
+                        displayHelp("Error while removing plugin, reason: " + e.getClass().getSimpleName() +
+                                ": " + e.getMessage());
+                    }
+                    break;
+                case ACTION.LIST:
+                    pluginManager.listInstalledPlugins();
+                    break;
+            }
+        }
+    }
+
+    private static void displayHelp(String message) {
+        System.out.println("Usage:");
+        System.out.println("    -u, --url     [plugin location]   : Set exact URL to download the plugin from");
+        System.out.println("    -i, --install [plugin name]       : Downloads and installs listed plugins [*]");
+        System.out.println("    -r, --remove  [plugin name]       : Removes listed plugins");
+        System.out.println("    -l, --list                        : List installed plugins");
+        System.out.println("    -v, --verbose                     : Prints verbose messages");
+        System.out.println("    -h, --help                        : Prints this help message");
+        System.out.println();
+        System.out.println(" [*] Plugin name could be:");
+        System.out.println("     elasticsearch/plugin/version for official elasticsearch plugins (download from download.elasticsearch.org)");
+        System.out.println("     groupId/artifactId/version   for community plugins (download from maven central or oss sonatype)");
+        System.out.println("     username/repository          for site plugins (download from github master)");
+
+        if (message != null) {
+            System.out.println();
+            System.out.println("Message:");
+            System.out.println("   " + message);
         }
     }
 }

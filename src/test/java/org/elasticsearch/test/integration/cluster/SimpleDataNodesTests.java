@@ -22,6 +22,7 @@ package org.elasticsearch.test.integration.cluster;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
@@ -54,7 +55,7 @@ public class SimpleDataNodesTests extends AbstractNodesTests {
         }
 
         startNode("nonData2", settingsBuilder().put("node.data", false).build());
-        assertThat(client("nonData1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet().timedOut(), equalTo(false));
+        assertThat(client("nonData2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setLocal(true).execute().actionGet().isTimedOut(), equalTo(false));
 
         // still no shard should be allocated
         try {
@@ -66,11 +67,11 @@ public class SimpleDataNodesTests extends AbstractNodesTests {
 
         // now, start a node data, and see that it gets with shards
         startNode("data1", settingsBuilder().put("node.data", true).build());
-        assertThat(client("nonData1").admin().cluster().prepareHealth().setWaitForNodes("3").execute().actionGet().timedOut(), equalTo(false));
+        assertThat(client("nonData2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setLocal(true).execute().actionGet().isTimedOut(), equalTo(false));
 
         IndexResponse indexResponse = client("nonData2").index(Requests.indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
-        assertThat(indexResponse.id(), equalTo("1"));
-        assertThat(indexResponse.type(), equalTo("type1"));
+        assertThat(indexResponse.getId(), equalTo("1"));
+        assertThat(indexResponse.getType(), equalTo("type1"));
     }
 
     private String source(String id, String nameValue) {

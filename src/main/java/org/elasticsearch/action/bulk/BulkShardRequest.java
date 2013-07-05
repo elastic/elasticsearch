@@ -20,6 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
+import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -64,7 +65,11 @@ public class BulkShardRequest extends ShardReplicationOperationRequest<BulkShard
     @Override
     public void beforeLocalFork() {
         for (BulkItemRequest item : items) {
-            ((ShardReplicationOperationRequest) item.request()).beforeLocalFork();
+            if (item.request() instanceof InstanceShardOperationRequest) {
+                ((InstanceShardOperationRequest) item.request()).beforeLocalFork();
+            } else {
+                ((ShardReplicationOperationRequest) item.request()).beforeLocalFork();
+            }
         }
     }
 

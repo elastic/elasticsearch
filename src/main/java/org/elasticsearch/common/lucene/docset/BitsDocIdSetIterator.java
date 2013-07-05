@@ -59,4 +59,9 @@ public class BitsDocIdSetIterator extends MatchDocIdSetIterator {
             return bits.get(doc);
         }
     }
+
+    @Override
+    public long cost() {
+        return this.bits.length();
+    }
 }

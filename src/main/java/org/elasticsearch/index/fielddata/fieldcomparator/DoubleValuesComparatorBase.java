@@ -25,7 +25,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 
 import java.io.IOException;
 
-abstract class DoubleValuesComparatorBase<T extends Number> extends FieldComparator<T> {
+abstract class DoubleValuesComparatorBase<T extends Number> extends NumberComparatorBase<T> {
 
     protected final IndexNumericFieldData<?> indexFieldData;
     protected final double missingValue;
@@ -56,26 +56,25 @@ abstract class DoubleValuesComparatorBase<T extends Number> extends FieldCompara
     public final FieldComparator<T> setNextReader(AtomicReaderContext context) throws IOException {
         readerValues = indexFieldData.load(context).getDoubleValues();
         if (readerValues.isMultiValued()) {
-            readerValues = new MultiValuedBytesWrapper(readerValues, sortMode);
+            readerValues = new MultiValueWrapper(readerValues, sortMode);
         }
         return this;
     }
 
-    static final int compare(double left, double right) {
-        if (left > right) {
-            return 1;
-        } else if (left < right) {
-            return -1;
-        } else {
-            return 0;
-        }
+    @Override
+    public int compareBottomMissing() {
+        return compare(bottom, missingValue);
     }
 
-    static final class MultiValuedBytesWrapper extends DoubleValues.FilteredDoubleValues {
+    static final int compare(double left, double right) {
+        return Double.compare(left, right);
+    }
+
+    static final class MultiValueWrapper extends DoubleValues.Filtered {
 
         private final SortMode sortMode;
 
-        public MultiValuedBytesWrapper(DoubleValues delegate, SortMode sortMode) {
+        public MultiValueWrapper(DoubleValues delegate, SortMode sortMode) {
             super(delegate);
             this.sortMode = sortMode;
         }

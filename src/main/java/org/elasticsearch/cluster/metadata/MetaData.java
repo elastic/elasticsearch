@@ -19,10 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.UnmodifiableIterator;
+import com.google.common.base.Predicate;
+import com.google.common.collect.*;
 import gnu.trove.set.hash.THashSet;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.action.support.IgnoreIndices;
@@ -41,6 +39,7 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
 import java.io.IOException;
 import java.util.*;
@@ -98,29 +97,6 @@ public class MetaData implements Iterable<IndexMetaData> {
     public static final String SETTING_READ_ONLY = "cluster.blocks.read_only";
 
     public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA);
-
-    private static ImmutableSet<String> dynamicSettings = ImmutableSet.<String>builder()
-            .add(SETTING_READ_ONLY)
-            .build();
-
-    public static ImmutableSet<String> dynamicSettings() {
-        return dynamicSettings;
-    }
-
-    public static boolean hasDynamicSetting(String key) {
-        for (String dynamicSetting : dynamicSettings) {
-            if (Regex.simpleMatch(dynamicSetting, key)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static synchronized void addDynamicSettings(String... settings) {
-        HashSet<String> updatedSettings = new HashSet<String>(dynamicSettings);
-        updatedSettings.addAll(Arrays.asList(settings));
-        dynamicSettings = ImmutableSet.copyOf(updatedSettings);
-    }
 
     public static final MetaData EMPTY_META_DATA = newMetaDataBuilder().build();
 
@@ -294,6 +270,144 @@ public class MetaData implements Iterable<IndexMetaData> {
 
     public ImmutableMap<String, ImmutableMap<String, AliasMetaData>> getAliases() {
         return aliases();
+    }
+
+    /**
+     * Finds the specific index aliases that match with the specified aliases directly or partially via wildcards and
+     * that point to the specified concrete indices or match partially with the indices via wildcards.
+     *
+     * @param aliases The names of the index aliases to find
+     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
+     *
+     * @return the found index aliases grouped by index
+     */
+    public ImmutableMap<String, ImmutableList<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
+        assert aliases != null;
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return ImmutableMap.of();
+        }
+
+        ImmutableMap.Builder<String, ImmutableList<AliasMetaData>> mapBuilder = ImmutableMap.builder();
+        Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indices.keySet());
+        for (String index : intersection) {
+            IndexMetaData indexMetaData = indices.get(index);
+            Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
+
+                public boolean apply(String alias) {
+                // Simon says: we could build and FST out of the alias key and then run a regexp query against it ;)
+                return Regex.simpleMatch(aliases, alias);
+                }
+
+            }).values();
+            if (!filteredValues.isEmpty()) {
+                mapBuilder.put(index, ImmutableList.copyOf(filteredValues));
+            }
+        }
+        return mapBuilder.build();
+    }
+
+    /**
+     * Checks if at least one of the specified aliases exists in the specified concrete indices. Wildcards are supported in the
+     * alias names for partial matches.
+     *
+     * @param aliases The names of the index aliases to find
+     * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
+     *
+     * @return whether at least one of the specified aliases exists in one of the specified concrete indices.
+     */
+    public boolean hasAliases(final String[] aliases, String[] concreteIndices) {
+        assert aliases != null;
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return false;
+        }
+
+        Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indices.keySet());
+        for (String index : intersection) {
+            IndexMetaData indexMetaData = indices.get(index);
+            Collection<AliasMetaData> filteredValues = Maps.filterKeys(indexMetaData.getAliases(), new Predicate<String>() {
+
+                public boolean apply(String alias) {
+                return Regex.simpleMatch(aliases, alias);
+                }
+
+            }).values();
+            if (!filteredValues.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public ImmutableMap<String, ImmutableMap<String, MappingMetaData>> findMappings(String[] concreteIndices, final String[] types) {
+        assert types != null;
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return ImmutableMap.of();
+        }
+
+        ImmutableMap.Builder<String, ImmutableMap<String, MappingMetaData>> indexMapBuilder = ImmutableMap.builder();
+        Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indices.keySet());
+        for (String index : intersection) {
+            IndexMetaData indexMetaData = indices.get(index);
+            Map<String, MappingMetaData> filteredMappings;
+            if (types.length == 0) {
+                filteredMappings = indexMetaData.getMappings(); // No types specified means get it all
+            } else {
+                filteredMappings = Maps.filterKeys(indexMetaData.getMappings(), new Predicate<String>() {
+
+                    @Override
+                    public boolean apply(String type) {
+                        return Regex.simpleMatch(types, type);
+                    }
+
+                });
+            }
+            if (!filteredMappings.isEmpty()) {
+                indexMapBuilder.put(index, ImmutableMap.copyOf(filteredMappings));
+            }
+        }
+        return indexMapBuilder.build();
+    }
+
+    public ImmutableMap<String, ImmutableList<IndexWarmersMetaData.Entry>> findWarmers(String[] concreteIndices, final String[] types, final String[] warmers) {
+        assert warmers != null;
+        assert concreteIndices != null;
+        if (concreteIndices.length == 0) {
+            return ImmutableMap.of();
+        }
+
+        ImmutableMap.Builder<String, ImmutableList<IndexWarmersMetaData.Entry>> mapBuilder = ImmutableMap.builder();
+        Sets.SetView<String> intersection = Sets.intersection(Sets.newHashSet(concreteIndices), indices.keySet());
+        for (String index : intersection) {
+            IndexMetaData indexMetaData = indices.get(index);
+            IndexWarmersMetaData indexWarmersMetaData = indexMetaData.custom(IndexWarmersMetaData.TYPE);
+            if (indexWarmersMetaData == null || indexWarmersMetaData.entries().isEmpty()) {
+                continue;
+            }
+
+            Collection<IndexWarmersMetaData.Entry> filteredWarmers = Collections2.filter(indexWarmersMetaData.entries(), new Predicate<IndexWarmersMetaData.Entry>() {
+
+                @Override
+                public boolean apply(IndexWarmersMetaData.Entry warmer) {
+                    if (warmers.length != 0 && types.length != 0) {
+                        return Regex.simpleMatch(warmers, warmer.name()) && Regex.simpleMatch(types, warmer.types());
+                    } else if (warmers.length != 0) {
+                        return Regex.simpleMatch(warmers, warmer.name());
+                    } else if (types.length != 0) {
+                        return Regex.simpleMatch(types, warmer.types());
+                    } else {
+                        return true;
+                    }
+                }
+
+            });
+            if (!filteredWarmers.isEmpty()) {
+                mapBuilder.put(index, ImmutableList.copyOf(filteredWarmers));
+            }
+        }
+        return mapBuilder.build();
     }
 
     /**
@@ -527,9 +641,6 @@ public class MetaData implements Iterable<IndexMetaData> {
             }
             String[] actualLst = aliasAndIndexToIndexMap.get(aliasOrIndex);
             if (actualLst == null) {
-                if (ignoreIndices == IgnoreIndices.MISSING) {
-                    return Strings.EMPTY_ARRAY;
-                }
                 throw new IndexMissingException(new Index(aliasOrIndex));
             } else {
                 return actualLst;
@@ -561,6 +672,10 @@ public class MetaData implements Iterable<IndexMetaData> {
                     actualIndices.add(x);
                 }
             }
+        }
+        
+        if (actualIndices.isEmpty()) {
+        	throw new IndexMissingException(new Index(Arrays.toString(aliasesOrIndices)));
         }
         return actualIndices.toArray(new String[actualIndices.size()]);
     }
@@ -696,7 +811,7 @@ public class MetaData implements Iterable<IndexMetaData> {
     public int getTotalNumberOfShards() {
         return totalNumberOfShards();
     }
-    
+
     public int numberOfShards() {
         return this.numberOfShards;
     }

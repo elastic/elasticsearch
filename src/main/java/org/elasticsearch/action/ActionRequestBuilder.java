@@ -19,8 +19,10 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.internal.InternalGenericClient;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  *
@@ -56,6 +58,27 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
         PlainListenableActionFuture<Response> future = new PlainListenableActionFuture<Response>(request.listenerThreaded(), client.threadPool());
         execute(future);
         return future;
+    }
+
+    /**
+     * Short version of execute().actionGet().
+     */
+    public Response get() throws ElasticSearchException {
+        return execute().actionGet();
+    }
+
+    /**
+     * Short version of execute().actionGet().
+     */
+    public Response get(TimeValue timeout) throws ElasticSearchException {
+        return execute().actionGet(timeout);
+    }
+
+    /**
+     * Short version of execute().actionGet().
+     */
+    public Response get(String timeout) throws ElasticSearchException {
+        return execute().actionGet(timeout);
     }
 
     public void execute(ActionListener<Response> listener) {

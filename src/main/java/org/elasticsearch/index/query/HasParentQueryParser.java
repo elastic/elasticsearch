@@ -20,12 +20,14 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -35,8 +37,8 @@ import org.elasticsearch.index.search.child.ParentQuery;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 public class HasParentQueryParser implements QueryParser {
 
@@ -91,6 +93,13 @@ public class HasParentQueryParser implements QueryParser {
                     } else if ("none".equals(scoreTypeValue)) {
                         score = false;
                     }
+                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                    String scoreModeValue = parser.text();
+                    if ("score".equals(scoreModeValue)) {
+                        score = true;
+                    } else if ("none".equals(scoreModeValue)) {
+                        score = false;
+                    }
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
@@ -99,60 +108,66 @@ public class HasParentQueryParser implements QueryParser {
             }
         }
         if (!queryFound) {
-            throw new QueryParsingException(parseContext.index(), "[parent] query requires 'query' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'query' field");
         }
         if (innerQuery == null) {
             return null;
         }
 
         if (parentType == null) {
-            throw new QueryParsingException(parseContext.index(), "[parent] query requires 'parent_type' field");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query requires 'parent_type' field");
         }
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
-        }
-
-        List<String> childTypes = new ArrayList<String>(2);
-        for (DocumentMapper documentMapper : parseContext.mapperService()) {
-            ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
-            if (parentFieldMapper == null) {
-                continue;
-            }
-
-            if (parentDocMapper.type().equals(parentFieldMapper.type())) {
-                childTypes.add(documentMapper.type());
-            }
-        }
-
-        Filter childFilter;
-        if (childTypes.size() == 1) {
-            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(childTypes.get(0));
-            childFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
-        } else {
-            XBooleanFilter childrenFilter = new XBooleanFilter();
-            for (String childType : childTypes) {
-                DocumentMapper documentMapper = parseContext.mapperService().documentMapper(childType);
-                Filter filter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
-                childrenFilter.add(filter, BooleanClause.Occur.SHOULD);
-            }
-            childFilter = childrenFilter;
+            throw new QueryParsingException(parseContext.index(), "[has_parent] query configured 'parent_type' [" + parentType + "] is not a valid type");
         }
 
         innerQuery.setBoost(boost);
         // wrap the query with type query
         innerQuery = new XFilteredQuery(innerQuery, parseContext.cacheFilter(parentDocMapper.typeFilter(), null));
         SearchContext searchContext = SearchContext.current();
+        if (searchContext == null) {
+            throw new ElasticSearchIllegalStateException("[has_parent] Can't execute, search context not set.");
+        }
+
+        Set<String> parentTypes = new HashSet<String>(5);
+        parentTypes.add(parentType);
+        for (DocumentMapper documentMapper : parseContext.mapperService()) {
+            ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
+            if (parentFieldMapper != null) {
+                DocumentMapper parentTypeDocumentMapper = searchContext.mapperService().documentMapper(parentFieldMapper.type());
+                if (parentTypeDocumentMapper == null) {
+                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
+                    parentTypes.add(parentFieldMapper.type());
+                }
+            }
+        }
+
+        Filter parentFilter;
+        if (parentTypes.size() == 1) {
+            DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypes.iterator().next());
+            parentFilter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+        } else {
+            XBooleanFilter parentsFilter = new XBooleanFilter();
+            for (String parentTypeStr : parentTypes) {
+                DocumentMapper documentMapper = parseContext.mapperService().documentMapper(parentTypeStr);
+                Filter filter = parseContext.cacheFilter(documentMapper.typeFilter(), null);
+                parentsFilter.add(filter, BooleanClause.Occur.SHOULD);
+            }
+            parentFilter = parentsFilter;
+        }
+        Filter childrenFilter = parseContext.cacheFilter(new NotFilter(parentFilter), null);
+
         Query query;
         if (score) {
-            ParentQuery parentQuery = new ParentQuery(searchContext, innerQuery, parentType, childTypes, childFilter);
+            ParentQuery parentQuery = new ParentQuery(searchContext, innerQuery, parentType, childrenFilter);
             searchContext.addRewrite(parentQuery);
             query = parentQuery;
         } else {
-            HasParentFilter hasParentFilter = HasParentFilter.create(innerQuery, parentType, searchContext);
+            HasParentFilter hasParentFilter = new HasParentFilter(innerQuery, parentType, searchContext, childrenFilter);
             searchContext.addRewrite(hasParentFilter);
-            query = new ConstantScoreQuery(hasParentFilter);
+            query = new XConstantScoreQuery(hasParentFilter);
         }
         query.setBoost(boost);
         return query;

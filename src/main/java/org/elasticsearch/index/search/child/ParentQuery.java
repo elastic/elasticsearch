@@ -30,12 +30,12 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
+import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
 import org.elasticsearch.common.lucene.search.NoopCollector;
 import org.elasticsearch.index.cache.id.IdReaderTypeCache;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Set;
 
 /**
@@ -43,34 +43,22 @@ import java.util.Set;
  * connects the matching parent docs to the related child documents
  * using the {@link IdReaderTypeCache}.
  */
+// TODO We use a score of 0 to indicate a doc was not scored in uidToScore, this means score of 0 can be problematic, if we move to HPCC, we can use lset/...
 public class ParentQuery extends Query implements SearchContext.Rewrite {
 
     private final SearchContext searchContext;
     private final Query originalParentQuery;
     private final String parentType;
     private final Filter childrenFilter;
-    private final List<String> childTypes;
 
     private Query rewrittenParentQuery;
     private TObjectFloatHashMap<HashedBytesArray> uidToScore;
 
-    public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, List<String> childTypes, Filter childrenFilter) {
+    public ParentQuery(SearchContext searchContext, Query parentQuery, String parentType, Filter childrenFilter) {
         this.searchContext = searchContext;
         this.originalParentQuery = parentQuery;
         this.parentType = parentType;
-        this.childTypes = childTypes;
-        this.childrenFilter = childrenFilter;
-    }
-
-    private ParentQuery(ParentQuery unwritten, Query rewrittenParentQuery) {
-        this.searchContext = unwritten.searchContext;
-        this.originalParentQuery = unwritten.originalParentQuery;
-        this.parentType = unwritten.parentType;
-        this.childrenFilter = unwritten.childrenFilter;
-        this.childTypes = unwritten.childTypes;
-
-        this.rewrittenParentQuery = rewrittenParentQuery;
-        this.uidToScore = unwritten.uidToScore;
+        this.childrenFilter = new ApplyAcceptedDocsFilter(childrenFilter);
     }
 
     @Override
@@ -96,31 +84,47 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     }
 
     @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || obj.getClass() != this.getClass()) {
+            return false;
+        }
+
+        ParentQuery that = (ParentQuery) obj;
+        if (!originalParentQuery.equals(that.originalParentQuery)) {
+            return false;
+        }
+        if (!parentType.equals(that.parentType)) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = originalParentQuery.hashCode();
+        result = 31 * result + parentType.hashCode();
+        return result;
+    }
+
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
-        sb.append("ParentQuery[").append(parentType).append("/").append(childTypes)
-                .append("](").append(originalParentQuery.toString(field)).append(')')
+        sb.append("ParentQuery[").append(parentType).append("](")
+                .append(originalParentQuery.toString(field)).append(')')
                 .append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
 
     @Override
+    // See TopChildrenQuery#rewrite
     public Query rewrite(IndexReader reader) throws IOException {
-        Query rewritten;
         if (rewrittenParentQuery == null) {
-            rewritten = originalParentQuery.rewrite(reader);
-        } else {
-            rewritten = rewrittenParentQuery;
+            rewrittenParentQuery = originalParentQuery.rewrite(reader);
         }
-        if (rewritten == rewrittenParentQuery) {
-            return this;
-        }
-
-        // See TopChildrenQuery#rewrite
-        ParentQuery rewrite = new ParentQuery(this, rewritten);
-        int index = searchContext.rewrites().indexOf(this);
-        searchContext.rewrites().set(index, rewrite);
-        return rewrite;
+        return this;
     }
 
     @Override
@@ -208,6 +212,10 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
                 return null;
             }
             IdReaderTypeCache idTypeCache = searchContext.idCache().reader(context.reader()).type(parentType);
+            if (idTypeCache == null) {
+                return null;
+            }
+
             return new ChildScorer(this, uidToScore, childrenDocSet.iterator(), idTypeCache);
         }
     }
@@ -258,7 +266,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
                     continue;
                 }
                 currentScore = uidToScore.get(uid);
-                if (Float.compare(currentScore, 0) != 0) {
+                if (currentScore != 0) {
                     return currentChildDoc;
                 }
             }
@@ -275,10 +283,15 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
                 return nextDoc();
             }
             currentScore = uidToScore.get(uid);
-            if (Float.compare(currentScore, 0) == 0) {
+            if (currentScore == 0) {
                 return nextDoc();
             }
             return currentChildDoc;
+        }
+
+        @Override
+        public long cost() {
+            return childrenIterator.cost();
         }
     }
 }

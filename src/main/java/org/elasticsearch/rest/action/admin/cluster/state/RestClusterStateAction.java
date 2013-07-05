@@ -70,11 +70,11 @@ public class RestClusterStateAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field(Fields.CLUSTER_NAME, response.clusterName().value());
-                    response.state().settingsFilter(settingsFilter).toXContent(builder, request);
+                    builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
+                    response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

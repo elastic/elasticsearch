@@ -21,7 +21,6 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.jmx.JmxService;
 import org.elasticsearch.transport.Transport;
 
 /**
@@ -39,8 +38,5 @@ public class NettyTransportModule extends AbstractModule {
     protected void configure() {
         bind(NettyTransport.class).asEagerSingleton();
         bind(Transport.class).to(NettyTransport.class).asEagerSingleton();
-        if (JmxService.shouldExport(settings)) {
-            bind(NettyTransportManagement.class).asEagerSingleton();
-        }
     }
 }

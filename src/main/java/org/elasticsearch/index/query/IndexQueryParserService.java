@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,7 +62,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         public static final String FILTER_PREFIX = "index.queryparser.filter";
     }
 
-    private ThreadLocal<QueryParseContext> cache = new ThreadLocal<QueryParseContext>() {
+    private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
         @Override
         protected QueryParseContext initialValue() {
             return new QueryParseContext(index, IndexQueryParserService.this);
@@ -157,7 +158,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     }
 
     public void close() {
-        cache.remove();
+        cache.close();
     }
 
     public String defaultField() {

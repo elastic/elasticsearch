@@ -89,6 +89,7 @@ public class RestCountAction extends BaseRestHandler {
             countRequest.routing(request.param("routing"));
             countRequest.minScore(request.paramAsFloat("min_score", DEFAULT_MIN_SCORE));
             countRequest.types(splitTypes(request.param("type")));
+            countRequest.preference(request.param("preference"));
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -105,13 +106,13 @@ public class RestCountAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
-                    builder.field("count", response.count());
+                    builder.field("count", response.getCount());
 
                     buildBroadcastShardsHeader(builder, response);
 
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

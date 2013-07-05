@@ -42,6 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -143,19 +144,20 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
             return count;
         }
     }
+    
+    private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
     @Override
     public GroupShardsIterator searchShards(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         if (concreteIndices == null || concreteIndices.length == 0) {
             concreteIndices = clusterState.metaData().concreteAllOpenIndices();
         }
-
-        if (routing != null) {
+        routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map 
+        final Set<ShardIterator> set = new HashSet<ShardIterator>();
             // we use set here and not list since we might get duplicates
-            HashSet<ShardIterator> set = new HashSet<ShardIterator>();
             for (String index : concreteIndices) {
-                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-                Set<String> effectiveRouting = routing.get(index);
+                final IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
+                final Set<String> effectiveRouting = routing.get(index);
                 if (effectiveRouting != null) {
                     for (String r : effectiveRouting) {
                         int shardId = shardId(clusterState, index, null, null, r);
@@ -169,23 +171,16 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                             set.add(iterator);
                         }
                     }
-                }
-            }
-            return new GroupShardsIterator(set);
-        } else {
-            // we use list here since we know we are not going to create duplicates
-            ArrayList<ShardIterator> set = new ArrayList<ShardIterator>();
-            for (String index : concreteIndices) {
-                IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-                for (IndexShardRoutingTable indexShard : indexRouting) {
-                    ShardIterator iterator = preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
-                    if (iterator != null) {
-                        set.add(iterator);
+                } else {
+                    for (IndexShardRoutingTable indexShard : indexRouting) {
+                        ShardIterator iterator = preferenceActiveShardIterator(indexShard, clusterState.nodes().localNodeId(), clusterState.nodes(), preference);
+                        if (iterator != null) {
+                            set.add(iterator);
+                        }
                     }
                 }
             }
-            return new GroupShardsIterator(set);
-        }
+        return new GroupShardsIterator(set);
     }
 
     private ShardIterator preferenceActiveShardIterator(IndexShardRoutingTable indexShard, String localNodeId, DiscoveryNodes nodes, @Nullable String preference) {
@@ -238,7 +233,7 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 return indexShard.preferNodeActiveShardsIt(localNodeId);
             }
             if ("_primary".equals(preference)) {
-                return indexShard.primaryShardIt();
+                return indexShard.primaryActiveShardIt();
             }
             if ("_primary_first".equals(preference) || "_primaryFirst".equals(preference)) {
                 return indexShard.primaryFirstActiveShardsIt();

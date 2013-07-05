@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import java.util.Locale;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.hunspell.HunspellDictionary;
 import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
@@ -47,14 +49,19 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
         dictionary = hunspellService.getDictionary(locale);
         if (dictionary == null) {
-            throw new ElasticSearchIllegalArgumentException(String.format("Unknown hunspell dictionary for locale [%s]", locale));
+            throw new ElasticSearchIllegalArgumentException(String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale));
         }
 
-        dedup = settings.getAsBoolean("dedup", false);
+        dedup = settings.getAsBoolean("dedup", true);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
         return new HunspellStemFilter(tokenStream, dictionary, dedup);
     }
+
+    public boolean dedup() {
+        return dedup;
+    }
+
 }

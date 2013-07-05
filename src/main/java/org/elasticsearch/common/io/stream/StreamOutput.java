@@ -133,8 +133,9 @@ public abstract class StreamOutput extends OutputStream {
 
     /**
      * Writes an int in a variable-length format.  Writes between one and
-     * five bytes.  Smaller values take fewer bytes.  Negative numbers are not
-     * supported.
+     * five bytes.  Smaller values take fewer bytes.  Negative numbers
+     * will always use all 5 bytes and are therefore better serialized
+     * using {@link #writeInt}
      */
     public void writeVInt(int i) throws IOException {
         while ((i & ~0x7F) != 0) {
@@ -153,11 +154,12 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an long in a variable-length format.  Writes between one and five
+     * Writes an long in a variable-length format.  Writes between one and nine
      * bytes.  Smaller values take fewer bytes.  Negative numbers are not
      * supported.
      */
     public void writeVLong(long i) throws IOException {
+        assert i >= 0;
         while ((i & ~0x7F) != 0) {
             writeByte((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
@@ -236,12 +238,21 @@ public abstract class StreamOutput extends OutputStream {
 
     private static byte ZERO = 0;
     private static byte ONE = 1;
+    private static byte TWO = 2;
 
     /**
      * Writes a boolean.
      */
     public void writeBoolean(boolean b) throws IOException {
         writeByte(b ? ONE : ZERO);
+    }
+
+    public void writeOptionalBoolean(@Nullable Boolean b) throws IOException {
+        if (b == null) {
+            writeByte(TWO);
+        } else {
+            writeByte(b ? ONE : ZERO);
+        }
     }
 
     /**

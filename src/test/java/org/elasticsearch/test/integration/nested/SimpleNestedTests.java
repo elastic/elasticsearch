@@ -20,71 +20,51 @@
 package org.elasticsearch.test.integration.nested;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.facet.FacetBuilders;
+import org.elasticsearch.search.facet.filter.FilterFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.nestedFilter;
+import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
+import static org.testng.AssertJUnit.fail;
 
 @Test
-public class SimpleNestedTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        startNode("node1");
-        startNode("node2");
-        client = client("node1");
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
+public class SimpleNestedTests extends AbstractSharedClusterTest {
 
     @Test
     public void simpleNested() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-
-        client.admin().indices().prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("nested1")
-                        .field("type", "nested")
-                        .endObject()
-                        .endObject().endObject().endObject())
-                .execute().actionGet();
-
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-
+        run(addMapping(prepareCreate("test"), "type1", new Object[] {"nested1", "type", "nested"}));
+        ensureGreen();
 
         // check on no data, see it works
-        SearchResponse searchResponse = client.prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
-        searchResponse = client.prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
-
-        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
+        
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
                 .startObject()
@@ -98,40 +78,41 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .endArray()
                 .endObject()).execute().actionGet();
 
+        waitForRelocation(ClusterHealthStatus.GREEN);
         // flush, so we fetch it from the index (as see that we filter nested docs)
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
-        assertThat(getResponse.source(), notNullValue());
+        flush();
+        GetResponse getResponse = run(client().prepareGet("test", "type1", "1"));
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getSourceAsBytes(), notNullValue());
 
         // check the numDocs
-        IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3l));
+        IndicesStatusResponse statusResponse = run(admin().indices().prepareStatus());
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
 
         // check that _all is working on nested docs
-        searchResponse = client.prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
-        searchResponse = client.prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // search for something that matches the nested doc, and see that we don't find the nested doc
-        searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
-        searchResponse = client.prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
-        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+        searchResponse = run(client().prepareSearch("test").setQuery(matchAllQuery()));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        searchResponse = run(client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // now, do a nested query
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = run(client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = run(client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // add another doc, one that would match if it was not nested...
 
-        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
                 .startObject()
@@ -144,43 +125,41 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .endObject()
                 .endArray()
                 .endObject()).execute().actionGet();
-
+        waitForRelocation(ClusterHealthStatus.GREEN);
         // flush, so we fetch it from the index (as see that we filter nested docs)
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
+        statusResponse = run(client().admin().indices().prepareStatus());
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(6l));
 
-        statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(6l));
-
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // filter
-        searchResponse = client.prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), nestedFilter("nested1",
+        searchResponse = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), nestedFilter("nested1",
                 boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1"))))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // check with type prefix
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("type1.nested1",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("type1.nested1",
                 boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // check delete, so all is gone...
-        DeleteResponse deleteResponse = client.prepareDelete("test", "type1", "2").execute().actionGet();
-        assertThat(deleteResponse.notFound(), equalTo(false));
+        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "2").execute().actionGet();
+        assertThat(deleteResponse.isNotFound(), equalTo(false));
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        flush();
+        statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
 
-        statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3l));
-
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
     @Test
@@ -199,9 +178,8 @@ public class SimpleNestedTests extends AbstractNodesTests {
     }
 
     private void simpleNestedDeleteByQuery(int total, int docToDelete) throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
@@ -210,11 +188,10 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-
+        ensureGreen();
 
         for (int i = 0; i < total; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
                     .field("field1", "value1")
                     .startArray("nested1")
                     .startObject()
@@ -230,17 +207,17 @@ public class SimpleNestedTests extends AbstractNodesTests {
         }
 
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(total * 3l));
+        flush();
+        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(total * 3l));
 
-        client.prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo((total * 3l) - 3));
+        client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo((total * 3l) - 3));
 
         for (int i = 0; i < total; i++) {
-            assertThat(client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().exists(), equalTo(i != docToDelete));
+            assertThat(client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
         }
     }
 
@@ -260,9 +237,9 @@ public class SimpleNestedTests extends AbstractNodesTests {
     }
 
     private void noChildrenNestedDeleteByQuery(long total, int docToDelete) throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
@@ -271,35 +248,33 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
 
         for (int i = 0; i < total; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource(jsonBuilder().startObject()
                     .field("field1", "value1")
                     .endObject()).execute().actionGet();
         }
 
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(total));
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(total));
 
-        client.prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo((total) - 1));
+        client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo((total) - 1));
 
         for (int i = 0; i < total; i++) {
-            assertThat(client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().exists(), equalTo(i != docToDelete));
+            assertThat(client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
         }
     }
 
     @Test
     public void multiNested() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
-
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested").startObject("properties")
@@ -308,9 +283,8 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-
-        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+        ensureGreen();
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")
@@ -320,54 +294,54 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .endObject()).execute().actionGet();
 
         // flush, so we fetch it from the index (as see that we filter nested docs)
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        GetResponse getResponse = client.prepareGet("test", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
-
+        flush();
+        GetResponse getResponse = client().prepareGet("test", "type1", "1").execute().actionGet();
+        assertThat(getResponse.isExists(), equalTo(true));
+        waitForRelocation(ClusterHealthStatus.GREEN);
         // check the numDocs
-        IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(7l));
+        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(7l));
 
         // do some multi nested queries
-        SearchResponse searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 termQuery("nested1.field1", "1"))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1.nested2",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1.nested2",
                 termQuery("nested1.nested2.field2", "2"))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.field1", "1")).must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "2"))))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.field1", "1")).must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "3"))))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.field1", "1")).must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "4"))))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.field1", "1")).must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "5"))))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.field1", "4")).must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "5"))))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client.prepareSearch("test").setQuery(nestedQuery("nested1",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.field1", "4")).must(nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2", "2"))))).execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(0l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
     }
 
     @Test
@@ -381,9 +355,9 @@ public class SimpleNestedTests extends AbstractNodesTests {
     }
 
     private void testFacets(int numberOfShards) throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", numberOfShards))
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
@@ -393,9 +367,9 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder()
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")
@@ -404,7 +378,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .endArray()
                 .endObject()).execute().actionGet();
 
-        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder()
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder()
                 .startObject()
                 .field("field", "value")
                 .startArray("nested1")
@@ -413,32 +387,32 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .endArray()
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery())
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery())
                 .addFacet(FacetBuilders.termsStatsFacet("facet1").keyField("nested1.nested2.field2_1").valueField("nested1.nested2.field2_2").nested("nested1.nested2"))
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
-        TermsStatsFacet termsStatsFacet = searchResponse.facets().facet("facet1");
-        assertThat(termsStatsFacet.entries().size(), equalTo(4));
-        assertThat(termsStatsFacet.entries().get(0).term().string(), equalTo("blue"));
-        assertThat(termsStatsFacet.entries().get(0).count(), equalTo(3l));
-        assertThat(termsStatsFacet.entries().get(0).total(), equalTo(8d));
-        assertThat(termsStatsFacet.entries().get(1).term().string(), equalTo("yellow"));
-        assertThat(termsStatsFacet.entries().get(1).count(), equalTo(2l));
-        assertThat(termsStatsFacet.entries().get(1).total(), equalTo(13d));
-        assertThat(termsStatsFacet.entries().get(2).term().string(), equalTo("green"));
-        assertThat(termsStatsFacet.entries().get(2).count(), equalTo(2l));
-        assertThat(termsStatsFacet.entries().get(2).total(), equalTo(14d));
-        assertThat(termsStatsFacet.entries().get(3).term().string(), equalTo("red"));
-        assertThat(termsStatsFacet.entries().get(3).count(), equalTo(1l));
-        assertThat(termsStatsFacet.entries().get(3).total(), equalTo(12d));
+        TermsStatsFacet termsStatsFacet = searchResponse.getFacets().facet("facet1");
+        assertThat(termsStatsFacet.getEntries().size(), equalTo(4));
+        assertThat(termsStatsFacet.getEntries().get(0).getTerm().string(), equalTo("blue"));
+        assertThat(termsStatsFacet.getEntries().get(0).getCount(), equalTo(3l));
+        assertThat(termsStatsFacet.getEntries().get(0).getTotal(), equalTo(8d));
+        assertThat(termsStatsFacet.getEntries().get(1).getTerm().string(), equalTo("yellow"));
+        assertThat(termsStatsFacet.getEntries().get(1).getCount(), equalTo(2l));
+        assertThat(termsStatsFacet.getEntries().get(1).getTotal(), equalTo(13d));
+        assertThat(termsStatsFacet.getEntries().get(2).getTerm().string(), equalTo("green"));
+        assertThat(termsStatsFacet.getEntries().get(2).getCount(), equalTo(2l));
+        assertThat(termsStatsFacet.getEntries().get(2).getTotal(), equalTo(14d));
+        assertThat(termsStatsFacet.getEntries().get(3).getTerm().string(), equalTo("red"));
+        assertThat(termsStatsFacet.getEntries().get(3).getCount(), equalTo(1l));
+        assertThat(termsStatsFacet.getEntries().get(3).getTotal(), equalTo(12d));
 
-        // test scope ones
-        searchResponse = client.prepareSearch("test")
+        // test scope ones (collector based)
+        searchResponse = client().prepareSearch("test")
                 .setQuery(
                         nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue"))
                 )
@@ -447,27 +421,51 @@ public class SimpleNestedTests extends AbstractNodesTests {
                                 .keyField("nested1.nested2.field2_1")
                                 .valueField("nested1.nested2.field2_2")
                                 .nested("nested1.nested2")
-                                .facetFilter(nestedFilter("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue")).join(false))
+                                        // Maybe remove the `join` option?
+                                        // The following also works:
+                                        // .facetFilter(termFilter("nested1.nested2.field2_1", "blue"))
+                                .facetFilter(nestedFilter("nested1.nested2", termFilter("nested1.nested2.field2_1", "blue")).join(false))
                 )
                 .execute().actionGet();
 
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(2l));
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
 
-        termsStatsFacet = searchResponse.facets().facet("facet1");
-        assertThat(termsStatsFacet.entries().size(), equalTo(1));
-        assertThat(termsStatsFacet.entries().get(0).term().string(), equalTo("blue"));
-        assertThat(termsStatsFacet.entries().get(0).count(), equalTo(3l));
-        assertThat(termsStatsFacet.entries().get(0).total(), equalTo(8d));
+        termsStatsFacet = searchResponse.getFacets().facet("facet1");
+        assertThat(termsStatsFacet.getEntries().size(), equalTo(1));
+        assertThat(termsStatsFacet.getEntries().get(0).getTerm().string(), equalTo("blue"));
+        assertThat(termsStatsFacet.getEntries().get(0).getCount(), equalTo(3l));
+        assertThat(termsStatsFacet.getEntries().get(0).getTotal(), equalTo(8d));
+
+        // test scope ones (post based)
+        searchResponse = client().prepareSearch("test")
+                .setQuery(
+                        nestedQuery("nested1.nested2", termQuery("nested1.nested2.field2_1", "blue"))
+                )
+                .addFacet(
+                        FacetBuilders.filterFacet("facet1")
+                                .global(true)
+                                .filter(rangeFilter("nested1.nested2.field2_2").gte(0).lte(2))
+                                .nested("nested1.nested2")
+                                .facetFilter(nestedFilter("nested1.nested2", termFilter("nested1.nested2.field2_1", "blue")).join(false))
+                )
+                .execute().actionGet();
+
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+
+        FilterFacet filterFacet = searchResponse.getFacets().facet("facet1");
+        assertThat(filterFacet.getCount(), equalTo(2l));
+        assertThat(filterFacet.getName(), equalTo("facet1"));
     }
 
     @Test
     // When IncludeNestedDocsQuery is wrapped in a FilteredQuery then a in-finite loop occurs b/c of a bug in IncludeNestedDocsQuery#advance()
     // This IncludeNestedDocsQuery also needs to be aware of the filter from alias
     public void testDeleteNestedDocsWithAlias() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_shards", 1).put("index.referesh_interval", -1).build())
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
@@ -476,13 +474,13 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().indices().prepareAliases()
+        client().admin().indices().prepareAliases()
                 .addAlias("test", "alias1", FilterBuilders.termFilter("field1", "value1")).execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
 
-        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
                 .startObject()
@@ -497,7 +495,7 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .endObject()).execute().actionGet();
 
 
-        client.prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("field1", "value2")
                 .startArray("nested1")
                 .startObject()
@@ -511,25 +509,25 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .endArray()
                 .endObject()).execute().actionGet();
 
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        IndicesStatusResponse statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(6l));
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        IndicesStatusResponse statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(6l));
 
-        client.prepareDeleteByQuery("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
-        client.admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
-        statusResponse = client.admin().indices().prepareStatus().execute().actionGet();
+        client().prepareDeleteByQuery("alias1").setQuery(QueryBuilders.matchAllQuery()).execute().actionGet();
+        client().admin().indices().prepareFlush().setRefresh(true).execute().actionGet();
+        statusResponse = client().admin().indices().prepareStatus().execute().actionGet();
 
         // This must be 3, otherwise child docs aren't deleted.
         // If this is 5 then only the parent has been removed
-        assertThat(statusResponse.index("test").docs().numDocs(), equalTo(3l));
-        assertThat(client.prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
+        assertThat(statusResponse.getIndex("test").getDocs().getNumDocs(), equalTo(3l));
+        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
     }
 
     @Test
     public void testExplain() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("nested1")
                         .field("type", "nested")
@@ -537,9 +535,9 @@ public class SimpleNestedTests extends AbstractNodesTests {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("field1", "value1")
                 .startArray("nested1")
                 .startObject()
@@ -553,13 +551,13 @@ public class SimpleNestedTests extends AbstractNodesTests {
                 .setRefresh(true)
                 .execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch("test")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1")).scoreMode("total"))
                 .setExplain(true)
                 .execute().actionGet();
-        assertThat(Arrays.toString(searchResponse.shardFailures()), searchResponse.failedShards(), equalTo(0));
-        assertThat(searchResponse.hits().totalHits(), equalTo(1l));
-        Explanation explanation = searchResponse.hits().hits()[0].explanation();
+        assertThat(Arrays.toString(searchResponse.getShardFailures()), searchResponse.getFailedShards(), equalTo(0));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        Explanation explanation = searchResponse.getHits().hits()[0].explanation();
         assertThat(explanation.getValue(), equalTo(2f));
         assertThat(explanation.getDescription(), equalTo("Score based on child doc range from 0 to 1"));
         // TODO: Enable when changes from BlockJoinQuery#explain are added to Lucene (Most likely version 4.2)
@@ -568,6 +566,621 @@ public class SimpleNestedTests extends AbstractNodesTests {
 //        assertThat(explanation.getDetails()[0].getDescription(), equalTo("Child[0]"));
 //        assertThat(explanation.getDetails()[1].getValue(), equalTo(1f));
 //        assertThat(explanation.getDetails()[1].getDescription(), equalTo("Child[1]"));
+    }
+
+    @Test
+    public void testSimpleNestedSorting() throws Exception {
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.referesh_interval", -1)
+                        .build()
+                )
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .startObject("properties")
+                            .startObject("field1")
+                                .field("type", "long")
+                                .field("store", "yes")
+                            .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", 1)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 5)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("field1", 2)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 1)
+                .endObject()
+                .startObject()
+                .field("field1", 2)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("field1", 3)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 3)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("4"));
+
+        searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("5"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("4"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
+
+        searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.scriptSort("_fields['nested1.field1'].value + 1", "number").setNestedPath("nested1").order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("6.0"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("5.0"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("3.0"));
+
+        searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.scriptSort("_fields['nested1.field1'].value + 1", "number").setNestedPath("nested1").sortMode("sum").order(SortOrder.DESC))
+                .execute().actionGet();
+
+        // B/c of sum it is actually +2
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("11.0"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("9.0"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("5.0"));
+
+        searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.scriptSort("_fields['nested1.field1'].value", "number")
+                        .setNestedFilter(rangeFilter("nested1.field1").from(1).to(3))
+                        .setNestedPath("nested1").sortMode("avg").order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo(Double.toString(Double.MAX_VALUE)));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("3.0"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("1.5"));
+
+        searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.scriptSort("_fields['nested1.field1'].value", "string")
+                        .setNestedPath("nested1").order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("5"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("4"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
+
+        searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.scriptSort("_fields['nested1.field1'].value", "string")
+                        .setNestedPath("nested1").order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("4"));
+
+        try {
+            client().prepareSearch("test")
+                    .setTypes("type1")
+                    .setQuery(QueryBuilders.matchAllQuery())
+                    .addSort(SortBuilders.scriptSort("_fields['nested1.field1'].value", "string")
+                            .setNestedPath("nested1").sortMode("sum").order(SortOrder.ASC))
+                    .execute().actionGet();
+            fail("SearchPhaseExecutionException should have been thrown");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("type [string] doesn't support mode [SUM]"));
+        }
+    }
+
+    @Test
+    public void testSimpleNestedSorting_withNestedFilterMissing() throws Exception {
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
+                .setSettings(settingsBuilder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.referesh_interval", -1)
+                        .build()
+                )
+                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("nested1")
+                        .field("type", "nested")
+                        .endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("field1", 1)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 5)
+                .field("field2", true)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .field("field2", true)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("field1", 2)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 1)
+                .field("field2", true)
+                .endObject()
+                .startObject()
+                .field("field1", 2)
+                .field("field2", true)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        // Doc with missing nested docs if nested filter is used
+        client().admin().indices().prepareRefresh().execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                .field("field1", 3)
+                .startArray("nested1")
+                .startObject()
+                .field("field1", 3)
+                .field("field2", false)
+                .endObject()
+                .startObject()
+                .field("field1", 4)
+                .field("field2", false)
+                .endObject()
+                .endArray()
+                .endObject()).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.ASC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("4"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("10"));
+
+        searchResponse = client().prepareSearch("test")
+                .setTypes("type1")
+                .setQuery(QueryBuilders.matchAllQuery())
+                .addSort(SortBuilders.fieldSort("nested1.field1").setNestedFilter(termFilter("nested1.field2", true)).missing(10).order(SortOrder.DESC))
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("3"));
+        assertThat(searchResponse.getHits().hits()[0].sortValues()[0].toString(), equalTo("10"));
+        assertThat(searchResponse.getHits().hits()[1].id(), equalTo("1"));
+        assertThat(searchResponse.getHits().hits()[1].sortValues()[0].toString(), equalTo("5"));
+        assertThat(searchResponse.getHits().hits()[2].id(), equalTo("2"));
+        assertThat(searchResponse.getHits().hits()[2].sortValues()[0].toString(), equalTo("2"));
+    }
+
+    @Test
+    public void testSortNestedWithNestedFilter() throws Exception {
+        client().admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareCreate("test")
+                .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+                .addMapping("type1", XContentFactory.jsonBuilder().startObject()
+                        .startObject("type1")
+                        .startObject("properties")
+                        .startObject("grand_parent_values").field("type", "long").endObject()
+                        .startObject("parent").field("type", "nested")
+                        .startObject("properties")
+                        .startObject("parent_values").field("type", "long").endObject()
+                        .startObject("child").field("type", "nested")
+                        .startObject("properties")
+                        .startObject("child_values").field("type", "long").endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject())
+                .execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+
+        // sum: 11
+        client().prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
+                .field("grand_parent_values", 1l)
+                .startObject("parent")
+                .field("filter", false)
+                .field("parent_values", 1l)
+                .startObject("child")
+                .field("filter", true)
+                .field("child_values", 1l)
+                .startObject("child_obj")
+                .field("value", 1l)
+                .endObject()
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 6l)
+                .endObject()
+                .endObject()
+                .startObject("parent")
+                .field("filter", true)
+                .field("parent_values", 2l)
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", -1l)
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 5l)
+                .endObject()
+                .endObject()
+                .endObject()).execute().actionGet();
+
+        // sum: 7
+        client().prepareIndex("test", "type1", Integer.toString(2)).setSource(jsonBuilder().startObject()
+                .field("grand_parent_values", 2l)
+                .startObject("parent")
+                .field("filter", false)
+                .field("parent_values", 2l)
+                .startObject("child")
+                .field("filter", true)
+                .field("child_values", 2l)
+                .startObject("child_obj")
+                .field("value", 2l)
+                .endObject()
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 4l)
+                .endObject()
+                .endObject()
+                .startObject("parent")
+                .field("parent_values", 3l)
+                .field("filter", true)
+                .startObject("child")
+                .field("child_values", -2l)
+                .field("filter", false)
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 3l)
+                .endObject()
+                .endObject()
+                .endObject()).execute().actionGet();
+
+        // sum: 2
+        client().prepareIndex("test", "type1", Integer.toString(3)).setSource(jsonBuilder().startObject()
+                .field("grand_parent_values", 3l)
+                .startObject("parent")
+                .field("parent_values", 3l)
+                .field("filter", false)
+                .startObject("child")
+                .field("filter", true)
+                .field("child_values", 3l)
+                .startObject("child_obj")
+                .field("value", 3l)
+                .endObject()
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 1l)
+                .endObject()
+                .endObject()
+                .startObject("parent")
+                .field("parent_values", 4l)
+                .field("filter", true)
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", -3l)
+                .endObject()
+                .startObject("child")
+                .field("filter", false)
+                .field("child_values", 1l)
+                .endObject()
+                .endObject()
+                .endObject()).execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        // Without nested filter
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("-3"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("-2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("-1"));
+
+        // With nested filter
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        // Nested path should be automatically detected, expect same results as above search request
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.parent_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.filter", false))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.filter", false))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        // TODO: If we expose ToChildBlockJoinQuery we can filter sort values based on a higher level nested objects
+//        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
+//        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("-3"));
+//        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+//        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("-2"));
+//        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
+//        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("-1"));
+
+        // Check if closest nested type is resolved
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_obj.value")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        // Sort mode: sum
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .sortMode("sum")
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("7"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("11"));
+
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .sortMode("sum")
+                                .order(SortOrder.DESC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("11"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("7"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("2"));
+
+        // Sort mode: sum with filter
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .sortMode("sum")
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+
+        // Sort mode: avg
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .sortMode("avg")
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("0"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("2"));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .sortMode("avg")
+                                .order(SortOrder.DESC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("0"));
+
+        // Sort mode: avg with filter
+        searchResponse = client().prepareSearch()
+                .setQuery(matchAllQuery())
+                .addSort(
+                        SortBuilders.fieldSort("parent.child.child_values")
+                                .setNestedPath("parent.child")
+                                .setNestedFilter(FilterBuilders.termFilter("parent.child.filter", true))
+                                .sortMode("avg")
+                                .order(SortOrder.ASC)
+                )
+                .execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+        assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[0].sortValues()[0].toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
+        assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
     }
 
 }

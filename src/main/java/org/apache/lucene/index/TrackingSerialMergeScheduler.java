@@ -88,6 +88,7 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
             writer.mergeInit(merge);
 
             int totalNumDocs = merge.totalNumDocs();
+            // don't used #totalBytesSize() since need to be executed under IW lock, might be fixed in future Lucene version
             long totalSizeInBytes = merge.estimatedMergeBytes;
             long time = System.currentTimeMillis();
             currentMerges.inc();
@@ -121,5 +122,12 @@ public class TrackingSerialMergeScheduler extends MergeScheduler {
 
     @Override
     public void close() {
+    }
+
+    @Override
+    public MergeScheduler clone() {
+        // Lucene IW makes a clone internally but since we hold on to this instance 
+        // the clone will just be the identity.
+        return this;
     }
 }

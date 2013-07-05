@@ -21,11 +21,12 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -42,7 +43,8 @@ import static org.elasticsearch.index.mapper.MapperBuilders.uid;
  */
 public class UidFieldMapper extends AbstractFieldMapper<Uid> implements InternalMapper, RootMapper {
 
-    public static final String NAME = "_uid".intern();
+    public static final String NAME = "_uid";
+    public static final String VERSION = "_version";
 
     public static final String CONTENT_TYPE = "_uid";
 
@@ -50,22 +52,18 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         public static final String NAME = UidFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
-        public static final FieldType NESTED_FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
+        public static final FieldType NESTED_FIELD_TYPE;
 
         static {
             FIELD_TYPE.setIndexed(true);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS); // we store payload (otherwise, we really need just docs)
+            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
 
-            NESTED_FIELD_TYPE.setIndexed(true);
-            NESTED_FIELD_TYPE.setTokenized(false);
+            NESTED_FIELD_TYPE = new FieldType(FIELD_TYPE);
             NESTED_FIELD_TYPE.setStored(false);
-            NESTED_FIELD_TYPE.setOmitNorms(true);
-            // we can set this to another index option when we move away from storing payload..
-            //NESTED_FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
             NESTED_FIELD_TYPE.freeze();
         }
     }
@@ -88,7 +86,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = uid();
             for (Map.Entry<String, Object> entry : node.entrySet()) {
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -102,10 +100,19 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         }
     }
 
-    private ThreadLocal<UidField> fieldCache = new ThreadLocal<UidField>() {
+    private static class UidAndVersion {
+        final Field uid;
+        final Field version;
+        UidAndVersion() {
+            uid = new Field(NAME, "", Defaults.FIELD_TYPE);
+            version = new NumericDocValuesField(VERSION, -1L);
+        }
+    }
+
+    private final ThreadLocal<UidAndVersion> fieldCache = new ThreadLocal<UidAndVersion>() {
         @Override
-        protected UidField initialValue() {
-            return new UidField(names().indexName(), "", 0);
+        protected UidAndVersion initialValue() {
+            return new UidAndVersion();
         }
     };
 
@@ -134,7 +141,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     protected String defaultPostingFormat() {
-        return "bloom_default";
+        return "default";
     }
 
     @Override
@@ -158,12 +165,12 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
             // since we did not have the uid in the pre phase, we did not add it automatically to the nested docs
             // as they were created we need to make sure we add it to all the nested docs...
             if (context.docs().size() > 1) {
-                UidField uidField = (UidField) context.rootDoc().getField(UidFieldMapper.NAME);
+                final IndexableField uidField = context.rootDoc().getField(UidFieldMapper.NAME);
                 assert uidField != null;
                 // we need to go over the docs and add it...
                 for (int i = 1; i < context.docs().size(); i++) {
                     // we don't need to add it as a full uid field in nested docs, since we don't need versioning
-                    context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.uid(), Defaults.NESTED_FIELD_TYPE));
+                    context.docs().get(i).add(new Field(UidFieldMapper.NAME, uidField.stringValue(), Defaults.NESTED_FIELD_TYPE));
                 }
             }
         }
@@ -188,10 +195,13 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         // so, caching uid stream and field is fine
         // since we don't do any mapping parsing without immediate indexing
         // and, when percolating, we don't index the uid
-        UidField field = fieldCache.get();
-        field.setUid(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
-        context.uid(field);
-        return field; // version get updated by the engine
+        UidAndVersion fields = fieldCache.get();
+        fields.uid.setStringValue(Uid.createUid(context.stringBuilder(), context.type(), context.id()));
+        context.uid(fields.uid);
+        context.version(fields.version);
+        // Add the _version here, parse will take care of adding the _uid
+        context.doc().add(fields.version);
+        return fields.uid; // version get updated by the engine
     }
 
     @Override
@@ -241,7 +251,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        AbstractFieldMapper fieldMergeWith = (AbstractFieldMapper) mergeWith;
+        AbstractFieldMapper<?> fieldMergeWith = (AbstractFieldMapper<?>) mergeWith;
         // do nothing here, no merging, but also no exception
         if (!mergeContext.mergeFlags().simulate()) {
             // apply changeable values

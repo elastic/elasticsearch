@@ -106,7 +106,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                         // we have the index, do it
                         try {
                             innerExecute(request, listener);
-                        } catch (Exception e1) {
+                        } catch (Throwable e1) {
                             listener.onFailure(e1);
                         }
                     } else {
@@ -198,6 +198,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         SourceToParse sourceToParse = SourceToParse.source(request.source()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
         long version;
+        boolean created;
         Engine.IndexingOperation op;
         if (request.opType() == IndexRequest.OpType.INDEX) {
             Engine.Index index = indexShard.prepareIndex(sourceToParse)
@@ -207,6 +208,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             indexShard.index(index);
             version = index.version();
             op = index;
+            created = index.created();
         } else {
             Engine.Create create = indexShard.prepareCreate(sourceToParse)
                     .version(request.version())
@@ -215,6 +217,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             indexShard.create(create);
             version = create.version();
             op = create;
+            created = true;
         }
         if (request.refresh()) {
             try {
@@ -229,7 +232,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         // update the version on the request, so it will be used for the replicas
         request.version(version);
 
-        IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version);
+        IndexResponse response = new IndexResponse(request.index(), request.type(), request.id(), version, created);
         return new PrimaryResponse<IndexResponse, IndexRequest>(shardRequest.request, response, op);
     }
 
@@ -242,7 +245,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         try {
             PercolatorExecutor.Response percolate = indexService.percolateService().percolate(new PercolatorExecutor.DocAndSourceQueryRequest(op.parsedDoc(), request.percolate()));
-            response.response().matches(percolate.matches());
+            response.response().setMatches(percolate.matches());
         } catch (Exception e) {
             logger.warn("failed to percolate [{}]", e, request);
         }

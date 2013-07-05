@@ -1,0 +1,2 @@
+org.elasticsearch.index.codec.postingsformat.BloomFilterPostingsFormat
+org.elasticsearch.index.codec.postingsformat.ElasticSearch090PostingsFormat

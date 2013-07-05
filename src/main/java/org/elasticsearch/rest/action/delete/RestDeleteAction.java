@@ -58,8 +58,8 @@ public class RestDeleteAction extends BaseRestHandler {
         deleteRequest.listenerThreaded(false);
         deleteRequest.operationThreaded(true);
 
-        deleteRequest.parent(request.param("parent"));
         deleteRequest.routing(request.param("routing"));
+        deleteRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         deleteRequest.timeout(request.paramAsTime("timeout", DeleteRequest.DEFAULT_TIMEOUT));
         deleteRequest.refresh(request.paramAsBoolean("refresh", deleteRequest.refresh()));
         deleteRequest.version(RestActions.parseVersion(request));
@@ -81,18 +81,18 @@ public class RestDeleteAction extends BaseRestHandler {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject()
                             .field(Fields.OK, true)
-                            .field(Fields.FOUND, !result.notFound())
-                            .field(Fields._INDEX, result.index())
-                            .field(Fields._TYPE, result.type())
-                            .field(Fields._ID, result.id())
-                            .field(Fields._VERSION, result.version())
+                            .field(Fields.FOUND, !result.isNotFound())
+                            .field(Fields._INDEX, result.getIndex())
+                            .field(Fields._TYPE, result.getType())
+                            .field(Fields._ID, result.getId())
+                            .field(Fields._VERSION, result.getVersion())
                             .endObject();
                     RestStatus status = OK;
-                    if (result.notFound()) {
+                    if (result.isNotFound()) {
                         status = NOT_FOUND;
                     }
                     channel.sendResponse(new XContentRestResponse(request, status, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

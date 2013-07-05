@@ -23,27 +23,20 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
-public abstract class AbstractNodesTests {
-
-    protected final ESLogger logger = Loggers.getLogger(getClass());
+public abstract class AbstractNodesTests extends ElasticsearchTestCase {
 
     private Map<String, Node> nodes = newHashMap();
 
@@ -138,30 +131,12 @@ public abstract class AbstractNodesTests {
         nodes.clear();
     }
 
-    public boolean waitForNodesToShutdown(TimeValue timeout, String... nodes) throws InterruptedException {
-        long start = System.currentTimeMillis();
-        Set<String> activeNodes = newHashSet(nodes);
-        do {
-            Thread.sleep(100);
-            Iterator<String> nodeToCheck = activeNodes.iterator();
-            while (nodeToCheck.hasNext()) {
-                String id = nodeToCheck.next();
-                if (node(id).isClosed()) {
-                    nodeToCheck.remove();
-                } else {
-                    break;
-                }
-            }
-        } while (!activeNodes.isEmpty() && (System.currentTimeMillis() - start) < timeout.millis());
-        return activeNodes.isEmpty();
-    }
-
     public ImmutableSet<ClusterBlock> waitForNoBlocks(TimeValue timeout, String node) throws InterruptedException {
         long start = System.currentTimeMillis();
         ImmutableSet<ClusterBlock> blocks;
         do {
             blocks = client(node).admin().cluster().prepareState().setLocal(true).execute().actionGet()
-                    .state().blocks().global(ClusterBlockLevel.METADATA);
+                    .getState().blocks().global(ClusterBlockLevel.METADATA);
         }
         while (!blocks.isEmpty() && (System.currentTimeMillis() - start) < timeout.millis());
         return blocks;

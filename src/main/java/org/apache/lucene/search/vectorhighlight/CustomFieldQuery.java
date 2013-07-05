@@ -21,7 +21,6 @@ package org.apache.lucene.search.vectorhighlight;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
@@ -96,8 +95,6 @@ public class CustomFieldQuery extends FieldQuery {
             flatten(sourceQuery.rewrite(reader), reader, flatQueries);
         } else if (sourceQuery instanceof FiltersFunctionScoreQuery) {
             flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
-        } else if (sourceQuery instanceof ExtendedCommonTermsQuery) {
-            flatten(((ExtendedCommonTermsQuery)sourceQuery).rewrite(reader), reader, flatQueries);
         } else if (sourceQuery instanceof MultiPhraseQuery) {
             MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
             convertMultiPhraseQuery(0, new int[q.getTermArrays().size()] , q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
@@ -107,6 +104,21 @@ public class CustomFieldQuery extends FieldQuery {
     }
     
     private void convertMultiPhraseQuery(int currentPos, int[] termsIdx, MultiPhraseQuery orig, List<Term[]> terms, int[] pos, IndexReader reader, Collection<Query> flatQueries) throws IOException {
+        if (currentPos == 0) {
+            // if we have more than 16 terms 
+            int numTerms = 0;
+            for (Term[] currentPosTerm : terms) {
+                numTerms += currentPosTerm.length;
+            }
+            if (numTerms > 16) {
+                for (Term[] currentPosTerm : terms) {
+                    for (Term term : currentPosTerm) {
+                        super.flatten(new TermQuery(term), reader, flatQueries);    
+                    }
+                }
+                return;
+            }
+        }
         /*
          * we walk all possible ways and for each path down the MPQ we create a PhraseQuery this is what FieldQuery supports.
          * It seems expensive but most queries will pretty small.

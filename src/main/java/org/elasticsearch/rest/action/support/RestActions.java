@@ -49,12 +49,12 @@ public class RestActions {
 
     public static void buildBroadcastShardsHeader(XContentBuilder builder, BroadcastOperationResponse response) throws IOException {
         builder.startObject("_shards");
-        builder.field("total", response.totalShards());
-        builder.field("successful", response.successfulShards());
-        builder.field("failed", response.failedShards());
-        if (!response.shardFailures().isEmpty()) {
+        builder.field("total", response.getTotalShards());
+        builder.field("successful", response.getSuccessfulShards());
+        builder.field("failed", response.getFailedShards());
+        if (response.getShardFailures()!=null && response.getShardFailures().length>0) {
             builder.startArray("failures");
-            for (ShardOperationFailedException shardFailure : response.shardFailures()) {
+            for (ShardOperationFailedException shardFailure : response.getShardFailures()) {
                 builder.startObject();
                 if (shardFailure.index() != null) {
                     builder.field("index", shardFailure.index(), XContentBuilder.FieldCaseConversion.NONE);

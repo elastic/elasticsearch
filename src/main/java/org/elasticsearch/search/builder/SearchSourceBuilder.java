@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.builder;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import gnu.trove.iterator.TObjectFloatIterator;
@@ -26,7 +27,6 @@ import gnu.trove.map.hash.TObjectFloatHashMap;
 import org.elasticsearch.ElasticSearchGenerationException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Unicode;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facet.FacetBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -48,8 +48,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import org.elasticsearch.search.group.AbstractGroupBuilder;
 
 /**
  * A search source builder allowing to easily build search source. Simple construction
@@ -101,15 +99,14 @@ public class SearchSourceBuilder implements ToXContent {
     private List<ScriptField> scriptFields;
     private List<PartialField> partialFields;
 
-    private List<AbstractFacetBuilder> facets;
-    private List<AbstractGroupBuilder> groups;
+    private List<FacetBuilder> facets;
 
     private BytesReference facetsBinary;
 
     private HighlightBuilder highlightBuilder;
 
     private SuggestBuilder suggestBuilder;
-    
+
     private RescoreBuilder rescoreBuilder;
 
     private TObjectFloatHashMap<String> indexBoost = null;
@@ -159,7 +156,7 @@ public class SearchSourceBuilder implements ToXContent {
      * Constructs a new search source builder with a raw search query.
      */
     public SearchSourceBuilder query(String queryString) {
-        return query(Unicode.fromStringAsBytes(queryString));
+        return query(queryString.getBytes(Charsets.UTF_8));
     }
 
     /**
@@ -196,7 +193,7 @@ public class SearchSourceBuilder implements ToXContent {
      * (and not facets for example).
      */
     public SearchSourceBuilder filter(String filterString) {
-        return filter(Unicode.fromStringAsBytes(filterString));
+        return filter(filterString.getBytes(Charsets.UTF_8));
     }
 
     /**
@@ -344,19 +341,11 @@ public class SearchSourceBuilder implements ToXContent {
     /**
      * Add a facet to perform as part of the search.
      */
-    public SearchSourceBuilder facet(AbstractFacetBuilder facet) {
+    public SearchSourceBuilder facet(FacetBuilder facet) {
         if (facets == null) {
             facets = Lists.newArrayList();
         }
         facets.add(facet);
-        return this;
-    }
-
-    public SearchSourceBuilder group(AbstractGroupBuilder group) {
-        if (groups == null) {
-            groups = Lists.newArrayList();
-        }
-        groups.add(group);
         return this;
     }
 
@@ -419,11 +408,11 @@ public class SearchSourceBuilder implements ToXContent {
 
     public SuggestBuilder suggest() {
         if (suggestBuilder == null) {
-            suggestBuilder = new SuggestBuilder();
+            suggestBuilder = new SuggestBuilder("suggest");
         }
         return suggestBuilder;
     }
-    
+
     public RescoreBuilder rescore() {
         if (rescoreBuilder == null) {
             rescoreBuilder = new RescoreBuilder();
@@ -722,18 +711,8 @@ public class SearchSourceBuilder implements ToXContent {
         if (facets != null) {
             builder.field("facets");
             builder.startObject();
-            for (AbstractFacetBuilder facet : facets) {
+            for (FacetBuilder facet : facets) {
                 facet.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-
-        // TODO!!!
-        if (groups != null) {
-            builder.field("groups");
-            builder.startObject();
-            for (AbstractGroupBuilder group : groups) {
-                group.toXContent(builder, params);
             }
             builder.endObject();
         }
@@ -753,9 +732,9 @@ public class SearchSourceBuilder implements ToXContent {
         if (suggestBuilder != null) {
             suggestBuilder.toXContent(builder, params);
         }
-        
+
         if (rescoreBuilder != null) {
-            rescoreBuilder.toXContent(builder, params); 
+            rescoreBuilder.toXContent(builder, params);
         }
 
         if (stats != null) {

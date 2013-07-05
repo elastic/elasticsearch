@@ -32,6 +32,7 @@ import java.net.NetworkInterface;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
@@ -154,29 +155,33 @@ public class NetworkService extends AbstractComponent {
             if (host.equals("local")) {
                 return NetworkUtils.getLocalAddress();
             } else if (host.startsWith("non_loopback")) {
-                if (host.toLowerCase().endsWith(":ipv4")) {
+                if (host.toLowerCase(Locale.ROOT).endsWith(":ipv4")) {
                     return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
-                } else if (host.toLowerCase().endsWith(":ipv6")) {
+                } else if (host.toLowerCase(Locale.ROOT).endsWith(":ipv6")) {
                     return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv6);
                 } else {
                     return NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.getIpStackType());
                 }
             } else {
                 NetworkUtils.StackType stackType = NetworkUtils.getIpStackType();
-                if (host.toLowerCase().endsWith(":ipv4")) {
+                if (host.toLowerCase(Locale.ROOT).endsWith(":ipv4")) {
                     stackType = NetworkUtils.StackType.IPv4;
                     host = host.substring(0, host.length() - 5);
-                } else if (host.toLowerCase().endsWith(":ipv6")) {
+                } else if (host.toLowerCase(Locale.ROOT).endsWith(":ipv6")) {
                     stackType = NetworkUtils.StackType.IPv6;
                     host = host.substring(0, host.length() - 5);
                 }
                 Collection<NetworkInterface> allInterfs = NetworkUtils.getAllAvailableInterfaces();
                 for (NetworkInterface ni : allInterfs) {
-                    if (!ni.isUp() || ni.isLoopback()) {
+                    if (!ni.isUp()) {
                         continue;
                     }
                     if (host.equals(ni.getName()) || host.equals(ni.getDisplayName())) {
-                        return NetworkUtils.getFirstNonLoopbackAddress(ni, stackType);
+                        if (ni.isLoopback()) {
+                            return NetworkUtils.getFirstAddress(ni, stackType);
+                        } else {
+                            return NetworkUtils.getFirstNonLoopbackAddress(ni, stackType);
+                        }
                     }
                 }
             }

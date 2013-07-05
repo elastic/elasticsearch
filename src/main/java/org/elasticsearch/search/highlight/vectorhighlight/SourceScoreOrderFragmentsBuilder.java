@@ -19,29 +19,38 @@
 
 package org.elasticsearch.search.highlight.vectorhighlight;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.ngram.NGramTokenizerFactory;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
-import org.apache.lucene.search.vectorhighlight.XScoreOrderFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo;
+import org.apache.lucene.search.vectorhighlight.FieldFragList.WeightedFragInfo.SubInfo;
+import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
+import org.elasticsearch.index.analysis.CustomAnalyzer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.io.IOException;
-import java.util.List;
-
 /**
  *
  */
-public class SourceScoreOrderFragmentsBuilder extends XScoreOrderFragmentsBuilder {
+public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder {
 
-    private final FieldMapper mapper;
+    private final FieldMapper<?> mapper;
 
     private final SearchContext searchContext;
 
-    public SourceScoreOrderFragmentsBuilder(FieldMapper mapper, SearchContext searchContext,
+    public SourceScoreOrderFragmentsBuilder(FieldMapper<?> mapper, SearchContext searchContext,
                                             String[] preTags, String[] postTags, BoundaryScanner boundaryScanner) {
         super(preTags, postTags, boundaryScanner);
         this.mapper = mapper;
@@ -61,5 +70,10 @@ public class SourceScoreOrderFragmentsBuilder extends XScoreOrderFragmentsBuilde
             fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);
         }
         return fields;
+    }
+    
+    protected String makeFragment( StringBuilder buffer, int[] index, Field[] values, WeightedFragInfo fragInfo,
+            String[] preTags, String[] postTags, Encoder encoder ){
+        return super.makeFragment(buffer, index, values, FragmentBuilderHelper.fixWeightedFragInfo(mapper, values, fragInfo), preTags, postTags, encoder);
     }
 }

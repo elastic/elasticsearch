@@ -92,6 +92,7 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(CustomFiltersScoreQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanTermQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanNotQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(FieldMaskingSpanQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanFirstQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanNearQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanOrQueryParser.class).asEagerSingleton();
@@ -102,6 +103,7 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(WrapperQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(IndicesQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(CommonTermsQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(SpanMultiTermQueryParser.class).asEagerSingleton();
 
         if (ShapesAvailability.JTS_AVAILABLE) {
             qpBinders.addBinding().to(GeoShapeQueryParser.class).asEagerSingleton();
@@ -130,6 +132,7 @@ public class IndicesQueriesModule extends AbstractModule {
         fpBinders.addBinding().to(GeoDistanceFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoDistanceRangeFilterParser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoBoundingBoxFilterParser.class).asEagerSingleton();
+        fpBinders.addBinding().to(GeohashFilter.Parser.class).asEagerSingleton();
         fpBinders.addBinding().to(GeoPolygonFilterParser.class).asEagerSingleton();
         if (ShapesAvailability.JTS_AVAILABLE) {
             fpBinders.addBinding().to(GeoShapeFilterParser.class).asEagerSingleton();

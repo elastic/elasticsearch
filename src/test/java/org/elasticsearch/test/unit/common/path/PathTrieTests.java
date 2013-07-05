@@ -111,4 +111,13 @@ public class PathTrieTests {
         assertThat(trie.retrieve("/b", params), equalTo("test2"));
         assertThat(trie.retrieve("/b/a", params), equalTo("test4"));
     }
+
+    @Test
+    public void testEndWithNamedWildcardAndLookupWithWildcard() {
+        PathTrie<String> trie = new PathTrie<String>();
+        trie.insert("x/{test}", "test1");
+        Map<String, String> params = newHashMap();
+        assertThat(trie.retrieve("/x/*", params), equalTo("test1"));
+        assertThat(params.get("test"), equalTo("*"));
+    }
 }

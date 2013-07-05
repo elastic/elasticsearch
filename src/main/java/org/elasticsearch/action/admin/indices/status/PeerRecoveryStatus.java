@@ -86,83 +86,48 @@ public class PeerRecoveryStatus {
         this.recoveredTranslogOperations = recoveredTranslogOperations;
     }
 
-    public Stage stage() {
+    public Stage getStage() {
         return this.stage;
-    }
-
-    public long startTime() {
-        return this.startTime;
     }
 
     public long getStartTime() {
         return this.startTime;
     }
 
-    public TimeValue time() {
+    public TimeValue getTime() {
         return TimeValue.timeValueMillis(time);
     }
 
-    public TimeValue getTime() {
-        return time();
-    }
-
-    public ByteSizeValue indexSize() {
+    public ByteSizeValue getIndexSize() {
         return new ByteSizeValue(indexSize);
     }
 
-    public ByteSizeValue getIndexSize() {
-        return indexSize();
-    }
-
-    public ByteSizeValue reusedIndexSize() {
+    public ByteSizeValue getReusedIndexSize() {
         return new ByteSizeValue(reusedIndexSize);
     }
 
-    public ByteSizeValue getReusedIndexSize() {
-        return reusedIndexSize();
-    }
-
-    public ByteSizeValue expectedRecoveredIndexSize() {
-        return new ByteSizeValue(indexSize - reusedIndexSize);
-    }
-
     public ByteSizeValue getExpectedRecoveredIndexSize() {
-        return expectedRecoveredIndexSize();
-    }
-
-    /**
-     * How much of the index has been recovered.
-     */
-    public ByteSizeValue recoveredIndexSize() {
-        return new ByteSizeValue(recoveredIndexSize);
+        return new ByteSizeValue(indexSize - reusedIndexSize);
     }
 
     /**
      * How much of the index has been recovered.
      */
     public ByteSizeValue getRecoveredIndexSize() {
-        return recoveredIndexSize();
+        return new ByteSizeValue(recoveredIndexSize);
     }
 
-    public int indexRecoveryProgress() {
+    public int getIndexRecoveryProgress() {
         if (recoveredIndexSize == 0) {
             if (indexSize != 0 && indexSize == reusedIndexSize) {
                 return 100;
             }
             return 0;
         }
-        return (int) (((double) recoveredIndexSize) / expectedRecoveredIndexSize().bytes() * 100);
-    }
-
-    public int getIndexRecoveryProgress() {
-        return indexRecoveryProgress();
-    }
-
-    public long recoveredTranslogOperations() {
-        return recoveredTranslogOperations;
+        return (int) (((double) recoveredIndexSize) / getExpectedRecoveredIndexSize().bytes() * 100);
     }
 
     public long getRecoveredTranslogOperations() {
-        return recoveredTranslogOperations();
+        return recoveredTranslogOperations;
     }
 }

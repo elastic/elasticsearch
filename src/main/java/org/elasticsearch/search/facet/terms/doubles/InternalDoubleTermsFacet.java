@@ -23,6 +23,9 @@ import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TDoubleIntIterator;
 import gnu.trove.map.hash.TDoubleIntHashMap;
 import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -45,7 +48,7 @@ import java.util.List;
  */
 public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
-    private static final String STREAM_TYPE = "dTerms";
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("dTerms"));
 
     public static void registerStream() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -53,13 +56,13 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
     static Stream STREAM = new Stream() {
         @Override
-        public Facet readFacet(String type, StreamInput in) throws IOException {
+        public Facet readFacet(StreamInput in) throws IOException {
             return readTermsFacet(in);
         }
     };
 
     @Override
-    public String streamType() {
+    public BytesReference streamType() {
         return STREAM_TYPE;
     }
 
@@ -73,30 +76,18 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
             this.count = count;
         }
 
-        public Text term() {
-            return new StringText(Double.toString(term));
-        }
-
         public Text getTerm() {
-            return term();
-        }
-
-        @Override
-        public Number termAsNumber() {
-            return term;
+            return new StringText(Double.toString(term));
         }
 
         @Override
         public Number getTermAsNumber() {
-            return termAsNumber();
+            return term;
         }
 
-        public int count() {
-            return count;
-        }
-
+        @Override
         public int getCount() {
-            return count();
+            return count;
         }
 
         @Override
@@ -106,7 +97,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
                 return -1;
             }
             if (term == anotherVal) {
-                int i = count - o.count();
+                int i = count - o.getCount();
                 if (i == 0) {
                     i = System.identityHashCode(this) - System.identityHashCode(o);
                 }
@@ -116,22 +107,17 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         }
     }
 
-    private String name;
-
     int requiredSize;
-
     long missing;
     long total;
-
     Collection<DoubleEntry> entries = ImmutableList.of();
-
     ComparatorType comparatorType;
 
     InternalDoubleTermsFacet() {
     }
 
     public InternalDoubleTermsFacet(String name, ComparatorType comparatorType, int requiredSize, Collection<DoubleEntry> entries, long missing, long total) {
-        this.name = name;
+        super(name);
         this.comparatorType = comparatorType;
         this.requiredSize = requiredSize;
         this.entries = entries;
@@ -140,36 +126,11 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public String name() {
-        return this.name;
-    }
-
-    @Override
-    public String getName() {
-        return this.name;
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
-    }
-
-    @Override
-    public String getType() {
-        return type();
-    }
-
-    @Override
-    public List<DoubleEntry> entries() {
+    public List<DoubleEntry> getEntries() {
         if (!(entries instanceof List)) {
             entries = ImmutableList.copyOf(entries);
         }
         return (List<DoubleEntry>) entries;
-    }
-
-    @Override
-    public List<DoubleEntry> getEntries() {
-        return entries();
     }
 
     @SuppressWarnings({"unchecked"})
@@ -179,37 +140,22 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public long missingCount() {
+    public long getMissingCount() {
         return this.missing;
     }
 
     @Override
-    public long getMissingCount() {
-        return missingCount();
-    }
-
-    @Override
-    public long totalCount() {
+    public long getTotalCount() {
         return this.total;
     }
 
     @Override
-    public long getTotalCount() {
-        return totalCount();
-    }
-
-    @Override
-    public long otherCount() {
+    public long getOtherCount() {
         long other = total;
         for (Entry entry : entries) {
-            other -= entry.count();
+            other -= entry.getCount();
         }
         return other;
-    }
-
-    @Override
-    public long getOtherCount() {
-        return otherCount();
     }
 
     @Override
@@ -217,16 +163,22 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         if (facets.size() == 1) {
             return facets.get(0);
         }
-        InternalDoubleTermsFacet first = (InternalDoubleTermsFacet) facets.get(0);
+
+        InternalDoubleTermsFacet first = null;
+
         TDoubleIntHashMap aggregated = CacheRecycler.popDoubleIntMap();
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
-            InternalDoubleTermsFacet mFacet = (InternalDoubleTermsFacet) facet;
-            missing += mFacet.missingCount();
-            total += mFacet.totalCount();
-            for (DoubleEntry entry : mFacet.entries) {
-                aggregated.adjustOrPutValue(entry.term, entry.count(), entry.count());
+            TermsFacet termsFacet = (TermsFacet) facet;
+            // termsFacet could be of type InternalStringTermsFacet representing unmapped fields
+            if (first == null && termsFacet instanceof InternalDoubleTermsFacet) {
+                first = (InternalDoubleTermsFacet) termsFacet;
+            }
+            missing += termsFacet.getMissingCount();
+            total += termsFacet.getTotalCount();
+            for (Entry entry : termsFacet.getEntries()) {
+                aggregated.adjustOrPutValue(((DoubleEntry)entry).term, entry.getCount(), entry.getCount());
             }
         }
 
@@ -256,16 +208,16 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
         builder.field(Fields._TYPE, TermsFacet.TYPE);
         builder.field(Fields.MISSING, missing);
         builder.field(Fields.TOTAL, total);
-        builder.field(Fields.OTHER, otherCount());
+        builder.field(Fields.OTHER, getOtherCount());
         builder.startArray(Fields.TERMS);
         for (DoubleEntry entry : entries) {
             builder.startObject();
             builder.field(Fields.TERM, entry.term);
-            builder.field(Fields.COUNT, entry.count());
+            builder.field(Fields.COUNT, entry.getCount());
             builder.endObject();
         }
         builder.endArray();
@@ -281,7 +233,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+        super.readFrom(in);
         comparatorType = ComparatorType.fromId(in.readByte());
         requiredSize = in.readVInt();
         missing = in.readVLong();
@@ -296,7 +248,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        super.writeTo(out);
         out.writeByte(comparatorType.id());
         out.writeVInt(requiredSize);
         out.writeVLong(missing);
@@ -305,7 +257,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         out.writeVInt(entries.size());
         for (DoubleEntry entry : entries) {
             out.writeDouble(entry.term);
-            out.writeVInt(entry.count());
+            out.writeVInt(entry.getCount());
         }
     }
 }

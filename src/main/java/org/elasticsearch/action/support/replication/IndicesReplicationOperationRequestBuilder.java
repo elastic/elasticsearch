@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.client.internal.InternalGenericClient;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -55,6 +56,14 @@ public abstract class IndicesReplicationOperationRequestBuilder<Request extends 
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIndices(String... indices) {
         request.indices(indices);
+        return (RequestBuilder) this;
+    }
+
+    /**
+     * Specifies what type of requested indices to ignore. For example indices that don't exist.
+     */
+    public RequestBuilder setIgnoreIndices(IgnoreIndices ignoreIndices) {
+        request().ignoreIndices(ignoreIndices);
         return (RequestBuilder) this;
     }
 

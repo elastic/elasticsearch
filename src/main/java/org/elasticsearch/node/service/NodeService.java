@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -34,6 +35,7 @@ import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -53,6 +55,8 @@ public class NodeService extends AbstractComponent {
 
     private final IndicesService indicesService;
 
+    private final PluginsService pluginService;
+
     @Nullable
     private HttpServer httpServer;
 
@@ -64,7 +68,9 @@ public class NodeService extends AbstractComponent {
     private final Version version;
 
     @Inject
-    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery, ClusterService clusterService, TransportService transportService, IndicesService indicesService) {
+    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
+                       ClusterService clusterService, TransportService transportService, IndicesService indicesService,
+                       PluginsService pluginService) {
         super(settings);
         this.threadPool = threadPool;
         this.monitorService = monitorService;
@@ -77,6 +83,7 @@ public class NodeService extends AbstractComponent {
             this.hostname = address.getHostName();
         }
         this.version = Version.CURRENT;
+        this.pluginService = pluginService;
     }
 
     public void setHttpServer(@Nullable HttpServer httpServer) {
@@ -117,11 +124,13 @@ public class NodeService extends AbstractComponent {
                 threadPool.info(),
                 monitorService.networkService().info(),
                 transportService.info(),
-                httpServer == null ? null : httpServer.info()
+                httpServer == null ? null : httpServer.info(),
+                pluginService == null ? null : pluginService.info()
         );
     }
 
-    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean transport, boolean http) {
+    public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,
+                         boolean network, boolean transport, boolean http, boolean plugin) {
         return new NodeInfo(hostname, version, clusterService.state().nodes().localNode(), serviceAttributes,
                 settings ? this.settings : null,
                 os ? monitorService.osService().info() : null,
@@ -130,7 +139,8 @@ public class NodeService extends AbstractComponent {
                 threadPool ? this.threadPool.info() : null,
                 network ? monitorService.networkService().info() : null,
                 transport ? transportService.info() : null,
-                http ? (httpServer == null ? null : httpServer.info()) : null
+                http ? (httpServer == null ? null : httpServer.info()) : null,
+                plugin ? (pluginService == null ? null : pluginService.info()) : null
         );
     }
 
@@ -150,11 +160,11 @@ public class NodeService extends AbstractComponent {
         );
     }
 
-    public NodeStats stats(boolean indices, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean fs, boolean transport, boolean http) {
+    public NodeStats stats(CommonStatsFlags indices, boolean os, boolean process, boolean jvm, boolean threadPool, boolean network, boolean fs, boolean transport, boolean http) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
         return new NodeStats(clusterService.state().nodes().localNode(), System.currentTimeMillis(), hostname,
-                indices ? indicesService.stats(true) : null,
+                indices.anySet() ? indicesService.stats(true, indices) : null,
                 os ? monitorService.osService().stats() : null,
                 process ? monitorService.processService().stats() : null,
                 jvm ? monitorService.jvmService().stats() : null,

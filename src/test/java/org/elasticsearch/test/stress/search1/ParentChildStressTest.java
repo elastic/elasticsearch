@@ -130,7 +130,7 @@ public class ParentChildStressTest {
 
         ArrayList<String> results = new ArrayList<String>();
         if (response != null) {
-            for (SearchHit hit : response.hits()) {
+            for (SearchHit hit : response.getHits()) {
                 String sourceStr = hit.sourceAsString();
                 results.add(sourceStr);
             }

@@ -59,4 +59,18 @@ public final class ShortValuesComparator extends LongValuesComparatorBase<Short>
         return Short.valueOf(values[slot]);
     }
 
+    @Override
+    public void add(int slot, int doc) {
+        values[slot] += (short) readerValues.getValueMissing(doc, missingValue);
+    }
+
+    @Override
+    public void divide(int slot, int divisor) {
+        values[slot] /= divisor;
+    }
+
+    @Override
+    public void missing(int slot) {
+        values[slot] = (short) missingValue;
+    }
 }

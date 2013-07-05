@@ -28,9 +28,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.cache.docset.DocSetCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
 import org.elasticsearch.index.cache.id.IdCache;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
@@ -42,28 +42,20 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class IndexCache extends AbstractIndexComponent implements CloseableComponent, ClusterStateListener {
 
     private final FilterCache filterCache;
-
     private final QueryParserCache queryParserCache;
-
     private final IdCache idCache;
-
-    private final TimeValue refreshInterval;
+    private final DocSetCache docSetCache;
 
     private ClusterService clusterService;
 
-    private long latestCacheStatsTimestamp = -1;
-    private CacheStats latestCacheStats;
-
     @Inject
-    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, IdCache idCache) {
+    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, IdCache idCache,
+                      DocSetCache docSetCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
         this.queryParserCache = queryParserCache;
         this.idCache = idCache;
-
-        this.refreshInterval = componentSettings.getAsTime("stats.refresh_interval", TimeValue.timeValueSeconds(1));
-
-        logger.debug("Using stats.refresh_interval [{}]", refreshInterval);
+        this.docSetCache = docSetCache;
     }
 
     @Inject(optional = true)
@@ -74,24 +66,12 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         }
     }
 
-    public synchronized void invalidateCache() {
-        FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
-        latestCacheStats = new CacheStats(filterCache.evictions(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, idCache.sizeInBytes());
-        latestCacheStatsTimestamp = System.currentTimeMillis();
-    }
-
-    public synchronized CacheStats stats() {
-        long timestamp = System.currentTimeMillis();
-        if ((timestamp - latestCacheStatsTimestamp) > refreshInterval.millis()) {
-            FilterCache.EntriesStats filterEntriesStats = filterCache.entriesStats();
-            latestCacheStats = new CacheStats(filterCache.evictions(), filterEntriesStats.sizeInBytes, filterEntriesStats.count, idCache.sizeInBytes());
-            latestCacheStatsTimestamp = timestamp;
-        }
-        return latestCacheStats;
-    }
-
     public FilterCache filter() {
         return filterCache;
+    }
+
+    public DocSetCache docSet() {
+        return this.docSetCache;
     }
 
     public IdCache idCache() {
@@ -107,6 +87,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         filterCache.close();
         idCache.close();
         queryParserCache.close();
+        docSetCache.clear("close");
         if (clusterService != null) {
             clusterService.remove(this);
         }
@@ -115,12 +96,14 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     public void clear(IndexReader reader) {
         filterCache.clear(reader);
         idCache.clear(reader);
+        docSetCache.clear(reader);
     }
 
     public void clear(String reason) {
         filterCache.clear(reason);
         idCache.clear();
         queryParserCache.clear();
+        docSetCache.clear(reason);
     }
 
     @Override

@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
@@ -130,8 +131,8 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
-                if (!getResponse.exists()) {
-                    listener.onFailure(new ElasticSearchException("document missing"));
+                if (!getResponse.isExists()) {
+                    listener.onFailure(new DocumentMissingException(null, request.type(), request.id()));
                     return;
                 }
                 final BoolQueryBuilder boolBuilder = boolQuery();
@@ -156,10 +157,10 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                         // if fields are not empty, see if we got them in the response
                         for (Iterator<String> it = fields.iterator(); it.hasNext(); ) {
                             String field = it.next();
-                            GetField getField = getResponse.field(field);
+                            GetField getField = getResponse.getField(field);
                             if (getField != null) {
-                                for (Object value : getField.values()) {
-                                    addMoreLikeThis(request, boolBuilder, getField.name(), value.toString());
+                                for (Object value : getField.getValues()) {
+                                    addMoreLikeThis(request, boolBuilder, getField.getName(), value.toString());
                                 }
                                 it.remove();
                             }
@@ -182,7 +183,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                     // exclude myself
                     Term uidTerm = docMapper.uidMapper().term(request.type(), request.id());
                     boolBuilder.mustNot(termQuery(uidTerm.field(), uidTerm.text()));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.onFailure(e);
                     return;
                 }
@@ -234,7 +235,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
 
     // Redirects the request to a data node, that has the index meta data locally available.
     private void redirect(MoreLikeThisRequest request, final ActionListener<SearchResponse> listener, ClusterState clusterState) {
-        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.index(), request.type(), request.id(), null, null);
+        ShardIterator shardIterator = clusterService.operationRouting().getShards(clusterState, request.index(), request.type(), request.id(), request.routing(), null);
         ShardRouting shardRouting = shardIterator.firstOrNull();
         if (shardRouting == null) {
             throw new ElasticSearchException("No shards for index " + request.index());
@@ -269,7 +270,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
         if (getResponse.isSourceEmpty()) {
             return;
         }
-        docMapper.parse(SourceToParse.source(getResponse.sourceRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
+        docMapper.parse(SourceToParse.source(getResponse.getSourceAsBytesRef()).type(request.type()).id(request.id()), new DocumentMapper.ParseListenerAdapter() {
             @Override
             public boolean beforeFieldAdded(FieldMapper fieldMapper, Field field, Object parseContext) {
                 if (fieldMapper instanceof InternalMapper) {
@@ -336,7 +337,7 @@ public class TransportMoreLikeThisAction extends TransportAction<MoreLikeThisReq
                 public void onResponse(SearchResponse result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

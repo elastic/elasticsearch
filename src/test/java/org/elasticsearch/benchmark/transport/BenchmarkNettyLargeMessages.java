@@ -19,20 +19,24 @@
 
 package org.elasticsearch.benchmark.transport;
 
+import static org.elasticsearch.transport.TransportRequestOptions.options;
+
+import java.util.concurrent.CountDownLatch;
+
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Bytes;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.BaseTransportRequestHandler;
+import org.elasticsearch.transport.BaseTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
-
-import java.util.concurrent.CountDownLatch;
-
-import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  *
@@ -113,7 +117,7 @@ public class BenchmarkNettyLargeMessages {
             @Override
             public void run() {
                 for (int i = 0; i < 1; i++) {
-                    BenchmarkMessageRequest message = new BenchmarkMessageRequest(2, Bytes.EMPTY_ARRAY);
+                    BenchmarkMessageRequest message = new BenchmarkMessageRequest(2, BytesRef.EMPTY_BYTES);
                     long start = System.currentTimeMillis();
                     transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withHighType(), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
                         @Override

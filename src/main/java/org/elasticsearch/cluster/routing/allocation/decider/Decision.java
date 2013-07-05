@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import com.google.common.collect.Lists;
 
 import java.util.List;
+import java.util.Locale;
 
 /**
  * This abstract class defining basic {@link Decision} used during shard
@@ -102,7 +103,7 @@ public abstract class Decision {
             if (explanation == null) {
                 return type + "()";
             }
-            return type + "(" + String.format(explanation, explanationParams) + ")";
+            return type + "(" + String.format(Locale.ROOT, explanation, explanationParams) + ")";
         }
     }
 

@@ -11,8 +11,8 @@
 #
 ### BEGIN INIT INFO
 # Provides:          elasticsearch
-# Required-Start:    $all
-# Required-Stop:     $all
+# Required-Start:    $network $remote_fs $named
+# Required-Stop:     $network $remote_fs $named
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
 # Short-Description: Starts elasticsearch
@@ -46,7 +46,7 @@ ES_USER=elasticsearch
 ES_GROUP=elasticsearch
 
 # The first existing directory is used for JAVA_HOME (if JAVA_HOME is not defined in $DEFAULT)
-JDK_DIRS="/usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-7-openjdk /usr/lib/jvm/java-7-openjdk-amd64/ /usr/lib/jvm/java-7-openjdk-i386/ /usr/lib/jvm/java-6-sun /usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-openjdk-amd64"
+JDK_DIRS="/usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-7-openjdk /usr/lib/jvm/java-7-openjdk-amd64/ /usr/lib/jvm/java-7-openjdk-i386/ /usr/lib/jvm/java-6-sun /usr/lib/jvm/java-6-openjdk /usr/lib/jvm/java-6-openjdk-amd64 /usr/lib/jvm/java-6-openjdk-i386"
 
 # Look for the right JVM to use
 for jdir in $JDK_DIRS; do

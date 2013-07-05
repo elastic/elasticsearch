@@ -19,15 +19,21 @@
 
 package org.elasticsearch.index.get;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -46,7 +52,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,7 +99,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
         try {
             long now = System.nanoTime();
             GetResult getResult = innerGet(type, id, gFields, realtime);
-            if (getResult.exists()) {
+            if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
                 missingMetric.inc(System.nanoTime() - now);
@@ -127,7 +132,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
             }
 
             GetResult getResult = innerGetLoadFromStoredFields(type, id, fields, engineGetResult, docMapper);
-            if (getResult.exists()) {
+            if (getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
                 missingMetric.inc(System.nanoTime() - now); // This shouldn't happen...
@@ -246,7 +251,14 @@ public class ShardGetService extends AbstractIndexShardComponent {
                                     value = searchLookup.source().extractValue(field);
                                     // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
                                     if (value != null && x != null) {
-                                        value = x.valueForSearch(value);
+                                        if (value instanceof List) {
+                                            List list = (List) value;
+                                            for (int i = 0; i < list.size(); i++) {
+                                                list.set(i, x.valueForSearch(list.get(i)));
+                                            }
+                                        } else {
+                                            value = x.valueForSearch(value);
+                                        }
                                     }
                                 }
                             }
@@ -255,12 +267,11 @@ public class ShardGetService extends AbstractIndexShardComponent {
                             if (fields == null) {
                                 fields = newHashMapWithExpectedSize(2);
                             }
-                            GetField getField = fields.get(field);
-                            if (getField == null) {
-                                getField = new GetField(field, new ArrayList<Object>(2));
-                                fields.put(field, getField);
+                            if (value instanceof List) {
+                                fields.put(field, new GetField(field, (List) value));
+                            } else {
+                                fields.put(field, new GetField(field, ImmutableList.of(value)));
                             }
-                            getField.values().add(value);
                         }
                     }
                 }
@@ -270,7 +281,27 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     sourceRequested = false;
                 }
 
-                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), sourceRequested ? source.source : null, fields);
+                // Cater for source excludes/includes at the cost of performance
+                BytesReference sourceToBeReturned = null;
+                if (sourceRequested) {
+                    sourceToBeReturned = source.source;
+
+                    SourceFieldMapper sourceFieldMapper = docMapper.sourceMapper();
+                    if (sourceFieldMapper.enabled()) {
+                        boolean filtered = sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0;
+                        if (filtered) {
+                            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(source.source, true);
+                            Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), sourceFieldMapper.includes(), sourceFieldMapper.excludes());
+                            try {
+                                sourceToBeReturned = XContentFactory.contentBuilder(mapTuple.v1()).map(filteredSource).bytes();
+                            } catch (IOException e) {
+                                throw new ElasticSearchException("Failed to get type [" + type + "] and id [" + id + "] with includes/excludes set", e);
+                            }
+                        }
+                    }
+                }
+
+                return new GetResult(shardId.index().name(), type, id, get.version(), get.exists(), sourceToBeReturned, fields);
             }
         } finally {
             get.release();
@@ -280,7 +311,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
     private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, Engine.GetResult get, DocumentMapper docMapper) {
         Map<String, GetField> fields = null;
         BytesReference source = null;
-        UidField.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
+        Versions.DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields);
         if (fieldVisitor != null) {
             try {
@@ -290,7 +321,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
             }
             source = fieldVisitor.source();
 
-            if (fieldVisitor.fields() != null) {
+            if (!fieldVisitor.fields().isEmpty()) {
                 fieldVisitor.postProcess(docMapper);
                 fields = new HashMap<String, GetField>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
@@ -331,7 +362,14 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         value = searchLookup.source().extractValue(field);
                         // normalize the data if needed (mainly for binary fields, to convert from base64 strings to bytes)
                         if (value != null && x != null) {
-                            value = x.mapper().valueForSearch(value);
+                            if (value instanceof List) {
+                                List list = (List) value;
+                                for (int i = 0; i < list.size(); i++) {
+                                    list.set(i, x.mapper().valueForSearch(list.get(i)));
+                                }
+                            } else {
+                                value = x.mapper().valueForSearch(value);
+                            }
                         }
                     }
                 }
@@ -340,12 +378,11 @@ public class ShardGetService extends AbstractIndexShardComponent {
                     if (fields == null) {
                         fields = newHashMapWithExpectedSize(2);
                     }
-                    GetField getField = fields.get(field);
-                    if (getField == null) {
-                        getField = new GetField(field, new ArrayList<Object>(2));
-                        fields.put(field, getField);
+                    if (value instanceof List) {
+                        fields.put(field, new GetField(field, (List) value));
+                    } else {
+                        fields.put(field, new GetField(field, ImmutableList.of(value)));
                     }
-                    getField.values().add(value);
                 }
             }
         }

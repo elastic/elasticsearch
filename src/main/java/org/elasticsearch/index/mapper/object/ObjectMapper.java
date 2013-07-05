@@ -30,7 +30,6 @@ import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.lucene.search.TermFilter;
-import org.elasticsearch.common.lucene.uid.UidField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -426,11 +425,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 // we also rely on this for UidField#loadVersion
 
                 // this is a deeply nested field
-                if (uidField.stringValue() != null) {
-                    nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                } else {
-                    nestedDoc.add(new Field(UidFieldMapper.NAME, ((UidField) uidField).uid(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
-                }
+                nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
             }
             // the type of the nested doc starts with __, so we can identify that its a nested one in filters
             // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
@@ -532,7 +527,11 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                         context.path().remove();
                         Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "object");
                         if (builder == null) {
-                            builder = MapperBuilders.object(currentFieldName).enabled(true).dynamic(dynamic).pathType(pathType);
+                            builder = MapperBuilders.object(currentFieldName).enabled(true).pathType(pathType);
+                            // if this is a non root object, then explicitly set the dynamic behavior if set
+                            if (!(this instanceof RootObjectMapper) && this.dynamic != Defaults.DYNAMIC) {
+                                ((Builder) builder).dynamic(this.dynamic);
+                            }
                         }
                         BuilderContext builderContext = new BuilderContext(context.indexSettings(), context.path());
                         objectMapper = builder.build(builderContext);
@@ -636,7 +635,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                     if (!resolved && context.root().dateDetection()) {
                         String text = context.parser().text();
                         // a safe check since "1" gets parsed as well
-                        if (text.contains(":") || text.contains("-") || text.contains("/")) {
+                        if (Strings.countOccurrencesOf(text, ":") > 1 || Strings.countOccurrencesOf(text, "-") > 1 || Strings.countOccurrencesOf(text, "/") > 1) {
                             for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
                                 try {
                                     dateTimeFormatter.parser().parseMillis(text);
@@ -866,18 +865,18 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         // inherit the root behavior
         if (this instanceof RootObjectMapper) {
             if (dynamic != Dynamic.TRUE) {
-                builder.field("dynamic", dynamic.name().toLowerCase());
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
             }
         } else {
             if (dynamic != Defaults.DYNAMIC) {
-                builder.field("dynamic", dynamic.name().toLowerCase());
+                builder.field("dynamic", dynamic.name().toLowerCase(Locale.ROOT));
             }
         }
         if (enabled != Defaults.ENABLED) {
             builder.field("enabled", enabled);
         }
         if (pathType != Defaults.PATH_TYPE) {
-            builder.field("path", pathType.name().toLowerCase());
+            builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
         }
         if (includeInAll != null) {
             builder.field("include_in_all", includeInAll);

@@ -47,6 +47,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -145,7 +146,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return super.similarity(similarity);
         }
 
-        public T fieldDataSettings(String settings) {
+        public T fieldDataSettings(Settings settings) {
             return super.fieldDataSettings(settings);
         }
     }
@@ -255,8 +256,8 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             return builder;
         }
 
-        protected T fieldDataSettings(String settings) {
-            this.fieldDataSettings = ImmutableSettings.builder().loadFromDelimitedString(settings, ';').build();
+        protected T fieldDataSettings(Settings settings) {
+            this.fieldDataSettings = settings;
             return builder;
         }
 
@@ -446,7 +447,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     }
 
     @Override
-    public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
+    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
         BytesRef[] bytesRefs = new BytesRef[values.size()];
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
@@ -615,16 +616,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
             builder.field("store", fieldType.stored());
         }
         if (fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
-            builder.field("store_term_vector", fieldType.storeTermVectors());
-        }
-        if (fieldType.storeTermVectorOffsets() != defaultFieldType.storeTermVectorOffsets()) {
-            builder.field("store_term_vector_offsets", fieldType.storeTermVectorOffsets());
-        }
-        if (fieldType.storeTermVectorPositions() != defaultFieldType.storeTermVectorPositions()) {
-            builder.field("store_term_vector_positions", fieldType.storeTermVectorPositions());
-        }
-        if (fieldType.storeTermVectorPayloads() != defaultFieldType.storeTermVectorPayloads()) {
-            builder.field("store_term_vector_payloads", fieldType.storeTermVectorPayloads());
+            builder.field("term_vector", termVectorOptionsToString(fieldType));
         }
         if (fieldType.omitNorms() != defaultFieldType.omitNorms()) {
             builder.field("omit_norms", fieldType.omitNorms());
@@ -655,7 +647,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
         }
 
         if (customFieldDataSettings != null) {
-            builder.field("fielddata", customFieldDataSettings.toDelimitedString(';'));
+            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         }
     }
 
@@ -671,6 +663,28 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
                 return TypeParsers.INDEX_OPTIONS_DOCS;
             default:
                 throw new ElasticSearchIllegalArgumentException("Unknown IndexOptions [" + indexOption + "]");
+        }
+    }
+
+    public static String termVectorOptionsToString(FieldType fieldType) {
+        if (!fieldType.storeTermVectors()) {
+            return "no";
+        } else if (!fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
+            return "yes";
+        } else if (fieldType.storeTermVectorOffsets() && !fieldType.storeTermVectorPositions()) {
+            return "with_offsets";
+        } else {
+            StringBuilder builder = new StringBuilder("with");
+            if (fieldType.storeTermVectorPositions()) {
+                builder.append("_positions");
+            }
+            if (fieldType.storeTermVectorOffsets()) {
+                builder.append("_offsets");
+            }
+            if (fieldType.storeTermVectorPayloads()) {
+                builder.append("_payloads");
+            }
+            return builder.toString();
         }
     }
 
@@ -690,6 +704,11 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T>, Mapper {
     @Override
     public void close() {
         // nothing to do here, sub classes to override if needed
+    }
+
+    @Override
+    public boolean isNumeric() {
+        return false;
     }
 
 }

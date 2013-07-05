@@ -36,11 +36,6 @@ import static org.hamcrest.Matchers.not;
 public class CompressedStringTests {
 
     @Test
-    public void simpleTestsSnappy() throws IOException {
-        simpleTests("snappy");
-    }
-
-    @Test
     public void simpleTestsLZF() throws IOException {
         simpleTests("lzf");
     }

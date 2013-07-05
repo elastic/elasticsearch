@@ -34,6 +34,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.trove.ExtTIntArrayList;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.action.SearchServiceListener;
@@ -227,7 +228,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             if (xTotalOps == expectedTotalOps) {
                 try {
                     moveToSecondPhase();
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     if (logger.isDebugEnabled()) {
                         logger.debug(shardIt.shardId() + ": Failed to execute [" + request + "] while moving to second phase", e);
                     }
@@ -251,7 +252,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 // no more shards, add a failure
                 if (t == null) {
                     // no active shards
-                    addShardFailure(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id())));
+                    addShardFailure(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id()), RestStatus.SERVICE_UNAVAILABLE));
                 } else {
                     addShardFailure(new ShardSearchFailure(t));
                 }
@@ -261,7 +262,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 } else {
                     try {
                         moveToSecondPhase();
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         listener.onFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
                     }
                 }
@@ -293,7 +294,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     }
                     if (t == null) {
                         // no active shards
-                        addShardFailure(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id())));
+                        addShardFailure(new ShardSearchFailure("No active shards", new SearchShardTarget(null, shardIt.shardId().index().name(), shardIt.shardId().id()), RestStatus.SERVICE_UNAVAILABLE));
                     } else {
                         addShardFailure(new ShardSearchFailure(t));
                     }

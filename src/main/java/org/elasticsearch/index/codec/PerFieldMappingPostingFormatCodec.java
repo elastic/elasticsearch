@@ -19,11 +19,15 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene40.Lucene40Codec;
-import org.apache.lucene.codecs.lucene41.Lucene41Codec;
+import org.apache.lucene.codecs.diskdv.DiskDocValuesFormat;
+import org.apache.lucene.codecs.lucene42.Lucene42Codec;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
+import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -34,19 +38,37 @@ import org.elasticsearch.index.mapper.MapperService;
  * configured for a specific field the default postings format is used.
  */
 // LUCENE UPGRADE: make sure to move to a new codec depending on the lucene version
-public class PerFieldMappingPostingFormatCodec extends Lucene41Codec {
-
+public class PerFieldMappingPostingFormatCodec extends Lucene42Codec {
+    private final ESLogger logger;
     private final MapperService mapperService;
     private final PostingsFormat defaultPostingFormat;
+    private final DocValuesFormat diskDocValuesFormat;
 
-    public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat) {
+    public PerFieldMappingPostingFormatCodec(MapperService mapperService, PostingsFormat defaultPostingFormat, ESLogger logger) {
         this.mapperService = mapperService;
+        this.logger = logger;
         this.defaultPostingFormat = defaultPostingFormat;
+        this.diskDocValuesFormat = new DiskDocValuesFormat();
     }
 
     @Override
     public PostingsFormat getPostingsFormatForField(String field) {
-        PostingsFormatProvider postingsFormat = mapperService.indexName(field).mapper().postingsFormatProvider();
+        final FieldMappers indexName = mapperService.indexName(field);
+        if (indexName == null) {
+            logger.warn("no index mapper found for field: [{}] returning default postings format", field);
+            return defaultPostingFormat;
+        }
+        PostingsFormatProvider postingsFormat = indexName.mapper().postingsFormatProvider();
         return postingsFormat != null ? postingsFormat.get() : defaultPostingFormat;
+    }
+
+    @Override
+    public DocValuesFormat getDocValuesFormatForField(String field) {
+        if (UidFieldMapper.VERSION.equals(field)) {
+            // Use DiskDVF for version by default
+            // TODO: Make it configurable
+            return diskDocValuesFormat;
+        }
+        return super.getDocValuesFormatForField(field);
     }
 }

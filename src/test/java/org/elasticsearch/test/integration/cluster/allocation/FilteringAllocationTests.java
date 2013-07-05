@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -57,15 +59,15 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .setSettings(settingsBuilder().put("index.number_of_replicas", 0))
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
             client("node1").prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
 
         logger.info("--> decommission the second node");
         client("node1").admin().cluster().prepareUpdateSettings()
@@ -78,10 +80,10 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .setWaitForGreenStatus()
                 .setWaitForRelocatingShards(0)
                 .execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify all are allocated on node1 now");
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
@@ -91,7 +93,7 @@ public class FilteringAllocationTests extends AbstractNodesTests {
         }
 
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
     }
 
     @Test
@@ -105,16 +107,32 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .setSettings(settingsBuilder().put("index.number_of_replicas", 0))
                 .execute().actionGet();
 
-        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
             client("node1").prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().count(), equalTo(100l));
+        assertThat(client("node1").prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
+        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
+        int numShardsOnNode1 = 0;
+        for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+            for (ShardRouting shardRouting : indexShardRoutingTable) {
+                if ("node1".equals(clusterState.nodes().get(shardRouting.currentNodeId()).name())) {
+                    numShardsOnNode1++;
+                }
+            }
+        }
 
+        if (numShardsOnNode1 > ThrottlingAllocationDecider.DEFAULT_CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES) {
+            client("node1").admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1)).execute().actionGet();
+            // make sure we can recover all the nodes at once otherwise we might run into a state where one of the shards has not yet started relocating
+            // but we already fired up the request to wait for 0 relocating shards. 
+        }
         logger.info("--> remove index from the first node");
         client("node1").admin().indices().prepareUpdateSettings("test")
                 .setSettings(settingsBuilder().put("index.routing.allocation.exclude._name", "node1"))
@@ -126,11 +144,11 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .setWaitForGreenStatus()
                 .setWaitForRelocatingShards(0)
                 .execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify all shards are allocated on node2 now");
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
-        IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+        indexRoutingTable = clusterState.routingTable().index("test");
         for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 assertThat(clusterState.nodes().get(shardRouting.currentNodeId()).name(), equalTo("node2"));
@@ -148,10 +166,10 @@ public class FilteringAllocationTests extends AbstractNodesTests {
                 .setWaitForGreenStatus()
                 .setWaitForRelocatingShards(0)
                 .execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify that there are shards allocated on both nodes now");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.routingTable().index("test").numberOfNodesShardsAreAllocatedOn(), equalTo(2));
     }
 }

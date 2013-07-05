@@ -46,20 +46,16 @@ public abstract class NodesOperationResponse<NodeResponse extends NodeOperationR
         this.nodes = nodes;
     }
 
-    public ClusterName clusterName() {
+    public ClusterName getClusterName() {
         return this.clusterName;
     }
 
-    public String getClusterName() {
-        return clusterName().value();
-    }
-
-    public NodeResponse[] nodes() {
-        return nodes;
+    public String getClusterNameAsString() {
+        return this.clusterName.value();
     }
 
     public NodeResponse[] getNodes() {
-        return nodes();
+        return nodes;
     }
 
     public NodeResponse getAt(int position) {
@@ -68,21 +64,17 @@ public abstract class NodesOperationResponse<NodeResponse extends NodeOperationR
 
     @Override
     public Iterator<NodeResponse> iterator() {
-        return nodesMap().values().iterator();
-    }
-
-    public Map<String, NodeResponse> nodesMap() {
-        if (nodesMap == null) {
-            nodesMap = Maps.newHashMap();
-            for (NodeResponse nodeResponse : nodes) {
-                nodesMap.put(nodeResponse.node().id(), nodeResponse);
-            }
-        }
-        return nodesMap;
+        return getNodesMap().values().iterator();
     }
 
     public Map<String, NodeResponse> getNodesMap() {
-        return nodesMap();
+        if (nodesMap == null) {
+            nodesMap = Maps.newHashMap();
+            for (NodeResponse nodeResponse : nodes) {
+                nodesMap.put(nodeResponse.getNode().id(), nodeResponse);
+            }
+        }
+        return nodesMap;
     }
 
     @Override

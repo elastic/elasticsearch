@@ -22,6 +22,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -55,57 +56,29 @@ public class BulkItemResponse implements Streamable {
         /**
          * The index name of the action.
          */
-        public String index() {
-            return this.index;
-        }
-
-        /**
-         * The index name of the action.
-         */
         public String getIndex() {
-            return index();
-        }
-
-        /**
-         * The type of the action.
-         */
-        public String type() {
-            return type;
+            return this.index;
         }
 
         /**
          * The type of the action.
          */
         public String getType() {
-            return type();
-        }
-
-        /**
-         * The id of the action.
-         */
-        public String id() {
-            return id;
+            return type;
         }
 
         /**
          * The id of the action.
          */
         public String getId() {
-            return this.id;
-        }
-
-        /**
-         * The failure message.
-         */
-        public String message() {
-            return this.message;
+            return id;
         }
 
         /**
          * The failure message.
          */
         public String getMessage() {
-            return message();
+            return this.message;
         }
     }
 
@@ -136,50 +109,30 @@ public class BulkItemResponse implements Streamable {
     /**
      * The numeric order of the item matching the same request order in the bulk request.
      */
-    public int itemId() {
+    public int getItemId() {
         return id;
     }
 
     /**
      * The operation type ("index", "create" or "delete").
      */
-    public String opType() {
+    public String getOpType() {
         return this.opType;
     }
 
     /**
      * The index name of the action.
      */
-    public String index() {
-        if (failure != null) {
-            return failure.index();
-        }
-        if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).index();
-        } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).index();
-        }
-        return null;
-    }
-
-    /**
-     * The index name of the action.
-     */
     public String getIndex() {
-        return index();
-    }
-
-    /**
-     * The type of the action.
-     */
-    public String type() {
         if (failure != null) {
-            return failure.type();
+            return failure.getIndex();
         }
         if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).type();
+            return ((IndexResponse) response).getIndex();
         } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).type();
+            return ((DeleteResponse) response).getIndex();
+        } else if (response instanceof UpdateResponse) {
+            return ((UpdateResponse) response).getIndex();
         }
         return null;
     }
@@ -188,20 +141,16 @@ public class BulkItemResponse implements Streamable {
      * The type of the action.
      */
     public String getType() {
-        return this.type();
-    }
-
-    /**
-     * The id of the action.
-     */
-    public String id() {
         if (failure != null) {
-            return failure.id();
+            return failure.getType();
         }
         if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).id();
+            return ((IndexResponse) response).getType();
         } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).id();
+            return ((DeleteResponse) response).getType();
+        }
+        else if (response instanceof UpdateResponse) {
+            return ((UpdateResponse) response).getType();
         }
         return null;
     }
@@ -210,20 +159,32 @@ public class BulkItemResponse implements Streamable {
      * The id of the action.
      */
     public String getId() {
-        return id();
+        if (failure != null) {
+            return failure.getId();
+        }
+        if (response instanceof IndexResponse) {
+            return ((IndexResponse) response).getId();
+        } else if (response instanceof DeleteResponse) {
+            return ((DeleteResponse) response).getId();
+        } else if (response instanceof UpdateResponse) {
+            return ((UpdateResponse) response).getId();
+        }
+        return null;
     }
 
     /**
      * The version of the action.
      */
-    public long version() {
+    public long getVersion() {
         if (failure != null) {
             return -1;
         }
         if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).version();
+            return ((IndexResponse) response).getVersion();
         } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).version();
+            return ((DeleteResponse) response).getVersion();
+        } else if (response instanceof UpdateResponse) {
+            return ((UpdateResponse) response).getVersion();
         }
         return -1;
     }
@@ -232,53 +193,32 @@ public class BulkItemResponse implements Streamable {
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). <tt>null</tt> in
      * case of failure.
      */
-    public <T extends ActionResponse> T response() {
+    public <T extends ActionResponse> T getResponse() {
         return (T) response;
     }
 
     /**
      * Is this a failed execution of an operation.
      */
-    public boolean failed() {
-        return failure != null;
-    }
-
-    /**
-     * Is this a failed execution of an operation.
-     */
     public boolean isFailed() {
-        return failed();
-    }
-
-    /**
-     * The failure message, <tt>null</tt> if it did not fail.
-     */
-    public String failureMessage() {
-        if (failure != null) {
-            return failure.message();
-        }
-        return null;
+        return failure != null;
     }
 
     /**
      * The failure message, <tt>null</tt> if it did not fail.
      */
     public String getFailureMessage() {
-        return failureMessage();
-    }
-
-    /**
-     * The actual failure object if there was a failure.
-     */
-    public Failure failure() {
-        return this.failure;
+        if (failure != null) {
+            return failure.getMessage();
+        }
+        return null;
     }
 
     /**
      * The actual failure object if there was a failure.
      */
     public Failure getFailure() {
-        return failure();
+        return this.failure;
     }
 
     public static BulkItemResponse readBulkItem(StreamInput in) throws IOException {
@@ -299,6 +239,9 @@ public class BulkItemResponse implements Streamable {
         } else if (type == 1) {
             response = new DeleteResponse();
             response.readFrom(in);
+        } else if (type == 3) { // make 3 instead of 2, because 2 is already in use for 'no responses'
+            response = new UpdateResponse();
+            response.readFrom(in);
         }
 
         if (in.readBoolean()) {
@@ -317,6 +260,8 @@ public class BulkItemResponse implements Streamable {
                 out.writeByte((byte) 0);
             } else if (response instanceof DeleteResponse) {
                 out.writeByte((byte) 1);
+            } else if (response instanceof UpdateResponse) {
+                out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
             }
             response.writeTo(out);
         }
@@ -324,10 +269,10 @@ public class BulkItemResponse implements Streamable {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeString(failure.index());
-            out.writeString(failure.type());
-            out.writeString(failure.id());
-            out.writeString(failure.message());
+            out.writeString(failure.getIndex());
+            out.writeString(failure.getType());
+            out.writeString(failure.getId());
+            out.writeString(failure.getMessage());
         }
     }
 }

@@ -69,56 +69,32 @@ public class SearchStats implements Streamable, ToXContent {
             fetchCurrent += stats.fetchCurrent;
         }
 
-        public long queryCount() {
-            return queryCount;
-        }
-
         public long getQueryCount() {
             return queryCount;
         }
 
-        public TimeValue queryTime() {
+        public TimeValue getQueryTime() {
             return new TimeValue(queryTimeInMillis);
-        }
-
-        public long queryTimeInMillis() {
-            return queryTimeInMillis;
         }
 
         public long getQueryTimeInMillis() {
             return queryTimeInMillis;
         }
 
-        public long queryCurrent() {
-            return queryCurrent;
-        }
-
         public long getQueryCurrent() {
             return queryCurrent;
-        }
-
-        public long fetchCount() {
-            return fetchCount;
         }
 
         public long getFetchCount() {
             return fetchCount;
         }
 
-        public TimeValue fetchTime() {
+        public TimeValue getFetchTime() {
             return new TimeValue(fetchTimeInMillis);
-        }
-
-        public long fetchTimeInMillis() {
-            return fetchTimeInMillis;
         }
 
         public long getFetchTimeInMillis() {
             return fetchTimeInMillis;
-        }
-
-        public long fetchCurrent() {
-            return fetchCurrent;
         }
 
         public long getFetchCurrent() {
@@ -157,12 +133,12 @@ public class SearchStats implements Streamable, ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.QUERY_TOTAL, queryCount);
-            builder.field(Fields.QUERY_TIME, queryTime().toString());
+            builder.field(Fields.QUERY_TIME, getQueryTime().toString());
             builder.field(Fields.QUERY_TIME_IN_MILLIS, queryTimeInMillis);
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
-            builder.field(Fields.FETCH_TIME, fetchTime().toString());
+            builder.field(Fields.FETCH_TIME, getFetchTime().toString());
             builder.field(Fields.FETCH_TIME_IN_MILLIS, fetchTimeInMillis);
             builder.field(Fields.FETCH_CURRENT, fetchCurrent);
 
@@ -170,7 +146,8 @@ public class SearchStats implements Streamable, ToXContent {
         }
     }
 
-    private Stats totalStats;
+    Stats totalStats;
+    long openContexts;
 
     @Nullable
     Map<String, Stats> groupStats;
@@ -179,8 +156,9 @@ public class SearchStats implements Streamable, ToXContent {
         totalStats = new Stats();
     }
 
-    public SearchStats(Stats totalStats, @Nullable Map<String, Stats> groupStats) {
+    public SearchStats(Stats totalStats, long openContexts, @Nullable Map<String, Stats> groupStats) {
         this.totalStats = totalStats;
+        this.openContexts = openContexts;
         this.groupStats = groupStats;
     }
 
@@ -193,6 +171,7 @@ public class SearchStats implements Streamable, ToXContent {
             return;
         }
         totalStats.add(searchStats.totalStats);
+        openContexts += searchStats.openContexts;
         if (includeTypes && searchStats.groupStats != null && !searchStats.groupStats.isEmpty()) {
             if (groupStats == null) {
                 groupStats = new HashMap<String, Stats>(searchStats.groupStats.size());
@@ -208,18 +187,23 @@ public class SearchStats implements Streamable, ToXContent {
         }
     }
 
-    public Stats total() {
+    public Stats getTotal() {
         return this.totalStats;
     }
 
+    public long getOpenContexts() {
+        return this.openContexts;
+    }
+
     @Nullable
-    public Map<String, Stats> groupStats() {
+    public Map<String, Stats> getGroupStats() {
         return this.groupStats;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(Fields.SEARCH);
+        builder.field(Fields.OPEN_CONTEXTS, openContexts);
         totalStats.toXContent(builder, params);
         if (groupStats != null && !groupStats.isEmpty()) {
             builder.startObject(Fields.GROUPS);
@@ -236,6 +220,7 @@ public class SearchStats implements Streamable, ToXContent {
 
     static final class Fields {
         static final XContentBuilderString SEARCH = new XContentBuilderString("search");
+        static final XContentBuilderString OPEN_CONTEXTS = new XContentBuilderString("open_contexts");
         static final XContentBuilderString GROUPS = new XContentBuilderString("groups");
         static final XContentBuilderString QUERY_TOTAL = new XContentBuilderString("query_total");
         static final XContentBuilderString QUERY_TIME = new XContentBuilderString("query_time");
@@ -256,6 +241,7 @@ public class SearchStats implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         totalStats = Stats.readStats(in);
+        openContexts = in.readVLong();
         if (in.readBoolean()) {
             int size = in.readVInt();
             groupStats = new HashMap<String, Stats>(size);
@@ -268,6 +254,7 @@ public class SearchStats implements Streamable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
+        out.writeVLong(openContexts);
         if (groupStats == null || groupStats.isEmpty()) {
             out.writeBoolean(false);
         } else {

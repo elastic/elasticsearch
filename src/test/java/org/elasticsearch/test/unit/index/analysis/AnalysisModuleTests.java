@@ -20,9 +20,17 @@
 package org.elasticsearch.test.unit.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
+import org.apache.lucene.analysis.core.WhitespaceTokenizer;
+import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
+import org.apache.lucene.analysis.miscellaneous.KeywordRepeatFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -39,9 +47,14 @@ import org.elasticsearch.test.unit.index.analysis.filter1.MyFilterTokenFilterFac
 import org.hamcrest.MatcherAssert;
 import org.testng.annotations.Test;
 
+import com.google.common.base.Charsets;
+
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.OutputStreamWriter;
+import java.io.StringReader;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -64,6 +77,21 @@ public class AnalysisModuleTests {
     public void testSimpleConfigurationYaml() {
         Settings settings = settingsBuilder().loadFromClasspath("org/elasticsearch/test/unit/index/analysis/test1.yml").build();
         testSimpleConfiguration(settings);
+    }
+    
+    @Test
+    public void testDefaultFactoryTokenFilters() {
+        assertTokenFilter("keyword_repeat", KeywordRepeatFilter.class);
+        assertTokenFilter("persian_normalization", PersianNormalizationFilter.class);
+        assertTokenFilter("arabic_normalization", ArabicNormalizationFilter.class);
+    }
+
+    private void assertTokenFilter(String name, Class clazz) {
+        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(ImmutableSettings.settingsBuilder().build());
+        TokenFilterFactory tokenFilter = analysisService.tokenFilter(name);
+        Tokenizer tokenizer = new WhitespaceTokenizer(Version.CURRENT.luceneVersion, new StringReader("foo bar"));
+        TokenStream stream = tokenFilter.create(tokenizer);
+        assertThat(stream, instanceOf(clazz));
     }
 
     private void testSimpleConfiguration(Settings settings) {
@@ -107,6 +135,14 @@ public class AnalysisModuleTests {
         // verify aliases
         analyzer = analysisService.analyzer("alias1").analyzer();
         assertThat(analyzer, instanceOf(StandardAnalyzer.class));
+
+        // check custom pattern replace filter
+        analyzer = analysisService.analyzer("custom3").analyzer();
+        assertThat(analyzer, instanceOf(CustomAnalyzer.class));
+        CustomAnalyzer custom3 = (CustomAnalyzer) analyzer;
+        PatternReplaceCharFilterFactory patternReplaceCharFilterFactory = (PatternReplaceCharFilterFactory) custom3.charFilters()[0];
+        assertThat(patternReplaceCharFilterFactory.getPattern().pattern(), equalTo("sample(.*)"));
+        assertThat(patternReplaceCharFilterFactory.getReplacement(), equalTo("replacedSample $1"));
 
         // check custom class name (my)
         analyzer = analysisService.analyzer("custom4").analyzer();
@@ -154,7 +190,7 @@ public class AnalysisModuleTests {
 
         BufferedWriter writer = null;
         try {
-            writer = new BufferedWriter(new FileWriter(wordListFile));
+            writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(wordListFile), Charsets.UTF_8));
             for (String word : words) {
                 writer.write(word);
                 writer.write('\n');

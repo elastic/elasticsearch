@@ -104,7 +104,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     private final CleanContextOnIndicesLifecycleListener indicesLifecycleListener = new CleanContextOnIndicesLifecycleListener();
 
-    private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLong();
+    private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     private final ImmutableMap<String, SearchParseElement> elementParsers;
 
@@ -174,8 +174,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     public DfsSearchResult executeDfsPhase(ShardSearchRequest request) throws ElasticSearchException {
-        SearchContext context = createContext(request);
-        activeContexts.put(context.id(), context);
+        SearchContext context = createAndPutContext(request);
         try {
             contextProcessing(context);
             dfsPhase.execute(context);
@@ -191,10 +190,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     public QuerySearchResult executeScan(ShardSearchRequest request) throws ElasticSearchException {
-        SearchContext context = createContext(request);
+        SearchContext context = createAndPutContext(request);
         assert context.searchType() == SearchType.SCAN;
         context.searchType(SearchType.COUNT); // move to COUNT, and then, when scrolling, move to SCAN
-        activeContexts.put(context.id(), context);
         assert context.searchType() == SearchType.COUNT;
         try {
             if (context.scroll() == null) {
@@ -242,8 +240,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     public QuerySearchResult executeQueryPhase(ShardSearchRequest request) throws ElasticSearchException {
-        SearchContext context = createContext(request);
-        activeContexts.put(context.id(), context);
+        SearchContext context = createAndPutContext(request);
         try {
             context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
@@ -315,8 +312,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     }
 
     public QueryFetchSearchResult executeFetchPhase(ShardSearchRequest request) throws ElasticSearchException {
-        SearchContext context = createContext(request);
-        activeContexts.put(context.id(), context);
+        SearchContext context = createAndPutContext(request);
         contextProcessing(context);
         try {
             context.indexShard().searchService().onPreQueryPhase(context);
@@ -471,6 +467,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         return context;
     }
 
+    SearchContext createAndPutContext(ShardSearchRequest request) throws ElasticSearchException {
+        SearchContext context = createContext(request);
+        activeContexts.put(context.id(), context);
+        context.indexShard().searchService().onNewContext(context);
+        return context;
+    }
+
     SearchContext createContext(ShardSearchRequest request) throws ElasticSearchException {
         return createContext(request, null);
     }
@@ -522,11 +525,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         if (context == null) {
             return;
         }
-        freeContext(context);
+        context.indexShard().searchService().onFreeContext(context);
+        context.release();
     }
 
     private void freeContext(SearchContext context) {
-        activeContexts.remove(context.id());
+        SearchContext removed = activeContexts.remove(context.id());
+        if (removed != null) {
+            removed.indexShard().searchService().onFreeContext(removed);
+        }
         context.release();
     }
 
@@ -631,12 +638,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         }
     }
 
-    class SearchWarmer implements IndicesWarmer.Listener {
-
-        @Override
-        public String executor() {
-            return ThreadPool.Names.SEARCH;
-        }
+    class SearchWarmer extends IndicesWarmer.Listener {
 
         @Override
         public void warm(IndexShard indexShard, IndexMetaData indexMetaData, IndicesWarmer.WarmerContext warmerContext) {
@@ -648,7 +650,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 SearchContext context = null;
                 try {
                     long now = System.nanoTime();
-                    ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(), SearchType.COUNT)
+                    ShardSearchRequest request = new ShardSearchRequest(indexShard.shardId().index().name(), indexShard.shardId().id(), indexMetaData.numberOfShards(),
+                            SearchType.QUERY_THEN_FETCH /* we don't use COUNT so sorting will also kick in whatever warming logic*/)
                             .source(entry.source())
                             .types(entry.types());
                     context = createContext(request, warmerContext.newSearcher());
@@ -672,12 +675,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
     class CleanContextOnIndicesLifecycleListener extends IndicesLifecycle.Listener {
 
         @Override
-        public void beforeIndexClosed(IndexService indexService, boolean delete) {
+        public void beforeIndexClosed(IndexService indexService) {
             releaseContextsForIndex(indexService.index());
         }
 
         @Override
-        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
             releaseContextsForShard(shardId);
         }
     }

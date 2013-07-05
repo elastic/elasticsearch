@@ -19,9 +19,9 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.util.IntsRef;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
 /**
  */
@@ -91,7 +91,7 @@ public class SinglePackedOrdinals implements Ordinals {
         private final SinglePackedOrdinals parent;
         private final PackedInts.Reader reader;
 
-        private final IntArrayRef intsScratch = new IntArrayRef(new int[1]);
+        private final IntsRef intsScratch = new IntsRef(1);
         private final SingleValueIter iter = new SingleValueIter();
 
         public Docs(SinglePackedOrdinals parent, PackedInts.Reader reader) {
@@ -130,10 +130,15 @@ public class SinglePackedOrdinals implements Ordinals {
         }
 
         @Override
-        public IntArrayRef getOrds(int docId) {
-            int ordinal = (int) reader.get(docId);
-            if (ordinal == 0) return IntArrayRef.EMPTY;
-            intsScratch.values[0] = ordinal;
+        public IntsRef getOrds(int docId) {
+            final int ordinal = (int) reader.get(docId);
+            if (ordinal == 0)  {
+                intsScratch.length = 0;
+            } else {
+                intsScratch.offset = 0;
+                intsScratch.length = 1;
+                intsScratch.ints[0] = ordinal;
+            }
             return intsScratch;
         }
 
@@ -142,9 +147,5 @@ public class SinglePackedOrdinals implements Ordinals {
             return iter.reset((int) reader.get(docId));
         }
 
-        @Override
-        public void forEachOrdinalInDoc(int docId, OrdinalInDocProc proc) {
-            proc.onOrdinal(docId, (int) reader.get(docId));
-        }
     }
 }

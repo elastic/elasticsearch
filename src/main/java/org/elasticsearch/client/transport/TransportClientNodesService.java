@@ -247,7 +247,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 } else {
                     try {
                         callback.doWithNode(nodes.get((index + i) % nodes.size()), this);
-                    } catch (Exception e1) {
+                    } catch (Throwable e1) {
                         // retry the next one...
                         onFailure(e);
                     }
@@ -315,7 +315,7 @@ public class TransportClientNodesService extends AbstractComponent {
                                     return new NodesInfoResponse();
                                 }
                             }).txGet();
-                    if (!ignoreClusterName && !clusterName.equals(nodeInfo.clusterName())) {
+                    if (!ignoreClusterName && !clusterName.equals(nodeInfo.getClusterName())) {
                         logger.warn("node {} not part of the cluster {}, ignoring...", node, clusterName);
                     } else {
                         newNodes.add(node);
@@ -418,10 +418,10 @@ public class TransportClientNodesService extends AbstractComponent {
 
             HashSet<DiscoveryNode> newNodes = new HashSet<DiscoveryNode>();
             for (ClusterStateResponse clusterStateResponse : clusterStateResponses) {
-                if (!ignoreClusterName && !clusterName.equals(clusterStateResponse.clusterName())) {
-                    logger.warn("node {} not part of the cluster {}, ignoring...", clusterStateResponse.state().nodes().localNode(), clusterName);
+                if (!ignoreClusterName && !clusterName.equals(clusterStateResponse.getClusterName())) {
+                    logger.warn("node {} not part of the cluster {}, ignoring...", clusterStateResponse.getState().nodes().localNode(), clusterName);
                 }
-                for (DiscoveryNode node : clusterStateResponse.state().nodes().dataNodes().values()) {
+                for (DiscoveryNode node : clusterStateResponse.getState().nodes().dataNodes().values()) {
                     newNodes.add(node);
                 }
             }

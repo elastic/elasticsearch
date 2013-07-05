@@ -57,13 +57,13 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
                     builder.startObject();
 
                     builder.startObject("persistent");
-                    for (Map.Entry<String, String> entry : response.state().metaData().persistentSettings().getAsMap().entrySet()) {
+                    for (Map.Entry<String, String> entry : response.getState().metaData().persistentSettings().getAsMap().entrySet()) {
                         builder.field(entry.getKey(), entry.getValue());
                     }
                     builder.endObject();
 
                     builder.startObject("transient");
-                    for (Map.Entry<String, String> entry : response.state().metaData().transientSettings().getAsMap().entrySet()) {
+                    for (Map.Entry<String, String> entry : response.getState().metaData().transientSettings().getAsMap().entrySet()) {
                         builder.field(entry.getKey(), entry.getValue());
                     }
                     builder.endObject();
@@ -71,7 +71,7 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
                     builder.endObject();
 
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

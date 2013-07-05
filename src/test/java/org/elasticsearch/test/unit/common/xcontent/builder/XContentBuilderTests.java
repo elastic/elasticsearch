@@ -28,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.testng.annotations.Test;
 
+import java.util.*;
+
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.CAMELCASE;
 import static org.elasticsearch.common.xcontent.XContentBuilder.FieldCaseConversion.UNDERSCORE;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -105,5 +107,32 @@ public class XContentBuilderTests {
         builder = XContentFactory.contentBuilder(XContentType.JSON).fieldCaseConversion(UNDERSCORE);
         builder.startObject().field("testName", "value").endObject();
         assertThat(builder.string(), equalTo("{\"test_name\":\"value\"}"));
+    }
+
+    @Test
+    public void testDateTypesConversion() throws Exception {
+        Date date = new Date();
+        String expectedDate = XContentBuilder.defaultDatePrinter.print(date.getTime());
+        Calendar calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+        String expectedCalendar = XContentBuilder.defaultDatePrinter.print(calendar.getTimeInMillis());
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject().field("date", date).endObject();
+        assertThat(builder.string(), equalTo("{\"date\":\"" + expectedDate + "\"}"));
+
+        builder = XContentFactory.contentBuilder(XContentType.JSON);
+        builder.startObject().field("calendar", calendar).endObject();
+        assertThat(builder.string(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
+
+        builder = XContentFactory.contentBuilder(XContentType.JSON);
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put("date", date);
+        builder.map(map);
+        assertThat(builder.string(), equalTo("{\"date\":\"" + expectedDate + "\"}"));
+
+        builder = XContentFactory.contentBuilder(XContentType.JSON);
+        map = new HashMap<String, Object>();
+        map.put("calendar", calendar);
+        builder.map(map);
+        assertThat(builder.string(), equalTo("{\"calendar\":\"" + expectedCalendar + "\"}"));
     }
 }

@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.search.suggest;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,6 +27,9 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
+import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.util.*;
@@ -34,41 +37,87 @@ import java.util.*;
 /**
  * Top level suggest result, containing the result for each suggestion.
  */
-public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXContent {
+public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    static class Fields {
-
-        static final XContentBuilderString SUGGEST = new XContentBuilderString("suggest");
-
+    public static class Fields {
+        public static final XContentBuilderString SUGGEST = new XContentBuilderString("suggest");
     }
 
-    private List<Suggestion> suggestions;
+    private static final Comparator<Option> COMPARATOR = new Comparator<Suggest.Suggestion.Entry.Option>() {
+        @Override
+        public int compare(Option first, Option second) {
+            int cmp = Float.compare(second.getScore(), first.getScore());
+            if (cmp != 0) {
+                return cmp;
+            }
+            return first.getText().compareTo(second.getText());
+         }
+    };
 
-    Suggest() {
+    private final XContentBuilderString name;
+
+    private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
+
+    private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
+
+    public Suggest() {
+        this.name = null;
     }
 
-    public Suggest(List<Suggestion> suggestions) {
+    public Suggest(XContentBuilderString name) {
+        this.name = name;
+    }
+
+    public Suggest(List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
+        this(null, suggestions);
+    }
+
+    public Suggest(XContentBuilderString name, List<Suggestion<? extends Entry<? extends Option>>> suggestions) {
+        this.name = name;
         this.suggestions = suggestions;
     }
-
-    /**
-     * @return the suggestions
-     */
-    public List<Suggestion> getSuggestions() {
-        return suggestions;
-    }
-
+    
     @Override
-    public Iterator<Suggestion> iterator() {
+    public Iterator<Suggestion<? extends Entry<? extends Option>>> iterator() {
         return suggestions.iterator();
+    }
+    
+    /**
+     * The number of suggestions in this {@link Suggest} result
+     */
+    public int size() {
+        return suggestions.size();
+    }
+    
+    public <T extends Suggestion<? extends Entry<? extends Option>>> T getSuggestion(String name) {
+        if (suggestions.isEmpty() || name == null) {
+            return null;
+        } else if (suggestions.size() == 1) {
+          return (T) (name.equals(suggestions.get(0).name) ? suggestions.get(0) : null);
+        } else if (this.suggestMap == null) {
+            suggestMap = new HashMap<String, Suggestion<? extends Entry<? extends Option>>>();
+            for (Suggest.Suggestion<? extends Entry<? extends Option>> item : suggestions) {
+                suggestMap.put(item.getName(), item);
+            }
+        }
+        return (T) suggestMap.get(name);
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        suggestions = new ArrayList<Suggestion>(size);
+        final int size = in.readVInt();
+        suggestions = new ArrayList<Suggestion<? extends Entry<? extends Option>>>(size);
         for (int i = 0; i < size; i++) {
-            Suggestion suggestion = new Suggestion();
+            Suggestion<? extends Entry<? extends Option>> suggestion;
+            final int type = in.readVInt();
+            switch (type) {
+            case TermSuggestion.TYPE:
+                suggestion = new TermSuggestion();
+                break;
+            default:
+                suggestion = new Suggestion<Entry<Option>>();
+                break;
+            }
             suggestion.readFrom(in);
             suggestions.add(suggestion);
         }
@@ -77,59 +126,94 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(suggestions.size());
-        for (Suggestion command : suggestions) {
+        for (Suggestion<?> command : suggestions) {
+            out.writeVInt(command.getType());
             command.writeTo(out);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.SUGGEST);
-        for (Suggestion suggestion : suggestions) {
-            suggestion.toXContent(builder, params);
+        if(name == null) {
+            for (Suggestion<?> suggestion : suggestions) {
+                suggestion.toXContent(builder, params);
+            }
+        } else {
+            builder.startObject(name);
+            for (Suggestion<?> suggestion : suggestions) {
+                suggestion.toXContent(builder, params);
+            }
+            builder.endObject();
         }
-        builder.endObject();
-        return null;
+        
+        return builder;
     }
 
-    public static Suggest readSuggest(StreamInput in) throws IOException {
-        Suggest result = new Suggest();
+    public static Suggest readSuggest(XContentBuilderString name, StreamInput in) throws IOException {
+        Suggest result = new Suggest(name);
         result.readFrom(in);
         return result;
+    }
+    
+    public static Map<String, List<Suggest.Suggestion>> group(Map<String, List<Suggest.Suggestion>> groupedSuggestions, Suggest suggest) {
+        for (Suggestion<? extends Entry<? extends Option>> suggestion : suggest) {
+            List<Suggestion> list = groupedSuggestions.get(suggestion.getName());
+            if (list == null) {
+                list = new ArrayList<Suggest.Suggestion>();
+                groupedSuggestions.put(suggestion.getName(), list);
+            }
+            list.add(suggestion);
+        }
+        return groupedSuggestions;
+    }
+
+    public static List<Suggestion<? extends Entry<? extends Option>>> reduce(Map<String, List<Suggest.Suggestion>> groupedSuggestions) {
+        List<Suggestion<? extends Entry<? extends Option>>> reduced = new ArrayList<Suggestion<? extends Entry<? extends Option>>>(groupedSuggestions.size());
+        for (java.util.Map.Entry<String, List<Suggestion>> unmergedResults : groupedSuggestions.entrySet()) {
+            List<Suggestion> value = unmergedResults.getValue();
+            Suggestion reduce = value.get(0).reduce(value);
+            reduce.trim();
+            reduced.add(reduce);
+        }
+        return reduced;
     }
 
     /**
      * The suggestion responses corresponding with the suggestions in the request.
      */
-    public static class Suggestion implements Iterable<Suggestion.Entry>, Streamable, ToXContent {
+    public static class Suggestion<T extends Suggestion.Entry> implements Iterable<T>, Streamable, ToXContent {
+        
+        
+        public static final int TYPE = 0;
+        protected String name;
+        protected int size;
+        protected final List<T> entries = new ArrayList<T>(5);
 
-        private String name;
-        private int size;
-        private Sort sort;
-        private final List<Entry> entries = new ArrayList<Entry>(5);
-
-        Suggestion() {
+        public Suggestion() {
         }
 
-        Suggestion(String name, int size, Sort sort) {
+        public Suggestion(String name, int size) {
             this.name = name;
             this.size = size; // The suggested term size specified in request, only used for merging shard responses
-            this.sort = sort;
         }
 
-        void addTerm(Entry entry) {
+        public void addTerm(T entry) {
             entries.add(entry);
+        }
+        
+        public int getType() {
+            return TYPE;
         }
 
         @Override
-        public Iterator<Entry> iterator() {
+        public Iterator<T> iterator() {
             return entries.iterator();
         }
 
         /**
          * @return The entries for this suggestion.
          */
-        public List<Entry> getEntries() {
+        public List<T> getEntries() {
             return entries;
         }
 
@@ -144,53 +228,85 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
          * Merges the result of another suggestion into this suggestion.
          * For internal usage.
          */
-        public void reduce(Suggestion other) {
-            assert name.equals(other.name);
-            assert entries.size() == other.entries.size();
-            for (int i = 0; i < entries.size(); i++) {
-                Entry thisEntry = entries.get(i);
-                Entry otherEntry = other.entries.get(i);
-                thisEntry.reduce(otherEntry, sort);
+        public Suggestion<T> reduce(List<Suggestion<T>> toReduce) {
+            if (toReduce.size() == 1) {
+                return toReduce.get(0);
+            } else if (toReduce.isEmpty()) {
+                return null;
             }
+            Suggestion<T> leader = toReduce.get(0);
+            List<T> entries = leader.entries;
+            final int size = entries.size();
+            Comparator<Option> sortComparator = sortComparator();
+            List<T> currentEntries = new ArrayList<T>();
+            for (int i = 0; i < size; i++) {
+                for (Suggestion<T> suggestion : toReduce) {
+                    assert suggestion.entries.size() == size;
+                    assert suggestion.name.equals(leader.name);
+                    currentEntries.add(suggestion.entries.get(i));
+                }
+                T entry = (T) entries.get(i).reduce(currentEntries);
+                entry.sort(sortComparator);
+                entries.set(i, entry);
+                currentEntries.clear();
+            }
+            return leader;
         }
-
+        
+        protected Comparator<Option> sortComparator() {
+            return COMPARATOR;
+        }
+        
         /**
          * Trims the number of options per suggest text term to the requested size.
          * For internal usage.
          */
         public void trim() {
-            for (Entry entry : entries) {
+            for (Entry<?> entry : entries) {
                 entry.trim(size);
             }
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            name = in.readString();
-            size = in.readVInt();
-            sort = Sort.fromId(in.readByte());
+            innerReadFrom(in);
             int size = in.readVInt();
             entries.clear();
             for (int i = 0; i < size; i++) {
-                entries.add(Entry.read(in));
+                T newEntry = newEntry();
+                newEntry.readFrom(in);
+                entries.add(newEntry);
             }
+        }
+        
+        protected T newEntry() {
+            return (T)new Entry();
+        }
+
+        
+        protected void innerReadFrom(StreamInput in) throws IOException {
+            name = in.readString();
+            size = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeVInt(size);
-            out.writeByte(sort.id());
+            innerWriteTo(out);
             out.writeVInt(entries.size());
-            for (Entry entry : entries) {
+            for (Entry<?> entry : entries) {
                 entry.writeTo(out);
             }
+        }
+
+        public void innerWriteTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeVInt(size);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startArray(name);
-            for (Entry entry : entries) {
+            for (Entry<?> entry : entries) {
                 entry.toXContent(builder, params);
             }
             builder.endArray();
@@ -201,7 +317,7 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
         /**
          * Represents a part from the suggest text with suggested options.
          */
-        public static class Entry implements Iterable<Entry.Option>, Streamable, ToXContent {
+        public static class Entry<O extends Entry.Option> implements Iterable<O>, Streamable, ToXContent {
 
             static class Fields {
 
@@ -212,55 +328,54 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
 
             }
 
-            private Text text;
-            private int offset;
-            private int length;
+            protected Text text;
+            protected int offset;
+            protected int length;
 
-            private List<Option> options;
+            protected List<O> options;
 
-            Entry(Text text, int offset, int length) {
+            public Entry(Text text, int offset, int length) {
                 this.text = text;
                 this.offset = offset;
                 this.length = length;
-                this.options = new ArrayList<Option>(5);
+                this.options = new ArrayList<O>(5);
             }
 
-            Entry() {
+            public Entry() {
             }
 
-            void addOption(Option option) {
+            public void addOption(O option) {
                 options.add(option);
             }
-
-            void reduce(Entry otherEntry, Sort sort) {
-                assert text.equals(otherEntry.text);
-                assert offset == otherEntry.offset;
-                assert length == otherEntry.length;
-
-                for (Option otherOption : otherEntry.options) {
-                    int index = options.indexOf(otherOption);
-                    if (index >= 0) {
-                        Option thisOption = options.get(index);
-                        thisOption.setFreq(thisOption.freq + otherOption.freq);
-                    } else {
-                        options.add(otherOption);
-                    }
-                }
-
-                Comparator<Option> comparator;
-                switch (sort) {
-                    case SCORE:
-                        comparator = SuggestPhase.SCORE;
-                        break;
-                    case FREQUENCY:
-                        comparator = SuggestPhase.FREQUENCY;
-                        break;
-                    default:
-                        throw new ElasticSearchException("Could not resolve comparator in reduce phase.");
-                }
-                Collections.sort(options, comparator);
+            
+            protected void sort(Comparator<O> comparator) {
+                CollectionUtil.timSort(options, comparator);
             }
 
+            protected Entry<O> reduce(List<Entry<O>> toReduce) {
+                if (toReduce.size() == 1) {
+                    return toReduce.get(0);
+                }
+                final Map<O, O> entries = new HashMap<O, O>();
+                Entry<O> leader = toReduce.get(0);
+                for (Entry<O> entry : toReduce) {
+                    assert leader.text.equals(entry.text);
+                    assert leader.offset == entry.offset;
+                    assert leader.length == entry.length;
+                    for (O option : entry) {
+                        O merger = entries.get(option);
+                        if (merger == null) {
+                           entries.put(option, option);
+                        } else {
+                            merger.mergeInto(option);
+                        }    
+                    }
+                }
+                leader.options.clear();
+                leader.options.addAll(entries.keySet());
+                return leader;
+            }
+            
             /**
              * @return the text (analyzed by suggest analyzer) originating from the suggest text. Usually this is a
              *         single term.
@@ -284,7 +399,7 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
             }
 
             @Override
-            public Iterator<Option> iterator() {
+            public Iterator<O> iterator() {
                 return options.iterator();
             }
 
@@ -292,7 +407,7 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
              * @return The suggested options for this particular suggest entry. If there are no suggested terms then
              *         an empty list is returned.
              */
-            public List<Option> getOptions() {
+            public List<O> getOptions() {
                 return options;
             }
 
@@ -308,7 +423,7 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
 
-                Entry entry = (Entry) o;
+                Entry<?> entry = (Entry<?>) o;
 
                 if (length != entry.length) return false;
                 if (offset != entry.offset) return false;
@@ -325,22 +440,22 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                 return result;
             }
 
-            static Entry read(StreamInput in) throws IOException {
-                Entry entry = new Entry();
-                entry.readFrom(in);
-                return entry;
-            }
-
             @Override
             public void readFrom(StreamInput in) throws IOException {
                 text = in.readText();
                 offset = in.readVInt();
                 length = in.readVInt();
                 int suggestedWords = in.readVInt();
-                options = new ArrayList<Option>(suggestedWords);
+                options = new ArrayList<O>(suggestedWords);
                 for (int j = 0; j < suggestedWords; j++) {
-                    options.add(Option.create(in));
+                    O newOption = newOption();
+                    newOption.readFrom(in);
+                    options.add(newOption);
                 }
+            }
+            
+            protected O newOption(){
+                return (O) new Option();
             }
 
             @Override
@@ -377,26 +492,19 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                 static class Fields {
 
                     static final XContentBuilderString TEXT = new XContentBuilderString("text");
-                    static final XContentBuilderString FREQ = new XContentBuilderString("freq");
                     static final XContentBuilderString SCORE = new XContentBuilderString("score");
 
                 }
 
                 private Text text;
-                private int freq;
                 private float score;
 
-                Option(Text text, int freq, float score) {
+                public Option(Text text, float score) {
                     this.text = text;
-                    this.freq = freq;
                     this.score = score;
                 }
 
-                Option() {
-                }
-
-                public void setFreq(int freq) {
-                    this.freq = freq;
+                public Option() {
                 }
 
                 /**
@@ -407,13 +515,6 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                 }
 
                 /**
-                 * @return How often this suggested text appears in the index.
-                 */
-                public int getFreq() {
-                    return freq;
-                }
-
-                /**
                  * @return The score based on the edit distance difference between the suggested term and the
                  *         term in the suggest text.
                  */
@@ -421,34 +522,34 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                     return score;
                 }
 
-                static Option create(StreamInput in) throws IOException {
-                    Option suggestion = new Option();
-                    suggestion.readFrom(in);
-                    return suggestion;
-                }
-
                 @Override
                 public void readFrom(StreamInput in) throws IOException {
                     text = in.readText();
-                    freq = in.readVInt();
                     score = in.readFloat();
                 }
 
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     out.writeText(text);
-                    out.writeVInt(freq);
                     out.writeFloat(score);
                 }
 
                 @Override
                 public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                     builder.startObject();
-                    builder.field(Fields.TEXT, text);
-                    builder.field(Fields.FREQ, freq);
-                    builder.field(Fields.SCORE, score);
+                    innerToXContent(builder, params);
                     builder.endObject();
                     return builder;
+                }
+                
+                protected XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+                    builder.field(Fields.TEXT, text);
+                    builder.field(Fields.SCORE, score);
+                    return builder;
+                }
+                
+                protected void mergeInto(Option otherOption) {
+                    score = Math.max(score, otherOption.score);
                 }
 
                 @Override
@@ -468,8 +569,7 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
             }
 
         }
-
-        enum Sort {
+        public enum Sort {
 
             /**
              * Sort should first be based on score.
@@ -491,7 +591,7 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
                 return id;
             }
 
-            static Sort fromId(byte id) {
+            public static Sort fromId(byte id) {
                 if (id == 0) {
                     return SCORE;
                 } else if (id == 1) {
@@ -504,5 +604,4 @@ public class Suggest implements Iterable<Suggest.Suggestion>, Streamable, ToXCon
         }
 
     }
-
 }

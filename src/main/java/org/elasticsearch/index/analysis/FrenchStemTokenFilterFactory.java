@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.fr.FrenchStemFilter;
-import org.apache.lucene.analysis.miscellaneous.KeywordMarkerFilter;
+import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
@@ -46,6 +44,6 @@ public class FrenchStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new FrenchStemFilter(new KeywordMarkerFilter(tokenStream, exclusions));
+        return new FrenchStemFilter(new SetKeywordMarkerFilter(tokenStream, exclusions));
     }
 }

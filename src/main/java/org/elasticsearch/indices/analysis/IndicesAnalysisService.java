@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
+import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
 import org.apache.lucene.analysis.br.BrazilianAnalyzer;
@@ -31,6 +32,7 @@ import org.apache.lucene.analysis.ca.CatalanAnalyzer;
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
 import org.apache.lucene.analysis.cjk.CJKAnalyzer;
 import org.apache.lucene.analysis.cn.ChineseAnalyzer;
+import org.apache.lucene.analysis.commongrams.*;
 import org.apache.lucene.analysis.core.*;
 import org.apache.lucene.analysis.cz.CzechAnalyzer;
 import org.apache.lucene.analysis.cz.CzechStemFilter;
@@ -44,6 +46,7 @@ import org.apache.lucene.analysis.en.PorterStemFilter;
 import org.apache.lucene.analysis.es.SpanishAnalyzer;
 import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.fa.PersianAnalyzer;
+import org.apache.lucene.analysis.fa.PersianNormalizationFilter;
 import org.apache.lucene.analysis.fi.FinnishAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchAnalyzer;
 import org.apache.lucene.analysis.fr.FrenchStemFilter;
@@ -65,6 +68,7 @@ import org.apache.lucene.analysis.nl.DutchStemFilter;
 import org.apache.lucene.analysis.no.NorwegianAnalyzer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.pattern.PatternTokenizer;
+import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.analysis.ro.RomanianAnalyzer;
@@ -77,6 +81,7 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.ElisionFilter;
+import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -311,11 +316,7 @@ public class IndicesAnalysisService extends AbstractComponent {
 
             @Override
             public Tokenizer create(Reader reader) {
-                try {
-                    return new PatternTokenizer(reader, Regex.compile("\\W+", null), -1);
-                } catch (IOException e) {
-                    throw new ElasticSearchIllegalStateException("failed to parse default pattern");
-                }
+                return new PatternTokenizer(reader, Regex.compile("\\W+", null), -1);
             }
         }));
 
@@ -393,6 +394,18 @@ public class IndicesAnalysisService extends AbstractComponent {
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new LengthFilter(true, tokenStream, 0, Integer.MAX_VALUE);
+            }
+        }));
+
+        tokenFilterFactories.put("common_grams", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "common_grams";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new CommonGramsFilter(Lucene.ANALYZER_VERSION, tokenStream, CharArraySet.EMPTY_SET);
             }
         }));
 
@@ -504,17 +517,7 @@ public class IndicesAnalysisService extends AbstractComponent {
             }
         }));
 
-        tokenFilterFactories.put("shingle", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
-            @Override
-            public String name() {
-                return "shingle";
-            }
-
-            @Override
-            public TokenStream create(TokenStream tokenStream) {
-                return new ShingleFilter(tokenStream, ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
-            }
-        }));
+        tokenFilterFactories.put("shingle", new PreBuiltTokenFilterFactoryFactory(new ShingleTokenFilterFactory.Factory("shingle")));
 
         tokenFilterFactories.put("unique", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
             @Override
@@ -650,6 +653,52 @@ public class IndicesAnalysisService extends AbstractComponent {
             @Override
             public TokenStream create(TokenStream tokenStream) {
                 return new SnowballFilter(tokenStream, "Russian");
+            }
+        }));
+        tokenFilterFactories.put("keyword_repeat", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "keyword_repeat";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new KeywordRepeatFilter(tokenStream);
+            }
+        }));
+        tokenFilterFactories.put("arabic_normalization", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "arabic_normalization";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new ArabicNormalizationFilter(tokenStream);
+            }
+        }));
+        tokenFilterFactories.put("persian_normalization", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            @Override
+            public String name() {
+                return "persian_normalization";
+            }
+
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new PersianNormalizationFilter(tokenStream);
+            }
+        }));
+
+        tokenFilterFactories.put("type_as_payload", new PreBuiltTokenFilterFactoryFactory(new TokenFilterFactory() {
+            
+            @Override
+            public String name() {
+                return "type_as_payload";
+            }
+            
+            @Override
+            public TokenStream create(TokenStream tokenStream) {
+                return new TypeAsPayloadTokenFilter(tokenStream);
             }
         }));
 

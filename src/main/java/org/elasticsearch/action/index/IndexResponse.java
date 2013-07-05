@@ -40,80 +40,54 @@ public class IndexResponse extends ActionResponse {
     private String id;
     private String type;
     private long version;
+    private boolean created;
     private List<String> matches;
 
     public IndexResponse() {
 
     }
 
-    public IndexResponse(String index, String type, String id, long version) {
+    public IndexResponse(String index, String type, String id, long version, boolean created) {
         this.index = index;
         this.id = id;
         this.type = type;
         this.version = version;
-    }
-
-    /**
-     * The index the document was indexed into.
-     */
-    public String index() {
-        return this.index;
+        this.created = created;
     }
 
     /**
      * The index the document was indexed into.
      */
     public String getIndex() {
-        return index;
-    }
-
-    /**
-     * The type of the document indexed.
-     */
-    public String type() {
-        return this.type;
+        return this.index;
     }
 
     /**
      * The type of the document indexed.
      */
     public String getType() {
-        return type;
-    }
-
-    /**
-     * The id of the document indexed.
-     */
-    public String id() {
-        return this.id;
+        return this.type;
     }
 
     /**
      * The id of the document indexed.
      */
     public String getId() {
-        return id;
+        return this.id;
     }
 
     /**
-     * Returns the version of the doc indexed.
+     * Returns the current version of the doc indexed.
      */
-    public long version() {
+    public long getVersion() {
         return this.version;
     }
 
     /**
-     * Returns the version of the doc indexed.
+     * Returns true if the document was created, false if updated.
      */
-    public long getVersion() {
-        return version();
-    }
-
-    /**
-     * Returns the percolate queries matches. <tt>null</tt> if no percolation was requested.
-     */
-    public List<String> matches() {
-        return this.matches;
+    public boolean isCreated() {
+        return this.created;
     }
 
     /**
@@ -126,7 +100,7 @@ public class IndexResponse extends ActionResponse {
     /**
      * Internal.
      */
-    public void matches(List<String> matches) {
+    public void setMatches(List<String> matches) {
         this.matches = matches;
     }
 
@@ -137,6 +111,7 @@ public class IndexResponse extends ActionResponse {
         id = in.readString();
         type = in.readString();
         version = in.readLong();
+        created = in.readBoolean();
         if (in.readBoolean()) {
             int size = in.readVInt();
             if (size == 0) {
@@ -167,6 +142,7 @@ public class IndexResponse extends ActionResponse {
         out.writeString(id);
         out.writeString(type);
         out.writeLong(version);
+        out.writeBoolean(created);
         if (matches == null) {
             out.writeBoolean(false);
         } else {

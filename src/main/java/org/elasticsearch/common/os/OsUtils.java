@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.os;
 
+import java.util.Locale;
+
 /**
  *
  */
@@ -31,23 +33,23 @@ public class OsUtils {
     /**
      * True iff running on Linux.
      */
-    public static final boolean LINUX = OS_NAME.trim().toLowerCase().startsWith("linux");
+    public static final boolean LINUX = OS_NAME.trim().toLowerCase(Locale.ROOT).startsWith("linux");
     /**
      * True iff running on Windows.
      */
-    public static final boolean WINDOWS = OS_NAME.trim().toLowerCase().startsWith("windows");
+    public static final boolean WINDOWS = OS_NAME.trim().toLowerCase(Locale.ROOT).startsWith("windows");
     /**
      * True iff running on SunOS.
      */
-    public static final boolean SOLARIS = OS_NAME.trim().toLowerCase().startsWith("sun");
+    public static final boolean SOLARIS = OS_NAME.trim().toLowerCase(Locale.ROOT).startsWith("sun");
     /**
      * True iff running on Mac.
      */
-    public static final boolean MAC = OS_NAME.trim().toLowerCase().startsWith("mac");
+    public static final boolean MAC = OS_NAME.trim().toLowerCase(Locale.ROOT).startsWith("mac");
     /**
      * True iff running on HP.
      */
-    public static final boolean HP = OS_NAME.trim().toLowerCase().startsWith("hp");
+    public static final boolean HP = OS_NAME.trim().toLowerCase(Locale.ROOT).startsWith("hp");
 
 
     private OsUtils() {

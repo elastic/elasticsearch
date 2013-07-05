@@ -19,9 +19,6 @@
 
 package org.elasticsearch.test.integration.document;
 
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
@@ -33,21 +30,16 @@ public class AliasedIndexDocumentActionsTests extends DocumentActionsTests {
     protected void createIndex() {
         logger.info("Creating index [test1] with alias [test]");
         try {
-            client1.admin().indices().prepareDelete("test1").execute().actionGet();
+            client().admin().indices().prepareDelete("test1").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
         logger.info("--> creating index test");
-        client1.admin().indices().create(createIndexRequest("test1").settings(settingsBuilder().putArray("index.aliases", "test"))).actionGet();
+        client().admin().indices().create(createIndexRequest("test1").settings(settingsBuilder().putArray("index.aliases", "test"))).actionGet();
     }
 
     @Override
     protected String getConcreteIndexName() {
         return "test1";
-    }
-
-    @Override
-    protected Settings nodeSettings() {
-        return ImmutableSettings.settingsBuilder().put("action.auto_create_index", false).build();
     }
 }

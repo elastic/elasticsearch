@@ -58,9 +58,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class LocalGatewayAllocator extends AbstractComponent implements GatewayAllocator {
 
-    static {
-        IndexMetaData.addDynamicSettings("index.recovery.initial_shards");
-    }
+    public static final String INDEX_RECOVERY_INITIAL_SHARDS = "index.recovery.initial_shards";
 
     private final TransportNodesListGatewayStartedShards listGatewayStartedShards;
 
@@ -156,7 +154,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             int requiredAllocation = 1;
             try {
                 IndexMetaData indexMetaData = routingNodes.metaData().index(shard.index());
-                String initialShards = indexMetaData.settings().get("index.recovery.initial_shards", settings.get("index.recovery.initial_shards", this.initialShards));
+                String initialShards = indexMetaData.settings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
                 if ("quorum".equals(initialShards)) {
                     if (indexMetaData.numberOfReplicas() > 1) {
                         requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
@@ -397,7 +395,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
         for (TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards nodeShardState : response) {
             // -1 version means it does not exists, which is what the API returns, and what we expect to
-            shardStates.put(nodeShardState.node(), nodeShardState.version());
+            shardStates.put(nodeShardState.getNode(), nodeShardState.version());
         }
         return shardStates;
     }
@@ -444,7 +442,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
             for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
                 if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {
-                    shardStores.put(nodeStoreFilesMetaData.node(), nodeStoreFilesMetaData.storeFilesMetaData());
+                    shardStores.put(nodeStoreFilesMetaData.getNode(), nodeStoreFilesMetaData.storeFilesMetaData());
                 }
             }
         }

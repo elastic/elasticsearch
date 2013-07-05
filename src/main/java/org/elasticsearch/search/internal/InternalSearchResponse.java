@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import java.io.IOException;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -29,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
-import org.elasticsearch.search.group.InternalGroup;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -45,7 +42,6 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
     private InternalFacets facets;
 
-    private InternalGroup group;
     private Suggest suggest;
 
     private boolean timedOut;
@@ -103,8 +99,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
             facets = InternalFacets.readFacets(in);
         }
         if (in.readBoolean()) {
-            //group = InternalGroup.readGroup(in);
-            suggest = Suggest.readSuggest(in);
+            suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         timedOut = in.readBoolean();
     }
@@ -117,12 +112,6 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         } else {
             out.writeBoolean(true);
             facets.writeTo(out);
-        }
-        if (group == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            group.writeTo(out);
         }
         if (suggest == null) {
             out.writeBoolean(false);

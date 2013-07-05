@@ -65,12 +65,12 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
                 try {
                     StringBuilder sb = new StringBuilder();
                     for (NodeHotThreads node : response) {
-                        sb.append("::: ").append(node.node().toString()).append("\n");
-                        Strings.spaceify(3, node.hotThreads(), sb);
+                        sb.append("::: ").append(node.getNode().toString()).append("\n");
+                        Strings.spaceify(3, node.getHotThreads(), sb);
                         sb.append('\n');
                     }
                     channel.sendResponse(new StringRestResponse(RestStatus.OK, sb.toString()));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

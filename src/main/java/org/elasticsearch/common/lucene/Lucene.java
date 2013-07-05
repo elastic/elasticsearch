@@ -42,7 +42,7 @@ import java.lang.reflect.Field;
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_41;
+    public static final Version VERSION = Version.LUCENE_43;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
 
@@ -56,6 +56,12 @@ public class Lucene {
     public static Version parseVersion(@Nullable String version, Version defaultVersion, ESLogger logger) {
         if (version == null) {
             return defaultVersion;
+        }
+        if ("4.3".equals(version)) {
+            return Version.LUCENE_43;
+        }
+        if ("4.2".equals(version)) {
+            return Version.LUCENE_42;
         }
         if ("4.1".equals(version)) {
             return Version.LUCENE_41;
@@ -96,7 +102,7 @@ public class Lucene {
         sis.read(directory);
         return sis;
     }
-    
+
     public static long count(IndexSearcher searcher, Query query) throws IOException {
         TotalHitCountCollector countCollector = new TotalHitCountCollector();
         // we don't need scores, so wrap it in a constant score query
@@ -316,27 +322,6 @@ public class Lucene {
         }
     }
 
-    private static final Field segmentReaderSegmentInfoField;
-
-    static {
-        Field segmentReaderSegmentInfoFieldX = null;
-        try {
-            segmentReaderSegmentInfoFieldX = SegmentReader.class.getDeclaredField("si");
-            segmentReaderSegmentInfoFieldX.setAccessible(true);
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
-        }
-        segmentReaderSegmentInfoField = segmentReaderSegmentInfoFieldX;
-    }
-
-    public static SegmentInfoPerCommit getSegmentInfo(SegmentReader reader) {
-        try {
-            return (SegmentInfoPerCommit) segmentReaderSegmentInfoField.get(reader);
-        } catch (IllegalAccessException e) {
-            return null;
-        }
-    }
-
     public static class ExistsCollector extends Collector {
 
         private boolean exists;
@@ -371,5 +356,9 @@ public class Lucene {
 
     private Lucene() {
 
+    }
+    
+    public static final boolean indexExists(final Directory directory) throws IOException {
+        return DirectoryReader.indexExists(directory);
     }
 }

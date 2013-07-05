@@ -39,12 +39,8 @@ public class DeleteWarmerResponse extends ActionResponse {
         this.acknowledged = acknowledged;
     }
 
-    public boolean acknowledged() {
+    public boolean isAcknowledged() {
         return acknowledged;
-    }
-
-    public boolean getAcknowledged() {
-        return acknowledged();
     }
 
     @Override

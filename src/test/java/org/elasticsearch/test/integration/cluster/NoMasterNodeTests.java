@@ -66,7 +66,7 @@ public class NoMasterNodeTests extends AbstractNodesTests {
 
         Thread.sleep(200);
 
-        ClusterState state = node.client().admin().cluster().prepareState().setLocal(true).execute().actionGet().state();
+        ClusterState state = node.client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
         assertThat(state.blocks().hasGlobalBlock(Discovery.NO_MASTER_BLOCK), equalTo(true));
 
         try {

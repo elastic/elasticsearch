@@ -19,14 +19,22 @@
 
 package org.elasticsearch.test.unit.common.io;
 
-import org.testng.annotations.Test;
-
-import java.io.*;
-import java.util.Arrays;
-
-import static org.elasticsearch.common.io.Streams.*;
+import static org.elasticsearch.common.io.Streams.copy;
+import static org.elasticsearch.common.io.Streams.copyToByteArray;
+import static org.elasticsearch.common.io.Streams.copyToString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.util.Arrays;
+
+import org.testng.annotations.Test;
+
+import com.google.common.base.Charsets;
 
 /**
  * Unit tests for {@link org.elasticsearch.common.io.Streams}.
@@ -37,7 +45,7 @@ public class StreamsTests {
 
     @Test
     public void testCopyFromInputStream() throws IOException {
-        byte[] content = "content".getBytes();
+        byte[] content = "content".getBytes(Charsets.UTF_8);
         ByteArrayInputStream in = new ByteArrayInputStream(content);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
         long count = copy(in, out);
@@ -48,7 +56,7 @@ public class StreamsTests {
 
     @Test
     public void testCopyFromByteArray() throws IOException {
-        byte[] content = "content".getBytes();
+        byte[] content = "content".getBytes(Charsets.UTF_8);
         ByteArrayOutputStream out = new ByteArrayOutputStream(content.length);
         copy(content, out);
         assertThat(Arrays.equals(content, out.toByteArray()), equalTo(true));
@@ -56,7 +64,7 @@ public class StreamsTests {
 
     @Test
     public void testCopyToByteArray() throws IOException {
-        byte[] content = "content".getBytes();
+        byte[] content = "content".getBytes(Charsets.UTF_8);
         ByteArrayInputStream in = new ByteArrayInputStream(content);
         byte[] result = copyToByteArray(in);
         assertThat(Arrays.equals(content, result), equalTo(true));

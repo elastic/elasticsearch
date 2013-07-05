@@ -22,7 +22,6 @@ package org.elasticsearch.test.unit.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.bloom.BloomFilteringPostingsFormat;
 import org.apache.lucene.codecs.lucene40.Lucene40Codec;
-import org.apache.lucene.codecs.lucene40.Lucene40PostingsFormat;
 import org.apache.lucene.codecs.lucene41.Lucene41Codec;
 import org.apache.lucene.codecs.lucene41.Lucene41PostingsFormat;
 import org.apache.lucene.codecs.memory.DirectPostingsFormat;
@@ -70,19 +69,31 @@ public class CodecTests {
     public void testResolveDefaultPostingFormats() throws Exception {
         PostingsFormatService postingsFormatService = createCodecService().postingsFormatService();
         assertThat(postingsFormatService.get("default"), instanceOf(PreBuiltPostingsFormatProvider.class));
+        assertThat(postingsFormatService.get("default").get(), instanceOf(ElasticSearch090PostingsFormat.class));
+
         // Should fail when upgrading Lucene with codec changes
-        assertThat(postingsFormatService.get("default").get(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField(null).getClass()));
+        assertThat(((ElasticSearch090PostingsFormat)postingsFormatService.get("default").get()).getDefaultWrapped(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField(null).getClass()));
         assertThat(postingsFormatService.get("Lucene41"), instanceOf(PreBuiltPostingsFormatProvider.class));
         // Should fail when upgrading Lucene with codec changes
         assertThat(postingsFormatService.get("Lucene41").get(), instanceOf(((PerFieldPostingsFormat) Codec.getDefault().postingsFormat()).getPostingsFormatForField(null).getClass()));
 
         assertThat(postingsFormatService.get("bloom_default"), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(postingsFormatService.get("bloom_default").get(), instanceOf(BloomFilteringPostingsFormat.class));
+        if (PostingFormats.luceneBloomFilter) {
+            assertThat(postingsFormatService.get("bloom_default").get(), instanceOf(BloomFilteringPostingsFormat.class));
+        } else {
+            assertThat(postingsFormatService.get("bloom_default").get(), instanceOf(BloomFilterPostingsFormat.class));
+        }
         assertThat(postingsFormatService.get("BloomFilter"), instanceOf(PreBuiltPostingsFormatProvider.class));
         assertThat(postingsFormatService.get("BloomFilter").get(), instanceOf(BloomFilteringPostingsFormat.class));
 
-        assertThat(postingsFormatService.get("bloom_pulsing"), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(postingsFormatService.get("bloom_pulsing").get(), instanceOf(BloomFilteringPostingsFormat.class));
+        assertThat(postingsFormatService.get("XBloomFilter"), instanceOf(PreBuiltPostingsFormatProvider.class));
+        assertThat(postingsFormatService.get("XBloomFilter").get(), instanceOf(BloomFilterPostingsFormat.class));
+
+        if (PostingFormats.luceneBloomFilter) {
+            assertThat(postingsFormatService.get("bloom_pulsing").get(), instanceOf(BloomFilteringPostingsFormat.class));
+        } else {
+            assertThat(postingsFormatService.get("bloom_pulsing").get(), instanceOf(BloomFilterPostingsFormat.class));
+        }
 
         assertThat(postingsFormatService.get("pulsing"), instanceOf(PreBuiltPostingsFormatProvider.class));
         assertThat(postingsFormatService.get("pulsing").get(), instanceOf(Pulsing41PostingsFormat.class));
@@ -117,7 +128,7 @@ public class CodecTests {
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(Lucene41PostingsFormat.class));
+        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(ElasticSearch090PostingsFormat.class));
 
         assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider(), instanceOf(DefaultPostingsFormatProvider.class));
         DefaultPostingsFormatProvider provider = (DefaultPostingsFormatProvider) documentMapper.mappers().name("field2").mapper().postingsFormatProvider();
@@ -203,7 +214,7 @@ public class CodecTests {
     }
 
     @Test
-    public void testResolvePostingFormatsFromMapping_bloom() throws Exception {
+    public void testResolvePostingFormatsFromMappingLuceneBloom() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("field1").field("type", "string").field("postings_format", "bloom_default").endObject()
@@ -213,7 +224,7 @@ public class CodecTests {
                 .endObject().endObject().string();
 
         Settings indexSettings = ImmutableSettings.settingsBuilder()
-                .put("index.codec.postings_format.my_format1.type", "bloom_filter")
+                .put("index.codec.postings_format.my_format1.type", "bloom_filter_lucene")
                 .put("index.codec.postings_format.my_format1.desired_max_saturation", 0.2f)
                 .put("index.codec.postings_format.my_format1.saturation_limit", 0.8f)
                 .put("index.codec.postings_format.my_format1.delegate", "delegate1")
@@ -224,13 +235,21 @@ public class CodecTests {
         CodecService codecService = createCodecService(indexSettings);
         DocumentMapper documentMapper = codecService.mapperService().documentMapperParser().parse(mapping);
         assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(BloomFilteringPostingsFormat.class));
+        if (PostingFormats.luceneBloomFilter) {
+            assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(BloomFilteringPostingsFormat.class));
+        } else {
+            assertThat(documentMapper.mappers().name("field1").mapper().postingsFormatProvider().get(), instanceOf(BloomFilterPostingsFormat.class));
+        }
 
         assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider(), instanceOf(PreBuiltPostingsFormatProvider.class));
-        assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider().get(), instanceOf(BloomFilteringPostingsFormat.class));
+        if (PostingFormats.luceneBloomFilter) {
+            assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider().get(), instanceOf(BloomFilteringPostingsFormat.class));
+        } else {
+            assertThat(documentMapper.mappers().name("field2").mapper().postingsFormatProvider().get(), instanceOf(BloomFilterPostingsFormat.class));
+        }
 
-        assertThat(documentMapper.mappers().name("field3").mapper().postingsFormatProvider(), instanceOf(BloomFilterPostingsFormatProvider.class));
-        BloomFilterPostingsFormatProvider provider = (BloomFilterPostingsFormatProvider) documentMapper.mappers().name("field3").mapper().postingsFormatProvider();
+        assertThat(documentMapper.mappers().name("field3").mapper().postingsFormatProvider(), instanceOf(BloomFilterLucenePostingsFormatProvider.class));
+        BloomFilterLucenePostingsFormatProvider provider = (BloomFilterLucenePostingsFormatProvider) documentMapper.mappers().name("field3").mapper().postingsFormatProvider();
         assertThat(provider.desiredMaxSaturation(), equalTo(0.2f));
         assertThat(provider.saturationLimit(), equalTo(0.8f));
         assertThat(provider.delegate(), instanceOf(DirectPostingsFormatProvider.class));

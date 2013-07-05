@@ -19,8 +19,10 @@
 
 package org.elasticsearch.index.query;
 
-import com.spatial4j.core.shape.Shape;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 
 /**
  * A static factory for simple "import static" usage.
@@ -191,8 +193,16 @@ public abstract class FilterBuilders {
      * @param name   The field name
      * @param values The terms
      */
-    public static TermsFilterBuilder termsFilter(String name, Iterable values) {
+    public static TermsFilterBuilder termsFilter(String name, Iterable<?> values) {
         return new TermsFilterBuilder(name, values);
+    }
+
+    /**
+     * A terms lookup filter for the provided field name. A lookup terms filter can
+     * extract the terms to filter by from another doc in an index.
+     */
+    public static TermsLookupFilterBuilder termsLookupFilter(String name) {
+        return new TermsLookupFilterBuilder(name);
     }
 
     /**
@@ -341,6 +351,54 @@ public abstract class FilterBuilders {
     }
 
     /**
+     * A filter based on a bounding box defined by geohash. The field this filter is applied to
+     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
+     * to work.
+     *
+     * @param fieldname The geopoint field name.
+     */
+    public static GeohashFilter.Builder geoHashFilter(String fieldname) {
+        return new GeohashFilter.Builder(fieldname);
+    }
+
+    /**
+     * A filter based on a bounding box defined by geohash. The field this filter is applied to
+     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
+     * to work.
+     *
+     * @param fieldname The geopoint field name.
+     * @param geohash The Geohash to filter
+     */
+    public static GeohashFilter.Builder geoHashFilter(String fieldname, String geohash) {
+        return new GeohashFilter.Builder(fieldname, geohash);
+    }
+
+    /**
+     * A filter based on a bounding box defined by geohash. The field this filter is applied to
+     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
+     * to work.
+     *
+     * @param fieldname The geopoint field name.
+     * @param point a geopoint within the geohash bucket
+     */
+    public static GeohashFilter.Builder geoHashFilter(String fieldname, GeoPoint point) {
+        return new GeohashFilter.Builder(fieldname, point);
+    }
+
+    /**
+     * A filter based on a bounding box defined by geohash. The field this filter is applied to
+     * must have <code>{&quot;type&quot;:&quot;geo_point&quot;, &quot;geohash&quot;:true}</code>
+     * to work.
+     *
+     * @param fieldname The geopoint field name
+     * @param geohash The Geohash to filter
+     * @param neighbors should the neighbor cell also be filtered
+     */
+    public static GeohashFilter.Builder geoHashFilter(String fieldname, String geohash, boolean neighbors) {
+        return new GeohashFilter.Builder(fieldname, geohash, neighbors);
+    }
+    
+    /**
      * A filter to filter based on a polygon defined by a set of locations  / points.
      *
      * @param name The location field name.
@@ -350,17 +408,60 @@ public abstract class FilterBuilders {
     }
 
     /**
-     * A filter to filter based on the relationship between a shape and indexed shapes
+     * A filter based on the relationship of a shape and indexed shapes
+     *
+     * @param name  The shape field name
+     * @param shape Shape to use in the filter
+     * @param relation relation of the shapes
+     */
+    public static GeoShapeFilterBuilder geoShapeFilter(String name, ShapeBuilder shape, ShapeRelation relation) {
+        return new GeoShapeFilterBuilder(name, shape, relation);
+    }
+
+    public static GeoShapeFilterBuilder geoShapeFilter(String name, String indexedShapeId, String indexedShapeType, ShapeRelation relation) {
+        return new GeoShapeFilterBuilder(name, indexedShapeId, indexedShapeType, relation);
+    }
+
+    /**
+     * A filter to filter indexed shapes intersecting with shapes
      *
      * @param name  The shape field name
      * @param shape Shape to use in the filter
      */
-    public static GeoShapeFilterBuilder geoShapeFilter(String name, Shape shape) {
-        return new GeoShapeFilterBuilder(name, shape);
+    public static GeoShapeFilterBuilder geoIntersectionFilter(String name, ShapeBuilder shape) {
+        return geoShapeFilter(name, shape, ShapeRelation.INTERSECTS);
     }
 
-    public static GeoShapeFilterBuilder geoShapeFilter(String name, String indexedShapeId, String indexedShapeType) {
-        return new GeoShapeFilterBuilder(name, indexedShapeId, indexedShapeType);
+    public static GeoShapeFilterBuilder geoIntersectionFilter(String name, String indexedShapeId, String indexedShapeType) {
+        return geoShapeFilter(name, indexedShapeId, indexedShapeType, ShapeRelation.INTERSECTS);
+    }
+
+    /**
+     * A filter to filter indexed shapes that are contained by a shape
+     *
+     * @param name  The shape field name
+     * @param shape Shape to use in the filter
+     */
+    public static GeoShapeFilterBuilder geoWithinFilter(String name, ShapeBuilder shape) {
+        return geoShapeFilter(name, shape, ShapeRelation.WITHIN);
+    }
+
+    public static GeoShapeFilterBuilder geoWithinFilter(String name, String indexedShapeId, String indexedShapeType) {
+        return geoShapeFilter(name, indexedShapeId, indexedShapeType, ShapeRelation.WITHIN);
+    }
+
+    /**
+     * A filter to filter indexed shapes that are not intersection with the query shape
+     *
+     * @param name  The shape field name
+     * @param shape Shape to use in the filter
+     */
+    public static GeoShapeFilterBuilder geoDisjointFilter(String name, ShapeBuilder shape) {
+        return geoShapeFilter(name, shape, ShapeRelation.DISJOINT);
+    }
+
+    public static GeoShapeFilterBuilder geoDisjointFilter(String name, String indexedShapeId, String indexedShapeType) {
+        return geoShapeFilter(name, indexedShapeId, indexedShapeType, ShapeRelation.DISJOINT);
     }
 
     /**

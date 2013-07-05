@@ -23,7 +23,6 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -33,16 +32,16 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-public class TieredMergePolicyProvider extends AbstractIndexShardComponent implements MergePolicyProvider<TieredMergePolicy> {
+public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<TieredMergePolicy> {
 
     private final IndexSettingsService indexSettingsService;
 
     private final Set<CustomTieredMergePolicyProvider> policies = new CopyOnWriteArraySet<CustomTieredMergePolicyProvider>();
 
-    private volatile boolean compoundFormat;
     private volatile double forceMergeDeletesPctAllowed;
     private volatile ByteSizeValue floorSegment;
     private volatile int maxMergeAtOnce;
@@ -54,12 +53,12 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
 
     private final ApplySettings applySettings = new ApplySettings();
 
+    
+
     @Inject
     public TieredMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
-        super(store.shardId(), store.indexSettings());
+        super(store);
         this.indexSettingsService = indexSettingsService;
-
-        this.compoundFormat = indexSettings.getAsBoolean("index.compound_format", store.suggestUseCompoundFile());
         this.asyncMerge = indexSettings.getAsBoolean("index.merge.async", true);
         this.forceMergeDeletesPctAllowed = componentSettings.getAsDouble("expunge_deletes_allowed", 10d); // percentage
         this.floorSegment = componentSettings.getAsBytesSize("floor_segment", new ByteSizeValue(2, ByteSizeUnit.MB));
@@ -77,7 +76,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
 
         indexSettingsService.addListener(applySettings);
     }
-
+    
     private void fixSettingsIfNeeded() {
         // fixing maxMergeAtOnce, see TieredMergePolicy#setMaxMergeAtOnce
         if (!(segmentsPerTier >= maxMergeAtOnce)) {
@@ -101,6 +100,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
             mergePolicy = new CustomTieredMergePolicyProvider(this);
         }
         mergePolicy.setUseCompoundFile(compoundFormat);
+        mergePolicy.setNoCFSRatio(noCFSRatio);
         mergePolicy.setForceMergeDeletesPctAllowed(forceMergeDeletesPctAllowed);
         mergePolicy.setFloorSegmentMB(floorSegment.mbFrac());
         mergePolicy.setMaxMergeAtOnce(maxMergeAtOnce);
@@ -112,27 +112,22 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
     }
 
     @Override
-    public void close(boolean delete) throws ElasticSearchException {
+    public void close() throws ElasticSearchException {
         indexSettingsService.removeListener(applySettings);
     }
 
-    static {
-        IndexMetaData.addDynamicSettings(
-                "index.merge.policy.expunge_deletes_allowed",
-                "index.merge.policy.floor_segment",
-                "index.merge.policy.max_merge_at_once",
-                "index.merge.policy.max_merge_at_once_explicit",
-                "index.merge.policy.max_merged_segment",
-                "index.merge.policy.segments_per_tier",
-                "index.merge.policy.reclaim_deletes_weight",
-                "index.compound_format"
-        );
-    }
+    public static final String INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED = "index.merge.policy.expunge_deletes_allowed";
+    public static final String INDEX_MERGE_POLICY_FLOOR_SEGMENT = "index.merge.policy.floor_segment";
+    public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE = "index.merge.policy.max_merge_at_once";
+    public static final String INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT = "index.merge.policy.max_merge_at_once_explicit";
+    public static final String INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT = "index.merge.policy.max_merged_segment";
+    public static final String INDEX_MERGE_POLICY_SEGMENTS_PER_TIER = "index.merge.policy.segments_per_tier";
+    public static final String INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT = "index.merge.policy.reclaim_deletes_weight";
 
     class ApplySettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            double expungeDeletesPctAllowed = settings.getAsDouble("index.merge.policy.expunge_deletes_allowed", TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed);
+            double expungeDeletesPctAllowed = settings.getAsDouble(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED, TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed);
             if (expungeDeletesPctAllowed != TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed) {
                 logger.info("updating [expunge_deletes_allowed] from [{}] to [{}]", TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed, expungeDeletesPctAllowed);
                 TieredMergePolicyProvider.this.forceMergeDeletesPctAllowed = expungeDeletesPctAllowed;
@@ -141,7 +136,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            ByteSizeValue floorSegment = settings.getAsBytesSize("index.merge.policy.floor_segment", TieredMergePolicyProvider.this.floorSegment);
+            ByteSizeValue floorSegment = settings.getAsBytesSize(INDEX_MERGE_POLICY_FLOOR_SEGMENT, TieredMergePolicyProvider.this.floorSegment);
             if (!floorSegment.equals(TieredMergePolicyProvider.this.floorSegment)) {
                 logger.info("updating [floor_segment] from [{}] to [{}]", TieredMergePolicyProvider.this.floorSegment, floorSegment);
                 TieredMergePolicyProvider.this.floorSegment = floorSegment;
@@ -150,7 +145,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            int maxMergeAtOnce = settings.getAsInt("index.merge.policy.max_merge_at_once", TieredMergePolicyProvider.this.maxMergeAtOnce);
+            int maxMergeAtOnce = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE, TieredMergePolicyProvider.this.maxMergeAtOnce);
             if (maxMergeAtOnce != TieredMergePolicyProvider.this.maxMergeAtOnce) {
                 logger.info("updating [max_merge_at_once] from [{}] to [{}]", TieredMergePolicyProvider.this.maxMergeAtOnce, maxMergeAtOnce);
                 TieredMergePolicyProvider.this.maxMergeAtOnce = maxMergeAtOnce;
@@ -159,7 +154,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            int maxMergeAtOnceExplicit = settings.getAsInt("index.merge.policy.max_merge_at_once_explicit", TieredMergePolicyProvider.this.maxMergeAtOnceExplicit);
+            int maxMergeAtOnceExplicit = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT, TieredMergePolicyProvider.this.maxMergeAtOnceExplicit);
             if (maxMergeAtOnceExplicit != TieredMergePolicyProvider.this.maxMergeAtOnceExplicit) {
                 logger.info("updating [max_merge_at_once_explicit] from [{}] to [{}]", TieredMergePolicyProvider.this.maxMergeAtOnceExplicit, maxMergeAtOnceExplicit);
                 TieredMergePolicyProvider.this.maxMergeAtOnceExplicit = maxMergeAtOnceExplicit;
@@ -168,7 +163,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            ByteSizeValue maxMergedSegment = settings.getAsBytesSize("index.merge.policy.max_merged_segment", TieredMergePolicyProvider.this.maxMergedSegment);
+            ByteSizeValue maxMergedSegment = settings.getAsBytesSize(INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT, TieredMergePolicyProvider.this.maxMergedSegment);
             if (!maxMergedSegment.equals(TieredMergePolicyProvider.this.maxMergedSegment)) {
                 logger.info("updating [max_merged_segment] from [{}] to [{}]", TieredMergePolicyProvider.this.maxMergedSegment, maxMergedSegment);
                 TieredMergePolicyProvider.this.maxMergedSegment = maxMergedSegment;
@@ -177,7 +172,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            double segmentsPerTier = settings.getAsDouble("index.merge.policy.segments_per_tier", TieredMergePolicyProvider.this.segmentsPerTier);
+            double segmentsPerTier = settings.getAsDouble(INDEX_MERGE_POLICY_SEGMENTS_PER_TIER, TieredMergePolicyProvider.this.segmentsPerTier);
             if (segmentsPerTier != TieredMergePolicyProvider.this.segmentsPerTier) {
                 logger.info("updating [segments_per_tier] from [{}] to [{}]", TieredMergePolicyProvider.this.segmentsPerTier, segmentsPerTier);
                 TieredMergePolicyProvider.this.segmentsPerTier = segmentsPerTier;
@@ -186,7 +181,7 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            double reclaimDeletesWeight = settings.getAsDouble("index.merge.policy.reclaim_deletes_weight", TieredMergePolicyProvider.this.reclaimDeletesWeight);
+            double reclaimDeletesWeight = settings.getAsDouble(INDEX_MERGE_POLICY_RECLAIM_DELETES_WEIGHT, TieredMergePolicyProvider.this.reclaimDeletesWeight);
             if (reclaimDeletesWeight != TieredMergePolicyProvider.this.reclaimDeletesWeight) {
                 logger.info("updating [reclaim_deletes_weight] from [{}] to [{}]", TieredMergePolicyProvider.this.reclaimDeletesWeight, reclaimDeletesWeight);
                 TieredMergePolicyProvider.this.reclaimDeletesWeight = reclaimDeletesWeight;
@@ -195,11 +190,14 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
                 }
             }
 
-            boolean compoundFormat = settings.getAsBoolean("index.compound_format", TieredMergePolicyProvider.this.compoundFormat);
-            if (compoundFormat != TieredMergePolicyProvider.this.compoundFormat) {
-                logger.info("updating index.compound_format from [{}] to [{}]", TieredMergePolicyProvider.this.compoundFormat, compoundFormat);
+            final double noCFSRatio = parseNoCFSRatio(settings.get(INDEX_COMPOUND_FORMAT, Double.toString(TieredMergePolicyProvider.this.noCFSRatio)));
+            final boolean compoundFormat = noCFSRatio != 0.0;
+            if (noCFSRatio != TieredMergePolicyProvider.this.noCFSRatio) {
+                logger.info("updating index.compound_format from [{}] to [{}]", formatNoCFSRatio(TieredMergePolicyProvider.this.noCFSRatio), formatNoCFSRatio(noCFSRatio));
                 TieredMergePolicyProvider.this.compoundFormat = compoundFormat;
+                TieredMergePolicyProvider.this.noCFSRatio = noCFSRatio;
                 for (CustomTieredMergePolicyProvider policy : policies) {
+                    policy.setNoCFSRatio(noCFSRatio);
                     policy.setUseCompoundFile(compoundFormat);
                 }
             }
@@ -221,6 +219,13 @@ public class TieredMergePolicyProvider extends AbstractIndexShardComponent imple
         public void close() {
             super.close();
             provider.policies.remove(this);
+        }
+        
+        @Override
+        public MergePolicy clone() {
+            // Lucene IW makes a clone internally but since we hold on to this instance 
+            // the clone will just be the identity.
+            return this;
         }
     }
 

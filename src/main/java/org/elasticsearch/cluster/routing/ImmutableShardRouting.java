@@ -175,10 +175,9 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
 
     /**
      * Reads a {@link ImmutableShardRouting} instance of a shard from an {@link InputStream}
-     * 
+     *
      * @param in {@link InputStream} to read the entry from
      * @return {@link ImmutableShardRouting} instances read from the given {@link InputStream}
-     * 
      * @throws IOException if some exception occurs during the read operations
      */
     public static ImmutableShardRouting readShardRoutingEntry(StreamInput in) throws IOException {
@@ -190,12 +189,11 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     /**
      * Reads a routingentry from an inputstream with given <code>index</code> and
      * <code>shardId</code>.
-     * 
-     * @param in inputstream to read the entry from
+     *
+     * @param in    inputstream to read the entry from
      * @param index shards index
-     * @param id id of the shard
+     * @param id    id of the shard
      * @return Shard routing entry read
-     * 
      * @throws IOException if some exception occurs during the read operations
      */
     public static ImmutableShardRouting readShardRoutingEntry(StreamInput in, String index, int shardId) throws IOException {
@@ -207,11 +205,10 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     /**
      * Read information from an inputstream with given <code>index</code> and
      * <code>shardId</code>.
-     * 
-     * @param in inputstream to read the entry from
+     *
+     * @param in    inputstream to read the entry from
      * @param index shards index
-     * @param id id of the shard
-     * 
+     * @param id    id of the shard
      * @throws IOException if some exception occurs during the read operations
      */
     public void readFrom(StreamInput in, String index, int shardId) throws IOException {
@@ -239,9 +236,10 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
     public void readFrom(StreamInput in) throws IOException {
         readFrom(in, in.readString(), in.readVInt());
     }
-    
+
     /**
      * Writes shard information to {@link StreamOutput} without writing index name and shard id
+     *
      * @param out {@link StreamOutput} to write shard information to
      * @throws IOException if something happens during write
      */

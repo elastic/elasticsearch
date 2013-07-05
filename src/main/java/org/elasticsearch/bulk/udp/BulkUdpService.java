@@ -206,7 +206,7 @@ public class BulkUdpService extends AbstractLifecycleComponent<BulkUdpService> {
         @Override
         public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
             if (logger.isTraceEnabled()) {
-                logger.trace("[{}] executed  [{}]/[{}], took [{}]", executionId, request.numberOfActions(), new ByteSizeValue(request.estimatedSizeInBytes()), response.took());
+                logger.trace("[{}] executed  [{}]/[{}], took [{}]", executionId, request.numberOfActions(), new ByteSizeValue(request.estimatedSizeInBytes()), response.getTook());
             }
             if (response.hasFailures()) {
                 logger.warn("[{}] failed to execute bulk request: {}", executionId, response.buildFailureMessage());

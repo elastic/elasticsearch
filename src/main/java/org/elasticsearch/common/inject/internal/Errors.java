@@ -19,6 +19,7 @@ package org.elasticsearch.common.inject.internal;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.inject.spi.*;
 
@@ -430,7 +431,7 @@ public final class Errors implements Serializable {
         for (int i = 0; i < arguments.length; i++) {
             arguments[i] = Errors.convert(arguments[i]);
         }
-        return String.format(messageFormat, arguments);
+        return String.format(Locale.ROOT, messageFormat, arguments);
     }
 
     public List<Message> getMessages() {
@@ -439,7 +440,7 @@ public final class Errors implements Serializable {
         }
 
         List<Message> result = Lists.newArrayList(root.errors);
-        Collections.sort(result, new Comparator<Message>() {
+        CollectionUtil.timSort(result, new Comparator<Message>() {
             public int compare(Message a, Message b) {
                 return a.getSource().compareTo(b.getSource());
             }
@@ -452,36 +453,41 @@ public final class Errors implements Serializable {
      * Returns the formatted message for an exception with the specified messages.
      */
     public static String format(String heading, Collection<Message> errorMessages) {
-        Formatter fmt = new Formatter().format(heading).format(":%n%n");
-        int index = 1;
-        boolean displayCauses = getOnlyCause(errorMessages) == null;
-
-        for (Message errorMessage : errorMessages) {
-            fmt.format("%s) %s%n", index++, errorMessage.getMessage());
-
-            List<Object> dependencies = errorMessage.getSources();
-            for (int i = dependencies.size() - 1; i >= 0; i--) {
-                Object source = dependencies.get(i);
-                formatSource(fmt, source);
+        final Formatter fmt = new Formatter(Locale.ROOT);
+        try {
+            fmt.format(heading).format(":%n%n");
+            int index = 1;
+            boolean displayCauses = getOnlyCause(errorMessages) == null;
+    
+            for (Message errorMessage : errorMessages) {
+                fmt.format("%s) %s%n", index++, errorMessage.getMessage());
+    
+                List<Object> dependencies = errorMessage.getSources();
+                for (int i = dependencies.size() - 1; i >= 0; i--) {
+                    Object source = dependencies.get(i);
+                    formatSource(fmt, source);
+                }
+    
+                Throwable cause = errorMessage.getCause();
+                if (displayCauses && cause != null) {
+                    StringWriter writer = new StringWriter();
+                    cause.printStackTrace(new PrintWriter(writer));
+                    fmt.format("Caused by: %s", writer.getBuffer());
+                }
+    
+                fmt.format("%n");
             }
-
-            Throwable cause = errorMessage.getCause();
-            if (displayCauses && cause != null) {
-                StringWriter writer = new StringWriter();
-                cause.printStackTrace(new PrintWriter(writer));
-                fmt.format("Caused by: %s", writer.getBuffer());
+    
+            if (errorMessages.size() == 1) {
+                fmt.format("1 error");
+            } else {
+                fmt.format("%s errors", errorMessages.size());
             }
-
-            fmt.format("%n");
+    
+            return fmt.toString();
+        } finally {
+          fmt.close();  
         }
-
-        if (errorMessages.size() == 1) {
-            fmt.format("1 error");
-        } else {
-            fmt.format("%s errors", errorMessages.size());
-        }
-
-        return fmt.toString();
     }
 
     /**

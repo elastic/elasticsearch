@@ -19,8 +19,10 @@
 
 package org.elasticsearch.common.settings;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -54,11 +56,12 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  */
 public class ImmutableSettings implements Settings {
 
-    private ImmutableMap<String, String> settings;
+    public static final Settings EMPTY = new Builder().build();
 
+    private ImmutableMap<String, String> settings;
     private transient ClassLoader classLoader;
 
-    private ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
+    ImmutableSettings(Map<String, String> settings, ClassLoader classLoader) {
         this.settings = ImmutableMap.copyOf(settings);
         this.classLoader = classLoader;
     }
@@ -125,8 +128,29 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public String get(String[] settings) {
+        for (String setting : settings) {
+            String retVal = this.settings.get(setting);
+            if (retVal != null) {
+                return retVal;
+            }
+            retVal = this.settings.get(toCamelCase(setting));
+            if (retVal != null) {
+                return retVal;
+            }
+        }
+        return null;
+    }
+
+    @Override
     public String get(String setting, String defaultValue) {
-        String retVal = settings.get(setting);
+        String retVal = get(setting);
+        return retVal == null ? defaultValue : retVal;
+    }
+
+    @Override
+    public String get(String[] settings, String defaultValue) {
+        String retVal = get(settings);
         return retVal == null ? defaultValue : retVal;
     }
 
@@ -144,6 +168,19 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Float getAsFloat(String[] settings, Float defaultValue) throws SettingsException {
+        String sValue = get(settings);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Float.parseFloat(sValue);
+        } catch (NumberFormatException e) {
+            throw new SettingsException("Failed to parse float setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    @Override
     public Double getAsDouble(String setting, Double defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
@@ -157,6 +194,20 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Double getAsDouble(String[] settings, Double defaultValue) {
+        String sValue = get(settings);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(sValue);
+        } catch (NumberFormatException e) {
+            throw new SettingsException("Failed to parse double setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
+        }
+    }
+
+
+    @Override
     public Integer getAsInt(String setting, Integer defaultValue) {
         String sValue = get(setting);
         if (sValue == null) {
@@ -166,6 +217,19 @@ public class ImmutableSettings implements Settings {
             return Integer.parseInt(sValue);
         } catch (NumberFormatException e) {
             throw new SettingsException("Failed to parse int setting [" + setting + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    @Override
+    public Integer getAsInt(String[] settings, Integer defaultValue) {
+        String sValue = get(settings);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(sValue);
+        } catch (NumberFormatException e) {
+            throw new SettingsException("Failed to parse int setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
         }
     }
 
@@ -183,8 +247,26 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public Long getAsLong(String[] settings, Long defaultValue) {
+        String sValue = get(settings);
+        if (sValue == null) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(sValue);
+        } catch (NumberFormatException e) {
+            throw new SettingsException("Failed to parse long setting [" + Arrays.toString(settings) + "] with value [" + sValue + "]", e);
+        }
+    }
+
+    @Override
     public Boolean getAsBoolean(String setting, Boolean defaultValue) {
         return Booleans.parseBoolean(get(setting), defaultValue);
+    }
+
+    @Override
+    public Boolean getAsBoolean(String[] settings, Boolean defaultValue) {
+        return Booleans.parseBoolean(get(settings), defaultValue);
     }
 
     @Override
@@ -193,13 +275,28 @@ public class ImmutableSettings implements Settings {
     }
 
     @Override
+    public TimeValue getAsTime(String[] settings, TimeValue defaultValue) {
+        return parseTimeValue(get(settings), defaultValue);
+    }
+
+    @Override
     public ByteSizeValue getAsBytesSize(String setting, ByteSizeValue defaultValue) throws SettingsException {
         return parseBytesSizeValue(get(setting), defaultValue);
     }
 
     @Override
+    public ByteSizeValue getAsBytesSize(String[] settings, ByteSizeValue defaultValue) throws SettingsException {
+        return parseBytesSizeValue(get(settings), defaultValue);
+    }
+
+    @Override
     public SizeValue getAsSize(String setting, SizeValue defaultValue) throws SettingsException {
         return parseSizeValue(get(setting), defaultValue);
+    }
+
+    @Override
+    public SizeValue getAsSize(String[] settings, SizeValue defaultValue) throws SettingsException {
+        return parseSizeValue(get(settings), defaultValue);
     }
 
     @SuppressWarnings({"unchecked"})
@@ -237,13 +334,19 @@ public class ImmutableSettings implements Settings {
             try {
                 return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
             } catch (ClassNotFoundException e1) {
-                fullClassName = prefixValue + toCamelCase(sValue).toLowerCase() + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
-                try {
-                    return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
-                } catch (ClassNotFoundException e2) {
-                    throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + get(setting) + "]", e);
-                }
+                return loadClass(prefixValue, sValue, suffixClassName, setting);
+            } catch (NoClassDefFoundError e1) {
+                return loadClass(prefixValue, sValue, suffixClassName, setting);
             }
+        }
+    }
+
+    private <T> Class<? extends T> loadClass(String prefixValue, String sValue, String suffixClassName, String setting) {
+        String fullClassName = prefixValue + toCamelCase(sValue).toLowerCase(Locale.ROOT) + "." + Strings.capitalize(toCamelCase(sValue)) + suffixClassName;
+        try {
+            return (Class<? extends T>) getClassLoader().loadClass(fullClassName);
+        } catch (ClassNotFoundException e2) {
+            throw new NoClassSettingsException("Failed to load class setting [" + setting + "] with value [" + get(setting) + "]", e2);
         }
     }
 
@@ -419,6 +522,17 @@ public class ImmutableSettings implements Settings {
             }
             // try camel case version
             return map.get(toCamelCase(key));
+        }
+
+        /**
+         * Puts tuples of key value pairs of settings. Simplified version instead of repeating calling
+         * put for each one.
+         */
+        public Builder put(Object... settings) {
+            for (int i = 0; i < settings.length; i++) {
+                put(settings[i++].toString(), settings[i].toString());
+            }
+            return this;
         }
 
         /**
@@ -645,7 +759,7 @@ public class ImmutableSettings implements Settings {
         public Builder loadFromStream(String resourceName, InputStream is) throws SettingsException {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromResource(resourceName);
             try {
-                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, "UTF-8")));
+                Map<String, String> loadedSettings = settingsLoader.load(Streams.copyToString(new InputStreamReader(is, Charsets.UTF_8)));
                 put(loadedSettings);
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + resourceName + "]", e);
@@ -736,6 +850,10 @@ public class ImmutableSettings implements Settings {
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
                 @Override
                 public String resolvePlaceholder(String placeholderName) {
+                    if (placeholderName.startsWith("env.")) {
+                        // explicit env var prefix
+                        return System.getenv(placeholderName.substring("env.".length()));
+                    }
                     String value = System.getProperty(placeholderName);
                     if (value != null) {
                         return value;
@@ -746,9 +864,25 @@ public class ImmutableSettings implements Settings {
                     }
                     return map.get(placeholderName);
                 }
+
+                @Override
+                public boolean shouldIgnoreMissing(String placeholderName) {
+                    // if its an explicit env var, we are ok with not having a value for it and treat it as optional
+                    if (placeholderName.startsWith("env.")) {
+                        return true;
+                    }
+                    return false;
+                }
             };
-            for (Map.Entry<String, String> entry : map.entrySet()) {
-                map.put(entry.getKey(), propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver));
+            for (Map.Entry<String, String> entry : Maps.newHashMap(map).entrySet()) {
+                String value = propertyPlaceholder.replacePlaceholders(entry.getValue(), placeholderResolver);
+                // if the values exists and has length, we should maintain it  in the map
+                // otherwise, the replace process resolved into removing it
+                if (Strings.hasLength(value)) {
+                    map.put(entry.getKey(), value);
+                } else {
+                    map.remove(entry.getKey());
+                }
             }
             return this;
         }

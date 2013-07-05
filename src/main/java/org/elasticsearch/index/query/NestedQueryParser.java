@@ -97,7 +97,7 @@ public class NestedQueryParser implements QueryParser {
                             scoreMode = ScoreMode.Avg;
                         } else if ("max".equals(sScoreMode)) {
                             scoreMode = ScoreMode.Max;
-                        } else if ("total".equals(sScoreMode)) {
+                        } else if ("total".equals(sScoreMode) || "sum".equals(sScoreMode)) {
                             scoreMode = ScoreMode.Total;
                         } else if ("none".equals(sScoreMode)) {
                             scoreMode = ScoreMode.None;

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.search.facet.statistical;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,9 +35,9 @@ import java.util.List;
 /**
  *
  */
-public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet {
+public class InternalStatisticalFacet extends InternalFacet implements StatisticalFacet {
 
-    private static final String STREAM_TYPE = "statistical";
+    private static final BytesReference STREAM_TYPE = new HashedBytesArray(Strings.toUTF8Bytes("statistical"));
 
     public static void registerStreams() {
         Streams.registerStream(STREAM, STREAM_TYPE);
@@ -42,33 +45,27 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     static Stream STREAM = new Stream() {
         @Override
-        public Facet readFacet(String type, StreamInput in) throws IOException {
+        public Facet readFacet(StreamInput in) throws IOException {
             return readStatisticalFacet(in);
         }
     };
 
     @Override
-    public String streamType() {
+    public BytesReference streamType() {
         return STREAM_TYPE;
     }
 
-    private String name;
-
     private double min;
-
     private double max;
-
     private double total;
-
     private double sumOfSquares;
-
     private long count;
 
     private InternalStatisticalFacet() {
     }
 
     public InternalStatisticalFacet(String name, double min, double max, double total, double sumOfSquares, long count) {
-        this.name = name;
+        super(name);
         this.min = min;
         this.max = max;
         this.total = total;
@@ -77,57 +74,27 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
     }
 
     @Override
-    public String name() {
-        return this.name;
-    }
-
-    @Override
-    public String getName() {
-        return name();
-    }
-
-    @Override
-    public String type() {
-        return TYPE;
-    }
-
-    @Override
     public String getType() {
         return TYPE;
     }
 
     @Override
-    public long count() {
+    public long getCount() {
         return this.count;
     }
 
     @Override
-    public long getCount() {
-        return count();
-    }
-
-    @Override
-    public double total() {
+    public double getTotal() {
         return this.total;
     }
 
     @Override
-    public double getTotal() {
-        return total();
-    }
-
-    @Override
-    public double sumOfSquares() {
+    public double getSumOfSquares() {
         return this.sumOfSquares;
     }
 
     @Override
-    public double getSumOfSquares() {
-        return sumOfSquares();
-    }
-
-    @Override
-    public double mean() {
+    public double getMean() {
         if (count == 0) {
             return 0;
         }
@@ -135,44 +102,21 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
     }
 
     @Override
-    public double getMean() {
-        return mean();
-    }
-
-    @Override
-    public double min() {
+    public double getMin() {
         return this.min;
     }
 
     @Override
-    public double getMin() {
-        return min();
-    }
-
-    @Override
-    public double max() {
+    public double getMax() {
         return this.max;
     }
 
-    @Override
-    public double getMax() {
-        return max();
-    }
-
-    public double variance() {
+    public double getVariance() {
         return (sumOfSquares - ((total * total) / count)) / count;
     }
 
-    public double getVariance() {
-        return variance();
-    }
-
-    public double stdDeviation() {
-        return Math.sqrt(variance());
-    }
-
     public double getStdDeviation() {
-        return stdDeviation();
+        return Math.sqrt(getVariance());
     }
 
     @Override
@@ -187,22 +131,19 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
         long count = 0;
 
         for (Facet facet : facets) {
-            if (!facet.name().equals(name)) {
-                continue;
-            }
             InternalStatisticalFacet statsFacet = (InternalStatisticalFacet) facet;
-            if (statsFacet.min() < min || Double.isNaN(min)) {
-                min = statsFacet.min();
+            if (statsFacet.getMin() < min || Double.isNaN(min)) {
+                min = statsFacet.getMin();
             }
-            if (statsFacet.max() > max || Double.isNaN(max)) {
-                max = statsFacet.max();
+            if (statsFacet.getMax() > max || Double.isNaN(max)) {
+                max = statsFacet.getMax();
             }
-            total += statsFacet.total();
-            sumOfSquares += statsFacet.sumOfSquares();
-            count += statsFacet.count();
+            total += statsFacet.getTotal();
+            sumOfSquares += statsFacet.getSumOfSquares();
+            count += statsFacet.getCount();
         }
 
-        return new InternalStatisticalFacet(name, min, max, total, sumOfSquares, count);
+        return new InternalStatisticalFacet(getName(), min, max, total, sumOfSquares, count);
     }
 
     static final class Fields {
@@ -219,16 +160,16 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name);
+        builder.startObject(getName());
         builder.field(Fields._TYPE, StatisticalFacet.TYPE);
-        builder.field(Fields.COUNT, count());
-        builder.field(Fields.TOTAL, total());
-        builder.field(Fields.MIN, min());
-        builder.field(Fields.MAX, max());
-        builder.field(Fields.MEAN, mean());
-        builder.field(Fields.SUM_OF_SQUARES, sumOfSquares());
-        builder.field(Fields.VARIANCE, variance());
-        builder.field(Fields.STD_DEVIATION, stdDeviation());
+        builder.field(Fields.COUNT, getCount());
+        builder.field(Fields.TOTAL, getTotal());
+        builder.field(Fields.MIN, getMin());
+        builder.field(Fields.MAX, getMax());
+        builder.field(Fields.MEAN, getMean());
+        builder.field(Fields.SUM_OF_SQUARES, getSumOfSquares());
+        builder.field(Fields.VARIANCE, getVariance());
+        builder.field(Fields.STD_DEVIATION, getStdDeviation());
         builder.endObject();
         return builder;
     }
@@ -241,7 +182,7 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+        super.readFrom(in);
         count = in.readVLong();
         total = in.readDouble();
         min = in.readDouble();
@@ -251,7 +192,7 @@ public class InternalStatisticalFacet implements StatisticalFacet, InternalFacet
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+        super.writeTo(out);
         out.writeVLong(count);
         out.writeDouble(total);
         out.writeDouble(min);

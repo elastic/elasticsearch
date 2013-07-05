@@ -98,7 +98,7 @@ public class RecoveryTarget extends AbstractComponent {
 
         indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
             @Override
-            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, boolean delete) {
+            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
                 if (indexShard != null) {
                     removeAndCleanOnGoingRecovery(findRecoveryByShard(indexShard));
                 }
@@ -610,7 +610,6 @@ public class RecoveryTarget extends AbstractComponent {
                 }
 
                 indexOutput = store.createOutputRaw(name);
-
                 onGoingRecovery.openIndexOutputs.put(request.name(), indexOutput);
             } else {
                 indexOutput = onGoingRecovery.openIndexOutputs.get(request.name());

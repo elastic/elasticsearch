@@ -19,11 +19,15 @@
 
 package org.elasticsearch.common.lucene;
 
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
+import com.google.common.base.Charsets;
+
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 
 /**
  * A {@link java.io.PrintStream} that logs each {@link #println(String)} into a logger
@@ -43,7 +47,12 @@ public class LoggerInfoStream extends PrintStream {
      * by appending to its <tt>NAME</tt> the {@link #SUFFIX}.
      */
     public static LoggerInfoStream getInfoStream(ESLogger logger) {
-        return new LoggerInfoStream(Loggers.getLogger(logger, SUFFIX));
+        try {
+            return new LoggerInfoStream(Loggers.getLogger(logger, SUFFIX));
+        } catch (UnsupportedEncodingException e) {
+            // no UTF-8 ?
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -51,7 +60,12 @@ public class LoggerInfoStream extends PrintStream {
      * by appending to it the {@link #SUFFIX}.
      */
     public static LoggerInfoStream getInfoStream(String name) {
-        return new LoggerInfoStream(Loggers.getLogger(name + SUFFIX));
+        try {
+            return new LoggerInfoStream(Loggers.getLogger(name + SUFFIX));
+        } catch (UnsupportedEncodingException e) {
+            // no UTF-8 ?
+            throw new RuntimeException(e);
+        }
     }
 
     private final ESLogger logger;
@@ -59,9 +73,10 @@ public class LoggerInfoStream extends PrintStream {
     /**
      * Constucts a new instance based on the provided logger. Will output
      * each {@link #println(String)} operation as a trace level.
+     * @throws UnsupportedEncodingException 
      */
-    public LoggerInfoStream(ESLogger logger) {
-        super((OutputStream) null);
+    public LoggerInfoStream(ESLogger logger) throws UnsupportedEncodingException {
+        super((OutputStream) null, false, Charsets.UTF_8.name());
         this.logger = logger;
     }
 

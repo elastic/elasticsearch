@@ -40,7 +40,7 @@ public class NodeHotThreads extends NodeOperationResponse {
         this.hotThreads = hotThreads;
     }
 
-    public String hotThreads() {
+    public String getHotThreads() {
         return this.hotThreads;
     }
 

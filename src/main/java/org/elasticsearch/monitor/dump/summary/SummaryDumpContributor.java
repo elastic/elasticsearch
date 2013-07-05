@@ -31,13 +31,14 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
+import java.util.Locale;
 
 /**
  *
  */
 public class SummaryDumpContributor implements DumpContributor {
 
-    private final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS");
+    private final DateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss,SSS", Locale.ROOT);
     private final Object formatterLock = new Object();
 
     public static final String SUMMARY = "summary";

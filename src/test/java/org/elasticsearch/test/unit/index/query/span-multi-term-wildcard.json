@@ -1,0 +1,7 @@
+{
+	"span_multi":{
+		"match":{
+			"wildcard" : { "user" : {"value": "ki*y" , "boost" : 1.08}}
+		}
+	}
+}

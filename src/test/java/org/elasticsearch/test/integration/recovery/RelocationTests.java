@@ -28,8 +28,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +38,7 @@ import org.elasticsearch.test.integration.AbstractNodesTests;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
 
+import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -51,10 +51,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
+
 public class RelocationTests extends AbstractNodesTests {
-
-    private final ESLogger logger = Loggers.getLogger(RelocationTests.class);
-
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
     @AfterMethod
@@ -88,56 +86,45 @@ public class RelocationTests extends AbstractNodesTests {
 
         logger.info("--> verifying count");
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount("test").execute().actionGet().count(), equalTo(20l));
+        assertThat(client("node1").prepareCount("test").execute().actionGet().getCount(), equalTo(20l));
 
         logger.info("--> start another node");
         startNode("node2");
-        ClusterHealthResponse clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        ClusterHealthResponse clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> relocate the shard from node1 to node2");
         client("node1").admin().cluster().prepareReroute()
                 .add(new MoveAllocationCommand(new ShardId("test", 0), "node1", "node2"))
                 .execute().actionGet();
 
-        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
-        clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-        assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+        clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+        clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count again...");
         client("node1").admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client("node1").prepareCount("test").execute().actionGet().count(), equalTo(20l));
+        assertThat(client("node1").prepareCount("test").execute().actionGet().getCount(), equalTo(20l));
     }
 
     @Test
-    public void testPrimaryRelocationWhileIndexingWith1RelocationAnd1Writer() throws Exception {
-        testPrimaryRelocationWhileIndexing(1, 1, false);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileIndexingWith5RelocationAnd1Writer() throws Exception {
-        testPrimaryRelocationWhileIndexing(5, 1, false);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileIndexingWith10RelocationAnd5Writers() throws Exception {
-        testPrimaryRelocationWhileIndexing(10, 5, false);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileBulkIndexingWith1RelocationAnd1Writer() throws Exception {
-        testPrimaryRelocationWhileIndexing(1, 1, true);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileBulkIndexingWith10RelocationAnd1Writer() throws Exception {
-        testPrimaryRelocationWhileIndexing(10, 1, true);
-    }
-
-    @Test
-    public void testPrimaryRelocationWhileBulkIndexingWith10RelocationAnd5Writers() throws Exception {
-        testPrimaryRelocationWhileIndexing(10, 5, true);
+    public void testPrimaryRelocationWhileIndexingRandom() throws Exception {
+        long seed = System.currentTimeMillis();
+        Random random = new Random();
+        final int iter = NIGHLY ? 5 : 1;
+        for (int i = 0; i < iter; i++) {
+            try {
+                int numRelocations = 1 + random.nextInt(10);
+                int numWriters = 1 + random.nextInt(5);
+                boolean batch = random.nextBoolean();
+                logger.info("testPrimaryRelocationWhileIndexingRandom(numRelocations={}, numWriters={}, batch={} -- seed={}",
+                        numRelocations, numWriters, batch, seed);
+                testPrimaryRelocationWhileIndexing(numRelocations, numWriters, batch);
+            } finally {
+                closeAllNodes();
+            }
+        }
     }
 
     private void testPrimaryRelocationWhileIndexing(final int numberOfRelocations, final int numberOfWriters, final boolean batch) throws Exception {
@@ -181,10 +168,10 @@ public class RelocationTests extends AbstractNodesTests {
                                 }
                                 BulkResponse bulkResponse = bulkRequest.execute().actionGet();
                                 for (BulkItemResponse bulkItemResponse : bulkResponse) {
-                                    if (!bulkItemResponse.failed()) {
+                                    if (!bulkItemResponse.isFailed()) {
                                         indexCounter.incrementAndGet();
                                     } else {
-                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.failure().getId(), bulkItemResponse.failure().getMessage());
+                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.getFailure().getId(), bulkItemResponse.getFailure().getMessage());
                                     }
                                 }
                             } else {
@@ -209,7 +196,7 @@ public class RelocationTests extends AbstractNodesTests {
         }
 
         logger.info("--> waiting for 2000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -223,10 +210,10 @@ public class RelocationTests extends AbstractNodesTests {
             client("node1").admin().cluster().prepareReroute()
                     .add(new MoveAllocationCommand(new ShardId("test", 0), fromNode, toNode))
                     .execute().actionGet();
-            ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.timedOut(), equalTo(false));
-            clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+            ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+            clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
         }
         logger.info("--> done relocations");
@@ -243,7 +230,7 @@ public class RelocationTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             try {
                 logger.info("--> START search test round {}", i + 1);
-                SearchHits hits = client("node1").prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().hits();
+                SearchHits hits = client("node1").prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().getHits();
                 ranOnce = true;
                 if (hits.totalHits() != indexCounter.get()) {
                     int[] hitIds = new int[(int) indexCounter.get()];
@@ -278,33 +265,21 @@ public class RelocationTests extends AbstractNodesTests {
     }
 
     @Test
-    public void testReplicaRelocationWhileIndexingWith1RelocationAnd1Writer() throws Exception {
-        testReplicaRelocationWhileIndexing(1, 1, false);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileIndexingWith5RelocationAnd1Writer() throws Exception {
-        testReplicaRelocationWhileIndexing(5, 1, false);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileIndexingWith10RelocationAnd5Writers() throws Exception {
-        testReplicaRelocationWhileIndexing(10, 5, false);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileBulkIndexingWith1RelocationAnd1Writer() throws Exception {
-        testReplicaRelocationWhileIndexing(1, 1, true);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileBulkIndexingWith10RelocationAnd1Writer() throws Exception {
-        testReplicaRelocationWhileIndexing(10, 1, true);
-    }
-
-    @Test
-    public void testReplicaRelocationWhileBulkIndexingWith10RelocationAnd5Writers() throws Exception {
-        testReplicaRelocationWhileIndexing(10, 5, true);
+    public void testReplicaRelocationWhileIndexingRandom() throws Exception {
+        long seed = System.currentTimeMillis();
+        Random random = new Random();
+        final int iter = NIGHLY ? 5 : 1;
+        for (int i = 0; i < iter; i++) {
+            try {
+                int numRelocations = 1 + random.nextInt(10);
+                int numWriters = 1 + random.nextInt(5);
+                boolean batch = random.nextBoolean();
+                logger.info("testReplicaRelocationWhileIndexing(numRelocations={}, numWriters={}, batch={} -- seed={}", numRelocations, numWriters, batch, seed);
+                testReplicaRelocationWhileIndexing(numRelocations, numWriters, batch);
+            } finally {
+                closeAllNodes();
+            }
+        }
     }
 
     private void testReplicaRelocationWhileIndexing(final int numberOfRelocations, final int numberOfWriters, final boolean batch) throws Exception {
@@ -321,14 +296,14 @@ public class RelocationTests extends AbstractNodesTests {
         logger.info("--> starting [node2] ...");
         startNode("node2");
 
-        ClusterHealthResponse healthResponse = client("node2").admin().cluster().prepareHealth().setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        ClusterHealthResponse healthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").setWaitForGreenStatus().execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> starting [node3] ...");
         startNode("node3");
 
-        healthResponse = client("node3").admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        healthResponse = client("node3").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("3").setWaitForGreenStatus().execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         final AtomicLong idGenerator = new AtomicLong();
         final AtomicLong indexCounter = new AtomicLong();
@@ -357,10 +332,10 @@ public class RelocationTests extends AbstractNodesTests {
                                 }
                                 BulkResponse bulkResponse = bulkRequest.execute().actionGet();
                                 for (BulkItemResponse bulkItemResponse : bulkResponse) {
-                                    if (!bulkItemResponse.failed()) {
+                                    if (!bulkItemResponse.isFailed()) {
                                         indexCounter.incrementAndGet();
                                     } else {
-                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.failure().getId(), bulkItemResponse.failure().getMessage());
+                                        logger.warn("**** failed bulk indexing thread {}, {}/{}", indexerId, bulkItemResponse.getFailure().getId(), bulkItemResponse.getFailure().getMessage());
                                     }
                                 }
                             } else {
@@ -385,7 +360,7 @@ public class RelocationTests extends AbstractNodesTests {
         }
 
         logger.info("--> waiting for 2000 docs to be indexed ...");
-        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count() < 2000) {
+        while (client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount() < 2000) {
             Thread.sleep(100);
             client("node1").admin().indices().prepareRefresh().execute().actionGet();
         }
@@ -399,10 +374,10 @@ public class RelocationTests extends AbstractNodesTests {
             client("node1").admin().cluster().prepareReroute()
                     .add(new MoveAllocationCommand(new ShardId("test", 0), fromNode, toNode))
                     .execute().actionGet();
-            ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.timedOut(), equalTo(false));
-            clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-            assertThat(clusterHealthResponse.timedOut(), equalTo(false));
+            ClusterHealthResponse clusterHealthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+            clusterHealthResponse = client("node2").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForRelocatingShards(0).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
         }
         logger.info("--> done relocations");
@@ -419,7 +394,7 @@ public class RelocationTests extends AbstractNodesTests {
         for (int i = 0; i < 10; i++) {
             try {
                 logger.info("--> START search test round {}", i + 1);
-                SearchHits hits = client("node1").prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().hits();
+                SearchHits hits = client("node1").prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexCounter.get()).setNoFields().execute().actionGet().getHits();
                 ranOnce = true;
                 if (hits.totalHits() != indexCounter.get()) {
                     int[] hitIds = new int[(int) indexCounter.get()];

@@ -19,9 +19,9 @@ package org.elasticsearch.index.fielddata.ordinals;
  * under the License.
  */
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.RamUsage;
-import org.elasticsearch.index.fielddata.util.IntArrayRef;
 
 /**
  * An efficient store for positive integer slices. This pool uses multiple
@@ -72,17 +72,16 @@ final class PositiveIntPool {
      * Adds all integers in the given slices and returns the positive offset
      * into the datastructure to retrive this slice.
      */
-    public int put(IntArrayRef slice) {
-        int length = slice.end - slice.start;
-        if ( length > blockSize) {
+    public int put(IntsRef slice) {
+        if ( slice.length > blockSize) {
             throw new ElasticSearchIllegalArgumentException("Can not store slices greater or equal to: " + blockSize);
         }
-        if ((intUpto + length) > blockSize) {
+        if ((intUpto + slice.length) > blockSize) {
             nextBuffer();
         }
         final int relativeOffset = intUpto;
-        System.arraycopy(slice.values, slice.start, buffer, relativeOffset, length);
-        intUpto += length;
+        System.arraycopy(slice.ints, slice.offset, buffer, relativeOffset, slice.length);
+        intUpto += slice.length;
         buffer[intUpto - 1] *= -1; // mark as end
         return relativeOffset + intOffset;
     }
@@ -105,26 +104,26 @@ final class PositiveIntPool {
     /**
      * Retrieves a previously stored slice from the pool.
      * 
-     * @param slice the sclice to fill
+     * @param slice the slice to fill
      * @param offset the offset where the slice is stored
      */
-    public void fill(IntArrayRef slice, int offset) {
+    public void fill(IntsRef slice, int offset) {
         final int blockOffset = offset >> blockShift;
         final int relativeOffset = offset & blockMask;
         final int[] currentBuffer = buffers[blockOffset];
-        slice.start = 0;
-        slice.end = 0;
+        slice.offset = 0;
+        slice.length = 0;
         for (int i = relativeOffset; i < currentBuffer.length; i++) {
-            slice.end++;
+            slice.length++;
             if (currentBuffer[i] < 0) {
                 break;
             }
             
         }
-        if (slice.end != 0) {
-            slice.values = ArrayUtil.grow(slice.values, slice.end);
-            System.arraycopy(currentBuffer, relativeOffset, slice.values, 0, slice.end);
-            slice.values[slice.end-1] *= -1;
+        if (slice.length != 0) {
+            slice.ints = ArrayUtil.grow(slice.ints, slice.length);
+            System.arraycopy(currentBuffer, relativeOffset, slice.ints, 0, slice.length);
+            slice.ints[slice.length-1] *= -1;
         }
     }
 

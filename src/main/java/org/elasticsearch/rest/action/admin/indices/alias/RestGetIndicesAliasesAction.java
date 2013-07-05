@@ -67,7 +67,7 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 try {
-                    MetaData metaData = response.state().metaData();
+                    MetaData metaData = response.getState().metaData();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
@@ -86,7 +86,7 @@ public class RestGetIndicesAliasesAction extends BaseRestHandler {
                     builder.endObject();
 
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

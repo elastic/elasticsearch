@@ -24,6 +24,7 @@ import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.*;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
@@ -86,10 +87,11 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
         final TDoubleArrayList lon = new TDoubleArrayList();
         lat.add(0); // first "t" indicates null value
         lon.add(0); // first "t" indicates null value
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
+        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
         final CharsRef spare = new CharsRef();
         try {
-            BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null), reader.getLiveDocs());
+            BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null));
             BytesRef term;
             while ((term = iter.next()) != null) {
                 UnicodeUtil.UTF8toUTF16(term, spare);
@@ -106,7 +108,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
             }
 
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued()) {
+            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
                 double[] sLat = new double[reader.maxDoc()];
                 double[] sLon = new double[reader.maxDoc()];

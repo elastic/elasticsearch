@@ -19,15 +19,15 @@
 
 package org.elasticsearch.common.lucene.store;
 
+import org.apache.lucene.store.BufferedIndexOutput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.OpenBufferedIndexOutput;
 
 import java.io.IOException;
 import java.util.zip.Checksum;
 
 /**
  */
-public class BufferedChecksumIndexOutput extends OpenBufferedIndexOutput {
+public class BufferedChecksumIndexOutput extends BufferedIndexOutput {
 
     private final IndexOutput out;
 
@@ -36,7 +36,7 @@ public class BufferedChecksumIndexOutput extends OpenBufferedIndexOutput {
     public BufferedChecksumIndexOutput(IndexOutput out, Checksum digest) {
         // we add 8 to be bigger than the default BufferIndexOutput buffer size so any flush will go directly
         // to the output without being copied over to the delegate buffer
-        super(OpenBufferedIndexOutput.DEFAULT_BUFFER_SIZE + 64);
+        super(BufferedIndexOutput.DEFAULT_BUFFER_SIZE + 64);
         this.out = out;
         this.digest = digest;
     }

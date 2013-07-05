@@ -1,0 +1,16 @@
+{
+	"span_multi":{
+		"match":{
+			"range" : {
+     		   "age" : { 
+            		"from" : 10, 
+            		"to" : 20, 
+            		"include_lower" : true, 
+            		"include_upper": false, 
+            		"boost" : 2.0
+       			}
+    		}
+		}
+	}
+}
+

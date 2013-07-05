@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
 import java.lang.ref.Reference;
+import java.lang.ref.SoftReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -33,23 +34,6 @@ import java.lang.reflect.Method;
 public class ThreadLocals {
 
     private static final ESLogger logger = Loggers.getLogger(ThreadLocals.class);
-
-    public static class CleanableValue<T> {
-
-        private T value;
-
-        public CleanableValue(T value) {
-            this.value = value;
-        }
-
-        public T get() {
-            return value;
-        }
-
-        public void set(T value) {
-            this.value = value;
-        }
-    }
 
     public static void clearReferencesThreadLocals() {
         try {
@@ -107,8 +91,17 @@ public class ThreadLocals {
                         Field valueField = tableValue.getClass().getDeclaredField("value");
                         valueField.setAccessible(true);
                         Object value = valueField.get(tableValue);
-                        if ((value != null && CleanableValue.class.isAssignableFrom(value.getClass()))) {
-                            remove = true;
+                        if (value != null) {
+                            Object actualValue = value;
+                            if (value instanceof SoftReference) {
+                                actualValue = ((SoftReference) value).get();
+                            }
+                            if (actualValue != null) {
+                                String actualValueClassName = actualValue.getClass().getName();
+                                if (actualValueClassName.startsWith("org.elasticsearch") || actualValueClassName.startsWith("org.apache.lucene")) {
+                                    remove = true;
+                                }
+                            }
                         }
                         if (remove) {
                             Object[] args = new Object[4];

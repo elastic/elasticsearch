@@ -119,23 +119,28 @@ public class AndDocIdSet extends DocIdSet {
     static class IteratorBasedIterator extends DocIdSetIterator {
         int lastReturn = -1;
         private DocIdSetIterator[] iterators = null;
+        private final long cost;
 
         IteratorBasedIterator(DocIdSet[] sets) throws IOException {
             iterators = new DocIdSetIterator[sets.length];
             int j = 0;
+            long cost = Integer.MAX_VALUE;
             for (DocIdSet set : sets) {
                 if (set == null) {
                     lastReturn = DocIdSetIterator.NO_MORE_DOCS; // non matching
                     break;
                 } else {
+                   
                     DocIdSetIterator dcit = set.iterator();
                     if (dcit == null) {
                         lastReturn = DocIdSetIterator.NO_MORE_DOCS; // non matching
                         break;
                     }
                     iterators[j++] = dcit;
+                    cost = Math.min(cost, dcit.cost());
                 }
             }
+            this.cost = cost;
             if (lastReturn != DocIdSetIterator.NO_MORE_DOCS) {
                 lastReturn = (iterators.length > 0 ? -1 : DocIdSetIterator.NO_MORE_DOCS);
             }
@@ -203,6 +208,11 @@ public class AndDocIdSet extends DocIdSet {
                 i++;
             }
             return (lastReturn = target);
+        }
+
+        @Override
+        public long cost() {
+            return cost;
         }
     }
 }

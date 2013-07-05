@@ -61,10 +61,10 @@ public class RestNodesShutdownAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field("cluster_name", response.clusterName().value());
+                    builder.field("cluster_name", response.getClusterName().value());
 
                     builder.startObject("nodes");
-                    for (DiscoveryNode node : response.nodes()) {
+                    for (DiscoveryNode node : response.getNodes()) {
                         builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
                         builder.field("name", node.name(), XContentBuilder.FieldCaseConversion.NONE);
                         builder.endObject();
@@ -73,7 +73,7 @@ public class RestNodesShutdownAction extends BaseRestHandler {
 
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, RestStatus.OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

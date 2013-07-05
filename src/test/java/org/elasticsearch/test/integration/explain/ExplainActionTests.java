@@ -20,15 +20,11 @@
 package org.elasticsearch.test.integration.explain;
 
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.testng.annotations.Test;
 
 import java.util.Map;
@@ -36,101 +32,87 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
-import static org.testng.Assert.assertFalse;
-import static org.testng.Assert.assertNotNull;
-import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.*;
 
 /**
  */
-public class ExplainActionTests extends AbstractNodesTests {
+public class ExplainActionTests extends AbstractSharedClusterTest {
 
-    protected Client client;
-
-    @BeforeClass
-    public void startNodes() {
-        startNode("node1");
-        startNode("node2");
-        client = client("node1");
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
 
     @Test
     public void testSimple() throws Exception {
+        cluster().ensureAtLeastNumNodes(2);
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {}
-        client.admin().indices().prepareCreate("test").setSettings(
+        client().admin().indices().prepareCreate("test").setSettings(
                 ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1)
         ).execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "test", "1")
+        client().prepareIndex("test", "test", "1")
                 .setSource("field", "value1")
                 .execute().actionGet();
 
-        ExplainResponse response = client.prepareExplain("test", "test", "1")
+        ExplainResponse response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
-        assertFalse(response.exists()); // not a match b/c not realtime
-        assertFalse(response.match()); // not a match b/c not realtime
+        assertFalse(response.isExists()); // not a match b/c not realtime
+        assertFalse(response.isMatch()); // not a match b/c not realtime
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        response = client.prepareExplain("test", "test", "1")
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.match());
-        assertNotNull(response.explanation());
-        assertTrue(response.explanation().isMatch());
-        assertThat(response.explanation().getValue(), equalTo(1.0f));
+        assertTrue(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertTrue(response.getExplanation().isMatch());
+        assertThat(response.getExplanation().getValue(), equalTo(1.0f));
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        response = client.prepareExplain("test", "test", "1")
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.termQuery("field", "value2"))
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.exists());
-        assertFalse(response.match());
-        assertNotNull(response.explanation());
-        assertFalse(response.explanation().isMatch());
+        assertTrue(response.isExists());
+        assertFalse(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertFalse(response.getExplanation().isMatch());
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        response = client.prepareExplain("test", "test", "1")
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.boolQuery()
                         .must(QueryBuilders.termQuery("field", "value1"))
                         .must(QueryBuilders.termQuery("field", "value2"))
                 )
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.exists());
-        assertFalse(response.match());
-        assertNotNull(response.explanation());
-        assertFalse(response.explanation().isMatch());
-        assertThat(response.explanation().getDetails().length, equalTo(2));
+        assertTrue(response.isExists());
+        assertFalse(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertFalse(response.getExplanation().isMatch());
+        assertThat(response.getExplanation().getDetails().length, equalTo(2));
 
-        response = client.prepareExplain("test", "test", "2")
+        response = client().prepareExplain("test", "test", "2")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
-        assertFalse(response.exists());
-        assertFalse(response.match());
+        assertFalse(response.isExists());
+        assertFalse(response.isMatch());
     }
 
     @Test
     public void testExplainWithFields() throws Exception {
+        cluster().ensureAtLeastNumNodes(2);
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {}
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.prepareIndex("test", "test", "1")
+        client().prepareIndex("test", "test", "1")
                 .setSource(
                         jsonBuilder().startObject()
                                 .startObject("obj1")
@@ -140,29 +122,29 @@ public class ExplainActionTests extends AbstractNodesTests {
                         .endObject()
                 ).execute().actionGet();
 
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
-        ExplainResponse response = client.prepareExplain("test", "test", "1")
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
+        ExplainResponse response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setFields("obj1.field1")
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.match());
-        assertNotNull(response.explanation());
-        assertTrue(response.explanation().isMatch());
-        assertThat(response.explanation().getValue(), equalTo(1.0f));
-        assertThat(response.getResult().exists(), equalTo(true));
-        assertThat(response.getResult().id(), equalTo("1"));
-        assertThat(response.getResult().fields().size(), equalTo(1));
-        assertThat(response.getResult().fields().get("obj1.field1").getValue().toString(), equalTo("value1"));
+        assertTrue(response.isMatch());
+        assertNotNull(response.getExplanation());
+        assertTrue(response.getExplanation().isMatch());
+        assertThat(response.getExplanation().getValue(), equalTo(1.0f));
+        assertThat(response.getGetResult().isExists(), equalTo(true));
+        assertThat(response.getGetResult().getId(), equalTo("1"));
+        assertThat(response.getGetResult().getFields().size(), equalTo(1));
+        assertThat(response.getGetResult().getFields().get("obj1.field1").getValue().toString(), equalTo("value1"));
 
-        response = client.prepareExplain("test", "test", "1")
+        response = client().prepareExplain("test", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .setFields("_source.obj1")
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.match());
-        assertThat(response.getResult().fields().size(), equalTo(1));
-        Map<String, String> fields = (Map<String, String>) response.getResult().field("_source.obj1").getValue();
+        assertTrue(response.isMatch());
+        assertThat(response.getGetResult().getFields().size(), equalTo(1));
+        Map<String, String> fields = (Map<String, String>) response.getGetResult().field("_source.obj1").getValue();
         assertThat(fields.size(), equalTo(2));
         assertThat(fields.get("field1"), equalTo("value1"));
         assertThat(fields.get("field2"), equalTo("value2"));
@@ -170,24 +152,25 @@ public class ExplainActionTests extends AbstractNodesTests {
 
     @Test
     public void testExplainWithAlias() throws Exception {
+        cluster().ensureAtLeastNumNodes(2);
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (IndexMissingException e) {}
-        client.admin().indices().prepareCreate("test")
+        client().admin().indices().prepareCreate("test")
                 .execute().actionGet();
-        client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
+        client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().indices().prepareAliases().addAlias("test", "alias1", FilterBuilders.termFilter("field2", "value2"))
+        client().admin().indices().prepareAliases().addAlias("test", "alias1", FilterBuilders.termFilter("field2", "value2"))
                 .execute().actionGet();
-        client.prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").execute().actionGet();
-        client.admin().indices().prepareRefresh("test").execute().actionGet();
+        client().prepareIndex("test", "test", "1").setSource("field1", "value1", "field2", "value1").execute().actionGet();
+        client().admin().indices().prepareRefresh("test").execute().actionGet();
 
-        ExplainResponse response = client.prepareExplain("alias1", "test", "1")
+        ExplainResponse response = client().prepareExplain("alias1", "test", "1")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .execute().actionGet();
         assertNotNull(response);
-        assertTrue(response.exists());
-        assertFalse(response.match());
+        assertTrue(response.isExists());
+        assertFalse(response.isMatch());
     }
 
 }

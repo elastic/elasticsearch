@@ -159,7 +159,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
     public BytesRef indexedValueForSearch(Object value) {
         int intValue = NumericUtils.floatToSortableInt(parseValue(value));
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.intToPrefixCoded(intValue, precisionStep(), bytesRef);
+        NumericUtils.intToPrefixCoded(intValue, 0, bytesRef);   // 0 because of exact match
         return bytesRef;
     }
 

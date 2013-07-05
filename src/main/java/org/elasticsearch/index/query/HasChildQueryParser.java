@@ -19,11 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.search.child.ChildrenQuery;
@@ -88,6 +89,11 @@ public class HasChildQueryParser implements QueryParser {
                     if (!"none".equals(scoreTypeValue)) {
                         scoreType = ScoreType.fromString(scoreTypeValue);
                     }
+                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                    String scoreModeValue = parser.text();
+                    if (!"none".equals(scoreModeValue)) {
+                        scoreType = ScoreType.fromString(scoreModeValue);
+                    }
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
@@ -118,16 +124,20 @@ public class HasChildQueryParser implements QueryParser {
 
         // wrap the query with type query
         SearchContext searchContext = SearchContext.current();
+        if (searchContext == null) {
+            throw new ElasticSearchIllegalStateException("[has_child] Can't execute, search context not set.");
+        }
+
         Query query;
+        Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         if (scoreType != null) {
-            Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
             ChildrenQuery childrenQuery = new ChildrenQuery(searchContext, parentType, childType, parentFilter, innerQuery, scoreType);
             searchContext.addRewrite(childrenQuery);
             query = childrenQuery;
         } else {
-            HasChildFilter hasChildFilter = HasChildFilter.create(innerQuery, parentType, childType, searchContext);
+            HasChildFilter hasChildFilter = new HasChildFilter(innerQuery, parentType, childType, parentFilter, searchContext);
             searchContext.addRewrite(hasChildFilter);
-            query = new ConstantScoreQuery(hasChildFilter);
+            query = new XConstantScoreQuery(hasChildFilter);
         }
         query.setBoost(boost);
         return query;

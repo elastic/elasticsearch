@@ -1,0 +1,7 @@
+{
+	"span_multi":{
+		"match":{
+			"prefix" : { "user" :  { "value" : "ki", "boost" : 1.08 } }
+		}
+	}
+}

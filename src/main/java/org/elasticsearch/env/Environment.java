@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 
+import com.google.common.base.Charsets;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -164,7 +166,7 @@ public class Environment {
     }
 
     public String resolveConfigAndLoadToString(String path) throws FailedToResolveConfigException, IOException {
-        return Streams.copyToString(new InputStreamReader(resolveConfig(path).openStream(), "UTF-8"));
+        return Streams.copyToString(new InputStreamReader(resolveConfig(path).openStream(), Charsets.UTF_8));
     }
 
     public URL resolveConfig(String path) throws FailedToResolveConfigException {

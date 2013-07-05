@@ -19,8 +19,10 @@
 
 package org.elasticsearch.monitor.dump;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.Streams;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -88,10 +90,6 @@ public abstract class AbstractDump implements Dump {
 
     @Override
     public Writer createFileWriter(String name) throws DumpException {
-        try {
-            return new FileWriter(createFile(name));
-        } catch (IOException e) {
-            throw new DumpException("Failed to create file [" + name + "]", e);
-        }
+        return new OutputStreamWriter(createFileOutputStream(name), Charsets.UTF_8);
     }
 }

@@ -159,10 +159,10 @@ public class RestIndicesAliasesAction extends BaseRestHandler {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject()
                             .field("ok", true)
-                            .field("acknowledged", response.acknowledged())
+                            .field("acknowledged", response.isAcknowledged())
                             .endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.settings.NoClassSettingsException;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.common.Strings.toCamelCase;
@@ -79,7 +80,7 @@ public class RiverModule extends AbstractModule implements SpawnModules {
                 try {
                     return (Class<? extends Module>) globalSettings.getClassLoader().loadClass(fullClassName);
                 } catch (ClassNotFoundException e2) {
-                    fullClassName = prefixPackage + toCamelCase(type).toLowerCase() + "." + Strings.capitalize(toCamelCase(type)) + suffixClassName;
+                    fullClassName = prefixPackage + toCamelCase(type).toLowerCase(Locale.ROOT) + "." + Strings.capitalize(toCamelCase(type)) + suffixClassName;
                     try {
                         return (Class<? extends Module>) globalSettings.getClassLoader().loadClass(fullClassName);
                     } catch (ClassNotFoundException e3) {

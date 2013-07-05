@@ -219,7 +219,7 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
                         continue;
                     }
                     if (!newMetaData.hasIndex(current.index())) {
-                        logger.debug("[{}] deleting index that is no longer part of the metadata");
+                        logger.debug("[{}] deleting index that is no longer part of the metadata (indices: [{}])", current.index(), newMetaData.indices().keySet());
                         FileSystemUtils.deleteRecursively(nodeEnv.indexLocations(new Index(current.index())));
                     }
                 }

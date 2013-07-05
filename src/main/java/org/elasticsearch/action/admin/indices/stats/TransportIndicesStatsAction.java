@@ -50,7 +50,7 @@ import static com.google.common.collect.Lists.newArrayList;
 
 /**
  */
-public class TransportIndicesStatsAction extends TransportBroadcastOperationAction<IndicesStatsRequest, IndicesStats, TransportIndicesStatsAction.IndexShardStatsRequest, ShardStats> {
+public class TransportIndicesStatsAction extends TransportBroadcastOperationAction<IndicesStatsRequest, IndicesStatsResponse, TransportIndicesStatsAction.IndexShardStatsRequest, ShardStats> {
 
     private final IndicesService indicesService;
 
@@ -101,7 +101,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
 
 
     @Override
-    protected IndicesStats newResponse(IndicesStatsRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
+    protected IndicesStatsResponse newResponse(IndicesStatsRequest request, AtomicReferenceArray shardsResponses, ClusterState clusterState) {
         int successfulShards = 0;
         int failedShards = 0;
         List<ShardOperationFailedException> shardFailures = null;
@@ -121,7 +121,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
                 successfulShards++;
             }
         }
-        return new IndicesStats(shards.toArray(new ShardStats[shards.size()]), clusterState, shardsResponses.length(), successfulShards, failedShards, shardFailures);
+        return new IndicesStatsResponse(shards.toArray(new ShardStats[shards.size()]), clusterState, shardsResponses.length(), successfulShards, failedShards, shardFailures);
     }
 
     @Override
@@ -158,7 +158,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
             stats.stats.get = indexShard.getStats();
         }
         if (request.request.search()) {
-            stats.stats().search = indexShard.searchStats(request.request.groups());
+            stats.getStats().search = indexShard.searchStats(request.request.groups());
         }
         if (request.request.merge()) {
             stats.stats.merge = indexShard.mergeStats();
@@ -171,6 +171,15 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         }
         if (request.request.warmer()) {
             stats.stats.warmer = indexShard.warmerStats();
+        }
+        if (request.request.filterCache()) {
+            stats.stats.filterCache = indexShard.filterCacheStats();
+        }
+        if (request.request.idCache()) {
+            stats.stats.idCache = indexShard.idCacheStats();
+        }
+        if (request.request.fieldData()) {
+            stats.stats.fieldData = indexShard.fieldDataStats(request.request.fieldDataFields());
         }
 
         return stats;

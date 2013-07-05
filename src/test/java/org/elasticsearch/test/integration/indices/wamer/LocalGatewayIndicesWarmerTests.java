@@ -21,6 +21,7 @@ package org.elasticsearch.test.integration.indices.wamer;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -73,7 +74,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.number_of_shards", 1))
                 .execute().actionGet();
 
-        client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
+        client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
         client("node1").admin().indices().preparePutWarmer("warmer_1")
                 .setSearchRequest(client("node1").prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "value1")))
@@ -101,7 +102,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
 
 
         logger.info("--> verify warmers are registered in cluster state");
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(2));
@@ -116,11 +117,11 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
         logger.info("--> starting the node again...");
         startNode("node1", settingsBuilder().put("gateway.type", "local"));
 
-        ClusterHealthResponse healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        ClusterHealthResponse healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify warmers are recovered");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         IndexWarmersMetaData recoveredWarmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(recoveredWarmersMetaData.entries().size(), equalTo(warmersMetaData.entries().size()));
         for (int i = 0; i < warmersMetaData.entries().size(); i++) {
@@ -141,7 +142,7 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareDeleteWarmer().setIndices("test").setName("warmer_1").execute().actionGet();
 
         logger.info("--> verify warmers (delete) are registered in cluster state");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         warmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(warmersMetaData, Matchers.notNullValue());
         assertThat(warmersMetaData.entries().size(), equalTo(1));
@@ -152,11 +153,11 @@ public class LocalGatewayIndicesWarmerTests extends AbstractNodesTests {
         logger.info("--> starting the node again...");
         startNode("node1", settingsBuilder().put("gateway.type", "local"));
 
-        healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForYellowStatus().execute().actionGet();
-        assertThat(healthResponse.timedOut(), equalTo(false));
+        healthResponse = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verify warmers are recovered");
-        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
+        clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
         recoveredWarmersMetaData = clusterState.metaData().index("test").custom(IndexWarmersMetaData.TYPE);
         assertThat(recoveredWarmersMetaData.entries().size(), equalTo(warmersMetaData.entries().size()));
         for (int i = 0; i < warmersMetaData.entries().size(); i++) {

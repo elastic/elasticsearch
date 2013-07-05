@@ -82,43 +82,23 @@ public class GatewaySnapshotStatus {
         this.expectedNumberOfOperations = expectedNumberOfOperations;
     }
 
-    public Stage stage() {
+    public Stage getStage() {
         return this.stage;
     }
 
-    public Stage getStage() {
-        return stage();
-    }
-
-    public long startTime() {
+    public long getStartTime() {
         return this.startTime;
     }
 
-    public long getStartTime() {
-        return startTime();
-    }
-
-    public TimeValue time() {
+    public TimeValue getTime() {
         return TimeValue.timeValueMillis(time);
     }
 
-    public TimeValue getTime() {
-        return time();
-    }
-
-    public ByteSizeValue indexSize() {
+    public ByteSizeValue getIndexSize() {
         return new ByteSizeValue(indexSize);
     }
 
-    public ByteSizeValue getIndexSize() {
-        return indexSize();
-    }
-
-    public int expectedNumberOfOperations() {
-        return expectedNumberOfOperations;
-    }
-
     public int getExpectedNumberOfOperations() {
-        return expectedNumberOfOperations();
+        return expectedNumberOfOperations;
     }
 }

@@ -31,42 +31,21 @@ public class DocsStatus {
     /**
      * The number of docs.
      */
-    public long numDocs() {
-        return numDocs;
-    }
-
-    /**
-     * The number of docs.
-     */
     public long getNumDocs() {
-        return numDocs();
-    }
-
-    /**
-     * The max doc.
-     */
-    public long maxDoc() {
-        return maxDoc;
+        return numDocs;
     }
 
     /**
      * The max doc.
      */
     public long getMaxDoc() {
-        return maxDoc();
-    }
-
-    /**
-     * The number of deleted docs in the index.
-     */
-    public long deletedDocs() {
-        return deletedDocs;
+        return maxDoc;
     }
 
     /**
      * The number of deleted docs in the index.
      */
     public long getDeletedDocs() {
-        return deletedDocs();
+        return deletedDocs;
     }
 }

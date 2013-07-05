@@ -1,0 +1,12 @@
+{
+	"span_multi":{
+		"match":{
+			"fuzzy" : {
+				"user" : {
+	                "value" : "ki",
+	                "boost" : 1.08
+	            }
+	    	}
+		}
+	}
+}

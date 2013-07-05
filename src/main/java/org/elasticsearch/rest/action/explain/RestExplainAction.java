@@ -40,6 +40,7 @@ import org.elasticsearch.rest.*;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestXContentBuilder.restContentBuilder;
@@ -53,6 +54,7 @@ public class RestExplainAction extends BaseRestHandler {
     public RestExplainAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(GET, "/{index}/{type}/{id}/_explain", this);
+        controller.registerHandler(POST, "/{index}/{type}/{id}/_explain", this);
     }
 
     @Override
@@ -86,7 +88,7 @@ public class RestExplainAction extends BaseRestHandler {
             }
 
             ExplainSourceBuilder explainSourceBuilder = new ExplainSourceBuilder();
-            explainSourceBuilder.query(queryStringBuilder);
+            explainSourceBuilder.setQuery(queryStringBuilder);
             explainRequest.source(explainSourceBuilder);
         }
 
@@ -105,26 +107,26 @@ public class RestExplainAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     builder.startObject();
-                    builder.field(Fields.OK, response.exists())
+                    builder.field(Fields.OK, response.isExists())
                             .field(Fields._INDEX, explainRequest.index())
                             .field(Fields._TYPE, explainRequest.type())
                             .field(Fields._ID, explainRequest.id())
-                            .field(Fields.MATCHED, response.match());
+                            .field(Fields.MATCHED, response.isMatch());
 
                     if (response.hasExplanation()) {
                         builder.startObject(Fields.EXPLANATION);
-                        buildExplanation(builder, response.explanation());
+                        buildExplanation(builder, response.getExplanation());
                         builder.endObject();
                     }
-                    GetResult getResult = response.getResult();
+                    GetResult getResult = response.getGetResult();
                     if (getResult != null) {
                         builder.startObject(Fields.GET);
-                        response.getResult().toXContentEmbedded(builder, request);
+                        response.getGetResult().toXContentEmbedded(builder, request);
                         builder.endObject();
                     }
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, response.exists() ? OK : NOT_FOUND, builder));
-                } catch (Exception e) {
+                    channel.sendResponse(new XContentRestResponse(request, response.isExists() ? OK : NOT_FOUND, builder));
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

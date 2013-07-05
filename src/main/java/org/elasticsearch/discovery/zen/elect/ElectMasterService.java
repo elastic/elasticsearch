@@ -20,12 +20,11 @@
 package org.elasticsearch.discovery.zen.elect;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.cluster.metadata.MetaData;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -35,9 +34,7 @@ import java.util.List;
  */
 public class ElectMasterService extends AbstractComponent {
 
-    static {
-        MetaData.addDynamicSettings("discovery.zen.minimum_master_nodes");
-    }
+    public static final String DISCOVERY_ZEN_MINIMUM_MASTER_NODES = "discovery.zen.minimum_master_nodes";
 
     private final NodeComparator nodeComparator = new NodeComparator();
 
@@ -45,7 +42,7 @@ public class ElectMasterService extends AbstractComponent {
 
     public ElectMasterService(Settings settings) {
         super(settings);
-        this.minimumMasterNodes = settings.getAsInt("discovery.zen.minimum_master_nodes", -1);
+        this.minimumMasterNodes = settings.getAsInt(DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1);
         logger.debug("using minimum_master_nodes [{}]", minimumMasterNodes);
     }
 
@@ -113,7 +110,7 @@ public class ElectMasterService extends AbstractComponent {
                 it.remove();
             }
         }
-        Collections.sort(possibleNodes, nodeComparator);
+        CollectionUtil.quickSort(possibleNodes, nodeComparator);
         return possibleNodes;
     }
 

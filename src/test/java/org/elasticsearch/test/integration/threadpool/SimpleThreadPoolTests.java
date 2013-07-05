@@ -3,6 +3,7 @@ package org.elasticsearch.test.integration.threadpool;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -36,8 +37,8 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
 
     @BeforeClass
     public void createNodes() throws Exception {
-        startNode("node1");
-        startNode("node2");
+        startNode("node1", ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build());
+        startNode("node2", ImmutableSettings.settingsBuilder().put("threadpool.search.type", "cached").build());
         client1 = client("node1");
         client2 = client("node2");
         threadPool = ((InternalNode) node("node1")).injector().getInstance(ThreadPool.class);
@@ -94,17 +95,18 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
         });
         client1.admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.type", "fixed").build()).execute().actionGet();
         barrier.await();
+        Thread.sleep(200);
 
         // Check that node info is correct
         NodesInfoResponse nodesInfoResponse = client2.admin().cluster().prepareNodesInfo().all().execute().actionGet();
         for (int i = 0; i < 2; i++) {
-            NodeInfo nodeInfo = nodesInfoResponse.nodes()[i];
+            NodeInfo nodeInfo = nodesInfoResponse.getNodes()[i];
             boolean found = false;
             for (ThreadPool.Info info : nodeInfo.getThreadPool()) {
-                if (info.name().equals(Names.SEARCH)) {
-                    assertThat(info.type(), equalTo("fixed"));
-                    assertThat(info.rejectSetting(), equalTo("abort"));
-                    assertThat(info.queueType(), equalTo("linked"));
+                if (info.getName().equals(Names.SEARCH)) {
+                    assertThat(info.getType(), equalTo("fixed"));
+                    assertThat(info.getRejectSetting(), equalTo("abort"));
+                    assertThat(info.getQueueType(), equalTo("linked"));
                     found = true;
                     break;
                 }
@@ -125,14 +127,14 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
         Thread.sleep(200);
         nodesInfoResponse = client2.admin().cluster().prepareNodesInfo().all().execute().actionGet();
         for (int i = 0; i < 2; i++) {
-            NodeInfo nodeInfo = nodesInfoResponse.nodes()[i];
+            NodeInfo nodeInfo = nodesInfoResponse.getNodes()[i];
             boolean found = false;
             for (ThreadPool.Info info : nodeInfo.getThreadPool()) {
-                if (info.name().equals(Names.SEARCH)) {
-                    assertThat(info.type(), equalTo("blocking"));
-                    assertThat(info.capacity().singles(), equalTo(100L));
-                    assertThat(info.waitTime().seconds(), equalTo(10L));
-                    assertThat(info.keepAlive().seconds(), equalTo(15L));
+                if (info.getName().equals(Names.SEARCH)) {
+                    assertThat(info.getType(), equalTo("blocking"));
+                    assertThat(info.getQueueSize().singles(), equalTo(100L));
+                    assertThat(info.getWaitTime().seconds(), equalTo(10L));
+                    assertThat(info.getKeepAlive().seconds(), equalTo(15L));
                     found = true;
                     break;
                 }
@@ -140,7 +142,7 @@ public class SimpleThreadPoolTests extends AbstractNodesTests {
             assertThat(found, equalTo(true));
 
             Map<String, Object> poolMap = getPoolSettingsThroughJson(nodeInfo.getThreadPool(), Names.SEARCH);
-            assertThat(poolMap.get("capacity").toString(), equalTo("100"));
+            assertThat(poolMap.get("queue_size").toString(), equalTo("100"));
             assertThat(poolMap.get("wait_time").toString(), equalTo("10s"));
             assertThat(poolMap.get("keep_alive").toString(), equalTo("15s"));
         }

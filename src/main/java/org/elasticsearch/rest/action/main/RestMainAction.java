@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.main;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -59,7 +60,7 @@ public class RestMainAction extends BaseRestHandler {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 RestStatus status = RestStatus.OK;
-                if (response.state().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+                if (response.getState().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
                     status = RestStatus.SERVICE_UNAVAILABLE;
                 }
                 if (request.method() == RestRequest.Method.HEAD) {
@@ -75,11 +76,19 @@ public class RestMainAction extends BaseRestHandler {
                     if (settings.get("name") != null) {
                         builder.field("name", settings.get("name"));
                     }
-                    builder.startObject("version").field("number", Version.CURRENT.number()).field("snapshot_build", Version.CURRENT.snapshot).endObject();
+                    builder.startObject("version")
+                        .field("number", Version.CURRENT.number())
+                        .field("snapshot_build", Version.CURRENT.snapshot)
+                        // We use the lucene version from lucene constants since
+                        // this includes bugfix release version as well and is already in
+                        // the right format. We can also be sure that the format is maitained
+                        // since this is also recorded in lucene segments and has BW compat
+                        .field("lucene_version", Constants.LUCENE_MAIN_VERSION)
+                    .endObject();
                     builder.field("tagline", "You Know, for Search");
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, status, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

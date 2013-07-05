@@ -94,6 +94,13 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
             return this.routing;
         }
 
+        public Item parent(String parent) {
+            if (routing == null) {
+                this.routing = parent;
+            }
+            return this;
+        }
+
         public Item fields(String... fields) {
             this.fields = fields;
             return this;
@@ -246,6 +253,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             String type = defaultType;
                             String id = null;
                             String routing = null;
+                            String parent = null;
                             List<String> fields = null;
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -259,6 +267,11 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                                         id = parser.text();
                                     } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
                                         routing = parser.text();
+                                    } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
+                                        parent = parser.text();
+                                    } else if ("fields".equals(currentFieldName)) {
+                                        fields = new ArrayList<String>();
+                                        fields.add(parser.text());
                                     }
                                 } else if (token == XContentParser.Token.START_ARRAY) {
                                     if ("fields".equals(currentFieldName)) {
@@ -275,7 +288,7 @@ public class MultiGetRequest extends ActionRequest<MultiGetRequest> {
                             } else {
                                 aFields = defaultFields;
                             }
-                            add(new Item(index, type, id).routing(routing).fields(aFields));
+                            add(new Item(index, type, id).routing(routing).fields(aFields).parent(parent));
                         }
                     } else if ("ids".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -298,7 +299,7 @@ public class MultiFieldMapper implements Mapper, AllFieldMapper.IncludeInAll {
         builder.startObject(name);
         builder.field("type", CONTENT_TYPE);
         if (pathType != Defaults.PATH_TYPE) {
-            builder.field("path", pathType.name().toLowerCase());
+            builder.field("path", pathType.name().toLowerCase(Locale.ROOT));
         }
 
         builder.startObject("fields");

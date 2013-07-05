@@ -22,12 +22,15 @@ package org.elasticsearch.test.unit.index.mapper.simple;
 import org.apache.lucene.document.Document;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.unit.index.mapper.MapperTests;
 import org.testng.annotations.Test;
+
+import com.google.common.base.Charsets;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -123,7 +126,7 @@ public class SimpleMapperTests {
                         .add(object("name").add(stringField("first").store(true).index(false)))
         ).build(mapperParser);
 
-        BytesReference json = new BytesArray("".getBytes());
+        BytesReference json = new BytesArray("".getBytes(Charsets.UTF_8));
         try {
             docMapper.parse("person", "1", json).rootDoc();
             assertThat("this point is never reached", false);

@@ -36,10 +36,16 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.exists.IndicesExistsAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.exists.TransportIndicesExistsAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.IndicesGetAliasesAction;
+import org.elasticsearch.action.admin.indices.alias.get.TransportIndicesGetAliasesAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
@@ -60,6 +66,8 @@ import org.elasticsearch.action.admin.indices.gateway.snapshot.GatewaySnapshotAc
 import org.elasticsearch.action.admin.indices.gateway.snapshot.TransportGatewaySnapshotAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.delete.TransportDeleteMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
+import org.elasticsearch.action.admin.indices.mapping.get.TransportGetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
@@ -84,6 +92,8 @@ import org.elasticsearch.action.admin.indices.validate.query.TransportValidateQu
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.delete.TransportDeleteWarmerAction;
+import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersAction;
+import org.elasticsearch.action.admin.indices.warmer.get.TransportGetWarmersAction;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerAction;
 import org.elasticsearch.action.admin.indices.warmer.put.TransportPutWarmerAction;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -110,7 +120,11 @@ import org.elasticsearch.action.percolate.PercolateAction;
 import org.elasticsearch.action.percolate.TransportPercolateAction;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.search.type.*;
+import org.elasticsearch.action.suggest.SuggestAction;
+import org.elasticsearch.action.suggest.TransportSuggestAction;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.action.termvector.TermVectorAction;
+import org.elasticsearch.action.termvector.TransportSingleShardTermVectorAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -171,6 +185,7 @@ public class ActionModule extends AbstractModule {
         registerAction(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
         registerAction(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);
         registerAction(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
+        registerAction(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
 
         registerAction(IndicesStatsAction.INSTANCE, TransportIndicesStatsAction.class);
         registerAction(IndicesStatusAction.INSTANCE, TransportIndicesStatusAction.class);
@@ -181,6 +196,7 @@ public class ActionModule extends AbstractModule {
         registerAction(CloseIndexAction.INSTANCE, TransportCloseIndexAction.class);
         registerAction(IndicesExistsAction.INSTANCE, TransportIndicesExistsAction.class);
         registerAction(TypesExistsAction.INSTANCE, TransportTypesExistsAction.class);
+        registerAction(GetMappingsAction.INSTANCE, TransportGetMappingsAction.class);
         registerAction(PutMappingAction.INSTANCE, TransportPutMappingAction.class);
         registerAction(DeleteMappingAction.INSTANCE, TransportDeleteMappingAction.class);
         registerAction(IndicesAliasesAction.INSTANCE, TransportIndicesAliasesAction.class);
@@ -196,12 +212,17 @@ public class ActionModule extends AbstractModule {
         registerAction(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         registerAction(PutWarmerAction.INSTANCE, TransportPutWarmerAction.class);
         registerAction(DeleteWarmerAction.INSTANCE, TransportDeleteWarmerAction.class);
+        registerAction(GetWarmersAction.INSTANCE, TransportGetWarmersAction.class);
+        registerAction(IndicesGetAliasesAction.INSTANCE, TransportIndicesGetAliasesAction.class);
+        registerAction(IndicesExistsAliasesAction.INSTANCE, TransportIndicesExistsAliasesAction.class);
 
         registerAction(IndexAction.INSTANCE, TransportIndexAction.class);
         registerAction(GetAction.INSTANCE, TransportGetAction.class);
+        registerAction(TermVectorAction.INSTANCE, TransportSingleShardTermVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,
                 TransportIndexDeleteAction.class, TransportShardDeleteAction.class);
         registerAction(CountAction.INSTANCE, TransportCountAction.class);
+        registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,
                 TransportShardMultiGetAction.class);

@@ -28,6 +28,10 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.Random;
 
+import org.elasticsearch.common.io.Streams;
+
+import com.google.common.base.Charsets;
+
 /**
  *
  */
@@ -36,13 +40,13 @@ public abstract class Names {
     public static String randomNodeName(URL nodeNames) {
         BufferedReader reader = null;
         try {
-            reader = new BufferedReader(new InputStreamReader(nodeNames.openStream()));
+            reader = new BufferedReader(new InputStreamReader(nodeNames.openStream(), Charsets.UTF_8));
             int numberOfNames = 0;
             while (reader.readLine() != null) {
                 numberOfNames++;
             }
             reader.close();
-            reader = new BufferedReader(new InputStreamReader(nodeNames.openStream()));
+            reader = new BufferedReader(new InputStreamReader(nodeNames.openStream(), Charsets.UTF_8));
             int number = ((ThreadLocalRandom.current().nextInt(numberOfNames)) % numberOfNames);
             for (int i = 0; i < number; i++) {
                 reader.readLine();
@@ -66,7 +70,7 @@ public abstract class Names {
             return null;
         }
         try {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(nodeNames));
+            BufferedReader reader = new BufferedReader(new InputStreamReader(nodeNames, Charsets.UTF_8));
             int numberOfNames = Integer.parseInt(reader.readLine());
             int number = ((new Random().nextInt(numberOfNames)) % numberOfNames) - 2; // remove 2 for last line and first line
             for (int i = 0; i < number; i++) {

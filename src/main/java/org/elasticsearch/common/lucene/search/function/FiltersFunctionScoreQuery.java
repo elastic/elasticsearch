@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -175,7 +176,7 @@ public class FiltersFunctionScoreQuery extends Query {
 
                         // top level score = subquery.score * filter.score (this already has the query boost)
                         float topLevelScore = subQueryExpl.getValue() * sc;
-                        Explanation topLevel = new ComplexExplanation(true, topLevelScore, "custom score, score mode [" + scoreMode.toString().toLowerCase() + "]");
+                        Explanation topLevel = new ComplexExplanation(true, topLevelScore, "custom score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]");
                         topLevel.addDetail(subQueryExpl);
                         topLevel.addDetail(filterExplanation);
                         return topLevel;
@@ -230,7 +231,7 @@ public class FiltersFunctionScoreQuery extends Query {
                         factor = maxBoost;
                     }
                     float sc = factor * subQueryExpl.getValue() * getBoost();
-                    Explanation res = new ComplexExplanation(true, sc, "custom score, score mode [" + scoreMode.toString().toLowerCase() + "]");
+                    Explanation res = new ComplexExplanation(true, sc, "custom score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]");
                     res.addDetail(subQueryExpl);
                     for (Explanation explanation : filtersExplanations) {
                         res.addDetail(explanation);
@@ -346,6 +347,11 @@ public class FiltersFunctionScoreQuery extends Query {
         @Override
         public int freq() throws IOException {
             return scorer.freq();
+        }
+
+        @Override
+        public long cost() {
+            return scorer.cost();
         }
     }
 

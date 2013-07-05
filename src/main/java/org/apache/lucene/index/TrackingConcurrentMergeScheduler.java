@@ -78,6 +78,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     @Override
     protected void doMerge(MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
+        // don't used #totalBytesSize() since need to be executed under IW lock, might be fixed in future Lucene version
         long totalSizeInBytes = merge.estimatedMergeBytes;
         long time = System.currentTimeMillis();
         currentMerges.inc();
@@ -104,5 +105,12 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
                 logger.trace("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.info.name, TimeValue.timeValueMillis(took));
             }
         }
+    }
+    
+    @Override
+    public MergeScheduler clone() {
+        // Lucene IW makes a clone internally but since we hold on to this instance 
+        // the clone will just be the identity.
+        return this;
     }
 }

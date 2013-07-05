@@ -19,10 +19,69 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.index.fielddata.BytesValues.Iter;
+
 /**
  */
-public interface AtomicGeoPointFieldData<Script extends ScriptDocValues> extends AtomicFieldData<Script> {
+public abstract class AtomicGeoPointFieldData<Script extends ScriptDocValues> implements AtomicFieldData<Script> {
 
-    GeoPointValues getGeoPointValues();
+    public abstract GeoPointValues getGeoPointValues();
+
+    @Override
+    public BytesValues getBytesValues() {
+        final GeoPointValues values = getGeoPointValues();
+        return new BytesValues(values.isMultiValued()) {
+
+            @Override
+            public boolean hasValue(int docId) {
+                return values.hasValue(docId);
+            }
+
+            @Override
+            public BytesRef getValueScratch(int docId, BytesRef ret) {
+                GeoPoint value = values.getValue(docId);
+                if (value != null) {
+                    ret.copyChars(GeoHashUtils.encode(value.lat(), value.lon()));
+                } else {
+                    ret.length = 0;
+                }
+                return ret;
+            }
+
+            @Override
+            public Iter getIter(int docId) {
+                final GeoPointValues.Iter iter = values.getIter(docId);
+                return new BytesValues.Iter() {
+                    private final BytesRef spare = new BytesRef();
+
+                    @Override
+                    public boolean hasNext() {
+                        return iter.hasNext();
+                    }
+
+                    @Override
+                    public BytesRef next() {
+                        GeoPoint value  = iter.next();
+                        spare.copyChars(GeoHashUtils.encode(value.lat(), value.lon()));
+                        return spare;
+                    }
+
+                    @Override
+                    public int hash() {
+                        return spare.hashCode();
+                    }
+
+                };
+            }
+        };
+    }
+
+    @Override
+    public BytesValues getHashedBytesValues() {
+        return getBytesValues();
+    }
 
 }

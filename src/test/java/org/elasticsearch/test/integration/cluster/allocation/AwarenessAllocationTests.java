@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -63,28 +64,34 @@ public class AwarenessAllocationTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test1").execute().actionGet();
         client("node1").admin().indices().prepareCreate("test2").execute().actionGet();
 
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> starting 1 node on a different rack");
         startNode("node3", ImmutableSettings.settingsBuilder().put(commonSettings).put("node.rack_id", "rack_2"));
 
-        Thread.sleep(500);
+        long start = System.currentTimeMillis();
+        TObjectIntHashMap<String> counts;
+        // On slow machines the initial relocation might be delayed
+        do {
+            Thread.sleep(100);
+            logger.info("--> waiting for no relocation");
+            health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
+            assertThat(health.isTimedOut(), equalTo(false));
 
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("3").setWaitForRelocatingShards(0).execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
-
-        ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().state();
-        //System.out.println(clusterState.routingTable().prettyPrint());
-        // verify that we have 10 shards on node3
-        TObjectIntHashMap<String> counts = new TObjectIntHashMap<String>();
-        for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+            logger.info("--> checking current state");
+            ClusterState clusterState = client("node1").admin().cluster().prepareState().execute().actionGet().getState();
+            //System.out.println(clusterState.routingTable().prettyPrint());
+            // verify that we have 10 shards on node3
+            counts = new TObjectIntHashMap<String>();
+            for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
+                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                    for (ShardRouting shardRouting : indexShardRoutingTable) {
+                        counts.adjustOrPutValue(clusterState.nodes().get(shardRouting.currentNodeId()).name(), 1, 1);
+                    }
                 }
             }
-        }
+        } while (counts.get("node3") != 10 && (System.currentTimeMillis() - start) < 10000);
         assertThat(counts.get("node3"), equalTo(10));
     }
 }

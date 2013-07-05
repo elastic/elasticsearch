@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -148,6 +149,9 @@ public class QueryParseContext {
     }
 
     public Filter cacheFilter(Filter filter, @Nullable CacheKeyFilter.Key cacheKey) {
+        if (filter == null) {
+            return null;
+        }
         if (cacheKey != null) {
             filter = new CacheKeyFilter.Wrapper(filter, cacheKey);
         }
@@ -263,6 +267,10 @@ public class QueryParseContext {
             return name;
         }
         return smartMapper.names().indexName();
+    }
+
+    public Set<String> simpleMatchToIndexNames(String pattern) {
+        return indexQueryParser.mapperService.simpleMatchToIndexNames(pattern, getTypes());
     }
 
     public MapperService.SmartNameFieldMappers smartFieldMappers(String name) {

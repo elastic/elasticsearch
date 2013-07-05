@@ -23,16 +23,19 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  */
 public interface IndicesWarmer {
 
-    static interface Listener {
+    public abstract class Listener {
 
-        String executor();
+        public String executor() {
+            return ThreadPool.Names.WARMER;
+        }
 
-        void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context);
+        public abstract void warm(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context);
     }
 
     public static class WarmerContext {

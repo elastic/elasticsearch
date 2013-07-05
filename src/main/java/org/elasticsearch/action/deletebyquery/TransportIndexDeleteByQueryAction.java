@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.deletebyquery;
 
+import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.replication.TransportIndexReplicationOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,6 +32,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -52,19 +56,22 @@ public class TransportIndexDeleteByQueryAction extends TransportIndexReplication
     protected IndexDeleteByQueryResponse newResponseInstance(IndexDeleteByQueryRequest request, AtomicReferenceArray shardsResponses) {
         int successfulShards = 0;
         int failedShards = 0;
+        List<ShardOperationFailedException> failures = new ArrayList<ShardOperationFailedException>(3);
         for (int i = 0; i < shardsResponses.length(); i++) {
-            if (shardsResponses.get(i) == null) {
+            Object shardResponse = shardsResponses.get(i);
+            if (shardResponse instanceof Throwable) {
                 failedShards++;
+                failures.add(new DefaultShardOperationFailedException(request.index(), -1, (Throwable) shardResponse));
             } else {
                 successfulShards++;
             }
         }
-        return new IndexDeleteByQueryResponse(request.index(), successfulShards, failedShards);
+        return new IndexDeleteByQueryResponse(request.index(), successfulShards, failedShards, failures);
     }
 
     @Override
     protected boolean accumulateExceptions() {
-        return false;
+        return true;
     }
 
     @Override

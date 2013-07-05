@@ -44,7 +44,7 @@ import static com.google.common.collect.Lists.newArrayList;
  * words, each instance of a shard is considered a replica while only one
  * replica per shard is a <tt>primary</tt> replica. The <tt>primary</tt> replica
  * can be seen as the "leader" of the shard acting as the primary entry point
- * for operations on a specific shard. 
+ * for operations on a specific shard.
  * <p>
  * Note: The term replica is not directly
  * reflected in the routing table or in releated classes, replicas are
@@ -83,15 +83,17 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     /**
      * Return the index id
+     *
      * @return id of the index
      */
     public String index() {
         return this.index;
     }
 
-    
+
     /**
      * Return the index id
+     *
      * @return id of the index
      */
     public String getIndex() {
@@ -100,6 +102,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     /**
      * creates a new {@link IndexRoutingTable} with all shard versions normalized
+     *
      * @return new {@link IndexRoutingTable}
      */
     public IndexRoutingTable normalizeVersions() {
@@ -151,9 +154,8 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
      * Calculates the number of nodes that hold one or more shards of this index
      * {@link IndexRoutingTable} excluding the nodes with the node ids give as
      * the <code>excludedNodes</code> parameter.
-     * 
-     * @param excludedNodes
-     *            id of nodes that will be excluded
+     *
+     * @param excludedNodes id of nodes that will be excluded
      * @return number of distinct nodes this index has at least one shard allocated on
      */
     public int numberOfNodesShardsAreAllocatedOn(String... excludedNodes) {
@@ -200,7 +202,8 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
     }
 
     /**
-     * Calculates the number of primary shards in active state in routing table   
+     * Calculates the number of primary shards in active state in routing table
+     *
      * @return number of active primary shards
      */
     public int primaryShardsActive() {
@@ -237,6 +240,7 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
     /**
      * Returns a {@link List} of shards that match one of the states listed in {@link ShardRoutingState states}
+     *
      * @param states a set of {@link ShardRoutingState states}
      * @return a {@link List} of shards that match one of the given {@link ShardRoutingState states}
      */
@@ -308,9 +312,9 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
         /**
          * Reads an {@link IndexRoutingTable} from an {@link StreamInput}
+         *
          * @param in {@link StreamInput} to read the {@link IndexRoutingTable} from
          * @return {@link IndexRoutingTable} read
-         * 
          * @throws IOException if something happens during read
          */
         public static IndexRoutingTable readFrom(StreamInput in) throws IOException {
@@ -327,9 +331,10 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
         /**
          * Writes an {@link IndexRoutingTable} to a {@link StreamOutput}.
+         *
          * @param index {@link IndexRoutingTable} to write
-         * @param out {@link StreamOutput} to write to
-         * @throws IOException if something happens during write 
+         * @param out   {@link StreamOutput} to write to
+         * @throws IOException if something happens during write
          */
         public static void writeTo(IndexRoutingTable index, StreamOutput out) throws IOException {
             out.writeString(index.index());
@@ -418,6 +423,16 @@ public class IndexRoutingTable implements Iterable<IndexShardRoutingTable> {
 
         public Builder addIndexShard(IndexShardRoutingTable indexShard) {
             shards.put(indexShard.shardId().id(), indexShard);
+            return this;
+        }
+
+        /**
+         * Clears the post allocation flag for the specified shard
+         */
+        public Builder clearPostAllocationFlag(ShardId shardId) {
+            assert this.index.equals(shardId.index().name());
+            IndexShardRoutingTable indexShard = shards.get(shardId.id());
+            shards.put(indexShard.shardId().id(), new IndexShardRoutingTable(indexShard.shardId(), indexShard.shards(), false));
             return this;
         }
 

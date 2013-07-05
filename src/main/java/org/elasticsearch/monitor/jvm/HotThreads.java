@@ -19,6 +19,7 @@
 
 package org.elasticsearch.monitor.jvm;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -130,7 +131,7 @@ public class HotThreads {
             // sort by delta CPU time on thread.
             List<MyThreadInfo> hotties = new ArrayList<MyThreadInfo>(threadInfos.values());
             // skip that for now
-            Collections.sort(hotties, new Comparator<MyThreadInfo>() {
+            CollectionUtil.quickSort(hotties, new Comparator<MyThreadInfo>() {
                 public int compare(MyThreadInfo o1, MyThreadInfo o2) {
                     if ("cpu".equals(type)) {
                         return (int) (o2.cpuTime - o1.cpuTime);
@@ -163,7 +164,7 @@ public class HotThreads {
                     time = hotties.get(t).blockedTime;
                 }
                 double percent = (((double) time) / interval.nanos()) * 100;
-                sb.append(String.format("%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n", percent, TimeValue.timeValueNanos(time), interval, type, allInfos[0][t].getThreadName()));
+                sb.append(String.format(Locale.ROOT, "%n%4.1f%% (%s out of %s) %s usage by thread '%s'%n", percent, TimeValue.timeValueNanos(time), interval, type, allInfos[0][t].getThreadName()));
                 // for each snapshot (2nd array index) find later snapshot for same thread with max number of
                 // identical StackTraceElements (starting from end of each)
                 boolean[] done = new boolean[threadElementsSnapshotCount];
@@ -190,14 +191,14 @@ public class HotThreads {
                     }
                     StackTraceElement[] show = allInfos[i][t].getStackTrace();
                     if (count == 1) {
-                        sb.append(String.format("  unique snapshot%n"));
+                        sb.append(String.format(Locale.ROOT, "  unique snapshot%n"));
                         for (int l = 0; l < show.length; l++) {
-                            sb.append(String.format("    %s%n", show[l]));
+                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
                         }
                     } else {
-                        sb.append(String.format("  %d/%d snapshots sharing following %d elements%n", count, threadElementsSnapshotCount, maxSim));
+                        sb.append(String.format(Locale.ROOT, "  %d/%d snapshots sharing following %d elements%n", count, threadElementsSnapshotCount, maxSim));
                         for (int l = show.length - maxSim; l < show.length; l++) {
-                            sb.append(String.format("    %s%n", show[l]));
+                            sb.append(String.format(Locale.ROOT, "    %s%n", show[l]));
                         }
                     }
                 }

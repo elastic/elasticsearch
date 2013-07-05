@@ -25,6 +25,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
+import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
@@ -42,110 +45,140 @@ import java.io.IOException;
 public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
-    DocsStats docs;
+    public DocsStats docs;
 
     @Nullable
-    StoreStats store;
+    public StoreStats store;
 
     @Nullable
-    IndexingStats indexing;
+    public IndexingStats indexing;
 
     @Nullable
-    GetStats get;
+    public GetStats get;
 
     @Nullable
-    SearchStats search;
+    public SearchStats search;
 
     @Nullable
-    MergeStats merge;
+    public MergeStats merge;
 
     @Nullable
-    RefreshStats refresh;
+    public RefreshStats refresh;
 
     @Nullable
-    FlushStats flush;
+    public FlushStats flush;
 
     @Nullable
-    WarmerStats warmer;
+    public WarmerStats warmer;
+
+    @Nullable
+    public FilterCacheStats filterCache;
+
+    @Nullable
+    public IdCacheStats idCache;
+
+    @Nullable
+    public FieldDataStats fieldData;
 
     public void add(CommonStats stats) {
         if (docs == null) {
-            if (stats.docs() != null) {
+            if (stats.getDocs() != null) {
                 docs = new DocsStats();
-                docs.add(stats.docs());
+                docs.add(stats.getDocs());
             }
         } else {
-            docs.add(stats.docs());
+            docs.add(stats.getDocs());
         }
         if (store == null) {
-            if (stats.store() != null) {
+            if (stats.getStore() != null) {
                 store = new StoreStats();
-                store.add(stats.store());
+                store.add(stats.getStore());
             }
         } else {
-            store.add(stats.store());
+            store.add(stats.getStore());
         }
         if (indexing == null) {
-            if (stats.indexing() != null) {
+            if (stats.getIndexing() != null) {
                 indexing = new IndexingStats();
-                indexing.add(stats.indexing());
+                indexing.add(stats.getIndexing());
             }
         } else {
-            indexing.add(stats.indexing());
+            indexing.add(stats.getIndexing());
         }
         if (get == null) {
-            if (stats.get() != null) {
+            if (stats.getGet() != null) {
                 get = new GetStats();
-                get.add(stats.get());
+                get.add(stats.getGet());
             }
         } else {
-            get.add(stats.get());
+            get.add(stats.getGet());
         }
         if (search == null) {
-            if (stats.search() != null) {
+            if (stats.getSearch() != null) {
                 search = new SearchStats();
-                search.add(stats.search());
+                search.add(stats.getSearch());
             }
         } else {
-            search.add(stats.search());
+            search.add(stats.getSearch());
         }
         if (merge == null) {
-            if (stats.merge() != null) {
+            if (stats.getMerge() != null) {
                 merge = new MergeStats();
-                merge.add(stats.merge());
+                merge.add(stats.getMerge());
             }
         } else {
-            merge.add(stats.merge());
+            merge.add(stats.getMerge());
         }
         if (refresh == null) {
-            if (stats.refresh() != null) {
+            if (stats.getRefresh() != null) {
                 refresh = new RefreshStats();
-                refresh.add(stats.refresh());
+                refresh.add(stats.getRefresh());
             }
         } else {
-            refresh.add(stats.refresh());
+            refresh.add(stats.getRefresh());
         }
         if (flush == null) {
-            if (stats.flush() != null) {
+            if (stats.getFlush() != null) {
                 flush = new FlushStats();
-                flush.add(stats.flush());
+                flush.add(stats.getFlush());
             }
         } else {
-            flush.add(stats.flush());
+            flush.add(stats.getFlush());
         }
         if (warmer == null) {
-            if (stats.warmer() != null) {
+            if (stats.getWarmer() != null) {
                 warmer = new WarmerStats();
-                warmer.add(stats.warmer());
+                warmer.add(stats.getWarmer());
             }
         } else {
-            warmer.add(stats.warmer());
+            warmer.add(stats.getWarmer());
         }
-    }
+        if (filterCache == null) {
+            if (stats.getFilterCache() != null) {
+                filterCache = new FilterCacheStats();
+                filterCache.add(stats.getFilterCache());
+            }
+        } else {
+            filterCache.add(stats.getFilterCache());
+        }
 
-    @Nullable
-    public DocsStats docs() {
-        return this.docs;
+        if (idCache == null) {
+            if (stats.getIdCache() != null) {
+                idCache = new IdCacheStats();
+                idCache.add(stats.getIdCache());
+            }
+        } else {
+            idCache.add(stats.getIdCache());
+        }
+
+        if (fieldData == null) {
+            if (stats.getFieldData() != null) {
+                fieldData = new FieldDataStats();
+                fieldData.add(stats.getFieldData());
+            }
+        } else {
+            fieldData.add(stats.getFieldData());
+        }
     }
 
     @Nullable
@@ -154,18 +187,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public StoreStats store() {
-        return store;
-    }
-
-    @Nullable
     public StoreStats getStore() {
         return store;
-    }
-
-    @Nullable
-    public IndexingStats indexing() {
-        return indexing;
     }
 
     @Nullable
@@ -174,18 +197,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public GetStats get() {
-        return get;
-    }
-
-    @Nullable
     public GetStats getGet() {
         return get;
-    }
-
-    @Nullable
-    public SearchStats search() {
-        return search;
     }
 
     @Nullable
@@ -194,18 +207,8 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public MergeStats merge() {
-        return merge;
-    }
-
-    @Nullable
     public MergeStats getMerge() {
         return merge;
-    }
-
-    @Nullable
-    public RefreshStats refresh() {
-        return refresh;
     }
 
     @Nullable
@@ -214,23 +217,28 @@ public class CommonStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public FlushStats flush() {
-        return flush;
-    }
-
-    @Nullable
     public FlushStats getFlush() {
         return flush;
     }
 
     @Nullable
-    public WarmerStats warmer() {
+    public WarmerStats getWarmer() {
         return this.warmer;
     }
 
     @Nullable
-    public WarmerStats getWarmer() {
-        return this.warmer;
+    public FilterCacheStats getFilterCache() {
+        return this.filterCache;
+    }
+
+    @Nullable
+    public IdCacheStats getIdCache() {
+        return this.idCache;
+    }
+
+    @Nullable
+    public FieldDataStats getFieldData() {
+        return this.fieldData;
     }
 
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
@@ -267,6 +275,15 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (in.readBoolean()) {
             warmer = WarmerStats.readWarmerStats(in);
+        }
+        if (in.readBoolean()) {
+            filterCache = FilterCacheStats.readFilterCacheStats(in);
+        }
+        if (in.readBoolean()) {
+            idCache = IdCacheStats.readIdCacheStats(in);
+        }
+        if (in.readBoolean()) {
+            fieldData = FieldDataStats.readFieldDataStats(in);
         }
     }
 
@@ -326,6 +343,24 @@ public class CommonStats implements Streamable, ToXContent {
             out.writeBoolean(true);
             warmer.writeTo(out);
         }
+        if (filterCache == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            filterCache.writeTo(out);
+        }
+        if (idCache == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            idCache.writeTo(out);
+        }
+        if (fieldData == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            fieldData.writeTo(out);
+        }
     }
 
     // note, requires a wrapping object
@@ -357,6 +392,15 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (warmer != null) {
             warmer.toXContent(builder, params);
+        }
+        if (filterCache != null) {
+            filterCache.toXContent(builder, params);
+        }
+        if (idCache != null) {
+            idCache.toXContent(builder, params);
+        }
+        if (fieldData != null) {
+            fieldData.toXContent(builder, params);
         }
         return builder;
     }

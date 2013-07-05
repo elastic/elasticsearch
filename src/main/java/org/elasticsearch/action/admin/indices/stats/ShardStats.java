@@ -48,23 +48,12 @@ public class ShardStats extends BroadcastShardOperationResponse {
     /**
      * The shard routing information (cluster wide shard state).
      */
-    public ShardRouting shardRouting() {
+    public ShardRouting getShardRouting() {
         return this.shardRouting;
     }
 
-    /**
-     * The shard routing information (cluster wide shard state).
-     */
-    public ShardRouting getShardRouting() {
-        return shardRouting();
-    }
-
-    public CommonStats stats() {
-        return this.stats;
-    }
-
     public CommonStats getStats() {
-        return stats();
+        return this.stats;
     }
 
     public static ShardStats readShardStats(StreamInput in) throws IOException {

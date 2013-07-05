@@ -21,14 +21,12 @@ package org.elasticsearch.index.shard.service;
 
 import com.google.common.base.Charsets;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -36,13 +34,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastByteArrayOutputStream;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
+import org.elasticsearch.index.cache.filter.ShardFilterCache;
+import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.cache.id.ShardIdCache;
 import org.elasticsearch.index.engine.*;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
@@ -83,50 +89,34 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
 public class InternalIndexShard extends AbstractIndexShardComponent implements IndexShard {
 
     private final ThreadPool threadPool;
-
     private final IndexSettingsService indexSettingsService;
-
     private final MapperService mapperService;
-
     private final IndexQueryParserService queryParserService;
-
     private final IndexCache indexCache;
-
     private final InternalIndicesLifecycle indicesLifecycle;
-
     private final Store store;
-
     private final MergeSchedulerProvider mergeScheduler;
-
     private final Engine engine;
-
     private final Translog translog;
-
     private final IndexAliasesService indexAliasesService;
-
     private final ShardIndexingService indexingService;
-
     private final ShardSearchService searchService;
-
     private final ShardGetService getService;
-
     private final ShardIndexWarmerService shardWarmerService;
+    private final ShardFilterCache shardFilterCache;
+    private final ShardIdCache shardIdCache;
+    private final ShardFieldData shardFieldData;
 
     private final Object mutex = new Object();
-
     private final String checkIndexOnStartup;
-
     private long checkIndexTook = 0;
-
     private volatile IndexShardState state;
 
     private TimeValue refreshInterval;
     private final TimeValue mergeInterval;
 
     private volatile ScheduledFuture refreshScheduledFuture;
-
     private volatile ScheduledFuture mergeScheduleFuture;
-
     private volatile ShardRouting shardRouting;
 
     private RecoveryStatus peerRecoveryStatus;
@@ -138,7 +128,8 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
 
     @Inject
     public InternalIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, Engine engine, MergeSchedulerProvider mergeScheduler, Translog translog,
-                              ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService) {
+                              ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
+                              ShardFilterCache shardFilterCache, ShardIdCache shardIdCache, ShardFieldData shardFieldData) {
         super(shardId, indexSettings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
@@ -155,9 +146,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         this.getService = getService.setIndexShard(this);
         this.searchService = searchService;
         this.shardWarmerService = shardWarmerService;
+        this.shardFilterCache = shardFilterCache;
+        this.shardIdCache = shardIdCache;
+        this.shardFieldData = shardFieldData;
         state = IndexShardState.CREATED;
 
-        this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime("index.refresh_interval", engine.defaultRefreshInterval()));
+        this.refreshInterval = indexSettings.getAsTime("engine.robin.refresh_interval", indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, engine.defaultRefreshInterval()));
         this.mergeInterval = indexSettings.getAsTime("index.merge.async_interval", TimeValue.timeValueSeconds(1));
 
         indexSettingsService.addListener(applyRefreshSettings);
@@ -200,6 +194,21 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public ShardIndexWarmerService warmerService() {
         return this.shardWarmerService;
+    }
+
+    @Override
+    public ShardFilterCache filterCache() {
+        return this.shardFilterCache;
+    }
+
+    @Override
+    public ShardIdCache idCache() {
+        return this.shardIdCache;
+    }
+
+    @Override
+    public ShardFieldData fieldData() {
+        return this.shardFieldData;
     }
 
     @Override
@@ -295,7 +304,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Create(docMapper, docMapper.uidMapper().term(doc.uid().uid()), doc).startTime(startTime);
+        return new Engine.Create(docMapper, docMapper.uidMapper().term(doc.uid().stringValue()), doc).startTime(startTime);
     }
 
     @Override
@@ -316,7 +325,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         long startTime = System.nanoTime();
         DocumentMapper docMapper = mapperService.documentMapperWithAutoCreate(source.type());
         ParsedDocument doc = docMapper.parse(source);
-        return new Engine.Index(docMapper, docMapper.uidMapper().term(doc.uid().uid()), doc).startTime(startTime);
+        return new Engine.Index(docMapper, docMapper.uidMapper().term(doc.uid().stringValue()), doc).startTime(startTime);
     }
 
     @Override
@@ -461,6 +470,21 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
     @Override
     public WarmerStats warmerStats() {
         return shardWarmerService.stats();
+    }
+
+    @Override
+    public FilterCacheStats filterCacheStats() {
+        return shardFilterCache.stats();
+    }
+
+    @Override
+    public FieldDataStats fieldDataStats(String... fields) {
+        return shardFieldData.stats(fields);
+    }
+
+    @Override
+    public IdCacheStats idCacheStats() {
+        return shardIdCache.stats();
     }
 
     @Override
@@ -686,9 +710,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         return query;
     }
 
-    static {
-        IndexMetaData.addDynamicSettings("index.refresh_interval");
-    }
+    public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
 
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
         @Override
@@ -697,7 +719,7 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
                 if (state == IndexShardState.CLOSED) {
                     return;
                 }
-                TimeValue refreshInterval = settings.getAsTime("engine.robin.refresh_interval", settings.getAsTime("index.refresh_interval", InternalIndexShard.this.refreshInterval));
+                TimeValue refreshInterval = settings.getAsTime("engine.robin.refresh_interval", settings.getAsTime(INDEX_REFRESH_INTERVAL, InternalIndexShard.this.refreshInterval));
                 if (!refreshInterval.equals(InternalIndexShard.this.refreshInterval)) {
                     logger.info("updating refresh_interval from [{}] to [{}]", InternalIndexShard.this.refreshInterval, refreshInterval);
                     if (refreshScheduledFuture != null) {
@@ -814,12 +836,12 @@ public class InternalIndexShard extends AbstractIndexShardComponent implements I
         try {
             checkIndexTook = 0;
             long time = System.currentTimeMillis();
-            if (!DirectoryReader.indexExists(store.directory())) {
+            if (!Lucene.indexExists(store.directory())) {
                 return;
             }
             CheckIndex checkIndex = new CheckIndex(store.directory());
             FastByteArrayOutputStream os = new FastByteArrayOutputStream();
-            PrintStream out = new PrintStream(os);
+            PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
             checkIndex.setInfoStream(out);
             out.flush();
             CheckIndex.Status status = checkIndex.checkIndex();

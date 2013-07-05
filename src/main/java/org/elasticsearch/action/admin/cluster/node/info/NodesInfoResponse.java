@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Map;
@@ -70,72 +71,88 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("cluster_name", clusterName().value());
+        builder.field("cluster_name", getClusterName().value());
 
         builder.startObject("nodes");
         for (NodeInfo nodeInfo : this) {
-            builder.startObject(nodeInfo.node().id(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(nodeInfo.getNode().id(), XContentBuilder.FieldCaseConversion.NONE);
 
-            builder.field("name", nodeInfo.node().name(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("transport_address", nodeInfo.node().address().toString());
+            builder.field("name", nodeInfo.getNode().name(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.field("transport_address", nodeInfo.getNode().address().toString());
 
-            if (nodeInfo.hostname() != null) {
-                builder.field("hostname", nodeInfo.hostname(), XContentBuilder.FieldCaseConversion.NONE);
+            if (nodeInfo.getHostname() != null) {
+                builder.field("hostname", nodeInfo.getHostname(), XContentBuilder.FieldCaseConversion.NONE);
             }
 
-            if (nodeInfo.version() != null) {
-                builder.field("version", nodeInfo.version());
+            if (nodeInfo.getVersion() != null) {
+                builder.field("version", nodeInfo.getVersion());
             }
 
-            if (nodeInfo.serviceAttributes() != null) {
-                for (Map.Entry<String, String> nodeAttribute : nodeInfo.serviceAttributes().entrySet()) {
+            if (nodeInfo.getServiceAttributes() != null) {
+                for (Map.Entry<String, String> nodeAttribute : nodeInfo.getServiceAttributes().entrySet()) {
                     builder.field(nodeAttribute.getKey(), nodeAttribute.getValue());
                 }
             }
 
-            if (!nodeInfo.node().attributes().isEmpty()) {
+            if (!nodeInfo.getNode().attributes().isEmpty()) {
                 builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : nodeInfo.node().attributes().entrySet()) {
+                for (Map.Entry<String, String> attr : nodeInfo.getNode().attributes().entrySet()) {
                     builder.field(attr.getKey(), attr.getValue());
                 }
                 builder.endObject();
             }
 
 
-            if (nodeInfo.settings() != null) {
+            if (nodeInfo.getSettings() != null) {
                 builder.startObject("settings");
-                Settings settings = settingsFilter.filterSettings(nodeInfo.settings());
+                Settings settings = settingsFilter.filterSettings(nodeInfo.getSettings());
                 for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
                 }
                 builder.endObject();
             }
 
-            if (nodeInfo.os() != null) {
-                nodeInfo.os().toXContent(builder, params);
+            if (nodeInfo.getOs() != null) {
+                nodeInfo.getOs().toXContent(builder, params);
             }
-            if (nodeInfo.process() != null) {
-                nodeInfo.process().toXContent(builder, params);
+            if (nodeInfo.getProcess() != null) {
+                nodeInfo.getProcess().toXContent(builder, params);
             }
-            if (nodeInfo.jvm() != null) {
-                nodeInfo.jvm().toXContent(builder, params);
+            if (nodeInfo.getJvm() != null) {
+                nodeInfo.getJvm().toXContent(builder, params);
             }
-            if (nodeInfo.threadPool() != null) {
-                nodeInfo.threadPool().toXContent(builder, params);
+            if (nodeInfo.getThreadPool() != null) {
+                nodeInfo.getThreadPool().toXContent(builder, params);
             }
-            if (nodeInfo.network() != null) {
-                nodeInfo.network().toXContent(builder, params);
+            if (nodeInfo.getNetwork() != null) {
+                nodeInfo.getNetwork().toXContent(builder, params);
             }
-            if (nodeInfo.transport() != null) {
-                nodeInfo.transport().toXContent(builder, params);
+            if (nodeInfo.getTransport() != null) {
+                nodeInfo.getTransport().toXContent(builder, params);
             }
-            if (nodeInfo.http() != null) {
-                nodeInfo.http().toXContent(builder, params);
+            if (nodeInfo.getHttp() != null) {
+                nodeInfo.getHttp().toXContent(builder, params);
+            }
+            if (nodeInfo.getPlugins() != null) {
+                nodeInfo.getPlugins().toXContent(builder, params);
             }
 
             builder.endObject();
         }
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            builder.startObject();
+            toXContent(builder, EMPTY_PARAMS);
+            builder.endObject();
+            return builder.string();
+        } catch (IOException e) {
+            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+        }
     }
 }

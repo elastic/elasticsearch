@@ -36,6 +36,8 @@ import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.handler.codec.http.*;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -88,6 +90,16 @@ public class NettyHttpChannel implements HttpChannel {
         String opaque = request.getHeader("X-Opaque-Id");
         if (opaque != null) {
             resp.addHeader("X-Opaque-Id", opaque);
+        }
+
+        // Add all custom headers
+        Map<String, List<String>> customHeaders = response.getHeaders();
+        if (customHeaders != null) {
+            for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
+                for (String headerValue : headerEntry.getValue()) {
+                    resp.addHeader(headerEntry.getKey(), headerValue);
+                }
+            }
         }
 
         // Convert the response content to a ChannelBuffer.

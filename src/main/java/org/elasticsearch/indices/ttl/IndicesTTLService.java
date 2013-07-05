@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.UidField;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -64,15 +64,8 @@ import java.util.List;
  */
 public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLService> {
 
-    static {
-        MetaData.addDynamicSettings(
-                "indices.ttl.interval"
-        );
-
-        IndexMetaData.addDynamicSettings(
-                "index.ttl.disable_purge"
-        );
-    }
+    public static final String INDICES_TTL_INTERVAL = "indices.ttl.interval";
+    public static final String INDEX_TTL_DISABLE_PURGE = "index.ttl.disable_purge";
 
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -153,7 +146,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 if (indexMetaData == null) {
                     continue;
                 }
-                boolean disablePurge = indexMetaData.settings().getAsBoolean("index.ttl.disable_purge", false);
+                boolean disablePurge = indexMetaData.settings().getAsBoolean(INDEX_TTL_DISABLE_PURGE, false);
                 if (disablePurge) {
                     continue;
                 }
@@ -241,7 +234,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 UidAndRoutingFieldsVisitor fieldsVisitor = new UidAndRoutingFieldsVisitor();
                 context.reader().document(doc, fieldsVisitor);
                 Uid uid = fieldsVisitor.uid();
-                long version = UidField.loadVersion(context, new Term(UidFieldMapper.NAME, uid.toBytesRef()));
+                final long version = Versions.loadVersion(context.reader(), new Term(UidFieldMapper.NAME, uid.toBytesRef()));
                 docsToPurge.add(new DocToPurge(uid.type(), uid.id(), version, fieldsVisitor.routing()));
             } catch (Exception e) {
                 logger.trace("failed to collect doc", e);
@@ -282,7 +275,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            TimeValue interval = settings.getAsTime("indices.ttl.interval", IndicesTTLService.this.interval);
+            TimeValue interval = settings.getAsTime(INDICES_TTL_INTERVAL, IndicesTTLService.this.interval);
             if (!interval.equals(IndicesTTLService.this.interval)) {
                 logger.info("updating indices.ttl.interval from [{}] to [{}]", IndicesTTLService.this.interval, interval);
                 IndicesTTLService.this.interval = interval;

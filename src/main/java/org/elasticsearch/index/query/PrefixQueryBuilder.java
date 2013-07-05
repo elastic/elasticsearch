@@ -28,7 +28,7 @@ import java.io.IOException;
  *
  *
  */
-public class PrefixQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<PrefixQueryBuilder> {
+public class PrefixQueryBuilder extends BaseQueryBuilder implements MultiTermQueryBuilder, BoostableQueryBuilder<PrefixQueryBuilder> {
 
     private final String name;
 

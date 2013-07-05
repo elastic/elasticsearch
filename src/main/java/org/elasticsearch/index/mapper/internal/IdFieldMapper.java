@@ -19,12 +19,7 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.id;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import com.google.common.collect.Iterables;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
@@ -46,7 +41,13 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
-import com.google.common.collect.Iterables;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.id;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
  *
@@ -176,7 +177,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
+    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
         if (fieldType.indexed() || context == null) {
             return super.termsFilter(values, context);
         }

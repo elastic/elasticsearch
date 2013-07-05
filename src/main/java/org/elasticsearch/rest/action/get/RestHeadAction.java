@@ -42,6 +42,7 @@ public class RestHeadAction extends BaseRestHandler {
     public RestHeadAction(Settings settings, Client client, RestController controller) {
         super(settings, client);
         controller.registerHandler(HEAD, "/{index}/{type}/{id}", this);
+        controller.registerHandler(HEAD, "/{index}/{type}/{id}/_source", this);
     }
 
     @Override
@@ -50,8 +51,8 @@ public class RestHeadAction extends BaseRestHandler {
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
+        getRequest.routing(request.param("routing"));  // order is important, set it after routing, so it will set the routing
         getRequest.parent(request.param("parent"));
-        getRequest.routing(request.param("routing"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBooleanOptional("realtime", null));
         // don't get any fields back...
@@ -62,12 +63,12 @@ public class RestHeadAction extends BaseRestHandler {
             @Override
             public void onResponse(GetResponse response) {
                 try {
-                    if (!response.exists()) {
+                    if (!response.isExists()) {
                         channel.sendResponse(new StringRestResponse(NOT_FOUND));
                     } else {
                         channel.sendResponse(new StringRestResponse(OK));
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

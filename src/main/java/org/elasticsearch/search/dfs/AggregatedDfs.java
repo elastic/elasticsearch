@@ -19,43 +19,38 @@
 
 package org.elasticsearch.search.dfs;
 
-import gnu.trove.impl.Constants;
-import gnu.trove.map.TMap;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.TermStatistics;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.trove.ExtTHashMap;
 
 import java.io.IOException;
 import java.util.Map;
 
-/**
- *
- */
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.TermStatistics;
+import org.elasticsearch.common.collect.XMaps;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+
 public class AggregatedDfs implements Streamable {
 
-    private TMap<Term, TermStatistics> termStatistics;
-    private TMap<String, CollectionStatistics> fieldStatistics;
+    private Map<Term, TermStatistics> termStatistics;
+    private Map<String, CollectionStatistics> fieldStatistics;
     private long maxDoc;
 
     private AggregatedDfs() {
-
     }
 
-    public AggregatedDfs(TMap<Term, TermStatistics> termStatistics, TMap<String, CollectionStatistics> fieldStatistics, long maxDoc) {
+    public AggregatedDfs(Map<Term, TermStatistics> termStatistics, Map<String, CollectionStatistics> fieldStatistics, long maxDoc) {
         this.termStatistics = termStatistics;
         this.fieldStatistics = fieldStatistics;
         this.maxDoc = maxDoc;
     }
 
-    public TMap<Term, TermStatistics> termStatistics() {
+    public Map<Term, TermStatistics> termStatistics() {
         return termStatistics;
     }
 
-    public TMap<String, CollectionStatistics> fieldStatistics() {
+    public Map<String, CollectionStatistics> fieldStatistics() {
         return fieldStatistics;
     }
 
@@ -72,19 +67,15 @@ public class AggregatedDfs implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
-        termStatistics = new ExtTHashMap<Term, TermStatistics>(size, Constants.DEFAULT_LOAD_FACTOR);
+        termStatistics = XMaps.newMap(size);
         for (int i = 0; i < size; i++) {
             Term term = new Term(in.readString(), in.readBytesRef());
-            TermStatistics stats = new TermStatistics(in.readBytesRef(), in.readVLong(), in.readVLong());
+            TermStatistics stats = new TermStatistics(in.readBytesRef(), 
+                    in.readVLong(), 
+                    DfsSearchResult.subOne(in.readVLong()));
             termStatistics.put(term, stats);
         }
-        size = in.readVInt();
-        fieldStatistics = new ExtTHashMap<String, CollectionStatistics>(size, Constants.DEFAULT_LOAD_FACTOR);
-        for (int i = 0; i < size; i++) {
-            String field = in.readString();
-            CollectionStatistics stats = new CollectionStatistics(field, in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
-            fieldStatistics.put(field, stats);
-        }
+        fieldStatistics = DfsSearchResult.readFieldStats(in);
         maxDoc = in.readVLong();
     }
 
@@ -98,18 +89,9 @@ public class AggregatedDfs implements Streamable {
             TermStatistics stats = termTermStatisticsEntry.getValue();
             out.writeBytesRef(stats.term());
             out.writeVLong(stats.docFreq());
-            out.writeVLong(stats.totalTermFreq());
+            out.writeVLong(DfsSearchResult.addOne(stats.totalTermFreq()));
         }
-
-        out.writeVInt(fieldStatistics.size());
-        for (Map.Entry<String, CollectionStatistics> entry : fieldStatistics.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVLong(entry.getValue().maxDoc());
-            out.writeVLong(entry.getValue().docCount());
-            out.writeVLong(entry.getValue().sumTotalTermFreq());
-            out.writeVLong(entry.getValue().sumDocFreq());
-        }
-
+        DfsSearchResult.writeFieldStats(out, fieldStatistics);
         out.writeVLong(maxDoc);
     }
 }

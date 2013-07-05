@@ -21,8 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter;
-import org.apache.lucene.analysis.util.CharArrayMap;
-import org.apache.lucene.util.Version;
+import org.apache.lucene.analysis.miscellaneous.StemmerOverrideFilter.StemmerOverrideMap;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -32,33 +31,35 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.HashMap;
+import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 @AnalysisSettingsRequired
 public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final CharArrayMap<String> dictionary;
+    private final StemmerOverrideMap overrideMap;
 
     @Inject
-    public StemmerOverrideTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public StemmerOverrideTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) throws IOException {
         super(index, indexSettings, name, settings);
 
         List<String> rules = Analysis.getWordList(env, settings, "rules");
         if (rules == null) {
             throw new ElasticSearchIllegalArgumentException("stemmer override filter requires either `rules` or `rules_path` to be configured");
         }
-        dictionary = new CharArrayMap<String>(version, rules.size(), false);
-        parseRules(rules, dictionary, "=>");
+        
+        StemmerOverrideFilter.Builder builder = new StemmerOverrideFilter.Builder(false);
+        parseRules(rules, builder, "=>");
+        overrideMap = builder.build();
+
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new StemmerOverrideFilter(Version.LUCENE_32, tokenStream, dictionary);
+        return new StemmerOverrideFilter(tokenStream, overrideMap);
     }
 
-    static void parseRules(List<String> rules, CharArrayMap<String> rulesMap, String mappingSep) {
+    static void parseRules(List<String> rules, StemmerOverrideFilter.Builder builder, String mappingSep) {
         for (String rule : rules) {
             String key, override;
             List<String> mapping = Strings.splitSmart(rule, mappingSep, false);
@@ -72,7 +73,7 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
             if (key.isEmpty() || override.isEmpty()) {
                 throw new RuntimeException("Invalid Keyword override Rule:" + rule);
             } else {
-                rulesMap.put(key, override);
+                builder.add(key, override);
             }
         }
     }

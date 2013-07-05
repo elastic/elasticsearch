@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
@@ -46,7 +45,7 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
     public AbstractIndexAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, String name, Settings settings) {
         super(index, indexSettings);
         this.name = name;
-        this.version = Lucene.parseVersion(settings.get("version"), Lucene.ANALYZER_VERSION, logger);
+        this.version = Analysis.parseAnalysisVersion(indexSettings, settings, logger);
     }
 
     /**
@@ -60,7 +59,7 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
     public AbstractIndexAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, String prefixSettings, String name, Settings settings) {
         super(index, indexSettings, prefixSettings);
         this.name = name;
-        this.version = Lucene.parseVersion(settings.get("version"), Lucene.ANALYZER_VERSION, logger);
+        this.version = Analysis.parseAnalysisVersion(indexSettings, settings, logger);
     }
 
     /**

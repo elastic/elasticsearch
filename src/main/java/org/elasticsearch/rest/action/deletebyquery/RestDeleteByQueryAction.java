@@ -25,6 +25,7 @@ import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.ShardDeleteByQueryRequest;
+import org.elasticsearch.action.support.IgnoreIndices;
 import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -38,7 +39,6 @@ import org.elasticsearch.rest.action.support.RestXContentBuilder;
 import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
-import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.RestStatus.PRECONDITION_FAILED;
 import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
@@ -83,6 +83,10 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             if (consistencyLevel != null) {
                 deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
             }
+            final String ignoreIndices = request.param("ignore_indices");
+            if (ignoreIndices != null) {
+                deleteByQueryRequest.ignoreIndices(IgnoreIndices.fromString(ignoreIndices));
+            }
         } catch (Exception e) {
             try {
                 XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
@@ -97,16 +101,17 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
             public void onResponse(DeleteByQueryResponse result) {
                 try {
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
-                    builder.startObject().field("ok", true);
+                    RestStatus restStatus = result.status();
+                    builder.startObject().field("ok", restStatus == RestStatus.OK);
 
                     builder.startObject("_indices");
-                    for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.indices().values()) {
-                        builder.startObject(indexDeleteByQueryResponse.index(), XContentBuilder.FieldCaseConversion.NONE);
+                    for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
+                        builder.startObject(indexDeleteByQueryResponse.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
                         builder.startObject("_shards");
-                        builder.field("total", indexDeleteByQueryResponse.totalShards());
-                        builder.field("successful", indexDeleteByQueryResponse.successfulShards());
-                        builder.field("failed", indexDeleteByQueryResponse.failedShards());
+                        builder.field("total", indexDeleteByQueryResponse.getTotalShards());
+                        builder.field("successful", indexDeleteByQueryResponse.getSuccessfulShards());
+                        builder.field("failed", indexDeleteByQueryResponse.getFailedShards());
                         builder.endObject();
 
                         builder.endObject();
@@ -114,8 +119,8 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                     builder.endObject();
 
                     builder.endObject();
-                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Exception e) {
+                    channel.sendResponse(new XContentRestResponse(request, restStatus, builder));
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

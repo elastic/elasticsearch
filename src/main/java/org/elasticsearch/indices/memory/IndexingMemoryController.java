@@ -151,7 +151,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                             // inactive?
                             if (!status.inactiveIndexing) {
                                 // mark it as inactive only if enough time has passed and there are no ongoing merges going on...
-                                if ((time - status.time) > inactiveTime.millis() && indexShard.mergeStats().current() == 0) {
+                                if ((time - status.time) > inactiveTime.millis() && indexShard.mergeStats().getCurrent() == 0) {
                                     // inactive for this amount of time, mark it
                                     activeToInactiveIndexingShards.add(indexShard);
                                     status.inactiveIndexing = true;
@@ -200,7 +200,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         }
 
         @Override
-        public void afterIndexShardClosed(ShardId shardId, boolean delete) {
+        public void afterIndexShardClosed(ShardId shardId) {
             synchronized (mutex) {
                 calcAndSetShardIndexingBuffer("removed_shard[" + shardId.index().name() + "][" + shardId.id() + "]");
                 shardsIndicesStatus.remove(shardId);

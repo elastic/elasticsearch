@@ -33,15 +33,11 @@ import java.util.Set;
  * <p/>
  * <p> Values for substitution can be supplied using a {@link Properties} instance or using a
  * {@link PlaceholderResolver}.
- *
- *
  */
 public class PropertyPlaceholder {
 
     private final String placeholderPrefix;
-
     private final String placeholderSuffix;
-
     private final boolean ignoreUnresolvablePlaceholders;
 
     /**
@@ -70,24 +66,6 @@ public class PropertyPlaceholder {
         this.placeholderPrefix = placeholderPrefix;
         this.placeholderSuffix = placeholderSuffix;
         this.ignoreUnresolvablePlaceholders = ignoreUnresolvablePlaceholders;
-    }
-
-    /**
-     * Replaces all placeholders of format <code>${name}</code> with the corresponding property from the supplied {@link
-     * Properties}.
-     *
-     * @param value      the value containing the placeholders to be replaced.
-     * @param properties the <code>Properties</code> to use for replacement.
-     * @return the supplied value with placeholders replaced inline.
-     */
-    public String replacePlaceholders(String value, final Properties properties) {
-        Preconditions.checkNotNull(properties, "Argument 'properties' must not be null.");
-        return replacePlaceholders(value, new PlaceholderResolver() {
-
-            public String resolvePlaceholder(String placeholderName) {
-                return properties.getProperty(placeholderName);
-            }
-        });
     }
 
     /**
@@ -129,6 +107,9 @@ public class PropertyPlaceholder {
                 String propVal = placeholderResolver.resolvePlaceholder(placeholder);
                 if (propVal == null) {
                     propVal = defaultValue;
+                }
+                if (propVal == null && placeholderResolver.shouldIgnoreMissing(placeholder)) {
+                    propVal = "";
                 }
                 if (propVal != null) {
                     // Recursive invocation, parsing placeholders contained in the
@@ -187,5 +168,7 @@ public class PropertyPlaceholder {
          * @return the replacement value or <code>null</code> if no replacement is to be made.
          */
         String resolvePlaceholder(String placeholderName);
+
+        boolean shouldIgnoreMissing(String placeholderName);
     }
 }

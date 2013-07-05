@@ -20,6 +20,7 @@
 package org.elasticsearch.common.network;
 
 import com.google.common.collect.Lists;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticSearchIllegalStateException;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -109,7 +110,7 @@ public abstract class NetworkUtils {
             final Method getIndexMethod = NetworkInterface.class.getDeclaredMethod("getIndex");
             getIndexMethod.setAccessible(true);
 
-            Collections.sort(intfsList, new Comparator<NetworkInterface>() {
+            CollectionUtil.timSort(intfsList, new Comparator<NetworkInterface>() {
                 @Override
                 public int compare(NetworkInterface o1, NetworkInterface o2) {
                     try {
@@ -158,6 +159,25 @@ public abstract class NetworkUtils {
                         (address instanceof Inet6Address && ipVersion == StackType.IPv6))
                     return address;
             }
+        }
+        return null;
+    }
+
+    /**
+     * Returns the first address with the proper ipVersion on the given interface on the current host.
+     *
+     * @param intf      the interface to be checked
+     * @param ipVersion Constraint on IP version of address to be returned, 4 or 6
+     */
+    public static InetAddress getFirstAddress(NetworkInterface intf, StackType ipVersion) throws SocketException {
+        if (intf == null)
+            throw new IllegalArgumentException("Network interface pointer is null");
+
+        for (Enumeration addresses = intf.getInetAddresses(); addresses.hasMoreElements(); ) {
+            InetAddress address = (InetAddress) addresses.nextElement();
+            if ((address instanceof Inet4Address && ipVersion == StackType.IPv4) ||
+                    (address instanceof Inet6Address && ipVersion == StackType.IPv6))
+                return address;
         }
         return null;
     }

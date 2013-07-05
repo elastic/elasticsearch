@@ -19,27 +19,41 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.fielddata.util.*;
+import org.elasticsearch.common.util.SlicedDoubleList;
+import org.elasticsearch.common.util.SlicedLongList;
+import org.elasticsearch.common.util.SlicedObjectList;
+import org.elasticsearch.index.fielddata.BytesValues.Iter;
+import org.joda.time.DateTimeZone;
 import org.joda.time.MutableDateTime;
+
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Script level doc values, the assumption is that any implementation will implement a <code>getValue</code>
  * and a <code>getValues</code> that return the relevant type that then can be used in scripts.
  */
-public interface ScriptDocValues {
+public abstract class ScriptDocValues {
 
-    static final ScriptDocValues EMPTY = new Empty();
-    static final Strings EMPTY_STRINGS = new Strings(StringValues.EMPTY);
+    public static final ScriptDocValues EMPTY = new Empty();
+    public static final Strings EMPTY_STRINGS = new Strings(BytesValues.EMPTY);
+    protected int docId;
+    protected boolean listLoaded = false;
 
-    void setNextDocId(int docId);
+    public void setNextDocId(int docId) {
+        this.docId = docId;
+        this.listLoaded = false;
+    }
 
-    boolean isEmpty();
+    public abstract boolean isEmpty();
 
-    static class Empty implements ScriptDocValues {
+    public abstract List<?> getValues();
+
+    public static class Empty extends ScriptDocValues {
         @Override
         public void setNextDocId(int docId) {
         }
@@ -48,20 +62,35 @@ public interface ScriptDocValues {
         public boolean isEmpty() {
             return true;
         }
-    }
-
-    static class Strings implements ScriptDocValues {
-
-        private final StringValues values;
-        private int docId;
-
-        public Strings(StringValues values) {
-            this.values = values;
-        }
 
         @Override
-        public void setNextDocId(int docId) {
-            this.docId = docId;
+        public List<?> getValues() {
+            return Collections.emptyList();
+        }
+
+    }
+
+    public final static class Strings extends ScriptDocValues {
+
+        private final BytesValues values;
+        private final CharsRef spare = new CharsRef();
+        private SlicedObjectList<String> list;
+
+        public Strings(BytesValues values) {
+            this.values = values;
+            list = new SlicedObjectList<String>(values.isMultiValued() ? new String[10] : new String[1]) {
+
+                @Override
+                public void grow(int newLength) {
+                    assert offset == 0; // NOTE: senseless if offset != 0
+                    if (values.length >= newLength) {
+                        return;
+                    }
+                    final String[] current = values;
+                    values = new String[ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
+                    System.arraycopy(current, 0, values, 0, current.length);
+                }
+            };
         }
 
         @Override
@@ -70,29 +99,42 @@ public interface ScriptDocValues {
         }
 
         public String getValue() {
-            return values.getValue(docId);
+            final BytesRef value = values.getValue(docId);
+            if (value != null) {
+                UnicodeUtil.UTF8toUTF16(value, spare);
+                return spare.toString();
+            }
+            return null;
         }
 
-        public StringArrayRef getValues() {
-            return values.getValues(docId);
+        public List<String> getValues() {
+            if (!listLoaded) {
+                list.offset = 0;
+                list.length = 0;
+                Iter iter = values.getIter(docId);
+                while (iter.hasNext()) {
+                    BytesRef next = iter.next();
+                    list.grow(list.length + 1);
+                    UnicodeUtil.UTF8toUTF16(next, spare);
+                    list.values[list.length++] = spare.toString();
+                }
+                listLoaded = true;
+            }
+            return list;
         }
+
     }
 
 
-
-    static class NumericLong implements ScriptDocValues {
+    public static class Longs extends ScriptDocValues {
 
         private final LongValues values;
-        private final MutableDateTime date = new MutableDateTime(0);
-        private int docId;
+        private final MutableDateTime date = new MutableDateTime(0, DateTimeZone.UTC);
+        private final SlicedLongList list;
 
-        public NumericLong(LongValues values) {
+        public Longs(LongValues values) {
             this.values = values;
-        }
-
-        @Override
-        public void setNextDocId(int docId) {
-            this.docId = docId;
+            this.list = new SlicedLongList(values.isMultiValued() ? 10 : 1);
         }
 
         @Override
@@ -104,28 +146,36 @@ public interface ScriptDocValues {
             return values.getValue(docId);
         }
 
+        public List<Long> getValues() {
+            if (!listLoaded) {
+                final LongValues.Iter iter = values.getIter(docId);
+                list.offset = 0;
+                list.length = 0;
+                while (iter.hasNext()) {
+                    list.grow(list.length + 1);
+                    list.values[list.length++] = iter.next();
+                }
+                listLoaded = true;
+            }
+            return list;
+        }
+
         public MutableDateTime getDate() {
             date.setMillis(getValue());
             return date;
         }
 
-        public LongArrayRef getValues() {
-            return values.getValues(docId);
-        }
     }
 
-    static class NumericDouble implements ScriptDocValues {
+    public static class Doubles extends ScriptDocValues {
 
         private final DoubleValues values;
-        private int docId;
+        private final SlicedDoubleList list;
 
-        public NumericDouble(DoubleValues values) {
+        public Doubles(DoubleValues values) {
             this.values = values;
-        }
+            this.list = new SlicedDoubleList(values.isMultiValued() ? 10 : 1);
 
-        @Override
-        public void setNextDocId(int docId) {
-            this.docId = docId;
         }
 
         @Override
@@ -137,24 +187,43 @@ public interface ScriptDocValues {
             return values.getValue(docId);
         }
 
-        public DoubleArrayRef getValues() {
-            return values.getValues(docId);
+        public List<Double> getValues() {
+            if (!listLoaded) {
+                final DoubleValues.Iter iter = values.getIter(docId);
+                list.offset = 0;
+                list.length = 0;
+                while (iter.hasNext()) {
+                    list.grow(list.length + 1);
+                    list.values[list.length++] = iter.next();
+                }
+                listLoaded = true;
+            }
+            return list;
         }
     }
 
-    static class GeoPoints implements ScriptDocValues {
+    public static class GeoPoints extends ScriptDocValues {
 
         private final GeoPointValues values;
-        private int docId;
+        private final SlicedObjectList<GeoPoint> list;
 
         public GeoPoints(GeoPointValues values) {
             this.values = values;
+            list = new SlicedObjectList<GeoPoint>(values.isMultiValued() ? new GeoPoint[10] : new GeoPoint[1]) {
+
+                @Override
+                public void grow(int newLength) {
+                    assert offset == 0; // NOTE: senseless if offset != 0
+                    if (values.length >= newLength) {
+                        return;
+                    }
+                    final GeoPoint[] current = values;
+                    values = new GeoPoint[ArrayUtil.oversize(newLength, RamUsageEstimator.NUM_BYTES_OBJECT_REF)];
+                    System.arraycopy(current, 0, values, 0, current.length);
+                }
+            };
         }
 
-        @Override
-        public void setNextDocId(int docId) {
-            this.docId = docId;
-        }
 
         @Override
         public boolean isEmpty() {
@@ -165,8 +234,53 @@ public interface ScriptDocValues {
             return values.getValue(docId);
         }
 
-        public GeoPointArrayRef getValues() {
-            return values.getValues(docId);
+        public double getLat() {
+            return getValue().lat();
+        }
+
+        public double[] getLats() {
+            List<GeoPoint> points = getValues();
+            double[] lats = new double[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                lats[i] = points.get(i).lat();
+            }
+            return lats;
+        }
+
+        public double[] getLons() {
+            List<GeoPoint> points = getValues();
+            double[] lons = new double[points.size()];
+            for (int i = 0; i < points.size(); i++) {
+                lons[i] = points.get(i).lon();
+            }
+            return lons;
+        }
+
+        public double getLon() {
+            return getValue().lon();
+        }
+
+
+        public List<GeoPoint> getValues() {
+            if (!listLoaded) {
+                GeoPointValues.Iter iter = values.getIter(docId);
+                list.offset = 0;
+                list.length = 0;
+                while (iter.hasNext()) {
+                    int index = list.length;
+                    list.grow(index + 1);
+                    GeoPoint next = iter.next();
+                    GeoPoint point = list.values[index];
+                    if (point == null) {
+                        point = list.values[index] = new GeoPoint();
+                    }
+                    point.reset(next.lat(), next.lon());
+                    list.values[list.length++] = point;
+                }
+                listLoaded = true;
+            }
+            return list;
+
         }
 
         public double factorDistance(double lat, double lon) {

@@ -55,4 +55,19 @@ public final class LongValuesComparator extends LongValuesComparatorBase<Long> {
     public Long value(int slot) {
         return Long.valueOf(values[slot]);
     }
+
+    @Override
+    public void add(int slot, int doc) {
+        values[slot] += readerValues.getValueMissing(doc, missingValue);
+    }
+
+    @Override
+    public void divide(int slot, int divisor) {
+        values[slot] /= divisor;
+    }
+
+    @Override
+    public void missing(int slot) {
+        values[slot] = missingValue;
+    }
 }

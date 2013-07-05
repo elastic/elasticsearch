@@ -22,8 +22,12 @@ package org.elasticsearch.test.unit.action.bulk;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.testng.annotations.Test;
+
+import com.google.common.base.Charsets;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -36,7 +40,7 @@ public class BulkRequestTests {
     public void testSimpleBulk1() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/test/unit/action/bulk/simple-bulk.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true, null, null);
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), true, null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }").toBytes()));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
@@ -47,7 +51,7 @@ public class BulkRequestTests {
     public void testSimpleBulk2() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/test/unit/action/bulk/simple-bulk2.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true, null, null);
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), true, null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 
@@ -55,7 +59,27 @@ public class BulkRequestTests {
     public void testSimpleBulk3() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/test/unit/action/bulk/simple-bulk3.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(), 0, bulkAction.length(), true, null, null);
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), true, null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
+
+    @Test
+    public void testSimpleBulk4() throws Exception {
+        String bulkAction = copyToStringFromClasspath("/org/elasticsearch/test/unit/action/bulk/simple-bulk4.json");
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), true, null, null);
+        assertThat(bulkRequest.numberOfActions(), equalTo(4));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).id(), equalTo("1"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(0)).doc().source().toUtf8(), equalTo("{\"field\":\"value\"}"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).id(), equalTo("0"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).type(), equalTo("type1"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).index(), equalTo("index1"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).script(), equalTo("counter += param1"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).scriptLang(), equalTo("js"));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).scriptParams().size(), equalTo(1));
+        assertThat(((Integer) ((UpdateRequest) bulkRequest.requests().get(1)).scriptParams().get("param1")), equalTo(1));
+        assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().toUtf8(), equalTo("{\"counter\":1}"));
+    }
+
 }

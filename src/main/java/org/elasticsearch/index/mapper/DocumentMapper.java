@@ -28,6 +28,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
@@ -227,7 +228,7 @@ public class DocumentMapper implements ToXContent {
     }
 
 
-    private ThreadLocal<ParseContext> cache = new ThreadLocal<ParseContext>() {
+    private CloseableThreadLocal<ParseContext> cache = new CloseableThreadLocal<ParseContext>() {
         @Override
         protected ParseContext initialValue() {
             return new ParseContext(index, indexSettings, docMapperParser, DocumentMapper.this, new ContentPath(0));
@@ -402,6 +403,14 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(TTLFieldMapper.class);
     }
 
+    public IndexFieldMapper IndexFieldMapper() {
+        return rootMapper(IndexFieldMapper.class);
+    }
+
+    public SizeFieldMapper SizeFieldMapper() {
+        return rootMapper(SizeFieldMapper.class);
+    }
+
     public Analyzer indexAnalyzer() {
         return this.indexAnalyzer;
     }
@@ -569,7 +578,7 @@ public class DocumentMapper implements ToXContent {
             }
         }
 
-        ParsedDocument doc = new ParsedDocument(context.uid(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
+        ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
                 context.source(), context.mappingsModified()).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null);
@@ -679,7 +688,7 @@ public class DocumentMapper implements ToXContent {
     }
 
     public void close() {
-        cache.remove();
+        cache.close();
         rootObjectMapper.close();
         for (RootMapper rootMapper : rootMappersOrdered) {
             rootMapper.close();

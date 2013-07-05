@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -130,7 +131,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     private OpType opType = OpType.INDEX;
 
     private boolean refresh = false;
-    private long version = 0;
+    private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
     private String percolate;
 
@@ -308,6 +309,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     public BytesReference safeSource() {
         if (sourceUnsafe) {
             source = source.copyBytesArray();
+            sourceUnsafe = false;
         }
         return source;
     }
@@ -403,6 +405,21 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(contentType);
             builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).field(field4, value4).endObject();
+            return source(builder);
+        } catch (IOException e) {
+            throw new ElasticSearchGenerationException("Failed to generate", e);
+        }
+    }
+
+    @Required
+    public IndexRequest source(Object... source) {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            builder.startObject();
+            for (int i = 0; i < source.length; i++) {
+                builder.field(source[i++].toString(), source[i]);
+            }
+            builder.endObject();
             return source(builder);
         } catch (IOException e) {
             throw new ElasticSearchGenerationException("Failed to generate", e);

@@ -301,7 +301,7 @@ public class BlobReuseExistingGatewayAllocator extends AbstractComponent impleme
 
             for (TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData nodeStoreFilesMetaData : nodesStoreFilesMetaData) {
                 if (nodeStoreFilesMetaData.storeFilesMetaData() != null) {
-                    shardStores.put(nodeStoreFilesMetaData.node(), nodeStoreFilesMetaData.storeFilesMetaData());
+                    shardStores.put(nodeStoreFilesMetaData.getNode(), nodeStoreFilesMetaData.storeFilesMetaData());
                 }
             }
         }

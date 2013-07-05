@@ -22,11 +22,14 @@ package org.elasticsearch.index.cache.id.simple;
 import gnu.trove.impl.Constants;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.UTF8SortedAsUnicodeComparator;
 import org.elasticsearch.common.trove.ExtTObjectIntHasMap;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -36,7 +39,10 @@ import org.elasticsearch.index.cache.id.IdReaderCache;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.service.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.ShardUtils;
+import org.elasticsearch.index.shard.service.IndexShard;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
@@ -49,11 +55,18 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
     private final ConcurrentMap<Object, SimpleIdReaderCache> idReaders;
     private final boolean reuse;
 
+    IndexService indexService;
+
     @Inject
     public SimpleIdCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
         idReaders = ConcurrentCollections.newConcurrentMap();
         this.reuse = componentSettings.getAsBoolean("reuse", false);
+    }
+
+    @Override
+    public void setIndexService(IndexService indexService) {
+        this.indexService = indexService;
     }
 
     @Override
@@ -63,7 +76,11 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     @Override
     public void clear() {
-        idReaders.clear();
+        for (Iterator<SimpleIdReaderCache> it = idReaders.values().iterator(); it.hasNext(); ) {
+            SimpleIdReaderCache idReaderCache = it.next();
+            it.remove();
+            onRemoval(idReaderCache);
+        }
     }
 
     @Override
@@ -73,7 +90,8 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
     @Override
     public void clear(IndexReader reader) {
-        idReaders.remove(reader.getCoreCacheKey());
+        SimpleIdReaderCache removed = idReaders.remove(reader.getCoreCacheKey());
+        if (removed != null) onRemoval(removed);
     }
 
     @Override
@@ -99,6 +117,17 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                 // do the refresh
                 Map<Object, Map<String, TypeBuilder>> builders = new HashMap<Object, Map<String, TypeBuilder>>();
+                Map<Object, IndexReader> cacheToReader = new HashMap<Object, IndexReader>();
+
+                // We don't want to load uid of child documents, this allows us to not load uids of child types.
+                NavigableSet<HashedBytesArray> parentTypes = new TreeSet<HashedBytesArray>(UTF8SortedAsUnicodeComparator.utf8SortedAsUnicodeSortOrder);
+                BytesRef spare = new BytesRef();
+                for (String type : indexService.mapperService().types()) {
+                    ParentFieldMapper parentFieldMapper = indexService.mapperService().documentMapper(type).parentFieldMapper();
+                    if (parentFieldMapper != null) {
+                        parentTypes.add(new HashedBytesArray(Strings.toUTF8Bytes(parentFieldMapper.type(), spare)));
+                    }
+                }
 
                 // first, go over and load all the id->doc map for all types
                 for (AtomicReaderContext context : atomicReaderContexts) {
@@ -113,22 +142,45 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                     }
                     Map<String, TypeBuilder> readerBuilder = new HashMap<String, TypeBuilder>();
                     builders.put(reader.getCoreCacheKey(), readerBuilder);
+                    cacheToReader.put(reader.getCoreCacheKey(), context.reader());
 
 
                     Terms terms = reader.terms(UidFieldMapper.NAME);
                     if (terms != null) {
                         TermsEnum termsEnum = terms.iterator(null);
                         DocsEnum docsEnum = null;
-                        for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
+                        uid: for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                             HashedBytesArray[] typeAndId = Uid.splitUidIntoTypeAndId(term);
-                            TypeBuilder typeBuilder = readerBuilder.get(typeAndId[0].toUtf8());
+                            if (!parentTypes.contains(typeAndId[0])) {
+                                do {
+                                    HashedBytesArray nextParent = parentTypes.ceiling(typeAndId[0]);
+                                    if (nextParent == null) {
+                                        break uid;
+                                    }
+
+                                    TermsEnum.SeekStatus status = termsEnum.seekCeil(nextParent.toBytesRef(), false);
+                                    if (status == TermsEnum.SeekStatus.END) {
+                                        break uid;
+                                    } else if (status == TermsEnum.SeekStatus.NOT_FOUND) {
+                                        term = termsEnum.term();
+                                        typeAndId = Uid.splitUidIntoTypeAndId(term);
+                                    } else if (status == TermsEnum.SeekStatus.FOUND) {
+                                        assert false : "Seek status should never be FOUND, because we seek only the type part";
+                                        term = termsEnum.term();
+                                        typeAndId = Uid.splitUidIntoTypeAndId(term);
+                                    }
+                                } while (!parentTypes.contains(typeAndId[0]));
+                            }
+
+                            String type = typeAndId[0].toUtf8();
+                            TypeBuilder typeBuilder = readerBuilder.get(type);
                             if (typeBuilder == null) {
                                 typeBuilder = new TypeBuilder(reader);
-                                readerBuilder.put(typeAndId[0].toUtf8(), typeBuilder);
+                                readerBuilder.put(type, typeBuilder);
                             }
 
                             HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
-                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                            docsEnum = termsEnum.docs(null, docsEnum, 0);
                             for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                                 typeBuilder.idToDoc.put(idAsBytes, docId);
                                 typeBuilder.docToId[docId] = idAsBytes;
@@ -164,7 +216,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                             HashedBytesArray idAsBytes = checkIfCanReuse(builders, typeAndId[1]);
                             boolean added = false; // optimize for when all the docs are deleted for this id
 
-                            docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+                            docsEnum = termsEnum.docs(null, docsEnum, 0);
                             for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                                 if (!added) {
                                     typeBuilder.parentIdsValues.add(idAsBytes);
@@ -183,6 +235,7 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
 
                 // now, build it back
                 for (Map.Entry<Object, Map<String, TypeBuilder>> entry : builders.entrySet()) {
+                    Object readerKey = entry.getKey();
                     MapBuilder<String, SimpleIdReaderTypeCache> types = MapBuilder.newMapBuilder();
                     for (Map.Entry<String, TypeBuilder> typeBuilderEntry : entry.getValue().entrySet()) {
                         types.put(typeBuilderEntry.getKey(), new SimpleIdReaderTypeCache(typeBuilderEntry.getKey(),
@@ -191,19 +244,31 @@ public class SimpleIdCache extends AbstractIndexComponent implements IdCache, Se
                                 typeBuilderEntry.getValue().parentIdsValues.toArray(new HashedBytesArray[typeBuilderEntry.getValue().parentIdsValues.size()]),
                                 typeBuilderEntry.getValue().parentIdsOrdinals));
                     }
-                    SimpleIdReaderCache readerCache = new SimpleIdReaderCache(entry.getKey(), types.immutableMap());
-                    idReaders.put(readerCache.readerCacheKey(), readerCache);
+                    IndexReader indexReader = cacheToReader.get(readerKey);
+                    SimpleIdReaderCache readerCache = new SimpleIdReaderCache(types.immutableMap(), ShardUtils.extractShardId(indexReader));
+                    idReaders.put(readerKey, readerCache);
+                    onCached(readerCache);
                 }
             }
         }
     }
 
-    public long sizeInBytes() {
-        long sizeInBytes = 0;
-        for (SimpleIdReaderCache idReaderCache : idReaders.values()) {
-            sizeInBytes += idReaderCache.sizeInBytes();
+    void onCached(SimpleIdReaderCache readerCache) {
+        if (readerCache.shardId != null) {
+            IndexShard shard = indexService.shard(readerCache.shardId.id());
+            if (shard != null) {
+                shard.idCache().onCached(readerCache.sizeInBytes());
+            }
         }
-        return sizeInBytes;
+    }
+
+    void onRemoval(SimpleIdReaderCache readerCache) {
+        if (readerCache.shardId != null) {
+            IndexShard shard = indexService.shard(readerCache.shardId.id());
+            if (shard != null) {
+                shard.idCache().onCached(readerCache.sizeInBytes());
+            }
+        }
     }
 
     private HashedBytesArray checkIfCanReuse(Map<Object, Map<String, TypeBuilder>> builders, HashedBytesArray idAsBytes) {

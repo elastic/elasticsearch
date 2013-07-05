@@ -27,8 +27,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
@@ -93,22 +95,33 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<DoubleArra
         final TDoubleArrayList values = new TDoubleArrayList();
 
         values.add(0); // first "t" indicates null value
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc());
+        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
         try {
-            final BytesRefIterator iter = builder.buildFromTerms(builder.wrapNumeric64Bit(terms.iterator(null)), reader.getLiveDocs());
+            final BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
             while ((term = iter.next()) != null) {
                 values.add(NumericUtils.sortableLongToDouble(NumericUtils.prefixCodedToLong(term)));
             }
             Ordinals build = builder.build(fieldDataType.getSettings());
-            if (!build.isMultiValued()) {
+            if (!build.isMultiValued() && CommonSettings.removeOrdsOnSingleValue(fieldDataType)) {
                 Docs ordinals = build.ordinals();
+                final FixedBitSet set = builder.buildDocsWithValuesSet();
+
+                // there's sweatspot where due to low unique value count, using ordinals will consume less memory
+                long singleValuesArraySize = reader.maxDoc() * RamUsage.NUM_BYTES_DOUBLE + (set == null ? 0 : set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_INT);
+                long uniqueValuesArraySize = values.size() * RamUsage.NUM_BYTES_DOUBLE;
+                long ordinalsSize = build.getMemorySizeInBytes();
+                if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
+                    return new DoubleArrayAtomicFieldData.WithOrdinals(values.toArray(new double[values.size()]), reader.maxDoc(), build);
+                }
+
                 double[] sValues = new double[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();
                 for (int i = 0; i < maxDoc; i++) {
                     sValues[i] = values.get(ordinals.getOrd(i));
                 }
-                final FixedBitSet set = builder.buildDocsWithValuesSet();
+
                 if (set == null) {
                     return new DoubleArrayAtomicFieldData.Single(sValues, reader.maxDoc());
                 } else {

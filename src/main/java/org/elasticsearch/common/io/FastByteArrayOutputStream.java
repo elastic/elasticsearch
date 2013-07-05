@@ -19,14 +19,15 @@
 
 package org.elasticsearch.common.io;
 
-import org.elasticsearch.common.Bytes;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
-import java.util.Arrays;
+
+import org.apache.lucene.util.ArrayUtil;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+
+import com.google.common.base.Charsets;
 
 /**
  * Similar to {@link java.io.ByteArrayOutputStream} just not synced.
@@ -77,7 +78,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
     public void write(int b) {
         int newcount = count + 1;
         if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Bytes.oversize(newcount, 1));
+            buf = ArrayUtil.grow(buf, newcount);
         }
         buf[count] = (byte) b;
         count = newcount;
@@ -99,7 +100,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
         }
         int newcount = count + len;
         if (newcount > buf.length) {
-            buf = Arrays.copyOf(buf, Bytes.oversize(newcount, 1));
+            buf = ArrayUtil.grow(buf, newcount);
         }
         System.arraycopy(b, off, buf, count, len);
         count = newcount;
@@ -172,7 +173,7 @@ public class FastByteArrayOutputStream extends OutputStream implements BytesStre
      * @since JDK1.1
      */
     public String toString() {
-        return new String(buf, 0, count);
+        return new String(buf, 0, count, Charsets.UTF_8);
     }
 
     /**

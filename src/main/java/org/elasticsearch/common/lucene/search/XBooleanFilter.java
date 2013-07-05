@@ -78,10 +78,13 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         List<ResultClause> results = new ArrayList<ResultClause>(clauses.size());
         boolean hasShouldClauses = false;
         boolean hasNonEmptyShouldClause = false;
+        boolean hasMustClauses = false;
+        boolean hasMustNotClauses = false;
         for (int i = 0; i < clauses.size(); i++) {
             FilterClause clause = clauses.get(i);
             DocIdSet set = clause.getFilter().getDocIdSet(context, acceptDocs);
             if (clause.getOccur() == Occur.MUST) {
+                hasMustClauses = true;
                 if (DocIdSets.isEmpty(set)) {
                     return null;
                 }
@@ -92,6 +95,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                 }
                 hasNonEmptyShouldClause = true;
             } else if (clause.getOccur() == Occur.MUST_NOT) {
+                hasMustNotClauses = true;
                 if (DocIdSets.isEmpty(set)) {
                     // we mark empty ones as null for must_not, handle it in the next run...
                     results.add(new ResultClause(null, null, clause));
@@ -109,8 +113,11 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
             return null;
         }
 
-        // now, go over the clauses and apply the "fast" ones...
+        // now, go over the clauses and apply the "fast" ones first...
+        hasNonEmptyShouldClause = false;
         boolean hasBits = false;
+        // But first we need to handle the "fast" should clauses, otherwise a should clause can unset docs
+        // that don't match with a must or must_not clause.
         for (int i = 0; i < results.size(); i++) {
             ResultClause clause = results.get(i);
             // we apply bits in based ones (slow) in the second run
@@ -123,11 +130,23 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
                 if (it == null) {
                     continue;
                 }
+                hasNonEmptyShouldClause = true;
                 if (res == null) {
                     res = new FixedBitSet(reader.maxDoc());
                 }
                 res.or(it);
-            } else if (clause.clause.getOccur() == Occur.MUST) {
+            }
+        }
+
+        // Now we safely handle the "fast" must and must_not clauses.
+        for (int i = 0; i < results.size(); i++) {
+            ResultClause clause = results.get(i);
+            // we apply bits in based ones (slow) in the second run
+            if (clause.bits != null) {
+                hasBits = true;
+                continue;
+            }
+            if (clause.clause.getOccur() == Occur.MUST) {
                 DocIdSetIterator it = clause.docIdSet.iterator();
                 if (it == null) {
                     return null;
@@ -153,40 +172,40 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
         }
 
         if (!hasBits) {
-            return res;
+            if (hasShouldClauses && !hasNonEmptyShouldClause) {
+                return null;
+            } else {
+                return res;
+            }
         }
 
         // we have some clauses with bits, apply them...
         // we let the "res" drive the computation, and check Bits for that
+        List<ResultClause> orClauses = new ArrayList<ResultClause>();
         for (int i = 0; i < results.size(); i++) {
             ResultClause clause = results.get(i);
-            // we apply bits in based ones (slow) in the second run
             if (clause.bits == null) {
                 continue;
             }
             if (clause.clause.getOccur() == Occur.SHOULD) {
-                if (res == null) {
-                    DocIdSetIterator it = clause.docIdSet.iterator();
-                    if (it == null) {
-                        continue;
-                    }
-                    res = new FixedBitSet(reader.maxDoc());
-                    res.or(it);
+                if (hasMustClauses || hasMustNotClauses) {
+                    orClauses.add(clause);
                 } else {
-                    Bits bits = clause.bits;
-                    // use the "res" to drive the iteration
-                    int lastSetDoc = res.nextSetBit(0);
-                    DocIdSetIterator it = res.iterator();
-                    for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
-                        int diff = setDoc - lastSetDoc;
-                        if (diff > 1) {
-                            for (int unsetDoc = lastSetDoc + 1; unsetDoc < setDoc; unsetDoc++) {
-                                if (bits.get(unsetDoc)) {
-                                    res.set(unsetDoc);
-                                }
+                    if (res == null) {
+                        DocIdSetIterator it = clause.docIdSet.iterator();
+                        if (it == null) {
+                            continue;
+                        }
+                        hasNonEmptyShouldClause = true;
+                        res = new FixedBitSet(reader.maxDoc());
+                        res.or(it);
+                    } else if (!hasMustNotClauses && !hasMustClauses) {
+                        for (int doc = 0; doc < reader.maxDoc(); doc++) {
+                            if (!res.get(doc) && clause.bits.get(doc)) {
+                                hasNonEmptyShouldClause = true;
+                                res.set(doc);
                             }
                         }
-                        lastSetDoc = setDoc;
                     }
                 }
             } else if (clause.clause.getOccur() == Occur.MUST) {
@@ -229,7 +248,29 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
             }
         }
 
-        return res;
+        // From a boolean_logic behavior point of view a should clause doesn't have impact on a bool filter if there
+        // is already a must or must_not clause. However in the current ES bool filter behaviour all should clauses
+        // must match in order for a doc to be a match. What we do here is checking if matched docs match with any
+        // should filter. TODO: Add an option to have disable minimum_should_match=1 behaviour
+        if (!orClauses.isEmpty()) {
+            DocIdSetIterator it = res.iterator();
+            res: for (int setDoc = it.nextDoc(); setDoc != DocIdSetIterator.NO_MORE_DOCS; setDoc = it.nextDoc()) {
+                for (ResultClause orClause : orClauses) {
+                    if (orClause.bits.get(setDoc)) {
+                        hasNonEmptyShouldClause = true;
+                        continue res;
+                    }
+                }
+                res.clear(setDoc);
+            }
+        }
+
+        if (hasShouldClauses && !hasNonEmptyShouldClause) {
+            return null;
+        } else {
+            return res;
+        }
+
     }
 
     /**

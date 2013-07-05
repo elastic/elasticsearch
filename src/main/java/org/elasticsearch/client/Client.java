@@ -41,10 +41,16 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
 import org.elasticsearch.action.mlt.MoreLikeThisRequestBuilder;
+import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvector.TermVectorRequestBuilder;
+import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.suggest.SuggestRequest;
+import org.elasticsearch.action.suggest.SuggestRequestBuilder;
+import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -332,6 +338,29 @@ public interface Client {
     CountRequestBuilder prepareCount(String... indices);
 
     /**
+     * Suggestion matching a specific phrase.
+     *
+     * @param request The suggest request
+     * @return The result future
+     * @see Requests#suggestRequest(String...)
+     */
+    ActionFuture<SuggestResponse> suggest(SuggestRequest request);
+
+    /**
+     * Suggestions matching a specific phrase.
+     *
+     * @param request  The suggest request
+     * @param listener A listener to be notified of the result
+     * @see Requests#suggestRequest(String...)
+     */
+    void suggest(SuggestRequest request, ActionListener<SuggestResponse> listener);
+
+    /**
+     * Suggestions matching a specific phrase.
+     */
+    SuggestRequestBuilder prepareSuggest(String... indices);
+
+    /**
      * Search across one or more indices and one or more types with a query.
      *
      * @param request The search request
@@ -407,7 +436,7 @@ public interface Client {
      * @param listener A listener to be notified of the result
      */
     void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener);
-
+    
     /**
      * A more like this action to search for documents that are "like" a specific document.
      *
@@ -416,6 +445,33 @@ public interface Client {
      * @param id    The id of the document
      */
     MoreLikeThisRequestBuilder prepareMoreLikeThis(String index, String type, String id);
+
+    
+    /**
+     * An action that returns the term vectors for a specific document.
+     *
+     * @param request The term vector request
+     * @return The response future
+     */
+    ActionFuture<TermVectorResponse> termVector(TermVectorRequest request);
+
+    /**
+     * An action that returns the term vectors for a specific document.
+     *
+     * @param request The term vector request
+     * @return The response future
+     */
+    void termVector(TermVectorRequest request, ActionListener<TermVectorResponse> listener);
+
+
+    /**
+     * Builder for the term vector request.
+     *
+     * @param index The index to load the document from
+     * @param type  The type of the document
+     * @param id    The id of the document
+     */
+    TermVectorRequestBuilder prepareTermVector(String index, String type, String id);
 
     /**
      * Percolates a request returning the matches documents.

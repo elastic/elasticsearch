@@ -59,56 +59,28 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             this.completed = completed;
         }
 
-        public String name() {
-            return this.name;
-        }
-
         public String getName() {
             return this.name;
-        }
-
-        public int threads() {
-            return this.threads;
         }
 
         public int getThreads() {
             return this.threads;
         }
 
-        public int queue() {
-            return this.queue;
-        }
-
         public int getQueue() {
             return this.queue;
-        }
-
-        public int active() {
-            return this.active;
         }
 
         public int getActive() {
             return this.active;
         }
 
-        public long rejected() {
-            return rejected;
-        }
-
         public long getRejected() {
             return rejected;
         }
 
-        public int largest() {
-            return largest;
-        }
-
         public int getLargest() {
             return largest;
-        }
-
-        public long completed() {
-            return this.completed;
         }
 
         public long getCompleted() {

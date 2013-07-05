@@ -19,15 +19,12 @@
 
 package org.elasticsearch.rest.action.admin.indices.mapping.get;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -38,10 +35,9 @@ import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestXContentBuilder;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.support.RestActions.splitIndices;
 import static org.elasticsearch.rest.action.support.RestActions.splitTypes;
@@ -62,74 +58,46 @@ public class RestGetMappingAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel) {
         final String[] indices = splitIndices(request.param("index"));
-        final Set<String> types = ImmutableSet.copyOf(splitTypes(request.param("type")));
+        final String[] types = splitTypes(request.param("type"));
+        boolean local = request.paramAsBooleanOptional("local", false);
 
-        ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest()
-                .filterRoutingTable(true)
-                .filterNodes(true)
-                .filteredIndices(indices);
+        GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
+        getMappingsRequest.indices(indices).types(types).local(local);
+        client.admin().indices().getMappings(getMappingsRequest, new ActionListener<GetMappingsResponse>() {
 
-        clusterStateRequest.listenerThreaded(false);
-
-        client.admin().cluster().state(clusterStateRequest, new ActionListener<ClusterStateResponse>() {
             @Override
-            public void onResponse(ClusterStateResponse response) {
+            public void onResponse(GetMappingsResponse response) {
                 try {
-                    boolean foundAny = false;
-
-                    MetaData metaData = response.state().metaData();
                     XContentBuilder builder = RestXContentBuilder.restContentBuilder(request);
                     builder.startObject();
 
-                    if (indices.length == 1 && metaData.indices().isEmpty()) {
-                        channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                    ImmutableMap<String, ImmutableMap<String, MappingMetaData>> mappingsByIndex = response.getMappings();
+                    if (mappingsByIndex.isEmpty()) {
+                        if (indices.length != 0 && types.length != 0) {
+                            channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index(indices[0]), types[0])));
+                        } else if (indices.length != 0) {
+                            channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
+                        } else if (types.length != 0) {
+                            channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index("_all"), types[0])));
+                        } else {
+                            builder.endObject();
+                            channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                        }
                         return;
                     }
 
-                    if (indices.length == 1 && types.size() == 1) {
-                        boolean foundType = false;
-                        IndexMetaData indexMetaData = metaData.iterator().next();
-                        for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
-                            if (!types.isEmpty() && !types.contains(mappingMd.type())) {
-                                // filter this type out...
-                                continue;
-                            }
-                            foundAny = true;
-                            foundType = true;
-                            builder.field(mappingMd.type());
-                            builder.map(mappingMd.sourceAsMap());
+                    for (Map.Entry<String, ImmutableMap<String, MappingMetaData>> indexEntry : mappingsByIndex.entrySet()) {
+                        builder.startObject(indexEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                        for (Map.Entry<String, MappingMetaData> typeEntry : indexEntry.getValue().entrySet()) {
+                            builder.field(typeEntry.getKey());
+                            builder.map(typeEntry.getValue().sourceAsMap());
                         }
-                        if (!foundType) {
-                            channel.sendResponse(new XContentThrowableRestResponse(request, new TypeMissingException(new Index(indices[0]), types.iterator().next())));
-                            return;
-                        }
-                    } else {
-                        for (IndexMetaData indexMetaData : metaData) {
-                            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-
-                            for (MappingMetaData mappingMd : indexMetaData.mappings().values()) {
-                                if (!types.isEmpty() && !types.contains(mappingMd.type())) {
-                                    // filter this type out...
-                                    continue;
-                                }
-                                foundAny = true;
-                                builder.field(mappingMd.type());
-                                builder.map(mappingMd.sourceAsMap());
-                            }
-
-                            if (indexMetaData.mappings().values().isEmpty() && types.isEmpty()) {
-                                // if no types are specified and no mappings are set for the index, consider this an empty mapping
-                                foundAny = true;
-                            }
-
-                            builder.endObject();
-                        }
+                        builder.endObject();
                     }
 
                     builder.endObject();
-
-                    channel.sendResponse(new XContentRestResponse(request, foundAny || indices.length == 0 ? OK : NOT_FOUND, builder));
-                } catch (Exception e) {
+                    channel.sendResponse(new XContentRestResponse(request, OK, builder));
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

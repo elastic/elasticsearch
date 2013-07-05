@@ -130,10 +130,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
     }
 
     @Override
-    public void close(boolean delete) throws ElasticSearchException {
-        if (delete) {
-            blobStore.delete(shardPath);
-        }
+    public void close() throws ElasticSearchException {
     }
 
     @Override
@@ -610,7 +607,7 @@ public abstract class BlobStoreIndexShardGateway extends AbstractIndexShardCompo
         // read the gateway data persisted
         long version = -1;
         try {
-            if (DirectoryReader.indexExists(store.directory())) {
+            if (Lucene.indexExists(store.directory())) {
                 version = Lucene.readSegmentInfos(store.directory()).getVersion();
             }
         } catch (IOException e) {

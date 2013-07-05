@@ -72,14 +72,14 @@ public class ManyIndicesStressTest {
         node = NodeBuilder.nodeBuilder().settings(settings).node();
 
         ClusterHealthResponse health = node.client().admin().cluster().prepareHealth().setTimeout("5m").setWaitForYellowStatus().execute().actionGet();
-        logger.info("health: " + health.status());
-        logger.info("active shards: " + health.activeShards());
-        logger.info("active primary shards: " + health.activePrimaryShards());
-        if (health.timedOut()) {
+        logger.info("health: " + health.getStatus());
+        logger.info("active shards: " + health.getActiveShards());
+        logger.info("active primary shards: " + health.getActivePrimaryShards());
+        if (health.isTimedOut()) {
             logger.error("Timed out on health...");
         }
 
-        ClusterState clusterState = node.client().admin().cluster().prepareState().execute().actionGet().state();
+        ClusterState clusterState = node.client().admin().cluster().prepareState().execute().actionGet().getState();
         for (int i = 0; i < numberOfIndices; i++) {
             if (clusterState.blocks().indices().containsKey("index_" + i)) {
                 logger.error("index [{}] has blocks: {}", i, clusterState.blocks().indices().get("index_" + i));
@@ -87,7 +87,7 @@ public class ManyIndicesStressTest {
         }
 
         for (int i = 0; i < numberOfIndices; i++) {
-            long count = node.client().prepareCount("index_" + i).setQuery(matchAllQuery()).execute().actionGet().count();
+            long count = node.client().prepareCount("index_" + i).setQuery(matchAllQuery()).execute().actionGet().getCount();
             if (count == numberOfDocs) {
                 logger.info("VERIFIED [{}], count [{}]", i, count);
             } else {

@@ -249,9 +249,9 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     }
 
     @Override
-    public Filter termsFilter(List<Object> values, @Nullable QueryParseContext context) {
+    public Filter termsFilter(List values, @Nullable QueryParseContext context) {
         if (context == null) {
-            return super.termFilter(values, context);
+            return super.termsFilter(values, context);
         }
         List<BytesRef> bValues = new ArrayList<BytesRef>(values.size());
         for (Object value : values) {

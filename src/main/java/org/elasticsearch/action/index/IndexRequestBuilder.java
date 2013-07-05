@@ -203,6 +203,14 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
     }
 
     /**
+     * Constructs a simple document with a field name and value pairs.
+     */
+    public IndexRequestBuilder setSource(Object... source) {
+        request.source(source);
+        return this;
+    }
+
+    /**
      * The content type that will be used to generate a document from user provided objects (like Map).
      */
     public IndexRequestBuilder setContentType(XContentType contentType) {

@@ -27,21 +27,16 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * The default postingsformat, maps to {@link Lucene40PostingsFormat}.
+ * The default postingsformat, maps to {@link Lucene41PostingsFormat}.
  * <ul>
  * <li><tt>min_block_size</tt>: the minimum block size the default Lucene term
  * dictionary uses to encode on-disk blocks.</li>
  * 
  * <li><tt>max_block_size</tt>: the maximum block size the default Lucene term
  * dictionary uses to encode on-disk blocks.</li>
- * 
- * <li><tt>freq_cut_off</tt>: the document frequency cut off where pulsing
- * in-lines posting lists into the term dictionary. Terms with a document
- * frequency less or equal to the cutoff will be in-lined. The default is
- * <tt>1</tt></li>
  * </ul>
  */
-// LUCENE UPGRADE: Upgrade Lucene40PostingsFormat to next version
+// LUCENE UPGRADE: Check if type of field postingsFormat needs to be updated!
 public class DefaultPostingsFormatProvider extends AbstractPostingsFormatProvider {
 
     private final int minBlockSize;

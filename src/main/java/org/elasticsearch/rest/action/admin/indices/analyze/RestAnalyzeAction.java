@@ -76,12 +76,12 @@ public class RestAnalyzeAction extends BaseRestHandler {
             @Override
             public void onResponse(AnalyzeResponse response) {
                 try {
-                    XContentBuilder builder = restContentBuilder(request);
+                    XContentBuilder builder = restContentBuilder(request, null);
                     builder.startObject();
                     response.toXContent(builder, request);
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

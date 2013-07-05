@@ -63,12 +63,14 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
 
     private Boolean useDisMax;
 
-    private Integer tieBreaker;
+    private Float tieBreaker;
 
     private Boolean lenient;
 
     private Float cutoffFrequency = null;
-    
+
+    private MatchQueryBuilder.ZeroTermsQuery zeroTermsQuery = null;
+
     /**
      * Constructs a new text query.
      */
@@ -181,7 +183,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         return this;
     }
 
-    public MultiMatchQueryBuilder tieBreaker(Integer tieBreaker) {
+    public MultiMatchQueryBuilder tieBreaker(Float tieBreaker) {
         this.tieBreaker = tieBreaker;
         return this;
     }
@@ -193,8 +195,8 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         this.lenient = lenient;
         return this;
     }
-    
-    
+
+
     /**
      * Set a cutoff value in [0..1] (or absolute number >=1) representing the
      * maximum threshold of a terms document frequency to be considered a low
@@ -202,6 +204,12 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
      */
     public MultiMatchQueryBuilder cutoffFrequency(float cutoff) {
         this.cutoffFrequency = cutoff;
+        return this;
+    }
+
+
+    public MultiMatchQueryBuilder zeroTermsQuery(MatchQueryBuilder.ZeroTermsQuery zeroTermsQuery) {
+        this.zeroTermsQuery = zeroTermsQuery;
         return this;
     }
 
@@ -268,9 +276,13 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
         if (lenient != null) {
             builder.field("lenient", lenient);
         }
-        
+
         if (cutoffFrequency != null) {
             builder.field("cutoff_frequency", cutoffFrequency);
+        }
+
+        if (zeroTermsQuery != null) {
+            builder.field("zero_terms_query", zeroTermsQuery.toString());
         }
 
         builder.endObject();

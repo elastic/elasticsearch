@@ -31,7 +31,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 
 import java.io.IOException;
@@ -73,7 +73,7 @@ public class SuggestSearchBenchMark {
                     .endObject()
                     .endObject().endObject()).execute().actionGet();
             ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
-            if (clusterHealthResponse.timedOut()) {
+            if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> Timed out waiting for cluster health");
             }
 
@@ -100,15 +100,15 @@ public class SuggestSearchBenchMark {
             System.out.println("Indexing took " + stopWatch.totalTime());
 
             client.admin().indices().prepareRefresh().execute().actionGet();
-            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
+            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
         } catch (Exception e) {
             System.out.println("--> Index already exists, ignoring indexing phase, waiting for green");
             ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().setTimeout("10m").execute().actionGet();
-            if (clusterHealthResponse.timedOut()) {
+            if (clusterHealthResponse.isTimedOut()) {
                 System.err.println("--> Timed out waiting for cluster health");
             }
             client.admin().indices().prepareRefresh().execute().actionGet();
-            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().count());
+            System.out.println("Count: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
         }
 
 
@@ -118,9 +118,9 @@ public class SuggestSearchBenchMark {
             String term = "prefix" + startChar;
             SearchResponse response = client.prepareSearch()
                     .setQuery(prefixQuery("field", term))
-                    .addSuggestion(new SuggestBuilder.FuzzySuggestion("field").setField("field").setText(term).setSuggestMode("always"))
+                    .addSuggestion(SuggestBuilder.termSuggestion("field").field("field").text(term).suggestMode("always"))
                     .execute().actionGet();
-            if (response.hits().totalHits() == 0) {
+            if (response.getHits().totalHits() == 0) {
                 System.err.println("No hits");
                 continue;
             }
@@ -135,14 +135,14 @@ public class SuggestSearchBenchMark {
             String term = "prefix" + startChar;
             SearchResponse response = client.prepareSearch()
                     .setQuery(matchQuery("field", term))
-                    .addSuggestion(new SuggestBuilder.FuzzySuggestion("field").setText(term).setField("field").setSuggestMode("always"))
+                    .addSuggestion(SuggestBuilder.termSuggestion("field").text(term).field("field").suggestMode("always"))
                     .execute().actionGet();
-            timeTaken += response.tookInMillis();
-            if (response.suggest() == null) {
+            timeTaken += response.getTookInMillis();
+            if (response.getSuggest() == null) {
                 System.err.println("No suggestions");
                 continue;
             }
-            List<Suggest.Suggestion.Entry.Option> options = response.suggest().getSuggestions().get(0).getEntries().get(0).getOptions();
+            List<? extends Option> options = response.getSuggest().getSuggestion("field").getEntries().get(0).getOptions();
             if (options == null || options.isEmpty()) {
                 System.err.println("No suggestions");
             }

@@ -53,8 +53,8 @@ public class RestGetAction extends BaseRestHandler {
         getRequest.listenerThreaded(false);
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
+        getRequest.routing(request.param("routing"));  // order is important, set it after routing, so it will set the routing
         getRequest.parent(request.param("parent"));
-        getRequest.routing(request.param("routing"));
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBooleanOptional("realtime", null));
 
@@ -74,12 +74,12 @@ public class RestGetAction extends BaseRestHandler {
                 try {
                     XContentBuilder builder = restContentBuilder(request);
                     response.toXContent(builder, request);
-                    if (!response.exists()) {
+                    if (!response.isExists()) {
                         channel.sendResponse(new XContentRestResponse(request, NOT_FOUND, builder));
                     } else {
                         channel.sendResponse(new XContentRestResponse(request, OK, builder));
                     }
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

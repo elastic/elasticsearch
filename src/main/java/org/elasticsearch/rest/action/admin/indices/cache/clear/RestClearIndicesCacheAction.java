@@ -63,10 +63,29 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             clearIndicesCacheRequest.ignoreIndices(IgnoreIndices.fromString(request.param("ignore_indices")));
         }
         try {
-            clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.filterCache()));
-            clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.fieldDataCache()));
-            clearIndicesCacheRequest.idCache(request.paramAsBoolean("id", clearIndicesCacheRequest.idCache()));
+            if (request.hasParam("filter")) {
+                clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter", clearIndicesCacheRequest.filterCache()));
+            }
+            if (request.hasParam("filter_cache")) {
+                clearIndicesCacheRequest.filterCache(request.paramAsBoolean("filter_cache", clearIndicesCacheRequest.filterCache()));
+            }
+            if (request.hasParam("field_data")) {
+                clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("field_data", clearIndicesCacheRequest.fieldDataCache()));
+            }
+            if (request.hasParam("fielddata")) {
+                clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean("fielddata", clearIndicesCacheRequest.fieldDataCache()));
+            }
+            if (request.hasParam("id")) {
+                clearIndicesCacheRequest.idCache(request.paramAsBoolean("id", clearIndicesCacheRequest.idCache()));
+            }
+            if (request.hasParam("id_cache")) {
+                clearIndicesCacheRequest.idCache(request.paramAsBoolean("id_cache", clearIndicesCacheRequest.idCache()));
+            }
+            if (request.hasParam("recycler")) {
+                clearIndicesCacheRequest.recycler(request.paramAsBoolean("recycler", clearIndicesCacheRequest.recycler()));
+            }
             clearIndicesCacheRequest.fields(request.paramAsStringArray("fields", clearIndicesCacheRequest.fields()));
+            clearIndicesCacheRequest.filterKeys(request.paramAsStringArray("filter_keys", clearIndicesCacheRequest.filterKeys()));
 
             BroadcastOperationThreading operationThreading = BroadcastOperationThreading.fromString(request.param("operationThreading"), BroadcastOperationThreading.SINGLE_THREAD);
             if (operationThreading == BroadcastOperationThreading.NO_THREADS) {
@@ -95,7 +114,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
 
                     builder.endObject();
                     channel.sendResponse(new XContentRestResponse(request, OK, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

@@ -19,18 +19,16 @@
 
 package org.elasticsearch.search.query;
 
-import java.io.IOException;
-
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.InternalFacets;
-import org.elasticsearch.search.group.Group;
-import org.elasticsearch.search.group.InternalGroup;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.TransportResponse;
+
+import java.io.IOException;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -46,7 +44,6 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
     private int size;
     private TopDocs topDocs;
     private InternalFacets facets;
-    private InternalGroup group;
     private Suggest suggest;
     private boolean searchTimedOut;
 
@@ -106,14 +103,6 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         this.facets = facets;
     }
 
-    public Group group() {
-        return group;
-    }
-
-    public void group(InternalGroup group) {
-        this.group = group;
-    }
-
     public Suggest suggest() {
         return suggest;
     }
@@ -158,9 +147,7 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
             facets = InternalFacets.readFacets(in);
         }
         if (in.readBoolean()) {
-            //group = InternalGroup.readGroup(in);
-            //InternalGroup.Streams.stream(type).readGroup(type, in);
-            suggest = Suggest.readSuggest(in);
+            suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
     }
@@ -173,17 +160,11 @@ public class QuerySearchResult extends TransportResponse implements QuerySearchR
         out.writeVInt(from);
         out.writeVInt(size);
         writeTopDocs(out, topDocs, 0);
-        if (group == null) {
+        if (facets == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            group.writeTo(out);
-        }
-        if (group == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            group.writeTo(out);
+            facets.writeTo(out);
         }
         if (suggest == null) {
             out.writeBoolean(false);

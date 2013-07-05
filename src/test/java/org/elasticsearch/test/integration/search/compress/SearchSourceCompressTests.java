@@ -21,15 +21,14 @@ package org.elasticsearch.test.integration.search.compress;
 
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.lzf.LZFCompressor;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -40,27 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SearchSourceCompressTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        startNode("node1");
-        startNode("node2");
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("node1");
-    }
-
+public class SearchSourceCompressTests  extends AbstractSharedClusterTest {
+    
     @Test
     public void testSourceCompressionLZF() throws IOException {
         CompressorFactory.setDefaultCompressor(new LZFCompressor());
@@ -71,37 +51,37 @@ public class SearchSourceCompressTests extends AbstractNodesTests {
 
     private void verifySource(Boolean compress) throws IOException {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_source").field("compress", compress).endObject()
                 .endObject().endObject().string();
 
-        client.admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
+        client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
 
         for (int i = 1; i < 100; i++) {
-            client.prepareIndex("test", "type1", Integer.toString(i)).setSource(buildSource(i)).execute().actionGet();
+            client().prepareIndex("test", "type1", Integer.toString(i)).setSource(buildSource(i)).execute().actionGet();
         }
-        client.prepareIndex("test", "type1", Integer.toString(10000)).setSource(buildSource(10000)).execute().actionGet();
+        client().prepareIndex("test", "type1", Integer.toString(10000)).setSource(buildSource(10000)).execute().actionGet();
 
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
         for (int i = 1; i < 100; i++) {
-            GetResponse getResponse = client.prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
-            assertThat(getResponse.source(), equalTo(buildSource(i).bytes().toBytes()));
+            GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet();
+            assertThat(getResponse.getSourceAsBytes(), equalTo(buildSource(i).bytes().toBytes()));
         }
-        GetResponse getResponse = client.prepareGet("test", "type1", Integer.toString(10000)).execute().actionGet();
-        assertThat(getResponse.source(), equalTo(buildSource(10000).bytes().toBytes()));
+        GetResponse getResponse = client().prepareGet("test", "type1", Integer.toString(10000)).execute().actionGet();
+        assertThat(getResponse.getSourceAsBytes(), equalTo(buildSource(10000).bytes().toBytes()));
 
         for (int i = 1; i < 100; i++) {
-            SearchResponse searchResponse = client.prepareSearch().setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(i))).execute().actionGet();
-            assertThat(searchResponse.hits().getTotalHits(), equalTo(1l));
-            assertThat(searchResponse.hits().getAt(0).source(), equalTo(buildSource(i).bytes().toBytes()));
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(i))).execute().actionGet();
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+            assertThat(searchResponse.getHits().getAt(0).source(), equalTo(buildSource(i).bytes().toBytes()));
         }
     }
 

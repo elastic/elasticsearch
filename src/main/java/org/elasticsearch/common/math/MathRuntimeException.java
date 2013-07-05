@@ -21,11 +21,17 @@ package org.elasticsearch.common.math;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 import java.text.MessageFormat;
 import java.text.ParseException;
 import java.util.*;
+
+import org.elasticsearch.common.io.Streams;
+
+import com.google.common.base.Charsets;
 
 /**
  * Base class for commons-math unchecked exceptions.
@@ -193,7 +199,7 @@ public class MathRuntimeException extends RuntimeException {
     @Override
     public void printStackTrace(final PrintStream out) {
         synchronized (out) {
-            PrintWriter pw = new PrintWriter(out, false);
+            PrintWriter pw = new PrintWriter(new OutputStreamWriter(out, Charsets.UTF_8));
             printStackTrace(pw);
             // Flush the PrintWriter before it's GC'ed.
             pw.flush();

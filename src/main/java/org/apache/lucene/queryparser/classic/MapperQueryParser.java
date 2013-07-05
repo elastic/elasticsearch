@@ -29,7 +29,6 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -129,45 +128,14 @@ public class MapperQueryParser extends QueryParser {
     }
 
     /**
-     * We override this one so we can get the fuzzy part to be treated as string, so people can do: "age:10~5". Note,
-     * we would love to support also "timestamp:2012-10-10~5d", but sadly the parser expects only numbers after the ~,
-     * hopefully we can change that in Lucene.
+     * We override this one so we can get the fuzzy part to be treated as string, so people can do: "age:10~5" or "timestamp:2012-10-10~5d"
      */
     @Override
-    Query handleBareTokenQuery(String qfield, Token term, Token fuzzySlop, boolean prefix, boolean wildcard, boolean fuzzy, boolean regexp) throws ParseException {
-        Query q;
-
-        String termImage = discardEscapeChar(term.image);
-        if (wildcard) {
-            q = getWildcardQuery(qfield, term.image);
-        } else if (prefix) {
-            q = getPrefixQuery(qfield,
-                    discardEscapeChar(term.image.substring
-                            (0, term.image.length() - 1)));
-        } else if (regexp) {
-            q = getRegexpQuery(qfield, term.image.substring(1, term.image.length() - 1));
-        } else if (fuzzy) {
-//            float fms = fuzzyMinSim;
-//            try {
-//                fms = Float.valueOf(fuzzySlop.image.substring(1)).floatValue();
-//            } catch (Exception ignored) {
-//            }
-//            if (fms < 0.0f) {
-//                throw new ParseException("Minimum similarity for a FuzzyQuery has to be between 0.0f and 1.0f !");
-//            } else if (fms >= 1.0f && fms != (int) fms) {
-//                throw new ParseException("Fractional edit distances are not allowed!");
-//            }
-//            q = getFuzzyQuery(qfield, termImage, fms);
-            if (fuzzySlop.image.length() == 1) {
-                q = getFuzzyQuery(qfield, termImage, Float.toString(fuzzyMinSim));
-            } else {
-                q = getFuzzyQuery(qfield, termImage, fuzzySlop.image.substring(1));
-            }
-        } else {
-
-            q = getFieldQuery(qfield, termImage, false);
+    Query handleBareFuzzy(String qfield, Token fuzzySlop, String termImage) throws ParseException {
+        if (fuzzySlop.image.length() == 1) {
+            return getFuzzyQuery(qfield, termImage, Float.toString(fuzzyMinSim));
         }
-        return q;
+        return getFuzzyQuery(qfield, termImage, fuzzySlop.image.substring(1));
     }
 
     @Override
@@ -231,6 +199,23 @@ public class MapperQueryParser extends QueryParser {
     }
 
     private Query getFieldQuerySingle(String field, String queryText, boolean quoted) throws ParseException {
+        if (!quoted && queryText.length() > 1) {
+            if (queryText.charAt(0) == '>') {
+                if (queryText.length() > 2) {
+                    if (queryText.charAt(1) == '=') {
+                        return getRangeQuerySingle(field, queryText.substring(2), null, true, true);
+                    }
+                }
+                return getRangeQuerySingle(field, queryText.substring(1), null, false, true);
+            } else if (queryText.charAt(0) == '<') {
+                if (queryText.length() > 2) {
+                    if (queryText.charAt(1) == '=') {
+                        return getRangeQuerySingle(field, null, queryText.substring(2), true, true);
+                    }
+                }
+                return getRangeQuerySingle(field, null, queryText.substring(1), true, false);
+            }
+        }
         currentMapper = null;
         Analyzer oldAnalyzer = analyzer;
         try {
@@ -385,7 +370,7 @@ public class MapperQueryParser extends QueryParser {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
                 try {
-                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, startInclusive, parseContext);
+                    Query rangeQuery = currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
                     return wrapSmartNameQuery(rangeQuery, fieldMappers, parseContext);
                 } catch (RuntimeException e) {
                     if (settings.lenient()) {
@@ -782,9 +767,7 @@ public class MapperQueryParser extends QueryParser {
     private Collection<String> extractMultiFields(String field) {
         Collection<String> fields = null;
         if (field != null) {
-            if (Regex.isSimpleMatchPattern(field)) {
-                fields = parseContext.mapperService().simpleMatchToIndexNames(field);
-            }
+            fields = parseContext.simpleMatchToIndexNames(field);
         } else {
             fields = settings.fields();
         }

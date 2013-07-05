@@ -19,14 +19,13 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
+import java.io.IOException;
+
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.BytesValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.util.BytesRefArrayRef;
-
-import java.io.IOException;
 
 /**
  * Sorts by field's natural Term sort order.  All
@@ -107,24 +106,17 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
         return docTerms.getValue(doc).compareTo(value);
     }
 
-    public static class FilteredByteValues implements BytesValues {
+    public static class FilteredByteValues extends BytesValues {
 
         protected final BytesValues delegate;
 
         public FilteredByteValues(BytesValues delegate) {
+            super(delegate.isMultiValued());
             this.delegate = delegate;
-        }
-
-        public boolean isMultiValued() {
-            return delegate.isMultiValued();
         }
 
         public boolean hasValue(int docId) {
             return delegate.hasValue(docId);
-        }
-
-        public BytesRef getValue(int docId) {
-            return delegate.getValue(docId);
         }
 
         public BytesRef makeSafe(BytesRef bytes) {
@@ -135,17 +127,10 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
             return delegate.getValueScratch(docId, ret);
         }
 
-        public BytesRefArrayRef getValues(int docId) {
-            return delegate.getValues(docId);
-        }
-
         public Iter getIter(int docId) {
             return delegate.getIter(docId);
         }
 
-        public void forEachValueInDoc(int docId, ValueInDocProc proc) {
-            delegate.forEachValueInDoc(docId, proc);
-        }
     }
 
     private static final class MultiValuedBytesWrapper extends FilteredByteValues {
@@ -183,16 +168,6 @@ public final class BytesRefValComparator extends FieldComparator<BytesRef> {
                 currentVal = iter.next();
             }
             return relevantVal;
-            /*if (reversed) {
-                BytesRefArrayRef ref = readerValues.getValues(docId);
-                if (ref.isEmpty()) {
-                    return null;
-                } else {
-                    return ref.values[ref.end - 1]; // last element is the highest value.
-                }
-            } else {
-                return readerValues.getValue(docId); // returns the lowest value
-            }*/
         }
 
     }

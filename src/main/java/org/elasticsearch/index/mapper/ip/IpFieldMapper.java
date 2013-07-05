@@ -196,7 +196,7 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     @Override
     public BytesRef indexedValueForSearch(Object value) {
         BytesRef bytesRef = new BytesRef();
-        NumericUtils.longToPrefixCoded(parseValue(value), precisionStep(), bytesRef);
+        NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
         return bytesRef;
     }
 
@@ -341,10 +341,6 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
     }
 
     public static class NumericIpTokenizer extends NumericTokenizer {
-
-        public NumericIpTokenizer(Reader reader, int precisionStep) throws IOException {
-            super(reader, new NumericTokenStream(precisionStep), null);
-        }
 
         public NumericIpTokenizer(Reader reader, int precisionStep, char[] buffer) throws IOException {
             super(reader, new NumericTokenStream(precisionStep), buffer, null);

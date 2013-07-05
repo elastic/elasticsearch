@@ -33,7 +33,10 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     private boolean filterCache = false;
     private boolean fieldDataCache = false;
     private boolean idCache = false;
+    private boolean recycler;
+
     private String[] fields = null;
+    private String[] filterKeys = null;
 
     ShardClearIndicesCacheRequest() {
     }
@@ -44,6 +47,8 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         fieldDataCache = request.fieldDataCache();
         idCache = request.idCache();
         fields = request.fields();
+        filterKeys = request.filterKeys();
+        recycler = request.recycler();
     }
 
     public boolean filterCache() {
@@ -57,9 +62,17 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
     public boolean idCache() {
         return this.idCache;
     }
+    
+    public boolean recycler() {
+        return this.recycler;
+    }
 
     public String[] fields() {
         return this.fields;
+    }
+
+    public String[] filterKeys() {
+        return this.filterKeys;
     }
 
     public ShardClearIndicesCacheRequest waitForOperations(boolean waitForOperations) {
@@ -73,13 +86,9 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         filterCache = in.readBoolean();
         fieldDataCache = in.readBoolean();
         idCache = in.readBoolean();
-        int size = in.readVInt();
-        if (size > 0) {
-            fields = new String[size];
-            for (int i = 0; i < size; i++) {
-                fields[i] = in.readString();
-            }
-        }
+        recycler = in.readBoolean();
+        fields = in.readStringArray();
+        filterKeys = in.readStringArray();
     }
 
     @Override
@@ -88,13 +97,8 @@ class ShardClearIndicesCacheRequest extends BroadcastShardOperationRequest {
         out.writeBoolean(filterCache);
         out.writeBoolean(fieldDataCache);
         out.writeBoolean(idCache);
-        if (fields == null) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(fields.length);
-            for (String field : fields) {
-                out.writeString(field);
-            }
-        }
+        out.writeBoolean(recycler);
+        out.writeStringArrayNullable(fields);
+        out.writeStringArrayNullable(filterKeys);
     }
 }

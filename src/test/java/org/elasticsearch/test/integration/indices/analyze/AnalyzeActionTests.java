@@ -19,82 +19,95 @@
 
 package org.elasticsearch.test.integration.indices.analyze;
 
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+
+import java.io.IOException;
+
+import org.elasticsearch.ElasticSearchException;
+import org.elasticsearch.ElasticSearchIllegalArgumentException;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
+import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
 
 /**
  *
  */
-public class AnalyzeActionTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        startNode("server1");
-        startNode("server2");
-        client = getClient();
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
-    }
-
-    protected Client getClient() {
-        return client("server1");
-    }
-
+public class AnalyzeActionTests extends AbstractSharedClusterTest {
+    
     @Test
     public void simpleAnalyzerTests() throws Exception {
         try {
-            client.admin().indices().prepareDelete("test").execute().actionGet();
+            client().admin().indices().prepareDelete("test").execute().actionGet();
         } catch (Exception e) {
             // ignore
         }
 
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            AnalyzeResponse analyzeResponse = client.admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
-            assertThat(analyzeResponse.tokens().size(), equalTo(1));
-            AnalyzeResponse.AnalyzeToken token = analyzeResponse.tokens().get(0);
-            assertThat(token.term(), equalTo("test"));
-            assertThat(token.startOffset(), equalTo(10));
-            assertThat(token.endOffset(), equalTo(14));
+            AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("test", "this is a test").execute().actionGet();
+            assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+            AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
+            assertThat(token.getTerm(), equalTo("test"));
+            assertThat(token.getStartOffset(), equalTo(10));
+            assertThat(token.getEndOffset(), equalTo(14));
+        }
+    }
+    
+    @Test
+    public void analyzeNumericField() throws ElasticSearchException, IOException {
+        try {
+            client().admin().indices().prepareDelete("test").execute().actionGet();
+        } catch (Exception e) {
+            // ignore
+        }
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "test", "1")
+        .setSource(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("long", 1l)
+                    .field("double", 1.0d)
+                .endObject())
+        .setRefresh(true).execute().actionGet();
+
+        try {
+            client().admin().indices().prepareAnalyze("test", "123").setField("long").execute().actionGet();
+        } catch (ElasticSearchIllegalArgumentException ex) {
+        }
+        try {
+            client().admin().indices().prepareAnalyze("test", "123.0").setField("double").execute().actionGet();
+        } catch (ElasticSearchIllegalArgumentException ex) {
         }
     }
 
     @Test
     public void analyzeWithNoIndex() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        AnalyzeResponse analyzeResponse = client.admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").execute().actionGet();
-        assertThat(analyzeResponse.tokens().size(), equalTo(4));
+        AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").execute().actionGet();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
-        analyzeResponse = client.admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").setTokenFilters("lowercase").execute().actionGet();
-        assertThat(analyzeResponse.tokens().size(), equalTo(1));
-        assertThat(analyzeResponse.tokens().get(0).term(), equalTo("this is a test"));
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("keyword").setTokenFilters("lowercase").execute().actionGet();
+        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
+        assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
     }
 
     @Test
     public void analyzerWithFieldOrTypeTests() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        client().admin().indices().prepareDelete().execute().actionGet();
 
-        client.admin().indices().prepareCreate("test").execute().actionGet();
-        client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
+        client().admin().indices().prepareCreate("test").execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client.admin().indices().preparePutMapping("test")
+        client().admin().indices().preparePutMapping("test")
                 .setType("document").setSource(
                 "{\n" +
                         "    \"document\":{\n" +
@@ -109,14 +122,14 @@ public class AnalyzeActionTests extends AbstractNodesTests {
         ).execute().actionGet();
 
         for (int i = 0; i < 10; i++) {
-            final AnalyzeRequestBuilder requestBuilder = client.admin().indices().prepareAnalyze("test", "THIS IS A TEST");
+            final AnalyzeRequestBuilder requestBuilder = client().admin().indices().prepareAnalyze("test", "THIS IS A TEST");
             requestBuilder.setField("document.simple");
             AnalyzeResponse analyzeResponse = requestBuilder.execute().actionGet();
-            assertThat(analyzeResponse.tokens().size(), equalTo(4));
-            AnalyzeResponse.AnalyzeToken token = analyzeResponse.tokens().get(3);
-            assertThat(token.term(), equalTo("test"));
-            assertThat(token.startOffset(), equalTo(10));
-            assertThat(token.endOffset(), equalTo(14));
+            assertThat(analyzeResponse.getTokens().size(), equalTo(4));
+            AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(3);
+            assertThat(token.getTerm(), equalTo("test"));
+            assertThat(token.getStartOffset(), equalTo(10));
+            assertThat(token.getEndOffset(), equalTo(14));
         }
     }
 }

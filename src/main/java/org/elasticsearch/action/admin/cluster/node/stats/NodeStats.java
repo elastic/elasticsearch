@@ -93,17 +93,8 @@ public class NodeStats extends NodeOperationResponse {
         this.http = http;
     }
 
-    public long timestamp() {
-        return this.timestamp;
-    }
-
     public long getTimestamp() {
         return this.timestamp;
-    }
-
-    @Nullable
-    public String hostname() {
-        return this.hostname;
     }
 
     @Nullable
@@ -115,24 +106,8 @@ public class NodeStats extends NodeOperationResponse {
      * Indices level stats.
      */
     @Nullable
-    public NodeIndicesStats indices() {
-        return this.indices;
-    }
-
-    /**
-     * Indices level stats.
-     */
-    @Nullable
     public NodeIndicesStats getIndices() {
-        return indices();
-    }
-
-    /**
-     * Operating System level statistics.
-     */
-    @Nullable
-    public OsStats os() {
-        return this.os;
+        return this.indices;
     }
 
     /**
@@ -140,15 +115,7 @@ public class NodeStats extends NodeOperationResponse {
      */
     @Nullable
     public OsStats getOs() {
-        return os();
-    }
-
-    /**
-     * Process level statistics.
-     */
-    @Nullable
-    public ProcessStats process() {
-        return process;
+        return this.os;
     }
 
     /**
@@ -156,15 +123,7 @@ public class NodeStats extends NodeOperationResponse {
      */
     @Nullable
     public ProcessStats getProcess() {
-        return process();
-    }
-
-    /**
-     * JVM level statistics.
-     */
-    @Nullable
-    public JvmStats jvm() {
-        return jvm;
+        return process;
     }
 
     /**
@@ -172,15 +131,7 @@ public class NodeStats extends NodeOperationResponse {
      */
     @Nullable
     public JvmStats getJvm() {
-        return jvm();
-    }
-
-    /**
-     * Thread Pool level statistics.
-     */
-    @Nullable
-    public ThreadPoolStats threadPool() {
-        return this.threadPool;
+        return jvm;
     }
 
     /**
@@ -188,15 +139,7 @@ public class NodeStats extends NodeOperationResponse {
      */
     @Nullable
     public ThreadPoolStats getThreadPool() {
-        return threadPool();
-    }
-
-    /**
-     * Network level statistics.
-     */
-    @Nullable
-    public NetworkStats network() {
-        return network;
+        return this.threadPool;
     }
 
     /**
@@ -204,15 +147,7 @@ public class NodeStats extends NodeOperationResponse {
      */
     @Nullable
     public NetworkStats getNetwork() {
-        return network();
-    }
-
-    /**
-     * File system level stats.
-     */
-    @Nullable
-    public FsStats fs() {
-        return fs;
+        return network;
     }
 
     /**
@@ -220,27 +155,17 @@ public class NodeStats extends NodeOperationResponse {
      */
     @Nullable
     public FsStats getFs() {
-        return fs();
-    }
-
-    @Nullable
-    public TransportStats transport() {
-        return this.transport;
+        return fs;
     }
 
     @Nullable
     public TransportStats getTransport() {
-        return transport();
-    }
-
-    @Nullable
-    public HttpStats http() {
-        return this.http;
+        return this.transport;
     }
 
     @Nullable
     public HttpStats getHttp() {
-        return http();
+        return this.http;
     }
 
     public static NodeStats readNodeStats(StreamInput in) throws IOException {

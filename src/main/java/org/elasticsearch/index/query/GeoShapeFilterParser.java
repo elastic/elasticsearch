@@ -21,8 +21,9 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Shape;
 import org.apache.lucene.search.Filter;
-import org.elasticsearch.common.geo.GeoJSONShapeParser;
+import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -77,8 +78,9 @@ public class GeoShapeFilterParser implements FilterParser {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
-        ShapeRelation shapeRelation = null;
-        Shape shape = null;
+        ShapeRelation shapeRelation = ShapeRelation.INTERSECTS;
+        String strategyName = null;
+        ShapeBuilder shape = null;
         boolean cache = false;
         CacheKeyFilter.Key cacheKey = null;
         String filterName = null;
@@ -103,12 +105,14 @@ public class GeoShapeFilterParser implements FilterParser {
 
                         token = parser.nextToken();
                         if ("shape".equals(currentFieldName)) {
-                            shape = GeoJSONShapeParser.parse(parser);
+                            shape = ShapeBuilder.parse(parser);
                         } else if ("relation".equals(currentFieldName)) {
                             shapeRelation = ShapeRelation.getRelationByName(parser.text());
                             if (shapeRelation == null) {
-                                throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + " ]");
+                                throw new QueryParsingException(parseContext.index(), "Unknown shape operation [" + parser.text() + "]");
                             }
+                        } else if ("strategy".equals(currentFieldName)) {
+                            strategyName = parser.text();
                         } else if ("indexed_shape".equals(currentFieldName) || "indexedShape".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -162,8 +166,13 @@ public class GeoShapeFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "Field [" + fieldName + "] is not a geo_shape");
         }
 
+
         GeoShapeFieldMapper shapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
-        Filter filter = shapeFieldMapper.spatialStrategy().createFilter(shape, shapeRelation);
+        PrefixTreeStrategy strategy = shapeFieldMapper.defaultStrategy();
+        if (strategyName != null) {
+            strategy = shapeFieldMapper.resolveStrategy(strategyName);
+        }
+        Filter filter = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, shapeRelation));
 
         if (cache) {
             filter = parseContext.cacheFilter(filter, cacheKey);

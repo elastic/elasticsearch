@@ -222,6 +222,11 @@ public class IncludeNestedDocsQuery extends Query {
         public int docID() {
             return currentDoc;
         }
+
+        @Override
+        public long cost() {
+            return parentScorer.cost();
+        }
     }
 
     @Override

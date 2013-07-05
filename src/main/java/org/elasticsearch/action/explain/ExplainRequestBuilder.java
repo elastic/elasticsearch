@@ -85,7 +85,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the query to get a score explanation for.
      */
     public ExplainRequestBuilder setQuery(QueryBuilder query) {
-        sourceBuilder().query(query);
+        sourceBuilder().setQuery(query);
         return this;
     }
 
@@ -93,7 +93,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the query to get a score explanation for.
      */
     public ExplainRequestBuilder setQuery(BytesReference query) {
-        sourceBuilder().query(query);
+        sourceBuilder().setQuery(query);
         return this;
     }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.jna;
 
+import java.util.Locale;
+
 import com.sun.jna.Native;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -42,11 +44,11 @@ public class Natives {
         }
 
         if (errno != Integer.MIN_VALUE) {
-            if (errno == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux")) {
+            if (errno == CLibrary.ENOMEM && System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("linux")) {
                 logger.warn("Unable to lock JVM memory (ENOMEM)."
                         + " This can result in part of the JVM being swapped out."
                         + " Increase RLIMIT_MEMLOCK or run elasticsearch as root.");
-            } else if (!System.getProperty("os.name").toLowerCase().contains("mac")) {
+            } else if (!System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("mac")) {
                 // OS X allows mlockall to be called, but always returns an error
                 logger.warn("Unknown mlockall error " + errno);
             }

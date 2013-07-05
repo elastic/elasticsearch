@@ -33,6 +33,14 @@ import java.io.IOException;
  */
 public class DocIdSets {
 
+    public static long sizeInBytes(DocIdSet docIdSet) {
+        if (docIdSet instanceof FixedBitSet) {
+            return ((FixedBitSet) docIdSet).getBits().length * 8 + 16;
+        }
+        // only for empty ones and unknowns...
+        return 1;
+    }
+
     /**
      * Is it an empty {@link DocIdSet}?
      */
@@ -65,10 +73,7 @@ public class DocIdSets {
      * always either return {@link DocIdSet#EMPTY_DOCIDSET} or {@link FixedBitSet}.
      */
     public static DocIdSet toCacheable(AtomicReader reader, @Nullable DocIdSet set) throws IOException {
-        if (set == null) {
-            return DocIdSet.EMPTY_DOCIDSET;
-        }
-        if (set == DocIdSet.EMPTY_DOCIDSET) {
+        if (set == null || set == DocIdSet.EMPTY_DOCIDSET) {
             return DocIdSet.EMPTY_DOCIDSET;
         }
         DocIdSetIterator it = set.iterator();
@@ -82,7 +87,12 @@ public class DocIdSets {
         if (set instanceof FixedBitSet) {
             return set;
         }
-        return toFixedBitSet(set.iterator(), reader.maxDoc());
+        FixedBitSet fixedBitSet = new FixedBitSet(reader.maxDoc());
+        do {
+            fixedBitSet.set(doc);
+            doc = it.nextDoc();
+        } while (doc != DocIdSetIterator.NO_MORE_DOCS);
+        return fixedBitSet;
     }
 
     /**
@@ -100,16 +110,16 @@ public class DocIdSets {
         if (iterator == null) {
             return new Bits.MatchNoBits(reader.maxDoc());
         }
-        return new FixedBitSet(toFixedBitSet(iterator, reader.maxDoc()));
+        return toFixedBitSet(iterator, reader.maxDoc());
     }
 
     /**
      * Creates a {@link FixedBitSet} from an iterator.
      */
-    public static FixedBitSet toFixedBitSet(DocIdSetIterator iteartor, int numBits) throws IOException {
+    public static FixedBitSet toFixedBitSet(DocIdSetIterator iterator, int numBits) throws IOException {
         FixedBitSet set = new FixedBitSet(numBits);
         int doc;
-        while ((doc = iteartor.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+        while ((doc = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
             set.set(doc);
         }
         return set;

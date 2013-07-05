@@ -70,9 +70,9 @@ public class RestGetSettingsAction extends BaseRestHandler {
             @Override
             public void onResponse(ClusterStateResponse response) {
                 try {
-                    MetaData metaData = response.state().metaData();
+                    MetaData metaData = response.getState().metaData();
 
-                    if (metaData.indices().isEmpty()) {
+                    if (metaData.indices().isEmpty() && indices.length > 0) {
                         channel.sendResponse(new XContentThrowableRestResponse(request, new IndexMissingException(new Index(indices[0]))));
                         return;
                     }
@@ -97,7 +97,7 @@ public class RestGetSettingsAction extends BaseRestHandler {
                     builder.endObject();
 
                     channel.sendResponse(new XContentRestResponse(request, foundAny ? OK : NOT_FOUND, builder));
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     onFailure(e);
                 }
             }

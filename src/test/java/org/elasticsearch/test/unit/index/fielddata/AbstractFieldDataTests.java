@@ -22,22 +22,15 @@ package org.elasticsearch.test.unit.index.fielddata;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.fielddata.*;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
-
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.sameInstance;
 
 /**
  */
@@ -57,7 +50,8 @@ public abstract class AbstractFieldDataTests {
     @BeforeMethod
     public void setup() throws Exception {
         ifdService = new IndexFieldDataService(new Index("test"));
-        writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)));
+        // LogByteSizeMP to preserve doc ID order
+        writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)).setMergePolicy(new LogByteSizeMergePolicy()));
     }
 
     protected AtomicReaderContext refreshReader() throws Exception {
@@ -78,193 +72,4 @@ public abstract class AbstractFieldDataTests {
         ifdService.clear();
     }
 
-    public static class BytesValuesVerifierProc implements BytesValues.ValueInDocProc {
-
-        private static final BytesRef MISSING = new BytesRef();
-
-        private final int docId;
-        private final List<BytesRef> expected = new ArrayList<BytesRef>();
-
-        private int idx;
-
-        BytesValuesVerifierProc(int docId) {
-            this.docId = docId;
-        }
-
-        public BytesValuesVerifierProc addExpected(String value) {
-            expected.add(new BytesRef(value));
-            return this;
-        }
-
-        public BytesValuesVerifierProc addExpected(BytesRef value) {
-            expected.add(value);
-            return this;
-        }
-
-        public BytesValuesVerifierProc addMissing() {
-            expected.add(MISSING);
-            return this;
-        }
-
-        @Override
-        public void onValue(int docId, BytesRef value) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(value, equalTo(expected.get(idx++)));
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(MISSING, sameInstance(expected.get(idx++)));
-        }
-    }
-
-    public static class HashedBytesValuesVerifierProc implements HashedBytesValues.ValueInDocProc {
-
-        private static final HashedBytesRef MISSING = new HashedBytesRef();
-
-        private final int docId;
-        private final List<HashedBytesRef> expected = new ArrayList<HashedBytesRef>();
-
-        private int idx;
-
-        HashedBytesValuesVerifierProc(int docId) {
-            this.docId = docId;
-        }
-
-        public HashedBytesValuesVerifierProc addExpected(String value) {
-            expected.add(new HashedBytesRef(value));
-            return this;
-        }
-
-        public HashedBytesValuesVerifierProc addExpected(BytesRef value) {
-            expected.add(new HashedBytesRef(value));
-            return this;
-        }
-
-        public HashedBytesValuesVerifierProc addMissing() {
-            expected.add(MISSING);
-            return this;
-        }
-
-        @Override
-        public void onValue(int docId, HashedBytesRef value) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(value, equalTo(expected.get(idx++)));
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(MISSING, sameInstance(expected.get(idx++)));
-        }
-    }
-
-    public static class StringValuesVerifierProc implements StringValues.ValueInDocProc {
-
-        private static final String MISSING = new String();
-
-        private final int docId;
-        private final List<String> expected = new ArrayList<String>();
-
-        private int idx;
-
-        StringValuesVerifierProc(int docId) {
-            this.docId = docId;
-        }
-
-        public StringValuesVerifierProc addExpected(String value) {
-            expected.add(value);
-            return this;
-        }
-
-        public StringValuesVerifierProc addMissing() {
-            expected.add(MISSING);
-            return this;
-        }
-
-        @Override
-        public void onValue(int docId, String value) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(value, equalTo(expected.get(idx++)));
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(MISSING, sameInstance(expected.get(idx++)));
-        }
-    }
-
-    public static class LongValuesVerifierProc implements LongValues.ValueInDocProc {
-
-        private static final Long MISSING = new Long(0);
-
-        private final int docId;
-        private final List<Long> expected = new ArrayList<Long>();
-
-        private int idx;
-
-        LongValuesVerifierProc(int docId) {
-            this.docId = docId;
-        }
-
-        public LongValuesVerifierProc addExpected(long value) {
-            expected.add(value);
-            return this;
-        }
-
-        public LongValuesVerifierProc addMissing() {
-            expected.add(MISSING);
-            return this;
-        }
-
-        @Override
-        public void onValue(int docId, long value) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(value, equalTo(expected.get(idx++)));
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(MISSING, sameInstance(expected.get(idx++)));
-        }
-    }
-
-    public static class DoubleValuesVerifierProc implements DoubleValues.ValueInDocProc {
-
-        private static final Double MISSING = new Double(0);
-
-        private final int docId;
-        private final List<Double> expected = new ArrayList<Double>();
-
-        private int idx;
-
-        DoubleValuesVerifierProc(int docId) {
-            this.docId = docId;
-        }
-
-        public DoubleValuesVerifierProc addExpected(double value) {
-            expected.add(value);
-            return this;
-        }
-
-        public DoubleValuesVerifierProc addMissing() {
-            expected.add(MISSING);
-            return this;
-        }
-
-        @Override
-        public void onValue(int docId, double value) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(value, equalTo(expected.get(idx++)));
-        }
-
-        @Override
-        public void onMissing(int docId) {
-            assertThat(docId, equalTo(this.docId));
-            assertThat(MISSING, sameInstance(expected.get(idx++)));
-        }
-    }
 }

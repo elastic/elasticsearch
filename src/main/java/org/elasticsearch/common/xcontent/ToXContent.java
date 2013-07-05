@@ -26,8 +26,6 @@ import java.util.Map;
 
 /**
  * An interface allowing to transfer an object to "XContent" using an {@link XContentBuilder}.
- *
- *
  */
 public interface ToXContent {
 
@@ -97,6 +95,36 @@ public interface ToXContent {
                 return defaultValue;
             }
             return !(sValue.equals("false") || sValue.equals("0") || sValue.equals("off"));
+        }
+    }
+
+    public static class DelegatingMapParams extends MapParams {
+
+        private final Params delegate;
+
+        public DelegatingMapParams(Map<String, String> params, Params delegate) {
+            super(params);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String param(String key) {
+            return super.param(key, delegate.param(key));
+        }
+
+        @Override
+        public String param(String key, String defaultValue) {
+            return super.param(key, delegate.param(key, defaultValue));
+        }
+
+        @Override
+        public boolean paramAsBoolean(String key, boolean defaultValue) {
+            return super.paramAsBoolean(key, delegate.paramAsBoolean(key, defaultValue));
+        }
+
+        @Override
+        public Boolean paramAsBooleanOptional(String key, Boolean defaultValue) {
+            return super.paramAsBooleanOptional(key, delegate.paramAsBooleanOptional(key, defaultValue));
         }
     }
 

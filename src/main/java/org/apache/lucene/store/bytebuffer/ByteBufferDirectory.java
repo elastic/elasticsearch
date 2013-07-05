@@ -151,6 +151,11 @@ public class ByteBufferDirectory extends Directory {
         }
     }
 
+    @Override
+    public String toString() {
+        return "byte_buffer";
+    }
+
     void releaseBuffer(ByteBuffer byteBuffer) {
         allocator.release(byteBuffer);
     }

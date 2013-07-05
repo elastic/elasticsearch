@@ -27,9 +27,11 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.Gateway;
@@ -81,15 +83,15 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
                 .execute().actionGet();
 
         logger.info("--> waiting for yellow status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
-        if (health.timedOut()) {
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
+        if (health.isTimedOut()) {
             ClusterStateResponse response = client("node1").admin().cluster().prepareState().execute().actionGet();
             System.out.println("" + response);
         }
-        assertThat(health.timedOut(), equalTo(false));
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify meta _routing required exists");
-        MappingMetaData mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().state().metaData().index("test").mapping("type1");
+        MappingMetaData mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").mapping("type1");
         assertThat(mappingMd.routing().required(), equalTo(true));
 
         logger.info("--> close node");
@@ -99,15 +101,15 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node1", settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> waiting for yellow status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
-        if (health.timedOut()) {
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForActiveShards(5).setWaitForYellowStatus().execute().actionGet();
+        if (health.isTimedOut()) {
             ClusterStateResponse response = client("node1").admin().cluster().prepareState().execute().actionGet();
             System.out.println("" + response);
         }
-        assertThat(health.timedOut(), equalTo(false));
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify meta _routing required exists");
-        mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().state().metaData().index("test").mapping("type1");
+        mappingMd = client("node1").admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").mapping("type1");
         assertThat(mappingMd.routing().required(), equalTo(true));
     }
 
@@ -126,13 +128,13 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.state().routingTable().index("test").shards().size(), equalTo(2));
-        assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(2));
+        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> indexing a simple document");
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
@@ -141,13 +143,13 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareClose("test").execute().actionGet();
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> verifying that the state is green");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
-        assertThat(health.status(), equalTo(ClusterHealthStatus.GREEN));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+        assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> trying to index into a closed index ...");
         try {
@@ -160,32 +162,32 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         logger.info("--> creating another index (test2) by indexing into it");
         client("node1").prepareIndex("test2", "type1", "1").setSource("field1", "value1").execute().actionGet();
         logger.info("--> verifying that the state is green");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
-        assertThat(health.status(), equalTo(ClusterHealthStatus.GREEN));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+        assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("--> opening the first index again...");
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
 
         logger.info("--> verifying that the state is green");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
-        assertThat(health.status(), equalTo(ClusterHealthStatus.GREEN));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+        assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.state().routingTable().index("test").shards().size(), equalTo(2));
-        assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(2));
+        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> trying to get the indexed document on the first index");
         GetResponse getResponse = client("node1").prepareGet("test", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> closing test index...");
         client("node1").admin().indices().prepareClose("test").execute().actionGet();
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> closing nodes...");
         closeNode("node2");
@@ -196,12 +198,12 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settingsBuilder().put("gateway.type", "local").build());
 
         logger.info("--> waiting for two nodes and green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> trying to index into a closed index ...");
         try {
@@ -215,17 +217,17 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
-        assertThat(stateResponse.state().routingTable().index("test").shards().size(), equalTo(2));
-        assertThat(stateResponse.state().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(2));
+        assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(4));
 
         logger.info("--> trying to get the indexed document on the first round (before close and shutdown)");
         getResponse = client("node1").prepareGet("test", "type1", "1").execute().actionGet();
-        assertThat(getResponse.exists(), equalTo(true));
+        assertThat(getResponse.isExists(), equalTo(true));
 
         logger.info("--> indexing a simple document");
         client("node1").prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
@@ -251,12 +253,12 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node1", settingsBuilder().put("node.data", false).put("gateway.type", "local").put("index.number_of_shards", 2).put("index.number_of_replicas", 1).build());
 
         logger.info("--> waiting for test index to be created");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setIndices("test").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify we have an index");
         ClusterStateResponse clusterStateResponse = client("node1").admin().cluster().prepareState().setFilterIndices("test").execute().actionGet();
-        assertThat(clusterStateResponse.state().metaData().hasIndex("test"), equalTo(true));
+        assertThat(clusterStateResponse.getState().metaData().hasIndex("test"), equalTo(true));
     }
 
     @Test
@@ -274,8 +276,8 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").admin().indices().prepareCreate("test").execute().actionGet();
 
         logger.info("--> waiting for test index to be created");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setIndices("test").setWaitForYellowStatus().execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setIndices("test").setWaitForYellowStatus().execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         client("node1").prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
     }
@@ -295,12 +297,12 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
 
         logger.info("--> closing test index...");
@@ -308,20 +310,20 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
 
 
         ClusterStateResponse stateResponse = client("node1").admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        assertThat(stateResponse.state().routingTable().index("test"), nullValue());
+        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> opening the index...");
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
-        assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+        assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
     }
 
@@ -344,14 +346,14 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> shutting down the nodes");
         Gateway gateway1 = ((InternalNode) node("node1")).injector().getInstance(Gateway.class);
@@ -366,20 +368,25 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settings);
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
-        // we need to wait for the allocate dangled to kick in
-        Thread.sleep(500);
+        // spin a bit waiting for the index to exists
+        long time = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(10).millis()) {
+            if (client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists()) {
+                break;
+            }
+        }
 
         logger.info("--> verify that the dangling index exists");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify the doc is there");
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     @Test
@@ -401,14 +408,14 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> shutting down the nodes");
         Gateway gateway1 = ((InternalNode) node("node1")).injector().getInstance(Gateway.class);
@@ -423,28 +430,33 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settings);
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
-        // we need to wait for the allocate dangled to kick in
-        Thread.sleep(500);
+        // spin a bit waiting for the index to exists
+        long time = System.currentTimeMillis();
+        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(10).millis()) {
+            if (client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists()) {
+                break;
+            }
+        }
 
         logger.info("--> verify that the dangling index exists");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify the index state is closed");
-        assertThat(client("node1").admin().cluster().prepareState().execute().actionGet().state().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(client("node1").admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
         logger.info("--> open the index");
         client("node1").admin().indices().prepareOpen("test").execute().actionGet();
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify the doc is there");
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     @Test
@@ -466,14 +478,14 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
 
         logger.info("--> shutting down the nodes");
         Gateway gateway1 = ((InternalNode) node("node1")).injector().getInstance(Gateway.class);
@@ -488,15 +500,15 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settings);
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         // we need to wait for the allocate dangled to kick in (even though in this case its disabled)
         // just to make sure
         Thread.sleep(500);
 
         logger.info("--> verify that the dangling index does not exists");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(false));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(false));
 
         logger.info("--> shutdown the nodes");
         closeNode("node1");
@@ -507,13 +519,13 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settingsBuilder().put(settings).put("gateway.recover_after_nodes", 2).build());
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify that the dangling index does exists now!");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
         logger.info("--> verify the doc is there");
-        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node1").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
     @Test
@@ -536,12 +548,12 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         client("node1").prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
 
         logger.info("--> waiting for green status");
-        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        ClusterHealthResponse health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify 1 doc in the index");
         for (int i = 0; i < 10; i++) {
-            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().count(), equalTo(1l));
+            assertThat(client("node1").prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(1l));
         }
 
         logger.info("--> shutting down the nodes");
@@ -557,11 +569,11 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         startNode("node2", settings);
 
         logger.info("--> waiting for green status");
-        health = client("node1").admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
-        assertThat(health.timedOut(), equalTo(false));
+        health = client("node1").admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
 
         logger.info("--> verify that the dangling index does not exists");
-        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().exists(), equalTo(false));
+        assertThat(client("node1").admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(false));
 
         logger.info("--> close the first node, so we remain with the second that has the dangling index");
         closeNode("node1");
@@ -569,7 +581,7 @@ public class LocalGatewayIndexStateTests extends AbstractNodesTests {
         logger.info("--> index a different doc");
         client("node2").prepareIndex("test", "type1", "2").setSource("field1", "value2").setRefresh(true).execute().actionGet();
 
-        assertThat(client("node2").prepareGet("test", "type1", "1").execute().actionGet().exists(), equalTo(false));
-        assertThat(client("node2").prepareGet("test", "type1", "2").execute().actionGet().exists(), equalTo(true));
+        assertThat(client("node2").prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
+        assertThat(client("node2").prepareGet("test", "type1", "2").execute().actionGet().isExists(), equalTo(true));
     }
 }

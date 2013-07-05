@@ -23,7 +23,6 @@ import org.apache.lucene.store.StoreRateLimiting;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.service.IndexService;
@@ -46,17 +46,13 @@ import java.io.File;
  */
 public class IndicesStore extends AbstractComponent implements ClusterStateListener {
 
-    static {
-        MetaData.addDynamicSettings(
-                "indices.store.throttle.type",
-                "indices.store.throttle.max_bytes_per_sec"
-        );
-    }
+    public static final String INDICES_STORE_THROTTLE_TYPE = "indices.store.throttle.type";
+    public static final String INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC = "indices.store.throttle.max_bytes_per_sec";
 
     class ApplySettings implements NodeSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
-            String rateLimitingType = settings.get("indices.store.throttle.type", IndicesStore.this.rateLimitingType);
+            String rateLimitingType = settings.get(INDICES_STORE_THROTTLE_TYPE, IndicesStore.this.rateLimitingType);
             // try and parse the type
             StoreRateLimiting.Type.fromString(rateLimitingType);
             if (!rateLimitingType.equals(IndicesStore.this.rateLimitingType)) {
@@ -65,7 +61,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 IndicesStore.this.rateLimiting.setType(rateLimitingType);
             }
 
-            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize("indices.store.throttle.max_bytes_per_sec", IndicesStore.this.rateLimitingThrottle);
+            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize(INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, IndicesStore.this.rateLimitingThrottle);
             if (!rateLimitingThrottle.equals(IndicesStore.this.rateLimitingThrottle)) {
                 logger.info("updating indices.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", IndicesStore.this.rateLimitingThrottle, rateLimitingThrottle, IndicesStore.this.rateLimitingType);
                 IndicesStore.this.rateLimitingThrottle = rateLimitingThrottle;
@@ -96,10 +92,10 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         this.nodeSettingsService = nodeSettingsService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
-
-        this.rateLimitingType = componentSettings.get("throttle.type", "none");
+        // we limit with 20MB / sec by default with a default type set to merge sice 0.90.1
+        this.rateLimitingType = componentSettings.get("throttle.type", StoreRateLimiting.Type.MERGE.name());
         rateLimiting.setType(rateLimitingType);
-        this.rateLimitingThrottle = componentSettings.getAsBytesSize("throttle.max_bytes_per_sec", new ByteSizeValue(0));
+        this.rateLimitingThrottle = componentSettings.getAsBytesSize("throttle.max_bytes_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB));
         rateLimiting.setMaxRate(rateLimitingThrottle);
 
         logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);

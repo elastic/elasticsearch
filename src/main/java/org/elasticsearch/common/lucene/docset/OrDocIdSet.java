@@ -101,17 +101,21 @@ public class OrDocIdSet extends DocIdSet {
         private int _curDoc;
         private final Item[] _heap;
         private int _size;
+        private final long cost;
 
         IteratorBasedIterator(DocIdSet[] sets) throws IOException {
             _curDoc = -1;
             _heap = new Item[sets.length];
             _size = 0;
+            long cost = 0;
             for (DocIdSet set : sets) {
                 DocIdSetIterator iterator = set.iterator();
                 if (iterator != null) {
                     _heap[_size++] = new Item(iterator);
+                    cost += iterator.cost();
                 }
             }
+            this.cost = cost;
             if (_size == 0) _curDoc = DocIdSetIterator.NO_MORE_DOCS;
         }
 
@@ -226,6 +230,11 @@ public class OrDocIdSet extends DocIdSet {
                 _heap[_size] = tmp; // keep the finished iterator at the end for debugging
                 heapAdjust();
             }
+        }
+
+        @Override
+        public long cost() {
+            return cost;
         }
 
     }

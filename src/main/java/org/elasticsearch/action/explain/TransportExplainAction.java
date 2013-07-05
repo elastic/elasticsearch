@@ -44,7 +44,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.threadpool.ThreadPool;

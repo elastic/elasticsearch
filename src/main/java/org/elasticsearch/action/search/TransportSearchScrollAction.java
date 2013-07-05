@@ -64,16 +64,16 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
     protected void doExecute(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
             ParsedScrollId scrollId = parseScrollId(request.scrollId());
-            if (scrollId.type().equals(QUERY_THEN_FETCH_TYPE)) {
+            if (scrollId.getType().equals(QUERY_THEN_FETCH_TYPE)) {
                 queryThenFetchAction.execute(request, scrollId, listener);
-            } else if (scrollId.type().equals(QUERY_AND_FETCH_TYPE)) {
+            } else if (scrollId.getType().equals(QUERY_AND_FETCH_TYPE)) {
                 queryAndFetchAction.execute(request, scrollId, listener);
-            } else if (scrollId.type().equals(SCAN)) {
+            } else if (scrollId.getType().equals(SCAN)) {
                 scanAction.execute(request, scrollId, listener);
             } else {
-                throw new ElasticSearchIllegalArgumentException("Scroll id type [" + scrollId.type() + "] unrecognized");
+                throw new ElasticSearchIllegalArgumentException("Scroll id type [" + scrollId.getType() + "] unrecognized");
             }
-        } catch (Exception e) {
+        } catch (Throwable e) {
             listener.onFailure(e);
         }
     }
@@ -94,7 +94,7 @@ public class TransportSearchScrollAction extends TransportAction<SearchScrollReq
                 public void onResponse(SearchResponse result) {
                     try {
                         channel.sendResponse(result);
-                    } catch (Exception e) {
+                    } catch (Throwable e) {
                         onFailure(e);
                     }
                 }

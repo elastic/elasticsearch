@@ -45,7 +45,7 @@ public class EmptyScorer extends Scorer {
 
     @Override
     public int docID() {
-        return NO_MORE_DOCS;
+        return -1;
     }
 
     @Override
@@ -56,5 +56,10 @@ public class EmptyScorer extends Scorer {
     @Override
     public int advance(int target) throws IOException {
         return NO_MORE_DOCS;
+    }
+
+    @Override
+    public long cost() {
+        return 0;
     }
 }

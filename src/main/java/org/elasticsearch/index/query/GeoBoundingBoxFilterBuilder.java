@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -81,6 +82,19 @@ public class GeoBoundingBoxFilterBuilder extends BaseFilterBuilder {
         this.bottomRightGeohash = geohash;
         return this;
     }
+
+    /**
+     * Adds top left and bottom right by geohash cell.
+     *
+     * @param geohash the geohash of the cell definign the boundingbox
+     */
+    public GeoBoundingBoxFilterBuilder geohash(String geohash) {
+        topLeft = new GeoPoint();
+        bottomRight = new GeoPoint();
+        GeoHashUtils.decodeCell(geohash, topLeft, bottomRight);
+        return this;
+    }
+
 
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.

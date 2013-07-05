@@ -19,53 +19,42 @@
 
 package org.elasticsearch.test.integration.search.timeout;
 
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.integration.AbstractNodesTests;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.scriptFilter;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.integration.AbstractSharedClusterTest;
+import org.testng.annotations.Test;
+
 /**
  */
-public class SearchTimeoutTests extends AbstractNodesTests {
-
-    private Client client;
-
-    @BeforeClass
-    public void createNodes() throws Exception {
-        Settings settings = settingsBuilder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build();
-        startNode("node1", settings);
-        client = client("node1");
-    }
-
-    @AfterClass
-    public void closeNodes() {
-        client.close();
-        closeAllNodes();
+public class SearchTimeoutTests extends AbstractSharedClusterTest {
+    
+    @Override
+    public Settings getSettings() {
+        return randomSettingsBuilder()
+                .put("index.number_of_shards", 2)
+                .put("index.number_of_replicas", 0)
+                .build();
     }
 
     @Test
     public void simpleTimeoutTest() throws Exception {
-        client.admin().indices().prepareDelete().execute().actionGet();
+        createIndex("test");
 
         for (int i = 0; i < 10; i++) {
-            client.prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
+            client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
         }
-        client.admin().indices().prepareRefresh().execute().actionGet();
+        client().admin().indices().prepareRefresh().execute().actionGet();
 
-        SearchResponse searchResponse = client.prepareSearch("test")
+        SearchResponse searchResponse = client().prepareSearch("test")
                 .setTimeout("10ms")
                 .setQuery(filteredQuery(matchAllQuery(), scriptFilter("Thread.sleep(100); return true;")))
                 .execute().actionGet();
-        assertThat(searchResponse.timedOut(), equalTo(true));
+        assertThat(searchResponse.isTimedOut(), equalTo(true));
     }
 }

@@ -60,21 +60,21 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
             TTL_FIELD_TYPE.freeze();
         }
 
-        public static final boolean ENABLED = false;
+        public static final EnabledAttributeMapper ENABLED_STATE = EnabledAttributeMapper.DISABLED;
         public static final long DEFAULT = -1;
     }
 
     public static class Builder extends NumberFieldMapper.Builder<Builder, TTLFieldMapper> {
 
-        private boolean enabled = Defaults.ENABLED;
+        private EnabledAttributeMapper enabledState = EnabledAttributeMapper.UNSET_DISABLED;
         private long defaultTTL = Defaults.DEFAULT;
 
         public Builder() {
             super(Defaults.NAME, new FieldType(Defaults.TTL_FIELD_TYPE));
         }
 
-        public Builder enabled(boolean enabled) {
-            this.enabled = enabled;
+        public Builder enabled(EnabledAttributeMapper enabled) {
+            this.enabledState = enabled;
             return builder;
         }
 
@@ -85,7 +85,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
         @Override
         public TTLFieldMapper build(BuilderContext context) {
-            return new TTLFieldMapper(fieldType, enabled, defaultTTL, ignoreMalformed(context), provider, fieldDataSettings);
+            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, ignoreMalformed(context), provider, fieldDataSettings);
         }
     }
 
@@ -98,7 +98,8 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(nodeBooleanValue(fieldNode));
+                    EnabledAttributeMapper enabledState = nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED;
+                    builder.enabled(enabledState);
                 } else if (fieldName.equals("default")) {
                     TimeValue ttlTimeValue = nodeTimeValue(fieldNode, null);
                     if (ttlTimeValue != null) {
@@ -110,24 +111,24 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         }
     }
 
-    private boolean enabled;
+    private EnabledAttributeMapper enabledState;
     private long defaultTTL;
 
     public TTLFieldMapper() {
-        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, null, null);
+        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, null, null);
     }
 
-    protected TTLFieldMapper(FieldType fieldType, boolean enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
+    protected TTLFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
                              PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP,
                 Defaults.BOOST, fieldType, Defaults.NULL_VALUE, ignoreMalformed,
                 provider, null, fieldDataSettings);
-        this.enabled = enabled;
+        this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
     }
 
     public boolean enabled() {
-        return this.enabled;
+        return this.enabledState.enabled;
     }
 
     public long defaultTTL() {
@@ -189,7 +190,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     @Override
     protected Field innerParseCreateField(ParseContext context) throws IOException, AlreadyExpiredException {
-        if (enabled) {
+        if (enabledState.enabled && !context.sourceToParse().flyweight()) {
             long ttl = context.sourceToParse().ttl();
             if (ttl <= 0 && defaultTTL > 0) { // no ttl provided so we use the default value
                 ttl = defaultTTL;
@@ -213,14 +214,14 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // if all are defaults, no sense to write it at all
-        if (enabled == Defaults.ENABLED && defaultTTL == Defaults.DEFAULT) {
+        if (enabledState == Defaults.ENABLED_STATE && defaultTTL == Defaults.DEFAULT) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (enabled != Defaults.ENABLED) {
-            builder.field("enabled", enabled);
+        if (enabledState != Defaults.ENABLED_STATE) {
+            builder.field("enabled", enabledState.enabled);
         }
-        if (defaultTTL != Defaults.DEFAULT) {
+        if (defaultTTL != Defaults.DEFAULT && enabledState.enabled) {
             builder.field("default", defaultTTL);
         }
         builder.endObject();
@@ -233,6 +234,9 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
         if (!mergeContext.mergeFlags().simulate()) {
             if (ttlMergeWith.defaultTTL != -1) {
                 this.defaultTTL = ttlMergeWith.defaultTTL;
+            }
+            if (ttlMergeWith.enabledState != enabledState && !ttlMergeWith.enabledState.unset()) {
+                this.enabledState = ttlMergeWith.enabledState;
             }
         }
     }

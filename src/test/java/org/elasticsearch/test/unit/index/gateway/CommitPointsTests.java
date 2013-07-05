@@ -19,7 +19,10 @@
 
 package org.elasticsearch.test.unit.index.gateway;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.Lists;
+
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.gateway.CommitPoint;
@@ -52,7 +55,7 @@ public class CommitPointsTests {
         CommitPoint commitPoint = new CommitPoint(1, "test", CommitPoint.Type.GENERATED, indexFiles, translogFiles);
 
         byte[] serialized = CommitPoints.toXContent(commitPoint);
-        logger.info("serialized commit_point {}", new String(serialized));
+        logger.info("serialized commit_point {}", new String(serialized, Charsets.UTF_8));
 
         CommitPoint desCp = CommitPoints.fromXContent(serialized);
         assertThat(desCp.version(), equalTo(commitPoint.version()));

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.node.stats;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.NodesOperationRequestBuilder;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.internal.InternalClusterAdminClient;
@@ -53,6 +54,14 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<Nodes
      * Should the node indices stats be returned.
      */
     public NodesStatsRequestBuilder setIndices(boolean indices) {
+        request.indices(indices);
+        return this;
+    }
+
+    /**
+     * Should the node indices stats be returned.
+     */
+    public NodesStatsRequestBuilder setIndices(CommonStatsFlags indices) {
         request.indices(indices);
         return this;
     }

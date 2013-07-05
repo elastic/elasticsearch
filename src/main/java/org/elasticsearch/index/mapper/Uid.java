@@ -140,13 +140,15 @@ public final class Uid {
     }
 
     public static BytesRef[] createTypeUids(Collection<String> types, List<? extends Object> ids) {
+        final int numIds = ids.size();
         BytesRef[] uids = new BytesRef[types.size() * ids.size()];
         BytesRef typeBytes = new BytesRef();
         BytesRef idBytes = new BytesRef();
+        int index = 0;
         for (String type : types) {
             UnicodeUtil.UTF16toUTF8(type, 0, type.length(), typeBytes);
-            for (int i = 0; i < uids.length; i++) {
-                uids[i] = Uid.createUidAsBytes(typeBytes, BytesRefs.toBytesRef(ids.get(i), idBytes));
+            for (int i = 0; i < numIds; i++, index++) {
+                uids[index] = Uid.createUidAsBytes(typeBytes, BytesRefs.toBytesRef(ids.get(i), idBytes));
             }
         }
         return uids;
@@ -161,7 +163,8 @@ public final class Uid {
     }
 
     public static boolean hasDelimiter(BytesRef uid) {
-        for (int i = uid.offset; i < uid.length; i++) {
+        final int limit = uid.offset + uid.length;
+        for (int i = uid.offset; i < limit; i++) {
             if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
                 return true;
             }
@@ -172,7 +175,8 @@ public final class Uid {
     // LUCENE 4 UPGRADE: HashedBytesArray or BytesRef as return type?
     public static HashedBytesArray[] splitUidIntoTypeAndId(BytesRef uid) {
         int loc = -1;
-        for (int i = uid.offset; i < uid.length; i++) {
+        final int limit = uid.offset + uid.length;
+        for (int i = uid.offset; i < limit; i++) {
             if (uid.bytes[i] == DELIMITER_BYTE) { // 0x23 is equal to '#'
                 loc = i;
                 break;

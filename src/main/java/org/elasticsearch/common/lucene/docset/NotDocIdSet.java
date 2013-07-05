@@ -101,6 +101,11 @@ public class NotDocIdSet extends DocIdSet {
         protected boolean matchDoc(int doc) {
             return !bits.get(doc);
         }
+
+        @Override
+        public long cost() {
+            return bits.length();
+        }
     }
 
     public static class IteratorBasedIterator extends DocIdSetIterator {
@@ -108,11 +113,15 @@ public class NotDocIdSet extends DocIdSet {
         private DocIdSetIterator it1;
         private int lastReturn = -1;
         private int innerDocid = -1;
+        private final long cost;
 
         IteratorBasedIterator(int max, DocIdSetIterator it) throws IOException {
             this.max = max;
             this.it1 = it;
-            if ((innerDocid = it1.nextDoc()) == DocIdSetIterator.NO_MORE_DOCS) it1 = null;
+            this.cost = it1.cost();
+            if ((innerDocid = it1.nextDoc()) == DocIdSetIterator.NO_MORE_DOCS) {
+                it1 = null;
+            }
         }
 
         @Override
@@ -156,6 +165,11 @@ public class NotDocIdSet extends DocIdSet {
             }
 
             return (lastReturn = target);
+        }
+
+        @Override
+        public long cost() {
+            return cost;
         }
     }
 }

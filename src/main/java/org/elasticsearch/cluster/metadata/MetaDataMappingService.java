@@ -148,7 +148,7 @@ public class MetaDataMappingService extends AbstractComponent {
                     return currentState;
                 } finally {
                     if (createdIndex) {
-                        indicesService.cleanIndex(index, "created for mapping processing");
+                        indicesService.removeIndex(index, "created for mapping processing");
                     }
                 }
             }
@@ -203,13 +203,13 @@ public class MetaDataMappingService extends AbstractComponent {
                     MetaData.Builder builder = newMetaDataBuilder().metaData(currentState.metaData());
                     builder.put(newIndexMetaDataBuilder(indexMetaData).putMapping(new MappingMetaData(updatedMapper)));
                     return newClusterStateBuilder().state(currentState).metaData(builder).build();
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     logger.warn("failed to dynamically update the mapping in cluster_state from shard", e);
                     listener.onFailure(e);
                     return currentState;
                 } finally {
                     if (createdIndex) {
-                        indicesService.cleanIndex(index, "created for mapping processing");
+                        indicesService.removeIndex(index, "created for mapping processing");
                     }
                 }
             }
@@ -256,7 +256,7 @@ public class MetaDataMappingService extends AbstractComponent {
 
                     notifyOnPostProcess.set(true);
                     return ClusterState.builder().state(currentState).metaData(builder).build();
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.onFailure(e);
                     return currentState;
                 }
@@ -404,12 +404,12 @@ public class MetaDataMappingService extends AbstractComponent {
                     }
                     mappingCreatedAction.add(new CountDownListener(counter, listener), request.timeout);
                     return updatedState;
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.onFailure(e);
                     return currentState;
                 } finally {
                     for (String index : indicesToClose) {
-                        indicesService.cleanIndex(index, "created for mapping processing");
+                        indicesService.removeIndex(index, "created for mapping processing");
                     }
                 }
             }

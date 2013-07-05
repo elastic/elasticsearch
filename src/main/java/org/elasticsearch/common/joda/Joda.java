@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.joda;
 
+import java.util.Locale;
+
 import org.elasticsearch.common.Strings;
 import org.joda.time.*;
 import org.joda.time.field.DividedDateTimeField;
@@ -31,10 +33,21 @@ import org.joda.time.format.*;
  */
 public class Joda {
 
+    public static FormatDateTimeFormatter forPattern(String input) {
+        return forPattern(input, Locale.ROOT);
+    }
+
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */
-    public static FormatDateTimeFormatter forPattern(String input) {
+    public static FormatDateTimeFormatter forPattern(String input, Locale locale) {
+        if (Strings.hasLength(input)) {
+            input = input.trim();
+        }
+        if (input == null || input.length() == 0) {
+            throw new IllegalArgumentException("No date pattern provided");
+        }
+
         DateTimeFormatter formatter;
         if ("basicDate".equals(input) || "basic_date".equals(input)) {
             formatter = ISODateTimeFormat.basicDate();
@@ -76,9 +89,10 @@ public class Joda {
             formatter = ISODateTimeFormat.dateHourMinuteSecondMillis();
         } else if ("dateOptionalTime".equals(input) || "date_optional_time".equals(input)) {
             // in this case, we have a separate parser and printer since the dataOptionalTimeParser can't print
+            // this sucks we should use the root local by default and not be dependent on the node
             return new FormatDateTimeFormatter(input,
                     ISODateTimeFormat.dateOptionalTimeParser().withZone(DateTimeZone.UTC),
-                    ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC));
+                    ISODateTimeFormat.dateTime().withZone(DateTimeZone.UTC), locale);
         } else if ("dateTime".equals(input) || "date_time".equals(input)) {
             formatter = ISODateTimeFormat.dateTime();
         } else if ("dateTimeNoMillis".equals(input) || "date_time_no_millis".equals(input)) {
@@ -119,21 +133,34 @@ public class Joda {
             formatter = ISODateTimeFormat.yearMonth();
         } else if ("yearMonthDay".equals(input) || "year_month_day".equals(input)) {
             formatter = ISODateTimeFormat.yearMonthDay();
-        } else {
-            String[] formats = Strings.delimitedListToStringArray(input, "||");
-            if (formats == null || formats.length == 1) {
-                formatter = DateTimeFormat.forPattern(input);
-            } else {
+        } else if (Strings.hasLength(input) && input.contains("||")) {
+                String[] formats = Strings.delimitedListToStringArray(input, "||");
                 DateTimeParser[] parsers = new DateTimeParser[formats.length];
-                for (int i = 0; i < formats.length; i++) {
-                    parsers[i] = DateTimeFormat.forPattern(formats[i]).withZone(DateTimeZone.UTC).getParser();
+
+                if (formats.length == 1) {
+                    formatter = forPattern(input, locale).parser();
+                } else {
+                    DateTimeFormatter dateTimeFormatter = null;
+                    for (int i = 0; i < formats.length; i++) {
+                        DateTimeFormatter currentFormatter = forPattern(formats[i], locale).parser();
+                        if (dateTimeFormatter == null) {
+                            dateTimeFormatter = currentFormatter;
+                        }
+                        parsers[i] = currentFormatter.getParser();
+                    }
+
+                    DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder().append(dateTimeFormatter.withZone(DateTimeZone.UTC).getPrinter(), parsers);
+                    formatter = builder.toFormatter();
                 }
-                DateTimeFormatterBuilder builder = new DateTimeFormatterBuilder()
-                        .append(DateTimeFormat.forPattern(formats[0]).withZone(DateTimeZone.UTC).getPrinter(), parsers);
-                formatter = builder.toFormatter();
+        } else {
+            try {
+                formatter = DateTimeFormat.forPattern(input);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid format: [" + input + "]: " + e.getMessage(), e);
             }
         }
-        return new FormatDateTimeFormatter(input, formatter.withZone(DateTimeZone.UTC));
+
+        return new FormatDateTimeFormatter(input, formatter.withZone(DateTimeZone.UTC), locale);
     }
 
 

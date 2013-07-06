@@ -36,7 +36,6 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericDoubleAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -120,9 +119,9 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
     protected DoubleFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
                                 Double nullValue, Explicit<Boolean> ignoreMalformed,
                                 PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(names, precisionStep, boost, fieldType,
-                ignoreMalformed, new NamedAnalyzer("_double/" + precisionStep, new NumericDoubleAnalyzer(precisionStep)),
-                new NamedAnalyzer("_double/max", new NumericDoubleAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
+        super(names, precisionStep, boost, fieldType, ignoreMalformed,
+                NumericDoubleAnalyzer.buildNamedAnalyzer(precisionStep), NumericDoubleAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
+                provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

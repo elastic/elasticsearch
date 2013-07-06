@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.analysis.NamedCustomAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
@@ -121,9 +120,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         @Override
         public StringFieldMapper build(BuilderContext context) {
             if (positionOffsetGap > 0) {
-                indexAnalyzer = new NamedCustomAnalyzer(indexAnalyzer, positionOffsetGap);
-                searchAnalyzer = new NamedCustomAnalyzer(searchAnalyzer, positionOffsetGap);
-                searchQuotedAnalyzer = new NamedCustomAnalyzer(searchQuotedAnalyzer, positionOffsetGap);
+                indexAnalyzer = new NamedAnalyzer(indexAnalyzer, positionOffsetGap);
+                searchAnalyzer = new NamedAnalyzer(searchAnalyzer, positionOffsetGap);
+                searchQuotedAnalyzer = new NamedAnalyzer(searchQuotedAnalyzer, positionOffsetGap);
             }
             // if the field is not analyzed, then by default, we should omit norms and have docs only
             // index options, as probably what the user really wants

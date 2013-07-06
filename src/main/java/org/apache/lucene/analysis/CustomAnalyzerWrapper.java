@@ -22,15 +22,8 @@ package org.apache.lucene.analysis;
 import java.io.Reader;
 
 /**
- * Extension to {@link Analyzer} suitable for Analyzers which wrap
- * other Analyzers.
- * <p/>
- * {@link #getWrappedAnalyzer(String)} allows the Analyzer
- * to wrap multiple Analyzers which are selected on a per field basis.
- * <p/>
- * {@link #wrapComponents(String, Analyzer.TokenStreamComponents)} allows the
- * TokenStreamComponents of the wrapped Analyzer to then be wrapped
- * (such as adding a new {@link TokenFilter} to form new TokenStreamComponents.
+ * Similar to Lucene {@link AnalyzerWrapper} but actually allows to set the reuse strategy....
+ * //TODO add to lucene the ability to set it...
  */
 public abstract class CustomAnalyzerWrapper extends Analyzer {
 
@@ -38,8 +31,8 @@ public abstract class CustomAnalyzerWrapper extends Analyzer {
      * Creates a new CustomAnalyzerWrapper.  Since the {@link Analyzer.ReuseStrategy} of
      * the wrapped Analyzers are unknown, {@link Analyzer.PerFieldReuseStrategy} is assumed
      */
-    protected CustomAnalyzerWrapper() {
-        super(new PerFieldReuseStrategy());
+    protected CustomAnalyzerWrapper(ReuseStrategy reuseStrategy) {
+        super(reuseStrategy);
     }
 
     /**
@@ -56,8 +49,7 @@ public abstract class CustomAnalyzerWrapper extends Analyzer {
      * Analyzer, to form new components.  It is through this method that new
      * TokenFilters can be added by AnalyzerWrappers.
      *
-     *
-     * @param fieldName Name of the field which is to be analyzed
+     * @param fieldName  Name of the field which is to be analyzed
      * @param components TokenStreamComponents taken from the wrapped Analyzer
      * @return Wrapped / altered TokenStreamComponents.
      */

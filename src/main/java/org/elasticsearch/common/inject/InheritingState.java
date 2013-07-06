@@ -16,11 +16,11 @@
 
 package org.elasticsearch.common.inject;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.elasticsearch.common.inject.internal.BindingImpl;
-import org.elasticsearch.common.inject.internal.Errors;
-import org.elasticsearch.common.inject.internal.MatcherAndConverter;
+import org.elasticsearch.common.inject.internal.*;
+import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.TypeListenerBinding;
 
 import java.lang.annotation.Annotation;
@@ -129,6 +129,19 @@ class InheritingState implements State {
     @Override
     public void clearBlacklisted() {
         blacklistedKeys = new WeakKeySet();
+    }
+
+    @Override
+    public void makeAllBindingsToEagerSingletons(Injector injector) {
+        Map<Key<?>, Binding<?>> x = Maps.newLinkedHashMap();
+        for (Map.Entry<Key<?>, Binding<?>> entry : this.explicitBindingsMutable.entrySet()) {
+            Key key = entry.getKey();
+            BindingImpl<?> binding = (BindingImpl<?>) entry.getValue();
+            Object value = binding.getProvider().get();
+            x.put(key, new InstanceBindingImpl<Object>(injector, key, SourceProvider.UNKNOWN_SOURCE, new InternalFactory.Instance(value), ImmutableSet.<InjectionPoint>of(), value));
+        }
+        this.explicitBindingsMutable.clear();
+        this.explicitBindingsMutable.putAll(x);
     }
 
     public Object lock() {

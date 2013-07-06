@@ -37,7 +37,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -120,9 +119,9 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
     protected LongFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType,
                               Long nullValue, Explicit<Boolean> ignoreMalformed,
                               PostingsFormatProvider provider, SimilarityProvider similarity, @Nullable Settings fieldDataSettings) {
-        super(names, precisionStep, boost, fieldType,
-                ignoreMalformed, new NamedAnalyzer("_long/" + precisionStep, new NumericLongAnalyzer(precisionStep)),
-                new NamedAnalyzer("_long/max", new NumericLongAnalyzer(Integer.MAX_VALUE)), provider, similarity, fieldDataSettings);
+        super(names, precisionStep, boost, fieldType, ignoreMalformed,
+                NumericLongAnalyzer.buildNamedAnalyzer(precisionStep), NumericLongAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
+                provider, similarity, fieldDataSettings);
         this.nullValue = nullValue;
         this.nullValueAsString = nullValue == null ? null : nullValue.toString();
     }

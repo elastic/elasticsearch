@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import gnu.trove.map.hash.TObjectIntHashMap;
@@ -245,6 +246,20 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             count += routingNode.numberOfShardsWithState(state);
         }
         return count;
+    }
+
+    public List<MutableShardRouting> shards(Predicate<MutableShardRouting> predicate) {
+        List<MutableShardRouting> shards = newArrayList();
+        for (RoutingNode routingNode : this) {
+            List<MutableShardRouting> nodeShards = routingNode.shards();
+            for (int i = 0; i < nodeShards.size(); i++) {
+                MutableShardRouting shardRouting = nodeShards.get(i);
+                if (predicate.apply(shardRouting)) {
+                    shards.add(shardRouting);
+                }
+            }
+        }
+        return shards;
     }
 
     public List<MutableShardRouting> shardsWithState(ShardRoutingState... state) {

@@ -44,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
@@ -51,17 +52,19 @@ import java.util.concurrent.ScheduledFuture;
 public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> {
 
     private final ThreadPool threadPool;
-
     private final IndicesService indicesService;
 
-
     private final ByteSizeValue indexingBuffer;
-
     private final ByteSizeValue minShardIndexBufferSize;
     private final ByteSizeValue maxShardIndexBufferSize;
 
+    private final ByteSizeValue translogBuffer;
+    private final ByteSizeValue minShardTranslogBufferSize;
+    private final ByteSizeValue maxShardTranslogBufferSize;
+
     private final TimeValue inactiveTime;
     private final TimeValue interval;
+    private final AtomicBoolean shardsCreatedOrDeleted = new AtomicBoolean();
 
     private final Listener listener = new Listener();
 
@@ -94,11 +97,31 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         } else {
             indexingBuffer = ByteSizeValue.parseBytesSizeValue(indexingBufferSetting, null);
         }
-
         this.indexingBuffer = indexingBuffer;
         this.minShardIndexBufferSize = componentSettings.getAsBytesSize("min_shard_index_buffer_size", new ByteSizeValue(4, ByteSizeUnit.MB));
         // LUCENE MONITOR: Based on this thread, currently (based on Mike), having a large buffer does not make a lot of sense: https://issues.apache.org/jira/browse/LUCENE-2324?focusedCommentId=13005155&page=com.atlassian.jira.plugin.system.issuetabpanels:comment-tabpanel#comment-13005155
         this.maxShardIndexBufferSize = componentSettings.getAsBytesSize("max_shard_index_buffer_size", new ByteSizeValue(512, ByteSizeUnit.MB));
+
+        ByteSizeValue translogBuffer;
+        String translogBufferSetting = componentSettings.get("translog_buffer_size", "1%");
+        if (translogBufferSetting.endsWith("%")) {
+            double percent = Double.parseDouble(translogBufferSetting.substring(0, translogBufferSetting.length() - 1));
+            translogBuffer = new ByteSizeValue((long) (((double) JvmInfo.jvmInfo().mem().heapMax().bytes()) * (percent / 100)));
+            ByteSizeValue minTranslogBuffer = componentSettings.getAsBytesSize("min_translog_buffer_size", new ByteSizeValue(256, ByteSizeUnit.KB));
+            ByteSizeValue maxTranslogBuffer = componentSettings.getAsBytesSize("max_translog_buffer_size", null);
+
+            if (translogBuffer.bytes() < minTranslogBuffer.bytes()) {
+                translogBuffer = minTranslogBuffer;
+            }
+            if (maxTranslogBuffer != null && translogBuffer.bytes() > maxTranslogBuffer.bytes()) {
+                translogBuffer = maxTranslogBuffer;
+            }
+        } else {
+            translogBuffer = ByteSizeValue.parseBytesSizeValue(translogBufferSetting, null);
+        }
+        this.translogBuffer = translogBuffer;
+        this.minShardTranslogBufferSize = componentSettings.getAsBytesSize("min_shard_translog_buffer_size", new ByteSizeValue(2, ByteSizeUnit.KB));
+        this.maxShardTranslogBufferSize = componentSettings.getAsBytesSize("max_shard_translog_buffer_size", new ByteSizeValue(64, ByteSizeUnit.KB));
 
         this.inactiveTime = componentSettings.getAsTime("shard_inactive_time", TimeValue.timeValueMinutes(30));
         // we need to have this relatively small to move a shard from inactive to active fast (enough)
@@ -176,14 +199,16 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     // update inactive indexing buffer size
                     try {
                         ((InternalIndexShard) indexShard).engine().updateIndexingBufferSize(Engine.INACTIVE_SHARD_INDEXING_BUFFER);
+                        ((InternalIndexShard) indexShard).translog().updateBuffer(Translog.INACTIVE_SHARD_TRANSLOG_BUFFER);
                     } catch (EngineClosedException e) {
                         // ignore
                     } catch (FlushNotAllowedEngineException e) {
                         // ignore
                     }
                 }
-                if (activeInactiveStatusChanges) {
-                    calcAndSetShardIndexingBuffer("shards became active/inactive (indexing wise)");
+                boolean shardsCreatedOrDeleted = IndexingMemoryController.this.shardsCreatedOrDeleted.compareAndSet(true, false);
+                if (shardsCreatedOrDeleted || activeInactiveStatusChanges) {
+                    calcAndSetShardBuffers("active/inactive[" + activeInactiveStatusChanges + "] created/deleted[" + shardsCreatedOrDeleted + "]");
                 }
             }
         }
@@ -194,43 +219,50 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         @Override
         public void afterIndexShardCreated(IndexShard indexShard) {
             synchronized (mutex) {
-                calcAndSetShardIndexingBuffer("created_shard[" + indexShard.shardId().index().name() + "][" + indexShard.shardId().id() + "]");
                 shardsIndicesStatus.put(indexShard.shardId(), new ShardIndexingStatus());
+                shardsCreatedOrDeleted.set(true);
             }
         }
 
         @Override
         public void afterIndexShardClosed(ShardId shardId) {
             synchronized (mutex) {
-                calcAndSetShardIndexingBuffer("removed_shard[" + shardId.index().name() + "][" + shardId.id() + "]");
                 shardsIndicesStatus.remove(shardId);
+                shardsCreatedOrDeleted.set(true);
             }
         }
     }
 
 
-    private void calcAndSetShardIndexingBuffer(String reason) {
+    private void calcAndSetShardBuffers(String reason) {
         int shardsCount = countShards();
         if (shardsCount == 0) {
             return;
         }
-        ByteSizeValue shardIndexingBufferSize = calcShardIndexingBuffer(shardsCount);
-        if (shardIndexingBufferSize == null) {
-            return;
-        }
+        ByteSizeValue shardIndexingBufferSize = new ByteSizeValue(indexingBuffer.bytes() / shardsCount);
         if (shardIndexingBufferSize.bytes() < minShardIndexBufferSize.bytes()) {
             shardIndexingBufferSize = minShardIndexBufferSize;
         }
         if (shardIndexingBufferSize.bytes() > maxShardIndexBufferSize.bytes()) {
             shardIndexingBufferSize = maxShardIndexBufferSize;
         }
-        logger.debug("recalculating shard indexing buffer (reason={}), total is [{}] with [{}] active shards, each shard set to [{}]", reason, indexingBuffer, shardsCount, shardIndexingBufferSize);
+
+        ByteSizeValue shardTranslogBufferSize = new ByteSizeValue(translogBuffer.bytes() / shardsCount);
+        if (shardTranslogBufferSize.bytes() < minShardTranslogBufferSize.bytes()) {
+            shardTranslogBufferSize = minShardTranslogBufferSize;
+        }
+        if (shardTranslogBufferSize.bytes() > maxShardTranslogBufferSize.bytes()) {
+            shardTranslogBufferSize = maxShardTranslogBufferSize;
+        }
+
+        logger.debug("recalculating shard indexing buffer (reason={}), total is [{}] with [{}] active shards, each shard set to indexing=[{}], translog=[{}]", reason, indexingBuffer, shardsCount, shardIndexingBufferSize, shardTranslogBufferSize);
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 ShardIndexingStatus status = shardsIndicesStatus.get(indexShard.shardId());
                 if (status == null || !status.inactiveIndexing) {
                     try {
                         ((InternalIndexShard) indexShard).engine().updateIndexingBufferSize(shardIndexingBufferSize);
+                        ((InternalIndexShard) indexShard).translog().updateBuffer(shardTranslogBufferSize);
                     } catch (EngineClosedException e) {
                         // ignore
                         continue;
@@ -243,10 +275,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 }
             }
         }
-    }
-
-    private ByteSizeValue calcShardIndexingBuffer(int shardsCount) {
-        return new ByteSizeValue(indexingBuffer.bytes() / shardsCount);
     }
 
     private int countShards() {

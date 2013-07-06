@@ -25,8 +25,6 @@ import org.apache.lucene.util.BytesRef;
  * An http response that is built on top of {@link org.apache.lucene.util.BytesRef}.
  * <p/>
  * <p>Note, this class assumes that the utf8 result is not thread safe.
- *
- *
  */
 public class Utf8RestResponse extends AbstractRestResponse implements RestResponse {
 
@@ -58,7 +56,7 @@ public class Utf8RestResponse extends AbstractRestResponse implements RestRespon
 
     @Override
     public boolean contentThreadSafe() {
-        return false;
+        return true;
     }
 
     @Override

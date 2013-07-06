@@ -43,11 +43,8 @@ import static com.google.common.collect.Maps.newHashMap;
 public class AnalysisService extends AbstractIndexComponent implements CloseableComponent {
 
     private final ImmutableMap<String, NamedAnalyzer> analyzers;
-
     private final ImmutableMap<String, TokenizerFactory> tokenizers;
-
     private final ImmutableMap<String, CharFilterFactory> charFilters;
-
     private final ImmutableMap<String, TokenFilterFactory> tokenFilters;
 
     private final NamedAnalyzer defaultAnalyzer;
@@ -225,7 +222,13 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             if (analyzerF == null) {
                 throw new ElasticSearchIllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
             }
-            NamedAnalyzer analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerF);
+            NamedAnalyzer analyzer;
+            // if we got a named analyzer back, use it...
+            if (analyzerF instanceof NamedAnalyzer) {
+                analyzer = (NamedAnalyzer) analyzerF;
+            } else {
+                analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerF);
+            }
             analyzers.put(analyzerFactory.name(), analyzer);
             analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);
             String strAliases = indexSettings.get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");

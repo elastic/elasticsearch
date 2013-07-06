@@ -116,4 +116,9 @@ public class SimpleFsTranslogFile implements FsTranslogFile {
     public void reuse(FsTranslogFile other) {
         // nothing to do there
     }
+
+    @Override
+    public void updateBufferSize(int bufferSize) throws TranslogException {
+        // nothing to do here...
+    }
 }

@@ -58,6 +58,9 @@ public class ModulesBuilder implements Iterable<Module> {
         Modules.processModules(modules);
         Injector injector = Guice.createInjector(modules);
         Injectors.cleanCaches(injector);
+        // in ES, we always create all instances as if they are eager singletons
+        // this allows for considerable memory savings (no need to store construction info) as well as cycles
+        ((InjectorImpl) injector).readOnlyAllSingletons();
         return injector;
     }
 
@@ -65,6 +68,9 @@ public class ModulesBuilder implements Iterable<Module> {
         Modules.processModules(modules);
         Injector childInjector = injector.createChildInjector(modules);
         Injectors.cleanCaches(childInjector);
+        // in ES, we always create all instances as if they are eager singletons
+        // this allows for considerable memory savings (no need to store construction info) as well as cycles
+        ((InjectorImpl) childInjector).readOnlyAllSingletons();
         return childInjector;
     }
 }

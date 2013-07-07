@@ -46,7 +46,6 @@ import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.test.integration.AbstractSharedClusterTest;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
@@ -2283,11 +2282,11 @@ public class SimpleFacetsTests extends AbstractSharedClusterTest {
         }
     }
 
-    private long utcTimeInMillis(String time) {
+    public static long utcTimeInMillis(String time) {
         return timeInMillis(time, DateTimeZone.UTC);
     }
 
-    private long timeInMillis(String time, DateTimeZone zone) {
+    public static long timeInMillis(String time, DateTimeZone zone) {
         return ISODateTimeFormat.dateOptionalTimeParser().withZone(zone).parseMillis(time);
     }
 }

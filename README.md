@@ -249,6 +249,44 @@ Then, define it in `elasticsearch.yml`:
                 tags: elasticsearch, dev
 ```
 
+Changing default transport port
+-------------------------------
+
+By default, elasticsearch GCE plugin assumes that you run elasticsearch on 9300 default port.
+But you can specify the port value elasticsearch is meant to use using google compute engine metadata `es_port`:
+
+### When creating instance
+
+Add `--metadata=es_port:9301` option:
+
+```sh
+# when creating first instance
+gcutil --project=es-cloud addinstance myesnode1 --service_account_scope=compute-rw,storage-full --persistent_boot_disk --metadata=es_port:9301
+
+# when creating an instance from an image
+gcutil --project=es-cloud addinstance --image=elasticsearch-0-90-2 \
+       --kernel=projects/google/global/kernels/gce-v20130603 myesnode2 \
+       --zone europe-west1-a --machine_type f1-micro --service_account_scope=compute-rw \
+       --persistent_boot_disk --metadata=es_port:9301
+```
+
+### On a running instance
+
+```sh
+# Get metadata fingerprint
+gcutil --project=es-cloud getinstance myesnode1 --zone=europe-west1-a
++------------------------+---------------------------------------------------------------------------------------------------------+
+|        property        |                                                  value                                                  |
++------------------------+---------------------------------------------------------------------------------------------------------+
+| metadata               |                                                                                                         |
+| fingerprint            | 42WmSpB8rSM=                                                                                            |
++------------------------+---------------------------------------------------------------------------------------------------------+
+
+# Use that fingerprint
+gcutil --project=es-cloud setinstancemetadata myesnode1 --zone=europe-west1-a --metadata=es_port:9301 --fingerprint=42WmSpB8rSM=
+```
+
+
 Tips
 ----
 

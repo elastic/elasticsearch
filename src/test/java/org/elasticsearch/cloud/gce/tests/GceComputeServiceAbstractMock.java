@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.gce.tests;
 
 import com.google.api.services.compute.model.Instance;
+import com.google.api.services.compute.model.Metadata;
 import com.google.api.services.compute.model.NetworkInterface;
 import com.google.api.services.compute.model.Tags;
 import org.elasticsearch.ElasticSearchException;
@@ -52,6 +53,7 @@ public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleCom
         Collection<Instance> instances = new ArrayList<Instance>();
 
         // For each instance (item of tags)
+        int port = 9300;
         for (List<String> tags : getTags()) {
             Instance instance = new Instance();
             instance.setName("Mock Node " + tags);
@@ -67,7 +69,13 @@ public abstract class GceComputeServiceAbstractMock extends AbstractLifecycleCom
             networkInterfaces.add(networkInterface);
             instance.setNetworkInterfaces(networkInterfaces);
 
+            // Add metadata es_port:930X where X is the instance number
+            Metadata metadata = new Metadata();
+            metadata.put("es_port", "" + port);
+            instance.setMetadata(metadata);
             instances.add(instance);
+
+            port++;
         }
 
 

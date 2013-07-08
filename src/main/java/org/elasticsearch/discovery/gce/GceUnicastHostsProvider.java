@@ -168,11 +168,11 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                     }
                 }
                 if (filterByTag) {
-                    logger.trace("*** filtering out instance {} based tags {}, not part of {}", name, tags,
+                    logger.trace("filtering out instance {} based tags {}, not part of {}", name, tags,
                             instance.getTags() == null ? "" : instance.getTags().getItems());
                     continue;
                 } else {
-                    logger.trace("*** instance {} with tags {} is added to discovery", name, tags);
+                    logger.trace("instance {} with tags {} is added to discovery", name, tags);
                 }
 
                 String ip_public = null;
@@ -207,7 +207,22 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                         // We can ignore it in the list of DiscoveryNode
                         logger.trace("current node found. Ignoring {} - {}", name, ip_private);
                     } else {
-                        TransportAddress[] addresses = transportService.addressesFromString(ip_private);
+                        String address = ip_private;
+                        // Test if we have es_port metadata defined here
+                        if (instance.getMetadata() != null && instance.getMetadata().containsKey("es_port")) {
+                            Object es_port = instance.getMetadata().get("es_port");
+                            logger.trace("es_port is defined with {}", es_port);
+                            if (es_port instanceof String) {
+                                address = address.concat(":").concat((String) es_port);
+                            } else {
+                                // Ignoring other values
+                                logger.trace("es_port is instance of {}. Ignoring...", es_port.getClass().getName());
+                            }
+                        }
+
+                        // ip_private is a single IP Address. We need to build a TransportAddress from it
+                        TransportAddress[] addresses = transportService.addressesFromString(address);
+
                         // we only limit to 1 addresses, makes no sense to ping 100 ports
                         for (int i = 0; (i < addresses.length && i < UnicastZenPing.LIMIT_PORTS_COUNT); i++) {
                             logger.trace("adding {}, type {}, image {}, address {}, transport_address {}, status {}", name, type,

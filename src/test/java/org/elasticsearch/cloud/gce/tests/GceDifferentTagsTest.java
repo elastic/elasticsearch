@@ -47,11 +47,7 @@ public class GceDifferentTagsTest extends GceAbstractTest {
         nodeBuilder("elasticsearch,dev");
 
         // We expect having 1 node as part of the cluster, let's test that
-        // TODO Fix that test as we don't filter yet on port, each node can see each other
-        checkNumberOfNodes(2);
-
-        // Should be
-        // checkNumberOfNodes(1);
+        checkNumberOfNodes(1);
     }
 
     @Test
@@ -63,10 +59,6 @@ public class GceDifferentTagsTest extends GceAbstractTest {
         nodeBuilder("elasticsearch");
 
         // We expect having 1 nodes as part of the cluster, let's test that
-        // TODO Fix that test as we don't filter yet on port, each node can see each other
-        checkNumberOfNodes(2);
-
-        // Should be
-        // checkNumberOfNodes(1);
+        checkNumberOfNodes(1);
     }
 }

@@ -19,16 +19,15 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import gnu.trove.list.array.TDoubleArrayList;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.*;
-import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ElasticSearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigDoubleArrayList;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.SortMode;
@@ -45,7 +44,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
             return new GeoPointDoubleArrayIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
@@ -83,12 +82,12 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
             return GeoPointDoubleArrayAtomicFieldData.EMPTY;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
-        final TDoubleArrayList lat = new TDoubleArrayList();
-        final TDoubleArrayList lon = new TDoubleArrayList();
+        final BigDoubleArrayList lat = new BigDoubleArrayList();
+        final BigDoubleArrayList lon = new BigDoubleArrayList();
         lat.add(0); // first "t" indicates null value
         lon.add(0); // first "t" indicates null value
-        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
+        final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
+        OrdinalsBuilder builder = new OrdinalsBuilder(terms.size(), reader.maxDoc(), acceptableTransientOverheadRatio);
         final CharsRef spare = new CharsRef();
         try {
             BytesRefIterator iter = builder.buildFromTerms(terms.iterator(null));
@@ -113,7 +112,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
                 double[] sLat = new double[reader.maxDoc()];
                 double[] sLon = new double[reader.maxDoc()];
                 for (int i = 0; i < sLat.length; i++) {
-                    int nativeOrdinal = ordinals.getOrd(i);
+                    long nativeOrdinal = ordinals.getOrd(i);
                     sLat[i] = lat.get(nativeOrdinal);
                     sLon[i] = lon.get(nativeOrdinal);
                 }
@@ -125,8 +124,7 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexFieldData<Ge
                 }
             } else {
                 return new GeoPointDoubleArrayAtomicFieldData.WithOrdinals(
-                        lon.toArray(new double[lon.size()]),
-                        lat.toArray(new double[lat.size()]),
+                        lon, lat,
                         reader.maxDoc(), build);
             }
         } finally {

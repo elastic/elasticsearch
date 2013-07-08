@@ -120,10 +120,10 @@ public abstract class BytesValues {
         public static class Single implements Iter {
 
             protected BytesRef value;
-            protected int ord;
+            protected long ord;
             protected boolean done;
 
-            public Single reset(BytesRef value, int ord) {
+            public Single reset(BytesRef value, long ord) {
                 this.value = value;
                 this.ord = ord;
                 this.done = false;
@@ -149,8 +149,8 @@ public abstract class BytesValues {
 
         static class Multi implements Iter {
 
-            protected int innerOrd;
-            protected int ord;
+            protected long innerOrd;
+            protected long ord;
             protected BytesValues.WithOrdinals withOrds;
             protected Ordinals.Docs.Iter ordsIter;
             protected final BytesRef scratch = new BytesRef();
@@ -226,7 +226,7 @@ public abstract class BytesValues {
             return ordinals;
         }
 
-        public BytesRef getValueByOrd(int ord) {
+        public BytesRef getValueByOrd(long ord) {
             return getValueScratchByOrd(ord, scratch);
         }
 
@@ -247,7 +247,7 @@ public abstract class BytesValues {
 
         @Override
         public BytesRef getValue(int docId) {
-            final int ord = ordinals.getOrd(docId);
+            final long ord = ordinals.getOrd(docId);
             if (ord == 0) {
                 return null;
             }
@@ -268,7 +268,7 @@ public abstract class BytesValues {
          * result which will also be returned. If there is no value for this docId, the length will be 0.
          * Note, the bytes are not "safe".
          */
-        public abstract BytesRef getValueScratchByOrd(int ord, BytesRef ret);
+        public abstract BytesRef getValueScratchByOrd(long ord, BytesRef ret);
 
         public static class Empty extends WithOrdinals {
 
@@ -277,7 +277,7 @@ public abstract class BytesValues {
             }
 
             @Override
-            public BytesRef getValueScratchByOrd(int ord, BytesRef ret) {
+            public BytesRef getValueScratchByOrd(long ord, BytesRef ret) {
                 ret.length = 0;
                 return ret;
             }

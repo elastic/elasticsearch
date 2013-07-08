@@ -110,8 +110,8 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         // longs is going to be monotonically increasing
         final MonotonicAppendingLongBuffer values = new MonotonicAppendingLongBuffer();
 
-        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
+        final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
+        OrdinalsBuilder builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio);
         try {
             BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
@@ -161,6 +161,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
                 final long delta = maxValue - minValue;
                 final int bitsRequired = delta < 0 ? 64 : PackedInts.bitsRequired(delta);
+                final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
                 final PackedInts.FormatAndBits formatAndBits = PackedInts.fastestFormatAndBits(reader.maxDoc(), bitsRequired, acceptableOverheadRatio);
 
                 // there's sweet spot where due to low unique value count, using ordinals will consume less memory
@@ -177,7 +178,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                     sValues.fill(0, sValues.size(), missingValue);
                 }
                 for (int i = 0; i < reader.maxDoc(); i++) {
-                    final int ord = ordinals.getOrd(i);
+                    final long ord = ordinals.getOrd(i);
                     if (ord > 0) {
                         sValues.set(i, values.get(ord - 1) - minValue);
                     }

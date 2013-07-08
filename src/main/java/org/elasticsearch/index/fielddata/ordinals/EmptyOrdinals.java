@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.LongsRef;
 
 /**
  */
@@ -57,12 +57,12 @@ public class EmptyOrdinals implements Ordinals {
     }
 
     @Override
-    public int getNumOrds() {
+    public long getNumOrds() {
         return 0;
     }
 
     @Override
-    public int getMaxOrd() {
+    public long getMaxOrd() {
         return 1;
     }
 
@@ -74,7 +74,7 @@ public class EmptyOrdinals implements Ordinals {
     public static class Docs implements Ordinals.Docs {
 
         private final EmptyOrdinals parent;
-        public static final IntsRef EMPTY_INTS_REF = new IntsRef();
+        public static final LongsRef EMPTY_LONGS_REF = new LongsRef();
 
         public Docs(EmptyOrdinals parent) {
             this.parent = parent;
@@ -91,12 +91,12 @@ public class EmptyOrdinals implements Ordinals {
         }
 
         @Override
-        public int getNumOrds() {
+        public long getNumOrds() {
             return 0;
         }
 
         @Override
-        public int getMaxOrd() {
+        public long getMaxOrd() {
             return 1;
         }
 
@@ -106,13 +106,13 @@ public class EmptyOrdinals implements Ordinals {
         }
 
         @Override
-        public int getOrd(int docId) {
+        public long getOrd(int docId) {
             return 0;
         }
 
         @Override
-        public IntsRef getOrds(int docId) {
-            return EMPTY_INTS_REF;
+        public LongsRef getOrds(int docId) {
+            return EMPTY_LONGS_REF;
         }
 
         @Override

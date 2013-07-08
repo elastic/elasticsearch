@@ -141,7 +141,7 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public long getValueByOrd(int ord) {
+            public long getValueByOrd(long ord) {
                 return ord == 0 ? 0L : values.get(ord - 1);
             }
         }
@@ -156,7 +156,7 @@ public abstract class PackedArrayAtomicFieldData extends AtomicNumericFieldData 
             }
 
             @Override
-            public double getValueByOrd(int ord) {
+            public double getValueByOrd(long ord) {
                 return ord == 0 ? 0L : values.get(ord - 1);
             }
 

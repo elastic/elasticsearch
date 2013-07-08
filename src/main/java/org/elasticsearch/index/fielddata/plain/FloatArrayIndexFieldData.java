@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import gnu.trove.list.array.TFloatArrayList;
 import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Terms;
@@ -27,11 +26,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.RamUsage;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigFloatArrayList;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
@@ -49,7 +48,7 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
+        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, FieldMapper.Names fieldNames, FieldDataType type, IndexFieldDataCache cache) {
             return new FloatArrayIndexFieldData(index, indexSettings, fieldNames, type, cache);
         }
     }
@@ -91,12 +90,12 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
             return FloatArrayAtomicFieldData.EMPTY;
         }
         // TODO: how can we guess the number of terms? numerics end up creating more terms per value...
-        final TFloatArrayList values = new TFloatArrayList();
+        final BigFloatArrayList values = new BigFloatArrayList();
 
         values.add(0); // first "t" indicates null value
 
-        final float acceptableOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_overhead_ratio", PackedInts.DEFAULT);
-        OrdinalsBuilder builder = new OrdinalsBuilder(terms, reader.maxDoc(), acceptableOverheadRatio);
+        final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
+        OrdinalsBuilder builder = new OrdinalsBuilder(reader.maxDoc(), acceptableTransientOverheadRatio);
         try {
             BytesRefIterator iter = builder.buildFromTerms(getNumericType().wrapTermsEnum(terms.iterator(null)));
             BytesRef term;
@@ -110,25 +109,26 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<FloatArrayA
 
                 // there's sweatspot where due to low unique value count, using ordinals will consume less memory
                 long singleValuesArraySize = reader.maxDoc() * RamUsage.NUM_BYTES_FLOAT + (set == null ? 0 : set.getBits().length * RamUsage.NUM_BYTES_LONG + RamUsage.NUM_BYTES_INT);
-                long uniqueValuesArraySize = values.size() * RamUsage.NUM_BYTES_FLOAT;
+                long uniqueValuesArraySize = values.sizeInBytes();
                 long ordinalsSize = build.getMemorySizeInBytes();
                 if (uniqueValuesArraySize + ordinalsSize < singleValuesArraySize) {
-                    return new FloatArrayAtomicFieldData.WithOrdinals(values.toArray(new float[values.size()]), reader.maxDoc(), build);
+                    return new FloatArrayAtomicFieldData.WithOrdinals(values, reader.maxDoc(), build);
                 }
 
-                float[] sValues = new float[reader.maxDoc()];
                 int maxDoc = reader.maxDoc();
+                BigFloatArrayList sValues = new BigFloatArrayList(maxDoc);
                 for (int i = 0; i < maxDoc; i++) {
-                    sValues[i] = values.get(ordinals.getOrd(i));
+                    sValues.add(values.get(ordinals.getOrd(i)));
                 }
+                assert sValues.size() == maxDoc;
                 if (set == null) {
-                    return new FloatArrayAtomicFieldData.Single(sValues, reader.maxDoc());
+                    return new FloatArrayAtomicFieldData.Single(sValues, maxDoc);
                 } else {
-                    return new FloatArrayAtomicFieldData.SingleFixedSet(sValues, reader.maxDoc(), set);
+                    return new FloatArrayAtomicFieldData.SingleFixedSet(sValues, maxDoc, set);
                 }
             } else {
                 return new FloatArrayAtomicFieldData.WithOrdinals(
-                        values.toArray(new float[values.size()]),
+                        values,
                         reader.maxDoc(),
                         build);
             }

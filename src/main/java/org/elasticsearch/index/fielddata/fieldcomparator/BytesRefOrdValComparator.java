@@ -45,7 +45,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
     /* Ords for each slot.
        @lucene.internal */
-    final int[] ords;
+    final long[] ords;
 
     final SortMode sortMode;
 
@@ -75,7 +75,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     /* Bottom ord (same as ords[bottomSlot] once bottomSlot
        is set).  Cached for faster compares.
        @lucene.internal */
-    int bottomOrd;
+    long bottomOrd;
 
     /* True if current bottom slot matches the current
        reader.
@@ -92,7 +92,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     public BytesRefOrdValComparator(IndexFieldData.WithOrdinals<?> indexFieldData, int numHits, SortMode sortMode) {
         this.indexFieldData = indexFieldData;
         this.sortMode = sortMode;
-        ords = new int[numHits];
+        ords = new long[numHits];
         values = new BytesRef[numHits];
         readerGen = new int[numHits];
     }
@@ -100,7 +100,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
     @Override
     public int compare(int slot1, int slot2) {
         if (readerGen[slot1] == readerGen[slot2]) {
-            return ords[slot1] - ords[slot2];
+            return LongValuesComparator.compare(ords[slot1], ords[slot2]);
         }
 
         final BytesRef val1 = values[slot1];
@@ -207,7 +207,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
             final int docOrd = (readerOrds[doc] & 0xFF);
             if (bottomSameReader) {
                 // ord is precisely comparable, even in the equal case
-                return bottomOrd - docOrd;
+                return (int) bottomOrd - docOrd;
             } else if (bottomOrd >= docOrd) {
                 // the equals case always means bottom is > doc
                 // (because we set bottomOrd to the lower bound in
@@ -253,7 +253,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
             final int docOrd = (readerOrds[doc] & 0xFFFF);
             if (bottomSameReader) {
                 // ord is precisely comparable, even in the equal case
-                return bottomOrd - docOrd;
+                return (int) bottomOrd - docOrd;
             } else if (bottomOrd >= docOrd) {
                 // the equals case always means bottom is > doc
                 // (because we set bottomOrd to the lower bound in
@@ -299,7 +299,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
             final int docOrd = readerOrds[doc];
             if (bottomSameReader) {
                 // ord is precisely comparable, even in the equal case
-                return bottomOrd - docOrd;
+                return (int) bottomOrd - docOrd;
             } else if (bottomOrd >= docOrd) {
                 // the equals case always means bottom is > doc
                 // (because we set bottomOrd to the lower bound in
@@ -345,10 +345,10 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         @Override
         public int compareBottom(int doc) {
             assert bottomSlot != -1;
-            final int docOrd = readerOrds.getOrd(doc);
+            final long docOrd = readerOrds.getOrd(doc);
             if (bottomSameReader) {
                 // ord is precisely comparable, even in the equal case
-                return bottomOrd - docOrd;
+                return LongValuesComparator.compare(bottomOrd, docOrd);
             } else if (bottomOrd >= docOrd) {
                 // the equals case always means bottom is > doc
                 // (because we set bottomOrd to the lower bound in
@@ -361,7 +361,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
         @Override
         public void copy(int slot, int doc) {
-            final int ord = readerOrds.getOrd(doc);
+            final long ord = readerOrds.getOrd(doc);
             ords[slot] = ord;
             if (ord == 0) {
                 values[slot] = null;
@@ -428,7 +428,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
                 bottomSameReader = true;
                 readerGen[bottomSlot] = currentReaderGen;
             } else {
-                final int index = binarySearch(termsIndex, bottomValue);
+                final long index = binarySearch(termsIndex, bottomValue);
                 if (index < 0) {
                     bottomOrd = -index - 2;
                     bottomSameReader = false;
@@ -448,15 +448,15 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         return values[slot];
     }
 
-    final protected static int binarySearch(BytesValues.WithOrdinals a, BytesRef key) {
+    final protected static long binarySearch(BytesValues.WithOrdinals a, BytesRef key) {
         return binarySearch(a, key, 1, a.ordinals().getNumOrds());
     }
 
-    final protected static int binarySearch(BytesValues.WithOrdinals a, BytesRef key, int low, int high) {
+    final protected static long binarySearch(BytesValues.WithOrdinals a, BytesRef key, long low, long high) {
         assert a.getValueByOrd(high) == null | a.getValueByOrd(high) != null; // make sure we actually can get these values
         assert a.getValueByOrd(low) == null | a.getValueByOrd(low) != null;
         while (low <= high) {
-            int mid = (low + high) >>> 1;
+            long mid = (low + high) >>> 1;
             BytesRef midVal = a.getValueByOrd(mid);
             int cmp;
             if (midVal != null) {
@@ -488,10 +488,10 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
         @Override
         public int compareBottom(int doc) throws IOException {
-            final int docOrd = getRelevantOrd(readerOrds, doc, sortMode);
+            final long docOrd = getRelevantOrd(readerOrds, doc, sortMode);
             if (bottomSameReader) {
                 // ord is precisely comparable, even in the equal case
-                return bottomOrd - docOrd;
+                return LongValuesComparator.compare(bottomOrd, docOrd);
             } else if (bottomOrd >= docOrd) {
                 // the equals case always means bottom is > doc
                 // (because we set bottomOrd to the lower bound in
@@ -504,7 +504,7 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
 
         @Override
         public void copy(int slot, int doc) throws IOException {
-            final int ord = getRelevantOrd(readerOrds, doc, sortMode);
+            final long ord = getRelevantOrd(readerOrds, doc, sortMode);
             ords[slot] = ord;
             if (ord == 0) {
                 values[slot] = null;
@@ -561,14 +561,14 @@ public final class BytesRefOrdValComparator extends FieldComparator<BytesRef> {
         return relevantVal;
     }
 
-    static int getRelevantOrd(Ordinals.Docs readerOrds, int docId, SortMode sortMode) {
+    static long getRelevantOrd(Ordinals.Docs readerOrds, int docId, SortMode sortMode) {
         Ordinals.Docs.Iter iter = readerOrds.getIter(docId);
-        int currentVal = iter.next();
+        long currentVal = iter.next();
         if (currentVal == 0) {
             return 0;
         }
 
-        int relevantVal = currentVal;
+        long relevantVal = currentVal;
         while (true) {
             if (sortMode == SortMode.MAX) {
                 if (currentVal > relevantVal) {

@@ -127,7 +127,6 @@ public class PlainHighlighter implements Highlighter {
                 String text = textToHighlight.toString();
                 Analyzer analyzer = context.mapperService().documentMapper(hitContext.hit().type()).mappers().indexAnalyzer();
                 TokenStream tokenStream = analyzer.tokenStream(mapper.names().indexName(), new FastStringReader(text));
-                tokenStream.reset();
                 if (!tokenStream.hasAttribute(CharTermAttribute.class) || !tokenStream.hasAttribute(OffsetAttribute.class)) {
                     // can't perform highlighting if the stream has no terms (binary token stream) or no offsets
                     continue;

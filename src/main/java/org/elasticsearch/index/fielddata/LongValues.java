@@ -118,7 +118,7 @@ public abstract class LongValues {
             return getValueByOrd(ordinals.getOrd(docId));
         }
 
-        public abstract long getValueByOrd(int ord);
+        public abstract long getValueByOrd(long ord);
 
         @Override
         public final Iter getIter(int docId) {
@@ -127,7 +127,7 @@ public abstract class LongValues {
 
         @Override
         public final long getValueMissing(int docId, long missingValue) {
-            final int ord = ordinals.getOrd(docId);
+            final long ord = ordinals.getOrd(docId);
             if (ord == 0) {
                 return missingValue;
             } else {
@@ -185,7 +185,7 @@ public abstract class LongValues {
         static class Multi implements Iter {
 
             private org.elasticsearch.index.fielddata.ordinals.Ordinals.Docs.Iter ordsIter;
-            private int ord;
+            private long ord;
             private WithOrdinals values;
 
             public Multi(WithOrdinals values) {

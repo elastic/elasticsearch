@@ -82,7 +82,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
-                assertThat(2, equalTo(ordinals.getNumOrds()));
+                assertThat(2L, equalTo(ordinals.getNumOrds()));
                 assertThat(1000, equalTo(ordinals.getNumDocs()));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.getValueByOrd(2).utf8ToString(), equalTo("100"));
@@ -95,7 +95,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
-                assertThat(1, equalTo(ordinals.getNumOrds()));
+                assertThat(1L, equalTo(ordinals.getNumOrds()));
                 assertThat(1000, equalTo(ordinals.getNumDocs()));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("5"));
             }
@@ -108,7 +108,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
-                assertThat(2, equalTo(ordinals.getNumOrds()));
+                assertThat(2L, equalTo(ordinals.getNumOrds()));
                 assertThat(1000, equalTo(ordinals.getNumDocs()));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.getValueByOrd(2).utf8ToString(), equalTo("100"));
@@ -122,7 +122,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
-                assertThat(2, equalTo(ordinals.getNumOrds()));
+                assertThat(2L, equalTo(ordinals.getNumOrds()));
                 assertThat(1000, equalTo(ordinals.getNumDocs()));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.getValueByOrd(2).utf8ToString(), equalTo("100"));
@@ -139,7 +139,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
-                assertThat(1, equalTo(ordinals.getNumOrds()));
+                assertThat(1L, equalTo(ordinals.getNumOrds()));
                 assertThat(1000, equalTo(ordinals.getNumDocs()));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("100"));
             }
@@ -184,7 +184,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
-                assertThat(1, equalTo(ordinals.getNumOrds()));
+                assertThat(1L, equalTo(ordinals.getNumOrds()));
                 assertThat(1000, equalTo(ordinals.getNumDocs()));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("5"));
             }
@@ -196,7 +196,7 @@ public class FilterFieldDataTest extends AbstractFieldDataTests {
                 AtomicFieldData.WithOrdinals<ScriptDocValues.Strings> loadDirect = (WithOrdinals<Strings>) fieldData.loadDirect(context);
                 BytesValues.WithOrdinals bytesValues = loadDirect.getBytesValues();
                 Docs ordinals = bytesValues.ordinals();
-                assertThat(2, equalTo(ordinals.getNumOrds()));
+                assertThat(2L, equalTo(ordinals.getNumOrds()));
                 assertThat(1000, equalTo(ordinals.getNumDocs()));
                 assertThat(bytesValues.getValueByOrd(1).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.getValueByOrd(2).utf8ToString(), equalTo("5"));

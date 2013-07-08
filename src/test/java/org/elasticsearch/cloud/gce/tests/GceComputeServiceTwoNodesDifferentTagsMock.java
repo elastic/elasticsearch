@@ -19,42 +19,28 @@
 
 package org.elasticsearch.cloud.gce.tests;
 
-import com.google.api.services.compute.model.Instance;
-import org.elasticsearch.ElasticSearchException;
-import org.elasticsearch.cloud.gce.GceComputeService;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.collect.Lists;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.List;
 
 /**
  *
  */
-public class GceComputeServiceMock extends AbstractLifecycleComponent<GceComputeServiceMock>
-    implements GceComputeService {
+public class GceComputeServiceTwoNodesDifferentTagsMock extends GceComputeServiceAbstractMock {
+    private static List<ArrayList<String>> tags = Lists.newArrayList(
+            Lists.newArrayList("dev"),
+            Lists.newArrayList("elasticsearch","dev"));
 
-    protected GceComputeServiceMock(Settings settings) {
+    @Override
+    protected List<ArrayList<String>> getTags() {
+        return tags;
+    }
+
+    @Inject
+    protected GceComputeServiceTwoNodesDifferentTagsMock(Settings settings) {
         super(settings);
-        logger.debug("Starting MOCK");
-    }
-
-    @Override
-    public Collection<Instance> instances() {
-        Collection<Instance> instances = new ArrayList<Instance>();
-
-        return instances;
-    }
-
-    @Override
-    protected void doStart() throws ElasticSearchException {
-    }
-
-    @Override
-    protected void doStop() throws ElasticSearchException {
-    }
-
-    @Override
-    protected void doClose() throws ElasticSearchException {
     }
 }

@@ -17,25 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.cloud.gce;
+package org.elasticsearch.cloud.gce.tests;
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
  */
-public class GceModule extends AbstractModule {
-    private Class<? extends GceComputeService>  computeServiceClass;
+public class GceComputeServiceTwoNodesSameTagsMock extends GceComputeServiceAbstractMock {
+    private static List<ArrayList<String>> tags = Lists.newArrayList(
+            Lists.newArrayList("elasticsearch","dev"),
+            Lists.newArrayList("elasticsearch","dev"));
 
-    @Inject
-    public GceModule(Settings settings) {
-        this.computeServiceClass = settings.getAsClass("cloud.gce.api.impl", GceComputeServiceImpl.class);
-    }
 
     @Override
-    protected void configure() {
-        bind(GceComputeService.class).to(this.computeServiceClass).asEagerSingleton();
+    protected List<ArrayList<String>> getTags() {
+        return tags;
+    }
+
+    @Inject
+    protected GceComputeServiceTwoNodesSameTagsMock(Settings settings) {
+        super(settings);
+        logger.debug("Starting Gce Mock {}", tags);
     }
 }

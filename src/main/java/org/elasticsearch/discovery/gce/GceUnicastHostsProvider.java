@@ -132,6 +132,7 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 String image = instance.getImage();
 
                 String status = instance.getStatus();
+                logger.trace("gce instance {} with status {} found.", name, status);
 
                 // We don't want to connect to TERMINATED status instances
                 // See https://github.com/elasticsearch/elasticsearch-cloud-gce/issues/3
@@ -143,11 +144,14 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 // see if we need to filter by tag
                 boolean filterByTag = false;
                 if (tags.length > 0) {
+                    logger.trace("start filtering instance {} with tags {}.", name, tags);
                     if (instance.getTags() == null || instance.getTags().isEmpty()) {
                         // If this instance have no tag, we filter it
+                        logger.trace("no tags for this instance but we asked for tags. {} won't be part of the cluster.", name);
                         filterByTag = true;
                     } else {
                         // check that all tags listed are there on the instance
+                        logger.trace("comparing instance tags {} with tags filter {}.", instance.getTags().getItems(), tags);
                         for (String tag : tags) {
                             boolean found = false;
                             for (String instancetag : instance.getTags().getItems()) {
@@ -164,9 +168,11 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                     }
                 }
                 if (filterByTag) {
-                    logger.trace("filtering out instance {} based tags {}, not part of {}", name, tags,
-                            instance.getTags().getItems());
+                    logger.trace("*** filtering out instance {} based tags {}, not part of {}", name, tags,
+                            instance.getTags() == null ? "" : instance.getTags().getItems());
                     continue;
+                } else {
+                    logger.trace("*** instance {} with tags {} is added to discovery", name, tags);
                 }
 
                 String ip_public = null;
@@ -177,10 +183,12 @@ public class GceUnicastHostsProvider extends AbstractComponent implements Unicas
                 for (NetworkInterface networkInterface : interfaces) {
                     if (ip_public == null) {
                         // Trying to get Public IP Address (For future use)
-                        for (AccessConfig accessConfig : networkInterface.getAccessConfigs()) {
-                            if (Strings.hasText(accessConfig.getNatIP())) {
-                                ip_public = accessConfig.getNatIP();
-                                break;
+                        if (networkInterface.getAccessConfigs() != null) {
+                            for (AccessConfig accessConfig : networkInterface.getAccessConfigs()) {
+                                if (Strings.hasText(accessConfig.getNatIP())) {
+                                    ip_public = accessConfig.getNatIP();
+                                    break;
+                                }
                             }
                         }
                     }

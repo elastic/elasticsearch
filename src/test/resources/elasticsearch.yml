@@ -25,4 +25,6 @@
   discovery:
           type: gce
           gce:
-                tags: elasticsearch, dev
+                tags: you_can_add_tags_here
+
+# Note that with tests, discovery.gce.tags will be replaced by test values

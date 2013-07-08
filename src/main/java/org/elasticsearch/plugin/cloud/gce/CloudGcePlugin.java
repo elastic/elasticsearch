@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.cloud.gce;
 
-import org.elasticsearch.cloud.gce.GceComputeServiceImpl;
 import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -63,7 +62,7 @@ public class CloudGcePlugin extends AbstractPlugin {
     public Collection<Class<? extends LifecycleComponent>> services() {
         Collection<Class<? extends LifecycleComponent>> services = Lists.newArrayList();
         if (settings.getAsBoolean("cloud.enabled", true)) {
-            services.add(GceComputeServiceImpl.class);
+//            services.add(GceComputeServiceImpl.class);
         }
         return services;
     }

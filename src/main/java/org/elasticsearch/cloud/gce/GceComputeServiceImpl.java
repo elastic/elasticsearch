@@ -36,6 +36,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 
 /**
@@ -55,9 +56,9 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
 
             return instanceList.getItems();
         } catch (IOException e) {
-            throw new ElasticSearchException("Pas glop");
+            logger.warn("can not get list of nodes. Disabling GCE discovery.");
+            return new ArrayList<Instance>();
         }
-
     }
 
     private Compute client;

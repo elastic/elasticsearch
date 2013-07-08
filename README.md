@@ -52,7 +52,9 @@ Before starting, you should have:
 
 
 ```sh
-gcutil --project=es-cloud addinstance myesnode1 --service_account_scope=compute-rw,storage-full --persistent_boot_disk
+gcutil --project=es-cloud addinstance myesnode1 \
+       --service_account_scope=compute-rw,storage-full \
+       --persistent_boot_disk
 ```
 
 You will be asked to open a link in your browser. Login and allow access to listed services.
@@ -128,7 +130,8 @@ Install the plugin:
 
 ```sh
 # Use Plugin Manager to install it
-sudo /usr/share/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-gce/1.0.0-SNAPSHOT
+sudo /usr/share/elasticsearch/bin/plugin
+     --install elasticsearch/elasticsearch-cloud-gce/1.0.0
 
 # Configure it:
 sudo vi /etc/elasticsearch/elasticsearch.yml
@@ -151,6 +154,21 @@ Restart elasticsearch:
 ```sh
 sudo /etc/init.d/elasticsearch restart
 ```
+
+If anything goes wrong, you should check logs:
+
+```sh
+tail -f /var/log/elasticsearch/elasticsearch.log
+```
+
+If needed, you can change log level to `TRACE` by modifying `sudo vi /etc/elasticsearch/logging.yml`:
+
+```yaml
+  # discovery
+  discovery.gce: TRACE
+```
+
+
 
 ### Cloning your existing machine
 
@@ -190,6 +208,9 @@ gcutil listkernels --project es-cloud
 gcutil --project=es-cloud addimage elasticsearch-0-90-2 \
        gs://esimage/e4686d7f5bf904a924ae0cfeb58d0827c6d5b966.image.tar.gz \
        --preferred_kernel=projects/google/global/kernels/gce-v20130603
+
+# If the previous command did not work for you, logout from your instance
+# and launch the same command from your local machine.
 ```
 
 ### Start new instances
@@ -210,10 +231,12 @@ You can use [Google Cloud Console](https://cloud.google.com/console) or CLI to m
 
 ```sh
 # Stopping and removing instances
-gcutil --project=es-cloud deleteinstance myesnode1 myesnode2 --zone=europe-west1-a
+gcutil --project=es-cloud deleteinstance myesnode1 myesnode2 \
+       --zone=europe-west1-a
 
 # Consider removing disk as well if you don't need them anymore
-gcutil --project=es-cloud deletedisk boot-myesnode1 boot-myesnode2 --zone=europe-west1-a
+gcutil --project=es-cloud deletedisk boot-myesnode1 boot-myesnode2  \
+       --zone=europe-west1-a
 ```
 
 Filtering by tags
@@ -232,7 +255,9 @@ tag will resolve this issue.
 Add your tag when building the new instance:
 
 ```sh
-gcutil --project=es-cloud addinstance myesnode1 --service_account_scope=compute-rw --persistent_boot_disk \
+gcutil --project=es-cloud addinstance myesnode1 \
+       --service_account_scope=compute-rw \
+       --persistent_boot_disk \
        --tags=elasticsearch,dev
 ```
 
@@ -261,7 +286,10 @@ Add `--metadata=es_port:9301` option:
 
 ```sh
 # when creating first instance
-gcutil --project=es-cloud addinstance myesnode1 --service_account_scope=compute-rw,storage-full --persistent_boot_disk --metadata=es_port:9301
+gcutil --project=es-cloud addinstance myesnode1 \
+       --service_account_scope=compute-rw,storage-full \
+       --persistent_boot_disk \
+       --metadata=es_port:9301
 
 # when creating an instance from an image
 gcutil --project=es-cloud addinstance --image=elasticsearch-0-90-2 \
@@ -274,7 +302,8 @@ gcutil --project=es-cloud addinstance --image=elasticsearch-0-90-2 \
 
 ```sh
 # Get metadata fingerprint
-gcutil --project=es-cloud getinstance myesnode1 --zone=europe-west1-a
+gcutil --project=es-cloud getinstance myesnode1 \
+       --zone=europe-west1-a
 +------------------------+---------------------------------------------------------------------------------------------------------+
 |        property        |                                                  value                                                  |
 +------------------------+---------------------------------------------------------------------------------------------------------+
@@ -283,7 +312,10 @@ gcutil --project=es-cloud getinstance myesnode1 --zone=europe-west1-a
 +------------------------+---------------------------------------------------------------------------------------------------------+
 
 # Use that fingerprint
-gcutil --project=es-cloud setinstancemetadata myesnode1 --zone=europe-west1-a --metadata=es_port:9301 --fingerprint=42WmSpB8rSM=
+gcutil --project=es-cloud setinstancemetadata myesnode1 \
+       --zone=europe-west1-a \
+       --metadata=es_port:9301 \
+       --fingerprint=42WmSpB8rSM=
 ```
 
 

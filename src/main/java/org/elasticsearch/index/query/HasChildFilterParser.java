@@ -134,6 +134,10 @@ public class HasChildFilterParser implements FilterParser {
         }
 
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
+        if (parentDocMapper == null) {
+            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
+        }
+
         Filter parentFilter = parseContext.cacheFilter(parentDocMapper.typeFilter(), null);
         HasChildFilter childFilter = new HasChildFilter(query, parentType, childType, parentFilter, searchContext);
         searchContext.addRewrite(childFilter);

@@ -25,9 +25,11 @@ import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
+import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -64,22 +66,24 @@ public abstract class GceAbstractTest {
         }
     }
 
-    protected Client getClient(long nbOfNodes) {
+    protected Client getClient() {
         // Create a TransportClient on node 1 and 2
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("cluster.name", "gce").build();
 
         TransportClient client = new TransportClient(settings);
 
-        for (int i = 9300; i < 9300+nbOfNodes; i++) {
-            client.addTransportAddress(new InetSocketTransportAddress("localhost", i));
+        for (Node node : nodes) {
+            NettyTransport nettyTransport = ((InternalNode) node).injector().getInstance(NettyTransport.class);
+            TransportAddress transportAddress = nettyTransport.boundAddress().publishAddress();
+            client.addTransportAddress(transportAddress);
         }
 
         return client;
     }
 
     protected void checkNumberOfNodes(int expected) {
-        NodesInfoResponse nodeInfos = getClient(expected).admin().cluster().prepareNodesInfo().execute().actionGet();
+        NodesInfoResponse nodeInfos = getClient().admin().cluster().prepareNodesInfo().execute().actionGet();
 
         Assert.assertNotNull(nodeInfos.getNodes());
         Assert.assertEquals(expected, nodeInfos.getNodes().length);

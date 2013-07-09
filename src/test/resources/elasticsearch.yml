@@ -28,3 +28,12 @@
                 tags: you_can_add_tags_here
 
 # Note that with tests, discovery.gce.tags will be replaced by test values
+
+# We set path here to use maven target dir
+  path:
+      data: ${project.build.testOutputDirectory}/es/data
+      logs: ${project.build.testOutputDirectory}/es/logs
+      work: ${project.build.testOutputDirectory}/es/work
+
+# We don't need http layer for tests
+  http.enabled: false

@@ -113,7 +113,22 @@ governing permissions and limitations under the License. -->
                 <filtering>true</filtering>
             </resource>
         </resources>
-
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>elasticsearch.yml</include>
+                </includes>
+            </testResource>
+            <testResource>
+                <directory>src/test/resources</directory>
+                <filtering>false</filtering>
+                <includes>
+                    <include>log4j.xml</include>
+                </includes>
+            </testResource>
+        </testResources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

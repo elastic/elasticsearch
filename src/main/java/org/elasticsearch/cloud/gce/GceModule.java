@@ -27,15 +27,17 @@ import org.elasticsearch.common.settings.Settings;
  *
  */
 public class GceModule extends AbstractModule {
-    private Class<? extends GceComputeService>  computeServiceClass;
+    private Settings settings;
 
     @Inject
     public GceModule(Settings settings) {
-        this.computeServiceClass = settings.getAsClass("cloud.gce.api.impl", GceComputeServiceImpl.class);
+        this.settings = settings;
     }
 
     @Override
     protected void configure() {
-        bind(GceComputeService.class).to(this.computeServiceClass).asEagerSingleton();
+        bind(GceComputeService.class)
+                .to(settings.getAsClass("cloud.gce.api.impl", GceComputeServiceImpl.class))
+                .asEagerSingleton();
     }
 }

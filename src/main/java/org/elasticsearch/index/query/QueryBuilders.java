@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.query;
 
+
+import org.elasticsearch.index.query.distancescoring.FunctionScoreQueryBuilder;
+import org.elasticsearch.index.query.distancescoring.ScoreFunctionBuilder;
+
 import java.util.Collection;
 
 import org.elasticsearch.common.Nullable;
@@ -530,6 +534,17 @@ public abstract class QueryBuilders {
         return new CustomScoreQueryBuilder(filterBuilder);
     }
 
+     /**
+     * A query that multiplies the score of the query with a factor computed from the distance of user given field values from a user given reference.
+     *
+     * @param queryBuilder The original query.
+     * @param scoreBuilder The builder for computing the distance dependent multiplier.
+     */
+    public static FunctionScoreQueryBuilder distanceScoreQuery(QueryBuilder queryBuilder, ScoreFunctionBuilder scoreBuilder) {
+        return new FunctionScoreQueryBuilder(queryBuilder, scoreBuilder);
+    }
+    
+    
     public static CustomFiltersScoreQueryBuilder customFiltersScoreQuery(QueryBuilder queryBuilder) {
         return new CustomFiltersScoreQueryBuilder(queryBuilder);
     }

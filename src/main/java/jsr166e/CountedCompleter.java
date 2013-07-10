@@ -8,18 +8,19 @@ package jsr166e;
 
 /**
  * A {@link ForkJoinTask} with a completion action performed when
- * triggered and there are no remaining pending
- * actions. CountedCompleters are in general more robust in the
+ * triggered and there are no remaining pending actions.
+ * CountedCompleters are in general more robust in the
  * presence of subtask stalls and blockage than are other forms of
  * ForkJoinTasks, but are less intuitive to program.  Uses of
  * CountedCompleter are similar to those of other completion based
  * components (such as {@link java.nio.channels.CompletionHandler})
  * except that multiple <em>pending</em> completions may be necessary
- * to trigger the {@link #onCompletion} action, not just one. Unless
- * initialized otherwise, the {@link #getPendingCount pending count}
- * starts at zero, but may be (atomically) changed using methods
- * {@link #setPendingCount}, {@link #addToPendingCount}, and {@link
- * #compareAndSetPendingCount}. Upon invocation of {@link
+ * to trigger the completion action {@link #onCompletion(CountedCompleter)},
+ * not just one.
+ * Unless initialized otherwise, the {@linkplain #getPendingCount pending
+ * count} starts at zero, but may be (atomically) changed using
+ * methods {@link #setPendingCount}, {@link #addToPendingCount}, and
+ * {@link #compareAndSetPendingCount}. Upon invocation of {@link
  * #tryComplete}, if the pending action count is nonzero, it is
  * decremented; otherwise, the completion action is performed, and if
  * this completer itself has a completer, the process is continued
@@ -40,9 +41,10 @@ package jsr166e;
  * <p>A concrete CountedCompleter class must define method {@link
  * #compute}, that should in most cases (as illustrated below), invoke
  * {@code tryComplete()} once before returning. The class may also
- * optionally override method {@link #onCompletion} to perform an
- * action upon normal completion, and method {@link
- * #onExceptionalCompletion} to perform an action upon any exception.
+ * optionally override method {@link #onCompletion(CountedCompleter)}
+ * to perform an action upon normal completion, and method
+ * {@link #onExceptionalCompletion(Throwable, CountedCompleter)} to
+ * perform an action upon any exception.
  *
  * <p>CountedCompleters most often do not bear results, in which case
  * they are normally declared as {@code CountedCompleter<Void>}, and
@@ -63,13 +65,14 @@ package jsr166e;
  * only as an internal helper for other computations, so its own task
  * status (as reported in methods such as {@link ForkJoinTask#isDone})
  * is arbitrary; this status changes only upon explicit invocations of
- * {@link #complete}, {@link ForkJoinTask#cancel}, {@link
- * ForkJoinTask#completeExceptionally} or upon exceptional completion
- * of method {@code compute}. Upon any exceptional completion, the
- * exception may be relayed to a task's completer (and its completer,
- * and so on), if one exists and it has not otherwise already
- * completed. Similarly, cancelling an internal CountedCompleter has
- * only a local effect on that completer, so is not often useful.
+ * {@link #complete}, {@link ForkJoinTask#cancel},
+ * {@link ForkJoinTask#completeExceptionally(Throwable)} or upon
+ * exceptional completion of method {@code compute}. Upon any
+ * exceptional completion, the exception may be relayed to a task's
+ * completer (and its completer, and so on), if one exists and it has
+ * not otherwise already completed. Similarly, cancelling an internal
+ * CountedCompleter has only a local effect on that completer, so is
+ * not often useful.
  *
  * <p><b>Sample Usages.</b>
  *
@@ -96,8 +99,8 @@ package jsr166e;
  * improve load balancing. In the recursive case, the second of each
  * pair of subtasks to finish triggers completion of its parent
  * (because no result combination is performed, the default no-op
- * implementation of method {@code onCompletion} is not overridden). A
- * static utility method sets up the base task and invokes it
+ * implementation of method {@code onCompletion} is not overridden).
+ * A static utility method sets up the base task and invokes it
  * (here, implicitly using the {@link ForkJoinPool#commonPool()}).
  *
  * <pre> {@code
@@ -152,12 +155,11 @@ package jsr166e;
  *   }
  * }</pre>
  *
- * As a further improvement, notice that the left task need not even
- * exist.  Instead of creating a new one, we can iterate using the
- * original task, and add a pending count for each fork. Additionally,
- * because no task in this tree implements an {@link #onCompletion}
- * method, {@code tryComplete()} can be replaced with {@link
- * #propagateCompletion}.
+ * As a further improvement, notice that the left task need not even exist.
+ * Instead of creating a new one, we can iterate using the original task,
+ * and add a pending count for each fork.  Additionally, because no task
+ * in this tree implements an {@link #onCompletion(CountedCompleter)} method,
+ * {@code tryComplete()} can be replaced with {@link #propagateCompletion}.
  *
  * <pre> {@code
  * class ForEach<E> ...
@@ -235,7 +237,7 @@ package jsr166e;
  *
  * <p><b>Recording subtasks.</b> CountedCompleter tasks that combine
  * results of multiple subtasks usually need to access these results
- * in method {@link #onCompletion}. As illustrated in the following
+ * in method {@link #onCompletion(CountedCompleter)}. As illustrated in the following
  * class (that performs a simplified form of map-reduce where mappings
  * and reductions are all of type {@code E}), one way to do this in
  * divide and conquer designs is to have each subtask record its
@@ -336,7 +338,7 @@ package jsr166e;
  *     while (h - l >= 2) {
  *       int mid = (l + h) >>> 1;
  *       addToPendingCount(1);
- *       (forks = new MapReducer(this, array, mapper, reducer, mid, h, forks)).fork;
+ *       (forks = new MapReducer(this, array, mapper, reducer, mid, h, forks)).fork();
  *       h = mid;
  *     }
  *     if (h > l)
@@ -357,7 +359,7 @@ package jsr166e;
  *
  * <p><b>Triggers.</b> Some CountedCompleters are themselves never
  * forked, but instead serve as bits of plumbing in other designs;
- * including those in which the completion of one of more async tasks
+ * including those in which the completion of one or more async tasks
  * triggers another async task. For example:
  *
  * <pre> {@code
@@ -437,20 +439,21 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
     }
 
     /**
-     * Performs an action when method {@link #completeExceptionally}
-     * is invoked or method {@link #compute} throws an exception, and
-     * this task has not otherwise already completed normally. On
-     * entry to this method, this task {@link
-     * ForkJoinTask#isCompletedAbnormally}.  The return value of this
-     * method controls further propagation: If {@code true} and this
-     * task has a completer, then this completer is also completed
-     * exceptionally.  The default implementation of this method does
-     * nothing except return {@code true}.
+     * Performs an action when method {@link
+     * #completeExceptionally(Throwable)} is invoked or method {@link
+     * #compute} throws an exception, and this task has not already
+     * otherwise completed normally. On entry to this method, this task
+     * {@link ForkJoinTask#isCompletedAbnormally}.  The return value
+     * of this method controls further propagation: If {@code true}
+     * and this task has a completer that has not completed, then that
+     * completer is also completed exceptionally, with the same
+     * exception as this completer.  The default implementation of
+     * this method does nothing except return {@code true}.
      *
      * @param ex the exception
      * @param caller the task invoking this method (which may
      * be this task itself)
-     * @return true if this exception should be propagated to this
+     * @return {@code true} if this exception should be propagated to this
      * task's completer, if one exists
      */
     public boolean onExceptionalCompletion(Throwable ex, CountedCompleter<?> caller) {
@@ -491,7 +494,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      * @param delta the value to add
      */
     public final void addToPendingCount(int delta) {
-        int c; // note: can replace with intrinsic in jdk8
+        int c;
         do {} while (!U.compareAndSwapInt(this, PENDING, c = pending, c+delta));
     }
 
@@ -501,7 +504,7 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
      *
      * @param expected the expected value
      * @param count the new value
-     * @return true if successful
+     * @return {@code true} if successful
      */
     public final boolean compareAndSetPendingCount(int expected, int count) {
         return U.compareAndSwapInt(this, PENDING, expected, count);
@@ -535,9 +538,9 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
 
     /**
      * If the pending count is nonzero, decrements the count;
-     * otherwise invokes {@link #onCompletion} and then similarly
-     * tries to complete this task's completer, if one exists,
-     * else marks this task as complete.
+     * otherwise invokes {@link #onCompletion(CountedCompleter)}
+     * and then similarly tries to complete this task's completer,
+     * if one exists, else marks this task as complete.
      */
     public final void tryComplete() {
         CountedCompleter<?> a = this, s = a;
@@ -556,12 +559,12 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
 
     /**
      * Equivalent to {@link #tryComplete} but does not invoke {@link
-     * #onCompletion} along the completion path: If the pending count
-     * is nonzero, decrements the count; otherwise, similarly tries to
-     * complete this task's completer, if one exists, else marks this
-     * task as complete. This method may be useful in cases where
-     * {@code onCompletion} should not, or need not, be invoked for
-     * each completer in a computation.
+     * #onCompletion(CountedCompleter)} along the completion path:
+     * If the pending count is nonzero, decrements the count;
+     * otherwise, similarly tries to complete this task's completer, if
+     * one exists, else marks this task as complete. This method may be
+     * useful in cases where {@code onCompletion} should not, or need
+     * not, be invoked for each completer in a computation.
      */
     public final void propagateCompletion() {
         CountedCompleter<?> a = this, s = a;
@@ -578,13 +581,15 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
     }
 
     /**
-     * Regardless of pending count, invokes {@link #onCompletion},
-     * marks this task as complete and further triggers {@link
-     * #tryComplete} on this task's completer, if one exists.  The
-     * given rawResult is used as an argument to {@link #setRawResult}
-     * before invoking {@link #onCompletion} or marking this task as
-     * complete; its value is meaningful only for classes overriding
-     * {@code setRawResult}.
+     * Regardless of pending count, invokes
+     * {@link #onCompletion(CountedCompleter)}, marks this task as
+     * complete and further triggers {@link #tryComplete} on this
+     * task's completer, if one exists.  The given rawResult is
+     * used as an argument to {@link #setRawResult} before invoking
+     * {@link #onCompletion(CountedCompleter)} or marking this task
+     * as complete; its value is meaningful only for classes
+     * overriding {@code setRawResult}.  This method does not modify
+     * the pending count.
      *
      * <p>This method may be useful when forcing completion as soon as
      * any one (versus all) of several subtask results are obtained.
@@ -624,8 +629,8 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
     /**
      * If this task does not have a completer, invokes {@link
      * ForkJoinTask#quietlyComplete} and returns {@code null}.  Or, if
-     * this task's pending count is non-zero, decrements its pending
-     * count and returns {@code null}.  Otherwise, returns the
+     * the completer's pending count is non-zero, decrements that
+     * pending count and returns {@code null}.  Otherwise, returns the
      * completer.  This method can be used as part of a completion
      * traversal loop for homogeneous task hierarchies:
      *
@@ -667,8 +672,9 @@ public abstract class CountedCompleter<T> extends ForkJoinTask<T> {
     void internalPropagateException(Throwable ex) {
         CountedCompleter<?> a = this, s = a;
         while (a.onExceptionalCompletion(ex, s) &&
-               (a = (s = a).completer) != null && a.status >= 0)
-            a.recordExceptionalCompletion(ex);
+               (a = (s = a).completer) != null && a.status >= 0 &&
+               a.recordExceptionalCompletion(ex) == EXCEPTIONAL)
+            ;
     }
 
     /**

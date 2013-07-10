@@ -21,6 +21,14 @@ ES_HOME=`dirname "$SCRIPT"`/..
 # make ELASTICSEARCH_HOME absolute
 ES_HOME=`cd "$ES_HOME"; pwd`
 
+# if there is no configuration file in ES_HOME, we might have a packaged version and use it for getting the correct plugin path
+if [ ! -e $ES_HOME/config/elasticsearch.yml ] && [ -e /etc/elasticsearch/elasticsearch.yml ]; then
+  if [ -z $JAVA_OPTS ] ; then
+    JAVA_OPTS="-Des.default.config=/etc/elasticsearch/elasticsearch.yml"
+  elif [ -n $JAVA_OPTS ] && [ ! $JAVA_OPTS =~ " -Des.default.config=" ] ; then
+    JAVA_OPTS="$JAVA_OPTS -Des.default.config=/etc/elasticsearch/elasticsearch.yml"
+  fi
+fi
 
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA=$JAVA_HOME/bin/java

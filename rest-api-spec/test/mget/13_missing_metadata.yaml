@@ -46,7 +46,7 @@
   - is_true: docs.0.exists
   - match: { docs.0._index:     test_1      }
   - match: { docs.0._type:      test        }
-  - match: { docs.0._id:        1           }
+  - match: { docs.0._id:        "1"         }
   - match: { docs.0._version:   1           }
   - match: { docs.0._source:    { foo: bar }}
 

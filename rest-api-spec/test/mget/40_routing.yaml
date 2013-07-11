@@ -28,5 +28,5 @@
  - is_true:   docs.2.exists
  - match:   { docs.2._index:          test_1 }
  - match:   { docs.2._type:           test   }
- - match:   { docs.2._id:             1      }
- - match:   { docs.2.fields._routing: 5      }
+ - match:   { docs.2._id:             "1"    }
+ - match:   { docs.2.fields._routing: "5"    }

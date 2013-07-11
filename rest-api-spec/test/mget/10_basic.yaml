@@ -26,21 +26,21 @@
   - is_false: docs.0.exists
   - match:  { docs.0._index:     test_2      }
   - match:  { docs.0._type:      test        }
-  - match:  { docs.0._id:        1           }
+  - match:  { docs.0._id:        "1"         }
 
   - is_false: docs.1.exists
   - match:  { docs.1._index:     test_1      }
   - match:  { docs.1._type:      none        }
-  - match:  { docs.1._id:        1           }
+  - match:  { docs.1._id:        "1"         }
 
   - is_false: docs.2.exists
   - match:  { docs.2._index:     test_1      }
   - match:  { docs.2._type:      test        }
-  - match:  { docs.2._id:        2           }
+  - match:  { docs.2._id:        "2"         }
 
   - is_true:  docs.3.exists
   - match:  { docs.3._index:     test_1      }
   - match:  { docs.3._type:      test        }
-  - match:  { docs.3._id:        1           }
+  - match:  { docs.3._id:        "1"         }
   - match:  { docs.3._version:   1           }
   - match:  { docs.3._source:    { foo: bar }}

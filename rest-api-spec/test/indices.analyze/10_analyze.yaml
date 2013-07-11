@@ -17,7 +17,7 @@
         indices.analyze:
           format: text
           text: tHE BLACK and white! AND red
-    - is:
+    - match:
         tokens: "[black:4->9:<ALPHANUM>]\n\n4: \n[white:14->19:<ALPHANUM>]\n\n6: \n[red:25->28:<ALPHANUM>]\n"
 
 ---
@@ -26,8 +26,8 @@
         indices.analyze:
           text: Foo Bar
     - length: { tokens: 2 }
-    - is:     { tokens.0.token: foo }
-    - is:     { tokens.1.token: bar }
+    - match:     { tokens.0.token: foo }
+    - match:     { tokens.1.token: bar }
 
 ---
 "Analyze API JSON format - tokenizer and filter":
@@ -37,7 +37,7 @@
           text:         Foo Bar
           tokenizer:    keyword
     - length: { tokens: 1 }
-    - is:     { tokens.0.token: foo bar }
+    - match:     { tokens.0.token: foo bar }
 
 ---
 "Analyze API JSON format - index and field":
@@ -47,6 +47,6 @@
           index: test
           text: Foo Bar!
     - length: { tokens: 2 }
-    - is:     { tokens.0.token: Foo }
-    - is:     { tokens.1.token: Bar! }
+    - match:     { tokens.0.token: Foo }
+    - match:     { tokens.1.token: Bar! }
 

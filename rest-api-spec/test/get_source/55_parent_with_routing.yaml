@@ -1,6 +1,9 @@
 ---
 "Parent with routing":
 
+ - skip:
+      version:  "0 - 0.90.0"
+      reason:   "Get source not supported in pre 0.90.1 versions."
  - do:
       indices.create:
           index: test_1

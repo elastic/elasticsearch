@@ -30,7 +30,7 @@
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }
-  - match: { _id:      1      }
+  - match: { _id:      "1"      }
   - match: { _source:  { foo: bar } }
 
   - do:
@@ -40,5 +40,5 @@
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }
-  - match: { _id:      1      }
+  - match: { _id:      "1"      }
   - match: { _source:  { foo: bar } }

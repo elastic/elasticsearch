@@ -33,7 +33,8 @@ public class GeoPoint {
 
     public static final String LATITUDE = GeoPointFieldMapper.Names.LAT;
     public static final String LONGITUDE = GeoPointFieldMapper.Names.LON;
-    
+    public static final String GEOHASH = GeoPointFieldMapper.Names.GEOHASH;
+
     private double lat;
     private double lon;
 
@@ -133,7 +134,7 @@ public class GeoPoint {
     public String toString() {
         return "[" + lat + ", " + lon + "]";
     }
-    
+
     /**
      * Parse a {@link GeoPoint} with a {@link XContentParser}:
      * 
@@ -181,8 +182,14 @@ public class GeoPoint {
                         } else {
                             throw new ElasticSearchParseException("latitude must be a number");
                         }
+                    } else if (GEOHASH.equals(field)) {
+                        if(parser.nextToken() == Token.VALUE_STRING) {
+                            point.resetFromGeoHash(parser.text());
+                        } else {
+                            throw new ElasticSearchParseException("geohash must be a string");
+                        }
                     } else {
-                        throw new ElasticSearchParseException("field must be either '"+LATITUDE+"' or '"+LONGITUDE+"'");
+                        throw new ElasticSearchParseException("field must be either '" + LATITUDE + "', '" + LONGITUDE + "' or '" + GEOHASH + "'");
                     }
                 } else {
                     throw new ElasticSearchParseException("Token '"+parser.currentToken()+"' not allowed");
@@ -211,7 +218,7 @@ public class GeoPoint {
             int comma = data.indexOf(',');
             if(comma > 0) {
                 double lat = Double.parseDouble(data.substring(0, comma).trim());
-                double lon = Double.parseDouble(data.substring(comma+1).trim());
+                double lon = Double.parseDouble(data.substring(comma + 1).trim());
                 return point.reset(lat, lon);
             } else {
                 point.resetFromGeoHash(data);

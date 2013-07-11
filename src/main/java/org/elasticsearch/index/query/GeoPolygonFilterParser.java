@@ -91,36 +91,7 @@ public class GeoPolygonFilterParser implements FilterParser {
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         if ("points".equals(currentFieldName)) {
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                if (token == XContentParser.Token.FIELD_NAME) {
-                                    currentFieldName = parser.currentName();
-                                } else if (token == XContentParser.Token.START_ARRAY) {
-                                    token = parser.nextToken();
-                                    double lon = parser.doubleValue();
-                                    token = parser.nextToken();
-                                    double lat = parser.doubleValue();
-                                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                                    }
-                                    points.add(new GeoPoint(lat, lon));
-                                } else if (token == XContentParser.Token.START_OBJECT) {
-                                    GeoPoint point = new GeoPoint();
-                                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                                        if (token == XContentParser.Token.FIELD_NAME) {
-                                            currentFieldName = parser.currentName();
-                                        } else if (token.isValue()) {
-                                            if (currentFieldName.equals(GeoPointFieldMapper.Names.LAT)) {
-                                                point.resetLat(parser.doubleValue());
-                                            } else if (currentFieldName.equals(GeoPointFieldMapper.Names.LON)) {
-                                                point.resetLon(parser.doubleValue());
-                                            } else if (currentFieldName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                                                GeoHashUtils.decode(parser.text(), point);
-                                            }
-                                        }
-                                    }
-                                    points.add(point);
-                                } else if (token.isValue()) {
-                                    points.add(new GeoPoint().resetFromString(parser.text()));
-                                }
+                                points.add(GeoPoint.parse(parser));
                             }
                         } else {
                             throw new QueryParsingException(parseContext.index(), "[geo_polygon] filter does not support [" + currentFieldName + "]");

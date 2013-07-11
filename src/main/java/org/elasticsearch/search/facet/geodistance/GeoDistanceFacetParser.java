@@ -112,13 +112,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
                         entries.add(new GeoDistanceFacet.Entry(from, to, 0, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY));
                     }
                 } else {
-                    token = parser.nextToken();
-                    point.resetLon(parser.doubleValue());
-                    token = parser.nextToken();
-                    point.resetLat(parser.doubleValue());
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-
-                    }
+                    GeoPoint.parse(parser, point);
                     fieldName = currentName;
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -127,19 +121,7 @@ public class GeoDistanceFacetParser extends AbstractComponent implements FacetPa
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
                     fieldName = currentName;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (currentName.equals(GeoPointFieldMapper.Names.LAT)) {
-                                point.resetLat(parser.doubleValue());
-                            } else if (currentName.equals(GeoPointFieldMapper.Names.LON)) {
-                                point.resetLon(parser.doubleValue());
-                            } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
-                                GeoHashUtils.decode(parser.text(), point);
-                            }
-                        }
-                    }
+                    GeoPoint.parse(parser, point);
                 }
             } else if (token.isValue()) {
                 if (currentName.equals("unit")) {

@@ -5,8 +5,9 @@
  */
 
 package jsr166e;
+import jsr166y.ThreadLocalRandom;
+
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReadWriteLock;

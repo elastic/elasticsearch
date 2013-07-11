@@ -30,9 +30,9 @@
           routing: 4
           fields:  [_parent, _routing]
 
- - match:   { _id:      1}
- - match:   { fields._parent: 5}
- - match:   { fields._routing: 4}
+ - match:   { _id:      "1"}
+ - match:   { fields._parent: "5"}
+ - match:   { fields._routing: "4"}
 
  - do:
       catch: missing

@@ -10,7 +10,7 @@
  - is_true:   ok
  - match:   { _index:   test_1 }
  - match:   { _type:    test }
- - match:   { _id:      1}
+ - match:   { _id:      "1"}
  - match:   { _version: 1}
 
  - do:
@@ -21,7 +21,7 @@
 
  - match:   { _index:   test_1 }
  - match:   { _type:    test }
- - match:   { _id:      1}
+ - match:   { _id:      "1"}
  - match:   { _version: 1}
  - match:   { _source: { foo: bar }}
 

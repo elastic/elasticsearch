@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -119,7 +119,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
 
     private ComparatorType comparatorType;
     ExtTLongObjectHashMap<FullEntry> tEntries;
-    boolean cachedEntries;
+    CacheRecycler cacheRecycler;
     Collection<FullEntry> entries;
 
     InternalFullDateHistogramFacet() {
@@ -129,11 +129,11 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
         super(name);
     }
 
-    public InternalFullDateHistogramFacet(String name, ComparatorType comparatorType, ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries, boolean cachedEntries) {
+    public InternalFullDateHistogramFacet(String name, ComparatorType comparatorType, ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries, CacheRecycler cacheRecycler) {
         super(name);
         this.comparatorType = comparatorType;
         this.tEntries = entries;
-        this.cachedEntries = cachedEntries;
+        this.cacheRecycler = cacheRecycler;
         this.entries = entries.valueCollection();
     }
 
@@ -151,15 +151,16 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
     }
 
     void releaseCache() {
-        if (cachedEntries) {
-            CacheRecycler.pushLongObjectMap(tEntries);
-            cachedEntries = false;
+        if (cacheRecycler != null) {
+            cacheRecycler.pushLongObjectMap(tEntries);
+            cacheRecycler = null;
             tEntries = null;
         }
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             // we need to sort it
             InternalFullDateHistogramFacet internalFacet = (InternalFullDateHistogramFacet) facets.get(0);
@@ -169,7 +170,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
             return internalFacet;
         }
 
-        ExtTLongObjectHashMap<FullEntry> map = CacheRecycler.popLongObjectMap();
+        ExtTLongObjectHashMap<FullEntry> map = context.cacheRecycler().popLongObjectMap();
 
         for (Facet facet : facets) {
             InternalFullDateHistogramFacet histoFacet = (InternalFullDateHistogramFacet) facet;
@@ -204,7 +205,7 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
             ordered.add(value);
         }
 
-        CacheRecycler.pushLongObjectMap(map);
+        context.cacheRecycler().pushLongObjectMap(map);
 
         // just initialize it as already ordered facet
         InternalFullDateHistogramFacet ret = new InternalFullDateHistogramFacet(getName());
@@ -256,8 +257,6 @@ public class InternalFullDateHistogramFacet extends InternalDateHistogramFacet {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         comparatorType = ComparatorType.fromId(in.readByte());
-
-        cachedEntries = false;
         int size = in.readVInt();
         entries = new ArrayList<FullEntry>(size);
         for (int i = 0; i < size; i++) {

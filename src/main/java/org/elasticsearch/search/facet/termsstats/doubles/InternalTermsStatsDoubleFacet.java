@@ -22,7 +22,6 @@ package org.elasticsearch.search.facet.termsstats.doubles;
 import org.apache.lucene.util.CollectionUtil;
 
 import com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -170,7 +169,8 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             if (requiredSize == 0) {
                 // we need to sort it here!
@@ -183,7 +183,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTDoubleObjectHashMap<DoubleEntry> map = CacheRecycler.popDoubleObjectMap();
+        ExtTDoubleObjectHashMap<DoubleEntry> map = context.cacheRecycler().popDoubleObjectMap();
         for (Facet facet : facets) {
             InternalTermsStatsDoubleFacet tsFacet = (InternalTermsStatsDoubleFacet) facet;
             missing += tsFacet.missing;
@@ -210,7 +210,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
         if (requiredSize == 0) { // all terms
             DoubleEntry[] entries1 = map.values(new DoubleEntry[map.size()]);
             Arrays.sort(entries1, comparatorType.comparator());
-            CacheRecycler.pushDoubleObjectMap(map);
+            context.cacheRecycler().pushDoubleObjectMap(map);
             return new InternalTermsStatsDoubleFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
             Object[] values = map.internalValues();
@@ -223,7 +223,7 @@ public class InternalTermsStatsDoubleFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            CacheRecycler.pushDoubleObjectMap(map);
+            context.cacheRecycler().pushDoubleObjectMap(map);
             return new InternalTermsStatsDoubleFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

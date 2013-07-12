@@ -26,7 +26,7 @@ import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import gnu.trove.set.hash.THashSet;
 import org.apache.lucene.search.DocIdSet;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 public class IndicesFilterCache extends AbstractComponent implements RemovalListener<WeightedFilterCache.FilterCacheKey, DocIdSet> {
 
     private final ThreadPool threadPool;
+    private final CacheRecycler cacheRecycler;
 
     private Cache<WeightedFilterCache.FilterCacheKey, DocIdSet> cache;
 
@@ -88,9 +89,10 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
     }
 
     @Inject
-    public IndicesFilterCache(Settings settings, ThreadPool threadPool, NodeSettingsService nodeSettingsService) {
+    public IndicesFilterCache(Settings settings, ThreadPool threadPool, CacheRecycler cacheRecycler, NodeSettingsService nodeSettingsService) {
         super(settings);
         this.threadPool = threadPool;
+        this.cacheRecycler = cacheRecycler;
         this.size = componentSettings.get("size", "20%");
         this.expire = componentSettings.getAsTime("expire", null);
         this.cleanInterval = componentSettings.getAsTime("clean_interval", TimeValue.timeValueSeconds(60));
@@ -172,7 +174,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
             threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
                 @Override
                 public void run() {
-                    THashSet<Object> keys = CacheRecycler.popHashSet();
+                    THashSet<Object> keys = cacheRecycler.popHashSet();
                     try {
                         for (Iterator<Object> it = readersKeysToClean.iterator(); it.hasNext(); ) {
                             keys.add(it.next());
@@ -190,7 +192,7 @@ public class IndicesFilterCache extends AbstractComponent implements RemovalList
                         }
                         threadPool.schedule(cleanInterval, ThreadPool.Names.SAME, ReaderCleaner.this);
                     } finally {
-                        CacheRecycler.pushHashSet(keys);
+                        cacheRecycler.pushHashSet(keys);
                     }
                 }
             });

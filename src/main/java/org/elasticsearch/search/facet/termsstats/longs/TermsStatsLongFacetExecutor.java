@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -44,6 +44,7 @@ import java.util.List;
 public class TermsStatsLongFacetExecutor extends FacetExecutor {
 
     private final TermsStatsFacet.ComparatorType comparatorType;
+    final CacheRecycler cacheRecycler;
     final IndexNumericFieldData keyIndexFieldData;
     final IndexNumericFieldData valueIndexFieldData;
     final SearchScript script;
@@ -60,8 +61,9 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.script = script;
+        this.cacheRecycler = context.cacheRecycler();
 
-        this.entries = CacheRecycler.popLongObjectMap();
+        this.entries = cacheRecycler.popLongObjectMap();
     }
 
     @Override
@@ -92,7 +94,7 @@ public class TermsStatsLongFacetExecutor extends FacetExecutor {
             }
             ordered.add(value);
         }
-        CacheRecycler.pushLongObjectMap(entries);
+        cacheRecycler.pushLongObjectMap(entries);
         return new InternalTermsStatsLongFacet(facetName, comparatorType, size, ordered, missing);
     }
 

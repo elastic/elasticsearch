@@ -23,7 +23,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTDoubleObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -43,6 +43,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
 
     private final TermsStatsFacet.ComparatorType comparatorType;
 
+    final CacheRecycler cacheRecycler;
     final IndexNumericFieldData keyIndexFieldData;
     final IndexNumericFieldData valueIndexFieldData;
     final SearchScript script;
@@ -59,8 +60,9 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.script = script;
+        this.cacheRecycler = context.cacheRecycler();
 
-        this.entries = CacheRecycler.popDoubleObjectMap();
+        this.entries = cacheRecycler.popDoubleObjectMap();
     }
 
     @Override
@@ -90,7 +92,7 @@ public class TermsStatsDoubleFacetExecutor extends FacetExecutor {
             ordered.add(value);
         }
 
-        CacheRecycler.pushDoubleObjectMap(entries);
+        cacheRecycler.pushDoubleObjectMap(entries);
         return new InternalTermsStatsDoubleFacet(facetName, comparatorType, size, ordered, missing);
     }
 

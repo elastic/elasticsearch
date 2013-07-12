@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -36,6 +36,7 @@ import java.io.IOException;
  */
 public class ValueHistogramFacetExecutor extends FacetExecutor {
 
+    private final CacheRecycler cacheRecycler;
     private final IndexNumericFieldData keyIndexFieldData;
     private final IndexNumericFieldData valueIndexFieldData;
     private final HistogramFacet.ComparatorType comparatorType;
@@ -48,7 +49,8 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.interval = interval;
-        this.entries = CacheRecycler.popLongObjectMap();
+        this.cacheRecycler = context.cacheRecycler();
+        this.entries = cacheRecycler.popLongObjectMap();
     }
 
     @Override
@@ -58,7 +60,7 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalFullHistogramFacet(facetName, comparatorType, entries, true);
+        return new InternalFullHistogramFacet(facetName, comparatorType, entries, cacheRecycler);
     }
 
     class Collector extends FacetExecutor.Collector {
@@ -110,7 +112,7 @@ public class ValueHistogramFacetExecutor extends FacetExecutor {
             }
             entry.count++;
             valueAggregator.entry = entry;
-            valueAggregator.onDoc(docId,  valueValues);
+            valueAggregator.onDoc(docId, valueValues);
         }
 
         public final static class ValueAggregator extends DoubleFacetAggregatorBase {

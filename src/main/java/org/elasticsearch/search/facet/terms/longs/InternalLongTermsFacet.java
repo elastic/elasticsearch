@@ -22,7 +22,6 @@ package org.elasticsearch.search.facet.terms.longs;
 import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TLongIntIterator;
 import gnu.trove.map.hash.TLongIntHashMap;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -160,14 +159,15 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             return facets.get(0);
         }
 
         InternalLongTermsFacet first = null;
 
-        TLongIntHashMap aggregated = CacheRecycler.popLongIntMap();
+        TLongIntHashMap aggregated = context.cacheRecycler().popLongIntMap();
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -192,7 +192,7 @@ public class InternalLongTermsFacet extends InternalTermsFacet {
         first.missing = missing;
         first.total = total;
 
-        CacheRecycler.pushLongIntMap(aggregated);
+        context.cacheRecycler().pushLongIntMap(aggregated);
 
         return first;
     }

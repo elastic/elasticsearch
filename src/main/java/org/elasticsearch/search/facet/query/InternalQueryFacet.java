@@ -76,7 +76,8 @@ public class InternalQueryFacet extends InternalFacet implements QueryFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             return facets.get(0);
         }

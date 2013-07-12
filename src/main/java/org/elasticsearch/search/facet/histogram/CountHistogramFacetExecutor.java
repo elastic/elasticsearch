@@ -21,7 +21,7 @@ package org.elasticsearch.search.facet.histogram;
 
 import gnu.trove.map.hash.TLongLongHashMap;
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
@@ -37,6 +37,7 @@ import java.io.IOException;
  */
 public class CountHistogramFacetExecutor extends FacetExecutor {
 
+    private final CacheRecycler cacheRecycler;
     private final IndexNumericFieldData indexFieldData;
     private final HistogramFacet.ComparatorType comparatorType;
     final long interval;
@@ -47,8 +48,9 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;
+        this.cacheRecycler = context.cacheRecycler();
 
-        this.counts = CacheRecycler.popLongLongMap();
+        this.counts = cacheRecycler.popLongLongMap();
     }
 
     @Override
@@ -58,7 +60,7 @@ public class CountHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalCountHistogramFacet(facetName, comparatorType, counts, true);
+        return new InternalCountHistogramFacet(facetName, comparatorType, counts, cacheRecycler);
     }
 
     public static long bucket(double value, long interval) {

@@ -20,7 +20,7 @@
 package org.elasticsearch.search.facet.datehistogram;
 
 import org.apache.lucene.index.AtomicReaderContext;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.joda.TimeZoneRounding;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
@@ -38,6 +38,7 @@ import java.io.IOException;
  */
 public class ValueDateHistogramFacetExecutor extends FacetExecutor {
 
+    private final CacheRecycler cacheRecycler;
     private final IndexNumericFieldData keyIndexFieldData;
     private final IndexNumericFieldData valueIndexFieldData;
     private final DateHistogramFacet.ComparatorType comparatorType;
@@ -45,13 +46,14 @@ public class ValueDateHistogramFacetExecutor extends FacetExecutor {
 
     final ExtTLongObjectHashMap<InternalFullDateHistogramFacet.FullEntry> entries;
 
-    public ValueDateHistogramFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType) {
+    public ValueDateHistogramFacetExecutor(IndexNumericFieldData keyIndexFieldData, IndexNumericFieldData valueIndexFieldData, TimeZoneRounding tzRounding, DateHistogramFacet.ComparatorType comparatorType, CacheRecycler cacheRecycler) {
         this.comparatorType = comparatorType;
         this.keyIndexFieldData = keyIndexFieldData;
         this.valueIndexFieldData = valueIndexFieldData;
         this.tzRounding = tzRounding;
+        this.cacheRecycler = cacheRecycler;
 
-        this.entries = CacheRecycler.popLongObjectMap();
+        this.entries = cacheRecycler.popLongObjectMap();
     }
 
     @Override
@@ -61,7 +63,7 @@ public class ValueDateHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalFullDateHistogramFacet(facetName, comparatorType, entries, true);
+        return new InternalFullDateHistogramFacet(facetName, comparatorType, entries, cacheRecycler);
     }
 
     class Collector extends FacetExecutor.Collector {

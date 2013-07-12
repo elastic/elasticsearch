@@ -21,7 +21,6 @@ package org.elasticsearch.search.facet.termsstats.strings;
 
 import com.google.common.collect.ImmutableList;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -174,7 +173,8 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             if (requiredSize == 0) {
                 // we need to sort it here!
@@ -187,7 +187,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
             return facets.get(0);
         }
         int missing = 0;
-        ExtTHashMap<Text, StringEntry> map = CacheRecycler.popHashMap();
+        ExtTHashMap<Text, StringEntry> map = context.cacheRecycler().popHashMap();
         for (Facet facet : facets) {
             InternalTermsStatsStringFacet tsFacet = (InternalTermsStatsStringFacet) facet;
             missing += tsFacet.missing;
@@ -214,7 +214,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
         if (requiredSize == 0) { // all terms
             StringEntry[] entries1 = map.values().toArray(new StringEntry[map.size()]);
             Arrays.sort(entries1, comparatorType.comparator());
-            CacheRecycler.pushHashMap(map);
+            context.cacheRecycler().pushHashMap(map);
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, Arrays.asList(entries1), missing);
         } else {
             Object[] values = map.internalValues();
@@ -227,7 +227,7 @@ public class InternalTermsStatsStringFacet extends InternalTermsStatsFacet {
                 }
                 ordered.add(value);
             }
-            CacheRecycler.pushHashMap(map);
+            context.cacheRecycler().pushHashMap(map);
             return new InternalTermsStatsStringFacet(getName(), comparatorType, requiredSize, ordered, missing);
         }
     }

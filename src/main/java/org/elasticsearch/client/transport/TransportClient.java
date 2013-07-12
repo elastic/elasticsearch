@@ -39,21 +39,22 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.mlt.MoreLikeThisRequest;
-import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.percolate.PercolateRequest;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvector.TermVectorResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.client.transport.support.InternalTransportClient;
 import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -165,6 +166,7 @@ public class TransportClient extends AbstractClient {
         CompressorFactory.configure(this.settings);
 
         ModulesBuilder modules = new ModulesBuilder();
+        modules.add(new CacheRecyclerModule(settings));
         modules.add(new PluginsModule(this.settings, pluginsService));
         modules.add(new EnvironmentModule(environment));
         modules.add(new SettingsModule(this.settings));
@@ -272,7 +274,8 @@ public class TransportClient extends AbstractClient {
             // ignore
         }
 
-        CacheRecycler.clear();
+        injector.getInstance(CacheRecycler.class).clear();
+
         CachedStreams.clear();
         ThreadLocals.clearReferencesThreadLocals();
     }
@@ -431,7 +434,7 @@ public class TransportClient extends AbstractClient {
     public void moreLikeThis(MoreLikeThisRequest request, ActionListener<SearchResponse> listener) {
         internalClient.moreLikeThis(request, listener);
     }
-    
+
     @Override
     public void termVector(TermVectorRequest request, ActionListener<TermVectorResponse> listener) {
         internalClient.termVector(request, listener);

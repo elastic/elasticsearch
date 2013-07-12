@@ -20,6 +20,7 @@
 package org.elasticsearch.search.facet;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -34,6 +35,24 @@ import java.util.List;
  *
  */
 public abstract class InternalFacet implements Facet, Streamable, ToXContent {
+
+    public static class ReduceContext {
+        private final CacheRecycler cacheRecycler;
+        private final List<Facet> facets;
+
+        public ReduceContext(CacheRecycler cacheRecycler, List<Facet> facets) {
+            this.cacheRecycler = cacheRecycler;
+            this.facets = facets;
+        }
+
+        public CacheRecycler cacheRecycler() {
+            return cacheRecycler;
+        }
+
+        public List<Facet> facets() {
+            return facets;
+        }
+    }
 
     private String facetName;
 
@@ -50,7 +69,7 @@ public abstract class InternalFacet implements Facet, Streamable, ToXContent {
 
     public abstract BytesReference streamType();
 
-    public abstract Facet reduce(List<Facet> facets);
+    public abstract Facet reduce(ReduceContext context);
 
     public static interface Stream {
         Facet readFacet(StreamInput in) throws IOException;

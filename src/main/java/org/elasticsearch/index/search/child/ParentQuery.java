@@ -27,7 +27,6 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.search.ApplyAcceptedDocsFilter;
@@ -64,7 +63,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        uidToScore = CacheRecycler.popObjectFloatMap();
+        uidToScore = searchContext.cacheRecycler().popObjectFloatMap();
         ParentUidCollector collector = new ParentUidCollector(uidToScore, searchContext, parentType);
         Query parentQuery;
         if (rewrittenParentQuery == null) {
@@ -78,7 +77,7 @@ public class ParentQuery extends Query implements SearchContext.Rewrite {
     @Override
     public void contextClear() {
         if (uidToScore != null) {
-            CacheRecycler.pushObjectFloatMap(uidToScore);
+            searchContext.cacheRecycler().pushObjectFloatMap(uidToScore);
         }
         uidToScore = null;
     }

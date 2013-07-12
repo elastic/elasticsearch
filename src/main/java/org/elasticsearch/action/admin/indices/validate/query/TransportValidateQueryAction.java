@@ -25,6 +25,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -61,11 +62,14 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
     private final ScriptService scriptService;
 
+    private final CacheRecycler cacheRecycler;
+
     @Inject
-    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService) {
+    public TransportValidateQueryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, IndicesService indicesService, ScriptService scriptService, CacheRecycler cacheRecycler) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
+        this.cacheRecycler = cacheRecycler;
     }
 
     @Override
@@ -168,7 +172,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             SearchContext.setCurrent(new SearchContext(0,
                     new ShardSearchRequest().types(request.types()),
                     null, indexShard.searcher(), indexService, indexShard,
-                    scriptService));
+                    scriptService, cacheRecycler));
             try {
                 ParsedQuery parsedQuery = queryParserService.parse(request.querySource());
                 valid = true;

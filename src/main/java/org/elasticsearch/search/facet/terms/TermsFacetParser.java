@@ -178,7 +178,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
             return new FieldsTermsStringFacetExecutor(facetName, mappers.toArray(new FieldMapper[mappers.size()]), size, comparatorType, allTerms, context, excluded, pattern, searchScript);
         }
         if (field == null && fieldsNames == null && script != null) {
-            return new ScriptTermsStringFieldFacetExecutor(size, comparatorType, context, excluded, pattern, scriptLang, script, params);
+            return new ScriptTermsStringFieldFacetExecutor(size, comparatorType, context, excluded, pattern, scriptLang, script, params, context.cacheRecycler());
         }
 
         FieldMapper fieldMapper = context.smartNameFieldMapper(field);
@@ -190,9 +190,9 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
         if (indexFieldData instanceof IndexNumericFieldData) {
             IndexNumericFieldData indexNumericFieldData = (IndexNumericFieldData) indexFieldData;
             if (indexNumericFieldData.getNumericType().isFloatingPoint()) {
-                return new TermsDoubleFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript);
+                return new TermsDoubleFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
             } else {
-                return new TermsLongFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript);
+                return new TermsLongFacetExecutor(indexNumericFieldData, size, comparatorType, allTerms, context, excluded, searchScript, context.cacheRecycler());
             }
         } else {
             if (script != null || "map".equals(executionHint)) {

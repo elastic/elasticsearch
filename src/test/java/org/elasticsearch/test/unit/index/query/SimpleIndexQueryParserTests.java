@@ -31,6 +31,7 @@ import org.apache.lucene.search.spans.*;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -102,6 +103,7 @@ public class SimpleIndexQueryParserTests {
                 .build();
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
+                new CacheRecyclerModule(settings),
                 new CodecModule(settings),
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),

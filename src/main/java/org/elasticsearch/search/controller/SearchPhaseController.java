@@ -25,6 +25,7 @@ import com.google.common.collect.Ordering;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.XMaps;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -71,11 +72,13 @@ public class SearchPhaseController extends AbstractComponent {
 
     private static final ShardDoc[] EMPTY = new ShardDoc[0];
 
+    private final CacheRecycler cacheRecycler;
     private final boolean optimizeSingleShard;
 
     @Inject
-    public SearchPhaseController(Settings settings) {
+    public SearchPhaseController(Settings settings, CacheRecycler cacheRecycler) {
         super(settings);
+        this.cacheRecycler = cacheRecycler;
         this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
     }
 
@@ -327,7 +330,7 @@ public class SearchPhaseController extends AbstractComponent {
                         }
                     }
                     if (!namedFacets.isEmpty()) {
-                        Facet aggregatedFacet = ((InternalFacet) namedFacets.get(0)).reduce(namedFacets);
+                        Facet aggregatedFacet = ((InternalFacet) namedFacets.get(0)).reduce(new InternalFacet.ReduceContext(cacheRecycler, namedFacets));
                         aggregatedFacets.add(aggregatedFacet);
                     }
                 }

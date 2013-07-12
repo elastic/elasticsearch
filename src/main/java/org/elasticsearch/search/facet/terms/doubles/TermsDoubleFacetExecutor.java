@@ -27,7 +27,7 @@ import gnu.trove.set.hash.TDoubleHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -49,6 +49,7 @@ import java.util.Set;
  */
 public class TermsDoubleFacetExecutor extends FacetExecutor {
 
+    private CacheRecycler cacheRecycler;
     private final IndexNumericFieldData indexFieldData;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
@@ -60,14 +61,15 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
     long total;
 
     public TermsDoubleFacetExecutor(IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                    ImmutableSet<BytesRef> excluded, SearchScript script) {
+                                    ImmutableSet<BytesRef> excluded, SearchScript script, CacheRecycler cacheRecycler) {
         this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
         this.script = script;
         this.excluded = excluded;
+        this.cacheRecycler = cacheRecycler;
 
-        this.facets = CacheRecycler.popDoubleIntMap();
+        this.facets = cacheRecycler.popDoubleIntMap();
 
         if (allTerms) {
             for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
@@ -115,7 +117,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         if (facets.isEmpty()) {
-            CacheRecycler.pushDoubleIntMap(facets);
+            cacheRecycler.pushDoubleIntMap(facets);
             return new InternalDoubleTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalDoubleTermsFacet.DoubleEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
@@ -128,7 +130,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                 for (int i = ordered.size() - 1; i >= 0; i--) {
                     list[i] = (InternalDoubleTermsFacet.DoubleEntry) ordered.pop();
                 }
-                CacheRecycler.pushDoubleIntMap(facets);
+                cacheRecycler.pushDoubleIntMap(facets);
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry> ordered = new BoundedTreeSet<InternalDoubleTermsFacet.DoubleEntry>(comparatorType.comparator(), size);
@@ -136,7 +138,7 @@ public class TermsDoubleFacetExecutor extends FacetExecutor {
                     it.advance();
                     ordered.add(new InternalDoubleTermsFacet.DoubleEntry(it.key(), it.value()));
                 }
-                CacheRecycler.pushDoubleIntMap(facets);
+                cacheRecycler.pushDoubleIntMap(facets);
                 return new InternalDoubleTermsFacet(facetName, comparatorType, size, ordered, missing, total);
             }
         }

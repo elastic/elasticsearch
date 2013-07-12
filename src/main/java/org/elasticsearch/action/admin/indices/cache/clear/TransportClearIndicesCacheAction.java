@@ -24,13 +24,13 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastOperationAction;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.service.IndexService;
@@ -51,13 +51,16 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
 
     private final IndicesService indicesService;
     private final IndicesTermsFilterCache termsFilterCache;
+    private final CacheRecycler cacheRecycler;
 
     @Inject
     public TransportClearIndicesCacheAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                            TransportService transportService, IndicesService indicesService, IndicesTermsFilterCache termsFilterCache) {
+                                            TransportService transportService, IndicesService indicesService, IndicesTermsFilterCache termsFilterCache,
+                                            CacheRecycler cacheRecycler) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.termsFilterCache = termsFilterCache;
+        this.cacheRecycler = cacheRecycler;
     }
 
     @Override
@@ -147,7 +150,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastOperatio
             if (request.recycler()) {
                 logger.info("Clear CacheRecycler on index [{}]", service.index());
                 clearedAtLeastOne = true;
-                CacheRecycler.clear();
+                cacheRecycler.clear();
             }
             if (request.idCache()) {
                 clearedAtLeastOne = true;

@@ -21,7 +21,7 @@ package org.elasticsearch.search.facet.histogram;
 
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.trove.ExtTLongObjectHashMap;
 import org.elasticsearch.index.fielddata.DoubleValues;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -40,6 +40,7 @@ import java.util.Map;
  */
 public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
 
+    private final CacheRecycler cacheRecycler;
     private final IndexNumericFieldData indexFieldData;
     private final HistogramFacet.ComparatorType comparatorType;
     final SearchScript valueScript;
@@ -52,8 +53,9 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
         this.indexFieldData = indexFieldData;
         this.interval = interval;
         this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, params);
+        this.cacheRecycler = context.cacheRecycler();
 
-        this.entries = CacheRecycler.popLongObjectMap();
+        this.entries = cacheRecycler.popLongObjectMap();
     }
 
     @Override
@@ -63,7 +65,7 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
 
     @Override
     public InternalFacet buildFacet(String facetName) {
-        return new InternalFullHistogramFacet(facetName, comparatorType, entries, true);
+        return new InternalFullHistogramFacet(facetName, comparatorType, entries, cacheRecycler);
     }
 
     public static long bucket(double value, long interval) {

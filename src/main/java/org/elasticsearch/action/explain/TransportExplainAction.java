@@ -23,6 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -61,13 +62,16 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
 
     private final ScriptService scriptService;
 
+    private final CacheRecycler cacheRecycler;
+
     @Inject
     public TransportExplainAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                   TransportService transportService, IndicesService indicesService,
-                                  ScriptService scriptService) {
+                                  ScriptService scriptService, CacheRecycler cacheRecycler) {
         super(settings, threadPool, clusterService, transportService);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
+        this.cacheRecycler = cacheRecycler;
     }
 
     protected String transportAction() {
@@ -99,7 +103,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
                 new ShardSearchRequest().types(new String[]{request.type()})
                         .filteringAliases(request.filteringAlias()),
                 null, result.searcher(), indexService, indexShard,
-                scriptService
+                scriptService, cacheRecycler
         );
         SearchContext.setCurrent(context);
 

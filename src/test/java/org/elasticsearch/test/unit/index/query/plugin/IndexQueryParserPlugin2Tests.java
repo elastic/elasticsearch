@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.unit.index.query.plugin;
 
+import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
@@ -62,6 +63,7 @@ public class IndexQueryParserPlugin2Tests {
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
                 new CodecModule(settings),
+                new CacheRecyclerModule(settings),
                 new SettingsModule(settings),
                 new ThreadPoolModule(settings),
                 new IndicesQueriesModule(),

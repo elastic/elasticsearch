@@ -27,7 +27,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
@@ -112,7 +111,7 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        collectedUids = CacheRecycler.popHashSet();
+        collectedUids = searchContext.cacheRecycler().popHashSet();
         UidCollector collector = new UidCollector(parentType, searchContext, collectedUids);
         searchContext.searcher().search(childQuery, collector);
     }
@@ -120,7 +119,7 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
     @Override
     public void contextClear() {
         if (collectedUids != null) {
-            CacheRecycler.pushHashSet(collectedUids);
+            searchContext.cacheRecycler().pushHashSet(collectedUids);
         }
         collectedUids = null;
     }
@@ -154,7 +153,7 @@ public class HasChildFilter extends Filter implements SearchContext.Rewrite {
         }
 
         @Override
-        public void collect(int doc, HashedBytesArray parentIdByDoc){
+        public void collect(int doc, HashedBytesArray parentIdByDoc) {
             collectedUids.add(parentIdByDoc);
         }
 

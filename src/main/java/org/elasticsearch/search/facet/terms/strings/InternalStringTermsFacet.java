@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -169,14 +168,15 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             return facets.get(0);
         }
 
         InternalStringTermsFacet first = null;
 
-        TObjectIntHashMap<Text> aggregated = CacheRecycler.popObjectIntMap();
+        TObjectIntHashMap<Text> aggregated = context.cacheRecycler().popObjectIntMap();
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -188,7 +188,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
                 // the assumption is that if one of the facets is of different type, it should do the
                 // reduction (all the facets we iterated so far most likely represent unmapped fields, if not
                 // class cast exception will be thrown)
-                return termsFacet.reduce(facets);
+                return termsFacet.reduce(context);
             }
 
             if (first == null) {
@@ -209,7 +209,7 @@ public class InternalStringTermsFacet extends InternalTermsFacet {
         first.missing = missing;
         first.total = total;
 
-        CacheRecycler.pushObjectIntMap(aggregated);
+        context.cacheRecycler().pushObjectIntMap(aggregated);
 
         return first;
     }

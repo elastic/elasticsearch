@@ -27,7 +27,6 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticSearchIllegalStateException;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.bytes.HashedBytesArray;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
@@ -97,7 +96,7 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
     @Override
     public void contextRewrite(SearchContext searchContext) throws Exception {
         searchContext.idCache().refresh(searchContext.searcher().getTopReaderContext().leaves());
-        parents = CacheRecycler.popHashSet();
+        parents = context.cacheRecycler().popHashSet();
         ParentUidsCollector collector = new ParentUidsCollector(parents, context, parentType);
         searchContext.searcher().search(parentQuery, collector);
         parents = collector.collectedUids;
@@ -106,7 +105,7 @@ public class HasParentFilter extends Filter implements SearchContext.Rewrite {
     @Override
     public void contextClear() {
         if (parents != null) {
-            CacheRecycler.pushHashSet(parents);
+            context.cacheRecycler().pushHashSet(parents);
         }
         parents = null;
     }

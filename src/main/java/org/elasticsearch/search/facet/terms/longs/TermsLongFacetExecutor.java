@@ -27,7 +27,7 @@ import gnu.trove.set.hash.TLongHashSet;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LongValues;
@@ -49,6 +49,7 @@ import java.util.Set;
  */
 public class TermsLongFacetExecutor extends FacetExecutor {
 
+    private final CacheRecycler cacheRecycler;
     private final IndexNumericFieldData indexFieldData;
     private final TermsFacet.ComparatorType comparatorType;
     private final int size;
@@ -60,13 +61,14 @@ public class TermsLongFacetExecutor extends FacetExecutor {
     long total;
 
     public TermsLongFacetExecutor(IndexNumericFieldData indexFieldData, int size, TermsFacet.ComparatorType comparatorType, boolean allTerms, SearchContext context,
-                                  ImmutableSet<BytesRef> excluded, SearchScript script) {
+                                  ImmutableSet<BytesRef> excluded, SearchScript script, CacheRecycler cacheRecycler) {
         this.indexFieldData = indexFieldData;
         this.size = size;
         this.comparatorType = comparatorType;
         this.script = script;
         this.excluded = excluded;
-        this.facets = CacheRecycler.popLongIntMap();
+        this.cacheRecycler = cacheRecycler;
+        this.facets = cacheRecycler.popLongIntMap();
 
         if (allTerms) {
             for (AtomicReaderContext readerContext : context.searcher().getTopReaderContext().leaves()) {
@@ -114,7 +116,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
     @Override
     public InternalFacet buildFacet(String facetName) {
         if (facets.isEmpty()) {
-            CacheRecycler.pushLongIntMap(facets);
+            cacheRecycler.pushLongIntMap(facets);
             return new InternalLongTermsFacet(facetName, comparatorType, size, ImmutableList.<InternalLongTermsFacet.LongEntry>of(), missing, total);
         } else {
             if (size < EntryPriorityQueue.LIMIT) {
@@ -127,7 +129,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                 for (int i = ordered.size() - 1; i >= 0; i--) {
                     list[i] = (InternalLongTermsFacet.LongEntry) ordered.pop();
                 }
-                CacheRecycler.pushLongIntMap(facets);
+                cacheRecycler.pushLongIntMap(facets);
                 return new InternalLongTermsFacet(facetName, comparatorType, size, Arrays.asList(list), missing, total);
             } else {
                 BoundedTreeSet<InternalLongTermsFacet.LongEntry> ordered = new BoundedTreeSet<InternalLongTermsFacet.LongEntry>(comparatorType.comparator(), size);
@@ -135,7 +137,7 @@ public class TermsLongFacetExecutor extends FacetExecutor {
                     it.advance();
                     ordered.add(new InternalLongTermsFacet.LongEntry(it.key(), it.value()));
                 }
-                CacheRecycler.pushLongIntMap(facets);
+                cacheRecycler.pushLongIntMap(facets);
                 return new InternalLongTermsFacet(facetName, comparatorType, size, ordered, missing, total);
             }
         }

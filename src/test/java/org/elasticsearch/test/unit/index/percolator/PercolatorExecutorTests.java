@@ -25,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -81,6 +82,7 @@ public class PercolatorExecutorTests {
                 .build();
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
+                new CacheRecyclerModule(settings),
                 new IndexSettingsModule(index, settings),
                 new CodecModule(settings),
                 new SettingsModule(settings),

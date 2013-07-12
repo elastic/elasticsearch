@@ -26,6 +26,8 @@ import org.elasticsearch.bulk.udp.BulkUdpModule;
 import org.elasticsearch.bulk.udp.BulkUdpService;
 import org.elasticsearch.cache.NodeCache;
 import org.elasticsearch.cache.NodeCacheModule;
+import org.elasticsearch.cache.recycler.CacheRecycler;
+import org.elasticsearch.cache.recycler.CacheRecyclerModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
 import org.elasticsearch.cluster.ClusterModule;
@@ -33,7 +35,6 @@ import org.elasticsearch.cluster.ClusterNameModule;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.Lifecycle;
@@ -134,6 +135,7 @@ public final class InternalNode implements Node {
         NodeEnvironment nodeEnvironment = new NodeEnvironment(this.settings, this.environment);
 
         ModulesBuilder modules = new ModulesBuilder();
+        modules.add(new CacheRecyclerModule(settings));
         modules.add(new PluginsModule(settings, pluginsService));
         modules.add(new SettingsModule(settings));
         modules.add(new NodeModule(this));
@@ -344,9 +346,9 @@ public final class InternalNode implements Node {
         }
 
         injector.getInstance(NodeEnvironment.class).close();
+        injector.getInstance(CacheRecycler.class).clear();
         Injectors.close(injector);
 
-        CacheRecycler.clear();
         CachedStreams.clear();
         ThreadLocals.clearReferencesThreadLocals();
 

@@ -22,7 +22,6 @@ package org.elasticsearch.search.facet.terms.doubles;
 import com.google.common.collect.ImmutableList;
 import gnu.trove.iterator.TDoubleIntIterator;
 import gnu.trove.map.hash.TDoubleIntHashMap;
-import org.elasticsearch.common.CacheRecycler;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.HashedBytesArray;
@@ -159,14 +158,15 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
     }
 
     @Override
-    public Facet reduce(List<Facet> facets) {
+    public Facet reduce(ReduceContext context) {
+        List<Facet> facets = context.facets();
         if (facets.size() == 1) {
             return facets.get(0);
         }
 
         InternalDoubleTermsFacet first = null;
 
-        TDoubleIntHashMap aggregated = CacheRecycler.popDoubleIntMap();
+        TDoubleIntHashMap aggregated = context.cacheRecycler().popDoubleIntMap();
         long missing = 0;
         long total = 0;
         for (Facet facet : facets) {
@@ -178,7 +178,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
             missing += termsFacet.getMissingCount();
             total += termsFacet.getTotalCount();
             for (Entry entry : termsFacet.getEntries()) {
-                aggregated.adjustOrPutValue(((DoubleEntry)entry).term, entry.getCount(), entry.getCount());
+                aggregated.adjustOrPutValue(((DoubleEntry) entry).term, entry.getCount(), entry.getCount());
             }
         }
 
@@ -191,7 +191,7 @@ public class InternalDoubleTermsFacet extends InternalTermsFacet {
         first.missing = missing;
         first.total = total;
 
-        CacheRecycler.pushDoubleIntMap(aggregated);
+        context.cacheRecycler().pushDoubleIntMap(aggregated);
 
         return first;
     }

@@ -164,29 +164,41 @@ public class XContentMapValues {
                 sb.setLength(mark);
                 continue;
             }
-            boolean exactIncludeMatch = false;
-            if (includes.length > 0) {
-                boolean atLeastOnOneIncludeMatched = false;
+            boolean exactIncludeMatch;
+            if (includes.length == 0) {
+                // implied match anything
+                exactIncludeMatch = true;
+            } else {
+                exactIncludeMatch = false;
+                boolean pathIsPrefixOfAnInclude = false;
                 for (String include : includes) {
-                    // check for prefix as well to see if we need to zero in, something like: obj1.arr1.*
+                    // check for prefix matches as well to see if we need to zero in, something like: obj1.arr1.* or *.field
                     // note, this does not work well with middle matches, like obj1.*.obj3
+                    if (include.charAt(0) == '*') {
+                        if (Regex.simpleMatch(include, path)) {
+                            exactIncludeMatch = true;
+                            break;
+                        }
+                        pathIsPrefixOfAnInclude = true;
+                        break;
+                    }
                     if (include.startsWith(path)) {
                         if (include.length() == path.length()) {
-                            atLeastOnOneIncludeMatched = true;
                             exactIncludeMatch = true;
                             break;
                         } else if (include.length() > path.length() && include.charAt(path.length()) == '.') {
                             // include might may match deeper paths. Dive deeper.
-                            atLeastOnOneIncludeMatched = true;
+                            pathIsPrefixOfAnInclude = true;
                             break;
                         }
                     }
                     if (Regex.simpleMatch(include, path)) {
-                        atLeastOnOneIncludeMatched = true;
+                        exactIncludeMatch = true;
                         break;
                     }
                 }
-                if (!atLeastOnOneIncludeMatched) {
+                if (!pathIsPrefixOfAnInclude && !exactIncludeMatch) {
+                    // skip subkeys, not interesting.
                     sb.setLength(mark);
                     continue;
                 }
@@ -206,7 +218,7 @@ public class XContentMapValues {
                 // if we had an exact match, we want give deeper excludes their chance
                 filter(list, innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
                 into.put(entry.getKey(), innerInto);
-            } else {
+            } else if (exactIncludeMatch) {
                 into.put(entry.getKey(), entry.getValue());
             }
             sb.setLength(mark);

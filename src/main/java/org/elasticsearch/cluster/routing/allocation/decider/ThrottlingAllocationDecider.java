@@ -75,9 +75,12 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             boolean primaryUnassigned = false;
-            for (MutableShardRouting shard : allocation.routingNodes().unassigned()) {
+            List<MutableShardRouting> unassigned = allocation.routingNodes().unassigned();
+            for (int i1 = 0; i1 < unassigned.size(); i1++) {
+                MutableShardRouting shard = unassigned.get(i1);
                 if (shard.shardId().equals(shardRouting.shardId())) {
                     primaryUnassigned = true;
+                    break;
                 }
             }
             if (primaryUnassigned) {

@@ -27,13 +27,6 @@ import org.apache.lucene.util.UnicodeUtil;
  */
 public class StringRestResponse extends Utf8RestResponse {
 
-    private static ThreadLocal<BytesRef> cache = new ThreadLocal<BytesRef>() {
-        @Override
-        protected BytesRef initialValue() {
-            return new BytesRef();
-        }
-    };
-
     public StringRestResponse(RestStatus status) {
         super(status);
     }
@@ -43,7 +36,7 @@ public class StringRestResponse extends Utf8RestResponse {
     }
 
     private static BytesRef convert(String content) {
-        BytesRef result = cache.get();
+        BytesRef result = new BytesRef();
         UnicodeUtil.UTF16toUTF8(content, 0, content.length(), result);
         return result;
     }

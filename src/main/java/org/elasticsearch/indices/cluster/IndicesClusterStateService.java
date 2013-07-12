@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.cluster;
 
 import com.google.common.collect.Lists;
+import gnu.trove.set.hash.TIntHashSet;
 import org.elasticsearch.ElasticSearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -65,11 +66,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
 
 /**
@@ -242,39 +241,40 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyDeletedShards(final ClusterChangedEvent event) {
-        RoutingNode routingNodes = event.state().readOnlyRoutingNodes().nodesToShards().get(event.state().nodes().localNodeId());
-        if (routingNodes == null) {
+        RoutingNode routingNode = event.state().readOnlyRoutingNodes().nodesToShards().get(event.state().nodes().localNodeId());
+        if (routingNode == null) {
             return;
         }
-        for (final String index : indicesService.indices()) {
+        TIntHashSet newShardIds = new TIntHashSet();
+        for (IndexService indexService : indicesService) {
+            String index = indexService.index().name();
             IndexMetaData indexMetaData = event.state().metaData().index(index);
-            if (indexMetaData != null) {
-                // now, go over and delete shards that needs to get deleted
-                Set<Integer> newShardIds = newHashSet();
-                for (final ShardRouting shardRouting : routingNodes) {
-                    if (shardRouting.index().equals(index)) {
-                        newShardIds.add(shardRouting.id());
-                    }
+            if (indexMetaData == null) {
+                continue;
+            }
+            // now, go over and delete shards that needs to get deleted
+            newShardIds.clear();
+            List<MutableShardRouting> shards = routingNode.shards();
+            for (int i = 0; i < shards.size(); i++) {
+                ShardRouting shardRouting = shards.get(i);
+                if (shardRouting.index().equals(index)) {
+                    newShardIds.add(shardRouting.id());
                 }
-                final IndexService indexService = indicesService.indexService(index);
-                if (indexService == null) {
-                    continue;
-                }
-                for (Integer existingShardId : indexService.shardIds()) {
-                    if (!newShardIds.contains(existingShardId)) {
-                        if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
-                            if (logger.isDebugEnabled()) {
-                                logger.debug("[{}][{}] removing shard (index is closed)", index, existingShardId);
-                            }
-                            indexService.removeShard(existingShardId, "removing shard (index is closed)");
-                        } else {
-                            // we can just remove the shard, without cleaning it locally, since we will clean it
-                            // when all shards are allocated in the IndicesStore
-                            if (logger.isDebugEnabled()) {
-                                logger.debug("[{}][{}] removing shard (not allocated)", index, existingShardId);
-                            }
-                            indexService.removeShard(existingShardId, "removing shard (not allocated)");
+            }
+            for (Integer existingShardId : indexService.shardIds()) {
+                if (!newShardIds.contains(existingShardId)) {
+                    if (indexMetaData.state() == IndexMetaData.State.CLOSE) {
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("[{}][{}] removing shard (index is closed)", index, existingShardId);
                         }
+                        indexService.removeShard(existingShardId, "removing shard (index is closed)");
+                    } else {
+                        // we can just remove the shard, without cleaning it locally, since we will clean it
+                        // when all shards are allocated in the IndicesStore
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("[{}][{}] removing shard (not allocated)", index, existingShardId);
+                        }
+                        indexService.removeShard(existingShardId, "removing shard (not allocated)");
                     }
                 }
             }

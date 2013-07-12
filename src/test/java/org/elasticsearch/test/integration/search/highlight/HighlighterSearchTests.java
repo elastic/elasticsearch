@@ -1469,7 +1469,7 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
 
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "1")
+        client().prepareIndex("test", "test", "1")
         .setSource(jsonBuilder().startObject()
             .field("text", "elasticsearch test")
             .field("byte", 25)
@@ -1494,6 +1494,43 @@ public class HighlighterSearchTests extends AbstractSharedClusterTest {
         assertThat(response.getHits().totalHits(), equalTo(1L));
         // Highlighting of numeric fields is not supported, but it should not raise errors
         // (this behavior is consistent with version 0.20)
+        assertThat(response.getFailedShards(), equalTo(0));
+    }
+
+    @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/3200
+    public void testResetTwice() throws Exception {
+        prepareCreate("test")
+            .setSettings(ImmutableSettings.builder()
+                .put("analysis.analyzer.my_analyzer.type", "pattern")
+                .put("analysis.analyzer.my_analyzer.pattern", "\\s+")
+            .build())
+            .addMapping("type", jsonBuilder()
+                .startObject()
+                    .startObject("type")
+                        .startObject("properties")
+                            .startObject("text")
+                                .field("type", "string")
+                                .field("analyzer", "my_analyzer")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject())
+            .execute().actionGet();
+
+        ensureGreen();
+        client().prepareIndex("test", "type", "1")
+            .setSource(jsonBuilder().startObject()
+                    .field("text", "elasticsearch test")
+                .endObject())
+            .setRefresh(true)
+            .execute().actionGet();
+
+        SearchResponse response = client().prepareSearch("test")
+                .setQuery(QueryBuilders.matchQuery("text", "test").type(MatchQueryBuilder.Type.BOOLEAN))
+                .addHighlightedField("text").execute().actionGet();
+        assertThat(response.getHits().totalHits(), equalTo(1L));
+        // PatternAnalyzer will throw an exception if it is resetted twice
         assertThat(response.getFailedShards(), equalTo(0));
     }
 

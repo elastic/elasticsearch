@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
@@ -41,7 +42,11 @@ import java.io.InputStream;
  */
 public interface Translog extends IndexShardComponent, CloseableIndexComponent {
 
+    static ByteSizeValue INACTIVE_SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("1kb");
+
     public static final String TRANSLOG_ID_KEY = "translog_id";
+
+    void updateBuffer(ByteSizeValue bufferSize);
 
     void closeWithDelete();
 

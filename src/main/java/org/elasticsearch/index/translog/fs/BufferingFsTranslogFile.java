@@ -176,4 +176,20 @@ public class BufferingFsTranslogFile implements FsTranslogFile {
             rwl.writeLock().unlock();
         }
     }
+
+    @Override
+    public void updateBufferSize(int bufferSize) {
+        rwl.writeLock().lock();
+        try {
+            if (this.buffer.length == bufferSize) {
+                return;
+            }
+            flushBuffer();
+            this.buffer = new byte[bufferSize];
+        } catch (IOException e) {
+            throw new TranslogException(shardId, "failed to flush", e);
+        } finally {
+            rwl.writeLock().unlock();
+        }
+    }
 }

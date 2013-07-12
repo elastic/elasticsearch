@@ -26,6 +26,29 @@ import org.elasticsearch.common.inject.spi.Dependency;
 public interface InternalFactory<T> {
 
     /**
+     * ES:
+     * An factory that returns a pre created instance.
+     */
+    public static class Instance<T> implements InternalFactory<T> {
+
+        private final T object;
+
+        public Instance(T object) {
+            this.object = object;
+        }
+
+        @Override
+        public T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
+            return object;
+        }
+
+        @Override
+        public String toString() {
+            return object.toString();
+        }
+    }
+
+    /**
      * Creates an object to be injected.
      *
      * @param context of this injection

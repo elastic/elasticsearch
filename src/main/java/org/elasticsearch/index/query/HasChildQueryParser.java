@@ -122,6 +122,10 @@ public class HasChildQueryParser implements QueryParser {
         String parentType = childDocMapper.parentFieldMapper().type();
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
 
+        if (parentDocMapper == null) {
+            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] points to a non existent parent type [" + parentType + "]");
+        }
+
         // wrap the query with type query
         SearchContext searchContext = SearchContext.current();
         if (searchContext == null) {

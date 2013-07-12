@@ -33,7 +33,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -122,9 +121,9 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType,
                                Float nullValue, PostingsFormatProvider provider, @Nullable Settings fieldDataSettings) {
-        super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType,
-                Defaults.IGNORE_MALFORMED, new NamedAnalyzer("_float/" + precisionStep, new NumericFloatAnalyzer(precisionStep)),
-                new NamedAnalyzer("_float/max", new NumericFloatAnalyzer(Integer.MAX_VALUE)), provider, null, fieldDataSettings);
+        super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType, Defaults.IGNORE_MALFORMED,
+                NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
+                provider, null, fieldDataSettings);
         this.nullValue = nullValue;
     }
 

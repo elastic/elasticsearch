@@ -14,7 +14,7 @@ import static java.lang.Double.longBitsToDouble;
  * See the {@link java.util.concurrent.atomic} package specification
  * for description of the properties of atomic variables.
  *
- * <p><a name="bitEquals">This class compares primitive {@code double}
+ * <p id="bitEquals">This class compares primitive {@code double}
  * values in methods such as {@link #compareAndSet} by comparing their
  * bitwise representation using {@link Double#doubleToRawLongBits},
  * which differs from both the primitive double {@code ==} operator
@@ -24,7 +24,7 @@ import static java.lang.Double.longBitsToDouble;
  *   long xBits = Double.doubleToRawLongBits(x);
  *   long yBits = Double.doubleToRawLongBits(y);
  *   return xBits == yBits;
- * }}</pre></a>
+ * }}</pre>
  *
  * @author Doug Lea
  * @author Martin Buchholz
@@ -162,11 +162,10 @@ public class AtomicDoubleArray implements java.io.Serializable {
      * if the current value is <a href="#bitEquals">bitwise equal</a>
      * to the expected value.
      *
-     * <p>May <a
+     * <p><a
      * href="http://download.oracle.com/javase/7/docs/api/java/util/concurrent/atomic/package-summary.html#Spurious">
-     * fail spuriously</a>
-     * and does not provide ordering guarantees, so is only rarely an
-     * appropriate alternative to {@code compareAndSet}.
+     * May fail spuriously and does not provide ordering guarantees</a>,
+     * so is only rarely an appropriate alternative to {@code compareAndSet}.
      *
      * @param i the index
      * @param expect the expected value

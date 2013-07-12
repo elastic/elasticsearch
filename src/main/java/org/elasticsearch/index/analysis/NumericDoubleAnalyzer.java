@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.analysis;
 
+import gnu.trove.map.hash.TIntObjectHashMap;
 import org.apache.lucene.util.NumericUtils;
 
 import java.io.IOException;
@@ -28,6 +29,24 @@ import java.io.Reader;
  *
  */
 public class NumericDoubleAnalyzer extends NumericAnalyzer<NumericDoubleTokenizer> {
+
+    private final static TIntObjectHashMap<NamedAnalyzer> builtIn;
+
+    static {
+        builtIn = new TIntObjectHashMap<NamedAnalyzer>();
+        builtIn.put(Integer.MAX_VALUE, new NamedAnalyzer("_double/max", AnalyzerScope.GLOBAL, new NumericDoubleAnalyzer(Integer.MAX_VALUE)));
+        for (int i = 0; i <= 64; i += 4) {
+            builtIn.put(i, new NamedAnalyzer("_double/" + i, AnalyzerScope.GLOBAL, new NumericDoubleAnalyzer(i)));
+        }
+    }
+
+    public static NamedAnalyzer buildNamedAnalyzer(int precisionStep) {
+        NamedAnalyzer namedAnalyzer = builtIn.get(precisionStep);
+        if (namedAnalyzer == null) {
+            namedAnalyzer = new NamedAnalyzer("_double/" + precisionStep, AnalyzerScope.INDEX, new NumericDoubleAnalyzer(precisionStep));
+        }
+        return namedAnalyzer;
+    }
 
     private final int precisionStep;
 

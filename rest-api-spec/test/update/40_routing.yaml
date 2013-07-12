@@ -19,7 +19,7 @@
           routing: 5
           fields:  _routing
 
- - match: { fields._routing:  5}
+ - match: { fields._routing:  "5"}
 
  - do:
       catch:      missing

@@ -40,7 +40,7 @@
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }
-  - match: { _id:      1      }
+  - match: { _id:      "1"    }
   - match: { _version: 2      }
 
   - do:
